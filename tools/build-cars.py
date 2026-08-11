@@ -24,6 +24,8 @@ Qué hace, y por qué cada paso:
 4. EXPORTA tres tamaños. El @2x existe para pantallas retina, que piden
    el doble de píxeles de los que mide la ventana.
 
+Sale a public/assets/cars/, que es la carpeta que se publica.
+
 Para sumar un auto: dejá la foto en source/<slug>.png y agregá su largo
 real de fábrica —en milímetros— a la tabla REAL.
 """
@@ -35,7 +37,7 @@ import sys
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(BASE, "source")
-OUT = os.path.join(BASE, "assets", "cars")
+OUT = os.path.join(BASE, "public", "assets", "cars")
 
 # Largo real de fábrica, en mm. Es la referencia contra la que se calibra
 # el tamaño en pantalla — sin esto no hay forma de saber si un auto está
