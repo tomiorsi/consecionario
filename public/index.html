@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Meridiano — Automóviles seleccionados</title>
-<meta name="description" content="Selección de automóviles premium. Cada unidad revisada, con historial verificado.">
+<meta name="description" content="Selección de automóviles deportivos. Cada unidad revisada, con historial verificado.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Chivo+Mono:wght@300..600&display=swap" rel="stylesheet">
@@ -12,40 +12,51 @@
 /* ══════════════════════════════════════════════════════════════════
    MERIDIANO — showroom
 
-   Cómo está armado, que es lo que hace que funcione:
+   La idea: el auto no es la página, es lo que está parado en el
+   escenario. Quien manda es la luz.
 
-   Las fotos vienen contra negro absoluto, sin piso y sin luz. El auto
-   está recortado con transparencia; abajo no hay ninguna foto de
-   fondo. El piso iluminado lo dibuja el CSS.
+   EL RIG. Seis capas de luz, todas dibujadas por CSS, ninguna es una
+   foto. Se reparten por todo el cuadro para que la energía no quede
+   amontonada abajo del auto:
 
-   Eso quiere decir que el escenario no es una imagen que se pueda
-   cambiar: es luz, y la luz se queda encendida mientras los autos
-   entran y salen de ella. Por construcción es imposible que parezca
-   que cambiamos de foto — no hay foto de fondo que cambiar.
+     · horizonte  — la barra que cruza de lado a lado a la altura del
+                    piso. Es la que hace que el auto se recorte contra
+                    algo en vez de flotar en la nada.
+     · reflejo    — la barra derramándose sobre el piso pulido
+     · conos      — dos haces cenitales que caen desde arriba
+     · columnas   — tiras verticales en los bordes, como un showroom
+     · brasa      — la mancha caliente justo abajo del auto
+     · ambiente   — un lavado general que despega el negro del vacío
 
-   El auto y la luz comparten el mismo marco (#frame), que mantiene la
-   proporción de las imágenes. Por eso las ruedas apoyan siempre sobre
-   el mismo punto del charco de luz, en cualquier tamaño de ventana.
+   Nada de esto se mueve cuando cambia el auto. Sólo late.
 
-   Sobre el color: no hay color de acento. El acento es la luz.
-   Cualquier color compite con el auto, que es lo único que la persona
-   vino a mirar.
+   EL AUTO. Va recortado con transparencia, encima del rig, y a poco
+   más de la mitad de su tamaño natural (--car). Se escala desde la
+   línea del piso, no desde el centro, para que las ruedas queden
+   apoyadas donde está la barra de luz por más que cambie la escala.
+
+   Sin color de acento. El acento es la luz — un blanco frío que es lo
+   único que brilla en toda la página.
    ══════════════════════════════════════════════════════════════════ */
 
 :root{
   --void:#000000;
-  --chrome:#E8EAEE;
-  --steel:#8A8F98;
-  --graphite:#4E535C;
-  --ghost:#191A1E;
+  --chrome:#F2F4F8;
+  --steel:#7E8593;
+  --graphite:#454A55;
+  --ghost:#141519;
+
+  --beam:214,232,255;        /* el blanco frío del rig, en RGB */
 
   --display:"Archivo",-apple-system,system-ui,sans-serif;
   --mono:"Chivo Mono",ui-monospace,Menlo,monospace;
 
-  --gut:clamp(1.25rem,3.4vw,3.25rem);
+  --gut:clamp(1.15rem,3.2vw,3rem);
   --ease:cubic-bezier(.22,1,.36,1);
 
-  --ar: 1672 / 941;        /* proporción nativa de las fotos */
+  --ar:1672 / 941;           /* proporción nativa de las fotos */
+  --ground:74%;              /* dónde apoyan las ruedas dentro del marco */
+  --car:.60;                 /* tamaño del auto respecto del original */
 }
 
 *{margin:0;padding:0;box-sizing:border-box}
@@ -55,8 +66,7 @@ body{
   background:var(--void);
   color:var(--chrome);
   font-family:var(--display);
-  /* pedido explícito: esto no scrollea para abajo nunca */
-  overflow:hidden;
+  overflow:hidden;           /* esto no scrollea nunca */
   -webkit-font-smoothing:antialiased;
 }
 
@@ -65,12 +75,12 @@ body{
   inset:0;
   overflow:hidden;
   background:var(--void);
-  touch-action:none;   /* que el swipe no arrastre la página */
+  touch-action:none;
 }
 
-/* ── marco: la caja donde viven la luz y los autos ─────────────── */
+/* ── marco: la caja donde viven el rig y el auto ───────────────── */
 
-/* Se comporta como object-fit:cover pero para TODO el conjunto, así
+/* Se comporta como object-fit:cover pero para todo el conjunto, así
    la luz y el auto escalan juntos y las ruedas nunca se despegan. */
 #frame{
   position:absolute;
@@ -79,41 +89,106 @@ body{
   width:max(100vw, calc(100vh * var(--ar)));
   height:max(100vh, calc(100vw / (var(--ar))));
 }
-@media (orientation:portrait){
-  /* en vertical `cover` recortaría casi todo el auto: entra a lo ancho */
-  #frame{
-    width:100vw;
-    height:calc(100vw / (var(--ar)));
-  }
-}
 
-/* ── el piso ───────────────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════
+   EL RIG DE LUCES
+   ══════════════════════════════════════════════════════════════════ */
 
-/* Tres capas: el charco duro bajo el auto, el derrame ancho, y una
-   línea de suelo apenas insinuada. Nunca se mueven de acá. */
-#floor{
-  position:absolute;
+#rig{ position:absolute; inset:0; z-index:1; }
+#rig > *{ position:absolute; pointer-events:none; }
+
+/* lavado general: sin esto el negro se lee como un agujero */
+.l-ambient{
   inset:0;
-  z-index:1;
   background:
-    radial-gradient(ellipse 46% 12% at 50% 76.5%, rgba(206,220,242,.30), transparent 70%),
-    radial-gradient(ellipse 72% 26% at 50% 80%,   rgba(150,168,196,.11), transparent 75%),
-    radial-gradient(ellipse 96% 42% at 50% 86%,   rgba(120,138,170,.05), transparent 78%);
-  will-change:opacity,transform;
+    radial-gradient(120% 80% at 50% 96%, rgba(var(--beam),.07), transparent 62%),
+    radial-gradient(80% 55% at 50% 8%,  rgba(var(--beam),.045), transparent 70%);
 }
 
-/* ── el nombre gigante, detrás del auto ────────────────────────── */
+/* dos haces cenitales que bajan y se abren hacia el auto */
+.l-cone{
+  top:-14%; width:46%; height:96%;
+  filter:blur(34px);
+  opacity:.5;
+}
+.l-cone--l{
+  left:-2%;
+  background:linear-gradient(163deg, rgba(var(--beam),.16) 0%, transparent 58%);
+}
+.l-cone--r{
+  right:-2%;
+  background:linear-gradient(197deg, rgba(var(--beam),.16) 0%, transparent 58%);
+}
+
+/* columnas en los bordes: el showroom sigue existiendo fuera de cuadro */
+.l-column{
+  top:8%; bottom:20%; width:clamp(2px,.28vw,4px);
+  border-radius:99px;
+  background:linear-gradient(180deg, transparent, rgba(var(--beam),.5) 38%, rgba(var(--beam),.5) 62%, transparent);
+  filter:blur(1px);
+  opacity:.42;
+}
+.l-column--l{ left:clamp(.9rem,2.6vw,3.2rem); }
+.l-column--r{ right:clamp(.9rem,2.6vw,3.2rem); }
+
+/* LA FIRMA — la barra de horizonte. Cruza todo el ancho a la altura
+   del piso; es contra esto que el auto se recorta. */
+.l-horizon{
+  left:0; right:0; top:var(--ground);
+  height:2px;
+  transform:translateY(-1px);
+  background:linear-gradient(90deg,
+    transparent 0%, rgba(var(--beam),.35) 14%,
+    rgba(var(--beam),.95) 38%, #FFFFFF 50%, rgba(var(--beam),.95) 62%,
+    rgba(var(--beam),.35) 86%, transparent 100%);
+}
+/* el resplandor que la barra tira hacia arriba */
+.l-horizon::before{
+  content:"";
+  position:absolute; left:0; right:0; bottom:0;
+  height:clamp(7rem,20vh,15rem);
+  background:linear-gradient(0deg, rgba(var(--beam),.22), transparent 78%);
+  -webkit-mask-image:linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+          mask-image:linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+}
+/* el punto caliente que recorre la barra de punta a punta */
+.l-sweep{
+  left:0; top:var(--ground);
+  width:26%; height:2px;
+  transform:translate(-40%,-1px);
+  background:radial-gradient(closest-side, #FFFFFF, transparent);
+  opacity:.9;
+}
+
+/* el piso pulido devolviendo la barra */
+.l-reflect{
+  left:0; right:0; top:var(--ground); bottom:0;
+  background:linear-gradient(180deg, rgba(var(--beam),.14), transparent 58%);
+  -webkit-mask-image:linear-gradient(90deg, transparent, #000 26%, #000 74%, transparent);
+          mask-image:linear-gradient(90deg, transparent, #000 26%, #000 74%, transparent);
+}
+
+/* la brasa: la mancha caliente justo abajo del auto. Angosta y dura,
+   no el charco redondo y blando de antes. */
+.l-ember{
+  left:50%; top:var(--ground);
+  width:44%; height:clamp(3rem,9vh,7rem);
+  transform:translate(-50%,-38%);
+  background:radial-gradient(ellipse 50% 50% at 50% 50%, rgba(var(--beam),.5), transparent 68%);
+  filter:blur(10px);
+}
+
+/* ── el nombre gigante, atrás de todo ──────────────────────────── */
 
 #word{
   position:absolute;
   z-index:2;
-  left:50%;
-  bottom:-.13em;
-  transform:translateX(-50%);
-  font-size:clamp(6rem,19vw,17rem);
-  font-variation-settings:"wdth" 70,"wght" 800;
-  letter-spacing:-.02em;
-  line-height:.78;
+  left:50%; top:38%;
+  transform:translate(-50%,-50%);
+  font-size:clamp(5rem,17vw,15rem);
+  font-variation-settings:"wdth" 66,"wght" 800;
+  letter-spacing:-.025em;
+  line-height:.8;
   white-space:nowrap;
   color:var(--ghost);
   pointer-events:none;
@@ -121,40 +196,45 @@ body{
   will-change:transform,opacity;
 }
 
-/* ── los autos ─────────────────────────────────────────────────── */
+/* ── el auto ───────────────────────────────────────────────────── */
 
-#deck{ position:absolute; inset:0; z-index:3; }
+#deck{
+  position:absolute; inset:0; z-index:3;
+  /* se achica desde la línea del piso: así las ruedas siguen apoyadas
+     sobre la barra de luz por más que cambie --car */
+  transform:scale(var(--car));
+  transform-origin:50% var(--ground);
+}
 
 .car{
   position:absolute;
   inset:0;
-  width:100%;
-  height:100%;
-  object-fit:fill;      /* el marco ya tiene la proporción exacta */
+  width:100%; height:100%;
+  object-fit:fill;          /* el marco ya tiene la proporción exacta */
   opacity:0;
   pointer-events:none;
   will-change:transform,opacity,filter;
 }
 .car.is-on{ opacity:1; }
 
-/* ── marco de interfaz ─────────────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════════════
+   INTERFAZ
+   ══════════════════════════════════════════════════════════════════ */
 
 .hud{ position:absolute; z-index:6; }
 .hud--tl{ top:var(--gut); left:var(--gut); }
 .hud--tr{ top:var(--gut); right:var(--gut); }
-.hud--bl{ bottom:var(--gut); left:var(--gut); }
-.hud--br{ bottom:var(--gut); right:var(--gut); text-align:right; }
 
 .mark{
-  font-size:clamp(.95rem,1.35vw,1.2rem);
+  font-size:clamp(.9rem,1.3vw,1.15rem);
   font-variation-settings:"wdth" 118,"wght" 700;
-  letter-spacing:.14em;
+  letter-spacing:.16em;
 }
 .mark small{
   display:block;
-  margin-top:.42rem;
+  margin-top:.4rem;
   font-family:var(--mono);
-  font-size:.58rem;
+  font-size:.55rem;
   font-weight:400;
   letter-spacing:.3em;
   color:var(--graphite);
@@ -164,7 +244,7 @@ body{
   display:flex;
   gap:clamp(1rem,2.2vw,2rem);
   font-family:var(--mono);
-  font-size:.62rem;
+  font-size:.6rem;
   letter-spacing:.22em;
 }
 .menu a{
@@ -175,147 +255,135 @@ body{
 .menu a:hover,
 .menu a:focus-visible{ color:var(--chrome); }
 
-/* ── ficha ─────────────────────────────────────────────────────── */
+/* ── las cifras que flanquean al auto ──────────────────────────── */
 
-/* cada línea vive en una ventanita que la recorta: al cambiar de auto
-   el texto se desliza desde abajo en vez de aparecer de la nada */
+/* Acá se reparte el peso: dos números enormes a los costados hacen
+   que el ojo cruce todo el cuadro en vez de clavarse en el auto. */
+.figure{
+  position:absolute;
+  z-index:5;
+  top:44%;
+  transform:translateY(-50%);
+  display:flex;
+  flex-direction:column;
+}
+.figure--l{ left:var(--gut); align-items:flex-start; }
+.figure--r{ right:var(--gut); align-items:flex-end; }
+
+.figure b{
+  display:block;
+  font-size:clamp(2.6rem,7.4vw,7.4rem);
+  font-variation-settings:"wdth" 64,"wght" 700;
+  letter-spacing:-.02em;
+  line-height:.82;
+  /* el número se apaga hacia abajo: presencia sin robarle brillo al auto */
+  background:linear-gradient(176deg, var(--chrome) 6%, #5C6270 88%);
+  -webkit-background-clip:text;
+          background-clip:text;
+  color:transparent;
+}
+.figure i{
+  font-style:normal;
+  font-family:var(--mono);
+  font-size:.58rem;
+  letter-spacing:.28em;
+  color:var(--steel);
+  margin-top:.7rem;
+}
+.figure .slot{ overflow:hidden; }
+
+/* ── el pie ────────────────────────────────────────────────────── */
+
+#foot{
+  position:absolute;
+  z-index:6;
+  left:0; right:0;
+  bottom:clamp(1.1rem,3.4vh,2.4rem);
+  padding:0 var(--gut);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:clamp(.75rem,2vh,1.35rem);
+}
+
 .slot{ overflow:hidden; }
 .slot > *{ display:block; will-change:transform; }
 
 .model{
-  font-size:clamp(1.5rem,3.5vw,3rem);
-  font-variation-settings:"wdth" 112,"wght" 600;
-  letter-spacing:-.015em;
-  line-height:1;
-}
-.sub{
-  margin-top:.55rem;
-  font-family:var(--mono);
-  font-size:.66rem;
-  letter-spacing:.2em;
-  color:var(--steel);
-}
-
-.price{
-  font-size:clamp(1.35rem,2.6vw,2.1rem);
+  font-size:clamp(1.35rem,3.6vw,3.1rem);
   font-variation-settings:"wdth" 108,"wght" 600;
-  letter-spacing:-.01em;
-  line-height:1;
+  letter-spacing:.01em;
+  line-height:1.05;
+  text-align:center;
+  text-transform:uppercase;
+  /* nombres como "Mercedes-Benz GLC Coupé" llegan al borde en un
+     teléfono: que corten parejo en vez de dejar una palabra suelta */
+  text-wrap:balance;
 }
-.price em{
-  font-style:normal;
-  font-size:.5em;
-  font-variation-settings:"wdth" 100,"wght" 500;
-  color:var(--steel);
-  margin-right:.3em;
-}
-
-.specs{
-  display:flex;
-  justify-content:flex-end;
-  gap:clamp(1rem,2.4vw,2.25rem);
-  margin-top:.9rem;
-}
-.specs div{
+.gearbox{
   font-family:var(--mono);
-  font-size:.62rem;
-  letter-spacing:.14em;
+  font-size:.6rem;
+  letter-spacing:.3em;
   color:var(--graphite);
-}
-.specs b{
-  display:block;
-  margin-top:.34rem;
-  font-family:var(--display);
-  font-size:.95rem;
-  font-variation-settings:"wdth" 100,"wght" 600;
-  letter-spacing:0;
-  color:var(--chrome);
+  text-align:center;
+  margin-top:.6rem;
 }
 
-/* ── contador ──────────────────────────────────────────────────── */
-
-#counter{
-  position:absolute;
-  z-index:6;
-  left:50%;
-  bottom:calc(var(--gut) + .1rem);
-  transform:translateX(-50%);
+/* controles: van juntos abajo, no a los costados — los costados ahora
+   los ocupan las cifras */
+#controls{
   display:flex;
   align-items:center;
-  gap:.9rem;
-  font-family:var(--mono);
-  font-size:.62rem;
-  letter-spacing:.18em;
-  color:var(--graphite);
+  gap:clamp(.9rem,2.4vw,1.9rem);
 }
-#counter .now{ color:var(--chrome); }
-#rail{
-  width:clamp(4.5rem,11vw,9rem);
-  height:1px;
-  background:rgba(232,234,238,.16);
-  overflow:hidden;
-}
-#bar{
-  display:block;
-  height:100%;
-  background:var(--chrome);
-  transform-origin:0 50%;
-}
-
-/* ── flechas ───────────────────────────────────────────────────── */
 
 .arrow{
-  position:absolute;
-  z-index:7;
-  top:50%;
-  margin-top:-2.1rem;
-  width:4.2rem;
-  height:4.2rem;
-  display:grid;
-  place-items:center;
-  border:0;
+  width:2.7rem; height:2.7rem;
+  display:grid; place-items:center;
+  border:1px solid rgba(242,244,248,.16);
   border-radius:50%;
   background:transparent;
   color:var(--steel);
   cursor:pointer;
-  transition:color .3s var(--ease), background .3s var(--ease);
+  transition:color .3s var(--ease), border-color .3s var(--ease), background .3s var(--ease);
   -webkit-tap-highlight-color:transparent;
 }
-.arrow svg{ width:1.5rem; height:1.5rem; }
+.arrow svg{ width:1rem; height:1rem; }
 .arrow:hover,
-.arrow:focus-visible{ color:var(--chrome); background:rgba(232,234,238,.07); }
-.arrow:focus-visible{ outline:1px solid rgba(232,234,238,.5); outline-offset:2px; }
-.arrow--prev{ left:clamp(.2rem,1.4vw,1.4rem); }
-.arrow--next{ right:clamp(.2rem,1.4vw,1.4rem); }
+.arrow:focus-visible{
+  color:#000;
+  background:var(--chrome);
+  border-color:var(--chrome);
+}
+.arrow:focus-visible{ outline:2px solid rgba(var(--beam),.7); outline-offset:3px; }
 
-#hint{
-  position:absolute;
-  z-index:6;
-  left:50%;
-  top:calc(var(--gut) + 3.4rem);
-  transform:translateX(-50%);
-  font-family:var(--mono);
-  font-size:.55rem;
-  letter-spacing:.26em;
-  color:var(--graphite);
-  transition:opacity .8s var(--ease);
+#ticks{ display:flex; align-items:center; gap:.55rem; }
+.tick{
+  width:clamp(1.1rem,2.6vw,2.1rem);
+  height:2px;
+  background:rgba(242,244,248,.18);
+  transition:background .45s var(--ease), box-shadow .45s var(--ease);
+}
+.tick.on{
+  background:var(--chrome);
+  box-shadow:0 0 .7rem rgba(var(--beam),.9);
 }
 
 /* ── pantallas chicas ──────────────────────────────────────────── */
 
-@media (max-width:720px){
-  .menu{ display:none; }
-  .specs div:nth-child(3){ display:none; }
-  .arrow{
-    top:auto;
-    bottom:calc(var(--gut) + 4.6rem);
-    margin-top:0;
-    width:3.4rem;
-    height:3.4rem;
+@media (orientation:portrait){
+  #frame{
+    width:100vw;
+    height:calc(100vw / (var(--ar)));
   }
-  #hint{ display:none; }
-  .hud--bl,
-  .hud--br{ bottom:calc(var(--gut) + 3.2rem); }
+  :root{ --car:.92; }
+}
+
+@media (max-width:760px){
+  .menu{ display:none; }
+  .l-column{ display:none; }
+  .figure{ top:auto; bottom:calc(var(--gut) + 7.5rem); transform:none; }
+  .figure b{ font-size:clamp(2rem,11vw,3.2rem); }
 }
 
 @media (prefers-reduced-motion:reduce){
@@ -328,11 +396,20 @@ body{
 <main id="stage">
 
   <div id="frame">
-    <div id="floor" aria-hidden="true"></div>
+    <div id="rig" aria-hidden="true">
+      <div class="l-ambient"></div>
+      <div class="l-cone l-cone--l"></div>
+      <div class="l-cone l-cone--r"></div>
+      <div class="l-reflect"></div>
+      <div class="l-ember" id="ember"></div>
+      <div class="l-horizon" id="horizon"></div>
+      <div class="l-sweep" id="sweep"></div>
+      <div class="l-column l-column--l"></div>
+      <div class="l-column l-column--r"></div>
+    </div>
+    <div id="word" aria-hidden="true"></div>
     <div id="deck"></div>
   </div>
-
-  <div id="word" aria-hidden="true"></div>
 
   <header class="hud hud--tl">
     <div class="mark">MERIDIANO<small>AUTOMÓVILES SELECCIONADOS</small></div>
@@ -340,33 +417,35 @@ body{
 
   <nav class="hud hud--tr menu">
     <a href="#stock">Stock</a>
-    <a href="#financiacion">Financiación</a>
+    <a href="#taller">Taller</a>
     <a href="#contacto">Contacto</a>
   </nav>
 
-  <div class="hud hud--bl">
-    <div class="slot"><h1 class="model" id="model">—</h1></div>
-    <div class="slot"><p class="sub" id="sub">—</p></div>
+  <div class="figure figure--l">
+    <span class="slot"><b id="fPower">—</b></span>
+    <i>CV DE POTENCIA</i>
   </div>
 
-  <div class="hud hud--br">
-    <div class="slot"><p class="price" id="price"><em>USD</em>—</p></div>
-    <div class="specs" id="specs"></div>
+  <div class="figure figure--r">
+    <span class="slot"><b id="fAccel">—</b></span>
+    <i>SEGUNDOS 0–100</i>
   </div>
 
-  <div id="counter">
-    <span><span class="now" id="now">01</span> / <span id="tot">05</span></span>
-    <span id="rail"><i id="bar"></i></span>
+  <div id="foot">
+    <div>
+      <div class="slot"><h1 class="model" id="model">—</h1></div>
+      <p class="gearbox" id="gearbox">—</p>
+    </div>
+    <div id="controls">
+      <button class="arrow" id="prev" aria-label="Auto anterior">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4 7 12l8 8"/></svg>
+      </button>
+      <div id="ticks"></div>
+      <button class="arrow" id="next" aria-label="Auto siguiente">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 8 8-8 8"/></svg>
+      </button>
+    </div>
   </div>
-
-  <p id="hint">← →  PARA RECORRER</p>
-
-  <button class="arrow arrow--prev" id="prev" aria-label="Auto anterior">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4 7 12l8 8"/></svg>
-  </button>
-  <button class="arrow arrow--next" id="next" aria-label="Auto siguiente">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 8 8-8 8"/></svg>
-  </button>
 
 </main>
 
@@ -377,33 +456,29 @@ body{
 
   const CARS = [
     { slug:'bmw-serie2', word:'SERIE 2', model:'BMW Serie 2 Coupé',
-      sub:'2023 · 18.400 KM · ÚNICO DUEÑO', price:'68.900',
-      specs:[['POTENCIA','374 CV'],['0–100','4,3 s'],['CAJA','Aut. 8v']] },
+      power:374, accel:'4,3', gearbox:'AUTOMÁTICA 8V · TRACCIÓN TRASERA' },
 
     { slug:'camaro-ss',  word:'CAMARO',  model:'Chevrolet Camaro SS',
-      sub:'2021 · 12.900 KM · IMPORTADO', price:'62.000',
-      specs:[['POTENCIA','453 CV'],['0–100','4,0 s'],['CAJA','Manual 6v']] },
+      power:453, accel:'4,0', gearbox:'MANUAL 6V · V8 6.2' },
 
     { slug:'glc-coupe',  word:'GLC',     model:'Mercedes-Benz GLC Coupé',
-      sub:'2023 · 22.800 KM · GARANTÍA VIGENTE', price:'79.400',
-      specs:[['POTENCIA','258 CV'],['0–100','6,2 s'],['CAJA','Aut. 9v']] },
+      power:258, accel:'6,2', gearbox:'AUTOMÁTICA 9V · 4MATIC' },
 
     { slug:'golf-gti',   word:'GTI',     model:'Volkswagen Golf GTI',
-      sub:'2022 · 31.200 KM · SERVICE OFICIAL', price:'34.500',
-      specs:[['POTENCIA','245 CV'],['0–100','6,2 s'],['CAJA','DSG 7v']] },
+      power:245, accel:'6,2', gearbox:'DSG 7V · TRACCIÓN DELANTERA' },
 
     { slug:'audi-q5',    word:'Q5',      model:'Audi Q5 Sportback',
-      sub:'2023 · 27.500 KM · QUATTRO', price:'66.800',
-      specs:[['POTENCIA','265 CV'],['0–100','6,1 s'],['CAJA','S tronic 7v']] }
+      power:265, accel:'6,1', gearbox:'S TRONIC 7V · QUATTRO' }
   ];
 
-  const $  = id => document.getElementById(id);
-  const G  = window.gsap;                       // puede faltar si no hay red
+  const $ = id => document.getElementById(id);
+  const G = window.gsap;                       // puede faltar si no hay red
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const still   = !G || reduced;                // sin animación: cambio seco
-  const word = $('word'), floor = $('floor'), deck = $('deck');
+  const still = !G || reduced;                 // sin animación: cambio seco
 
-  $('tot').textContent = String(CARS.length).padStart(2,'0');
+  const word = $('word'), deck = $('deck');
+
+  /* ── montaje ───────────────────────────────────────────────── */
 
   const imgs = CARS.map((c,i)=>{
     const el = document.createElement('img');
@@ -420,54 +495,57 @@ body{
     return el;
   });
 
+  $('ticks').innerHTML = CARS.map((c,i)=>
+    `<button class="tick${i===0?' on':''}" data-i="${i}" aria-label="${c.model}"></button>`
+  ).join('');
+  const ticks = [...document.querySelectorAll('.tick')];
+
   function paint(i){
     const c = CARS[i];
-    word.textContent       = c.word;
-    $('model').textContent = c.model;
-    $('sub').textContent   = c.sub;
-    $('price').innerHTML   = `<em>USD</em>${c.price}`;
-    $('specs').innerHTML   = c.specs.map(([k,v])=>`<div>${k}<b>${v}</b></div>`).join('');
-    $('now').textContent   = String(i+1).padStart(2,'0');
+    word.textContent        = c.word;
+    $('model').textContent  = c.model;
+    $('gearbox').textContent= c.gearbox;
+    $('fPower').textContent = c.power;
+    $('fAccel').textContent = c.accel;
+    ticks.forEach((t,k)=> t.classList.toggle('on', k===i));
   }
 
   let cur = 0, busy = false;
   paint(0);
-  $('bar').style.transform = `scaleX(${1/CARS.length})`;
 
   /* ─────────────────────────────────────────────────────────────
      El cambio.
 
      El auto que está se va DEL LADO DE LA FLECHA que se tocó, y el
-     que entra crece desde atrás, como si hubiera estado esperando
-     detrás del primero.
+     que entra crece desde atrás, como si hubiera estado esperando en
+     la penumbra detrás del primero.
 
      Dos reglas que no se negocian:
      · Nada se mueve en Y. Cualquier corrimiento vertical acá se lee
        como que la página se movió.
-     · El piso no se desplaza NUNCA. Sólo respira: se apaga un
-       instante cuando el auto se va y vuelve a encenderse cuando el
-       nuevo aterriza. Eso es lo que lo hace sentir una luz de
-       escenario y no un degradé pegado atrás.
+     · El rig no se desplaza NUNCA. Sólo late: la barra se apaga
+       cuando el escenario queda vacío y pega un flash cuando el auto
+       nuevo aterriza. Eso es lo que la hace sentir una luz de verdad
+       y no un degradé pegado atrás.
      ───────────────────────────────────────────────────────────── */
-  function go(dir){
+  function go(dir, to){
     if (busy) return;
-    const nx = (cur + dir + CARS.length) % CARS.length;
+    const nx = to !== undefined
+      ? to
+      : (cur + dir + CARS.length) % CARS.length;
     if (nx === cur) return;
+    const D = to !== undefined ? (nx > cur ? 1 : -1) : (dir > 0 ? 1 : -1);
 
-    const from = imgs[cur], to = imgs[nx];
-    to.classList.add('is-on');
+    const from = imgs[cur], next = imgs[nx];
+    next.classList.add('is-on');
 
     if (still){
       from.classList.remove('is-on');
-      paint(nx);
-      $('bar').style.transform = `scaleX(${(nx+1)/CARS.length})`;
-      cur = nx;
+      paint(nx); cur = nx;
       return;
     }
 
     busy = true;
-    const D = dir > 0 ? 1 : -1;      // +1 = flecha derecha
-
     const tl = G.timeline({
       defaults:{ ease:'power3.out' },
       onComplete(){
@@ -478,37 +556,49 @@ body{
     });
 
     /* el que estaba: se va del lado de la flecha. Al alejarse pasa
-       cerca de cámara, por eso crece un poco mientras se desenfoca. */
+       cerca de cámara, por eso crece mientras se desenfoca. */
     tl.to(from, {
-      xPercent: 17*D, scale: 1.05, opacity: 0, filter:'blur(14px)',
+      xPercent:19*D, scale:1.06, opacity:0, filter:'blur(15px)',
       duration:.5, ease:'power2.in'
     }, 0);
 
-    /* el que entra: venía atrás, en la penumbra. Arranca más chico y
-       corrido al lado contrario, y avanza hasta ocupar el lugar. */
-    tl.fromTo(to,
-      { xPercent:-6*D, scale:.92, opacity:0, filter:'blur(10px) brightness(.55)' },
+    /* el que entra: llega desde atrás, apagado, y se enciende al
+       meterse en el haz */
+    tl.fromTo(next,
+      { xPercent:-7*D, scale:.9, opacity:0, filter:'blur(11px) brightness(.45)' },
       { xPercent:0, scale:1, opacity:1, filter:'blur(0px) brightness(1)',
-        duration:.82 }, .14);
+        duration:.85 }, .14);
 
-    /* la luz respira: se apaga cuando queda vacía y vuelve con el
-       auto nuevo. NO se mueve — sólo cambia de intensidad. */
-    tl.to(floor, { opacity:.45, duration:.28, ease:'power2.in' }, .06)
-      .to(floor, { opacity:1.25, duration:.3 }, .42)
-      .to(floor, { opacity:1, duration:.5 }, .72);
+    /* el rig late — no se mueve, cambia de intensidad */
+    tl.to('#horizon', { opacity:.3, duration:.26, ease:'power2.in' }, .04)
+      .to('#horizon', { opacity:1, scaleY:2.6, duration:.16, ease:'power2.out' }, .42)
+      .to('#horizon', { scaleY:1, duration:.7, ease:'elastic.out(1,.5)' }, .58);
+
+    tl.to('#ember', { opacity:.25, duration:.26, ease:'power2.in' }, .04)
+      .fromTo('#ember', { opacity:.25 }, { opacity:1.5, duration:.18 }, .42)
+      .to('#ember', { opacity:1, duration:.6 }, .6);
+
+    /* el punto caliente cruza la barra de una punta a la otra, como
+       si la luz siguiera al auto que entra */
+    tl.fromTo('#sweep',
+      { xPercent:D>0 ? -60 : 460, opacity:0 },
+      { xPercent:D>0 ? 460 : -60, opacity:1, duration:.72, ease:'power2.inOut' }, .3)
+      .to('#sweep', { opacity:0, duration:.22 }, .95);
 
     /* el cartel del fondo viaja más rápido que el auto: ese desfasaje
        da profundidad sin usar 3D */
-    tl.to(word, { xPercent:-50 - 26*D, opacity:0, duration:.3, ease:'power2.in' }, 0)
+    tl.to(word, { xPercent:-50 - 30*D, opacity:0, duration:.3, ease:'power2.in' }, 0)
       .add(()=>paint(nx), .3)
       .fromTo(word,
-        { xPercent:-50 + 26*D, opacity:0 },
+        { xPercent:-50 + 30*D, opacity:0 },
         { xPercent:-50, opacity:1, duration:.85 }, .3);
 
-    /* la ficha se recompone línea por línea */
-    tl.to('.slot > *', { yPercent:-110, duration:.26, ease:'power2.in', stagger:.03 }, 0)
-      .fromTo('.slot > *', { yPercent:110 }, { yPercent:0, duration:.6, stagger:.045 }, .34)
-      .to('#bar', { scaleX:(nx+1)/CARS.length, duration:.6 }, .3);
+    /* las cifras y el nombre se recomponen desde su ventanita */
+    tl.to('.slot > *', { yPercent:-115, duration:.26, ease:'power2.in', stagger:.035 }, 0)
+      .fromTo('.slot > *', { yPercent:115 }, { yPercent:0, duration:.62, stagger:.05 }, .34);
+
+    tl.to('#gearbox', { opacity:0, duration:.22, ease:'power2.in' }, 0)
+      .to('#gearbox', { opacity:1, duration:.5 }, .42);
 
     cur = nx;
   }
@@ -517,6 +607,7 @@ body{
 
   $('next').addEventListener('click', ()=>go(1));
   $('prev').addEventListener('click', ()=>go(-1));
+  ticks.forEach(t => t.addEventListener('click', ()=>go(0, +t.dataset.i)));
 
   addEventListener('keydown', e=>{
     if (e.key === 'ArrowRight'){ e.preventDefault(); go(1); }
@@ -533,23 +624,25 @@ body{
     if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy)) go(dx < 0 ? 1 : -1);
   });
 
-  const hint = $('hint');
-  let used = false;
-  function hideHint(){ if (!used){ used = true; hint.style.opacity = '0'; } }
-  ['click','keydown','pointerdown'].forEach(ev => addEventListener(ev, hideHint, { once:true }));
-  setTimeout(hideHint, 9000);
-
-  /* ── entrada ───────────────────────────────────────────────── */
+  /* ── vida propia: el rig respira aunque nadie toque nada ────── */
 
   if (!still){
+    G.to('.l-cone--l', { opacity:.32, duration:5.5, yoyo:true, repeat:-1, ease:'sine.inOut' });
+    G.to('.l-cone--r', { opacity:.32, duration:6.8, yoyo:true, repeat:-1, ease:'sine.inOut', delay:.9 });
+    G.to('.l-column',  { opacity:.24, duration:4.2, yoyo:true, repeat:-1, ease:'sine.inOut', stagger:.7 });
+    G.set('#sweep', { opacity:0 });
+
     G.timeline({ defaults:{ ease:'power3.out' } })
-      .from(floor,   { opacity:0, duration:1.2 })
-      .from(imgs[0], { opacity:0, scale:1.06, filter:'blur(12px)', duration:1.2 }, .18)
-      .from(word,    { opacity:0, yPercent:20, duration:.9 }, .35)
-      .from('.hud--tl, .hud--tr', { opacity:0, y:-12, duration:.6, stagger:.08 }, .45)
-      .from('.slot > *', { yPercent:110, duration:.7, stagger:.05 }, .55)
-      .from('#counter, #hint, .arrow', { opacity:0, duration:.6, stagger:.05 }, .8)
-      .fromTo('#bar', { scaleX:0 }, { scaleX:1/CARS.length, duration:.7 }, .8);
+      .from('.l-ambient', { opacity:0, duration:1.3 })
+      .from('#horizon',   { scaleX:0, duration:1.15, ease:'power4.out' }, .15)
+      .from('.l-reflect, .l-ember', { opacity:0, duration:.9 }, .5)
+      .from('.l-cone',    { opacity:0, duration:1.1 }, .5)
+      .from('.l-column',  { opacity:0, scaleY:.2, duration:.9, stagger:.1 }, .6)
+      .from(imgs[0],      { opacity:0, scale:1.07, filter:'blur(14px)', duration:1.2 }, .45)
+      .from(word,         { opacity:0, scale:1.06, duration:1 }, .6)
+      .from('.hud--tl, .hud--tr', { opacity:0, y:-12, duration:.6, stagger:.08 }, .7)
+      .from('.slot > *',  { yPercent:115, duration:.75, stagger:.06 }, .8)
+      .from('#gearbox, #controls', { opacity:0, y:10, duration:.6, stagger:.08 }, 1);
   }
 })();
 </script>
