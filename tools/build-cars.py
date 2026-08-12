@@ -48,6 +48,7 @@ REAL = {
     "glc-coupe":  4763,   # Mercedes-Benz GLC Coupé
     "golf-gti":   4287,   # Volkswagen Golf GTI (Mk8)
     "audi-q5":    4689,   # Audi Q5 Sportback
+    "audi-rs3":   4389,   # Audi RS 3 Sportback (8Y)
 }
 
 CANVAS = (1672, 941)   # lienzo de salida, proporción de las fotos
