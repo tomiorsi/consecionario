@@ -55,8 +55,9 @@
   --ease:cubic-bezier(.22,1,.36,1);
 
   --ar:1672 / 941;           /* proporción nativa de las fotos */
-  --ground:74%;              /* dónde apoyan las ruedas dentro del marco */
-  --car:.60;                 /* tamaño del auto respecto del original */
+  --ground:74%;              /* altura de la línea del piso en la ventana */
+  --car:.60;                 /* escala del auto — la recalcula el JS */
+  --carw:50vw;               /* ancho real del auto en pantalla — ídem */
 }
 
 *{margin:0;padding:0;box-sizing:border-box}
@@ -78,16 +79,23 @@ body{
   touch-action:none;
 }
 
-/* ── marco: la caja donde viven el rig y el auto ───────────────── */
+/* ── marco: sólo el auto vive acá ──────────────────────────────── */
 
-/* Se comporta como object-fit:cover pero para todo el conjunto, así
-   la luz y el auto escalan juntos y las ruedas nunca se despegan. */
+/* Va SIEMPRE atado al alto de la ventana, nunca al ancho. Ése es el
+   truco que mantiene la línea del piso en el mismo lugar de la
+   pantalla en cualquier formato: si el alto del marco es 100vh, el
+   piso cae en var(--ground) de la ventana, y el rig —que ocupa la
+   ventana entera— puede dibujar su barra justo ahí.
+
+   A lo ancho el marco se desborda, y no importa: lo único que hay
+   adentro es el auto, que se achica con --car hasta entrar. */
 #frame{
   position:absolute;
-  top:50%; left:50%;
-  transform:translate(-50%,-50%);
-  width:max(100vw, calc(100vh * var(--ar)));
-  height:max(100vh, calc(100vw / (var(--ar))));
+  top:0; left:50%;
+  transform:translateX(-50%);
+  height:100vh;
+  width:calc(100vh * var(--ar));
+  z-index:3;
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -170,9 +178,13 @@ body{
 
 /* la brasa: la mancha caliente justo abajo del auto. Angosta y dura,
    no el charco redondo y blando de antes. */
+/* Se mide contra --carw (el ancho real del auto en pantalla, que
+   calcula el JS) y no contra un % de la ventana: si no, en un
+   teléfono la brasa quedaba más angosta que el auto y se veía como
+   una mancha suelta abajo. */
 .l-ember{
   left:50%; top:var(--ground);
-  width:44%; height:clamp(3rem,9vh,7rem);
+  width:calc(var(--carw) * .92); height:clamp(2.5rem,8vh,7rem);
   transform:translate(-50%,-38%);
   background:radial-gradient(ellipse 50% 50% at 50% 50%, rgba(var(--beam),.5), transparent 68%);
   filter:blur(10px);
@@ -183,9 +195,13 @@ body{
 #word{
   position:absolute;
   z-index:2;
-  left:50%; top:38%;
+  left:50%;
+  /* colgado de la línea del piso, no de un % suelto: así queda detrás
+     del auto en cualquier formato de pantalla. La resta lo sube justo
+     lo necesario para que asome por encima del techo. */
+  top:calc(var(--ground) - clamp(11rem,36vh,24rem));
   transform:translate(-50%,-50%);
-  font-size:clamp(5rem,17vw,15rem);
+  font-size:clamp(3.6rem,17vw,15rem);
   font-variation-settings:"wdth" 66,"wght" 800;
   letter-spacing:-.025em;
   line-height:.8;
@@ -199,9 +215,11 @@ body{
 /* ── el auto ───────────────────────────────────────────────────── */
 
 #deck{
-  position:absolute; inset:0; z-index:3;
-  /* se achica desde la línea del piso: así las ruedas siguen apoyadas
-     sobre la barra de luz por más que cambie --car */
+  position:absolute; inset:0;
+  /* se achica desde la línea del piso, no desde el centro: así las
+     ruedas siguen apoyadas sobre la barra de luz por más que cambie
+     --car. Lo calcula el JS en cada resize para que el auto ocupe
+     siempre la misma porción del ancho de la ventana. */
   transform:scale(var(--car));
   transform-origin:50% var(--ground);
 }
@@ -371,19 +389,30 @@ body{
 
 /* ── pantallas chicas ──────────────────────────────────────────── */
 
+/* En vertical el auto necesita subir: si el piso queda al 74% no
+   entran las cifras ni el pie debajo. */
 @media (orientation:portrait){
-  #frame{
-    width:100vw;
-    height:calc(100vw / (var(--ar)));
+  :root{ --ground:57%; }
+  /* en vertical el auto es chico: el nombre tiene que arrimarse y
+     agrandarse, si no queda flotando solo arriba y no se lee */
+  #word{
+    top:calc(var(--ground) - clamp(3.5rem,12vh,9rem));
+    font-size:clamp(3.4rem,27vw,11rem);
+    color:#1E2027;
   }
-  :root{ --car:.92; }
 }
 
 @media (max-width:760px){
   .menu{ display:none; }
-  .l-column{ display:none; }
-  .figure{ top:auto; bottom:calc(var(--gut) + 7.5rem); transform:none; }
-  .figure b{ font-size:clamp(2rem,11vw,3.2rem); }
+  /* las cifras bajan y se apoyan sobre la línea del piso, una a cada
+     lado, en vez de flotar a media altura */
+  .figure{
+    top:calc(var(--ground) + clamp(2.2rem,7vh,4.5rem));
+    transform:none;
+  }
+  .figure b{ font-size:clamp(2.4rem,13vw,3.6rem); }
+  .figure i{ margin-top:.45rem; font-size:.52rem; letter-spacing:.2em; }
+  .l-column{ top:14%; bottom:26%; opacity:.3; }
 }
 
 @media (prefers-reduced-motion:reduce){
@@ -395,19 +424,24 @@ body{
 
 <main id="stage">
 
+  <!-- El rig ocupa la ventana entera, no el marco del auto. Cuando
+       vivía adentro del marco, en un teléfono el marco quedaba como
+       una banda en el medio y las luces se cortaban con ella. -->
+  <div id="rig" aria-hidden="true">
+    <div class="l-ambient"></div>
+    <div class="l-cone l-cone--l"></div>
+    <div class="l-cone l-cone--r"></div>
+    <div class="l-reflect"></div>
+    <div class="l-ember" id="ember"></div>
+    <div class="l-horizon" id="horizon"></div>
+    <div class="l-sweep" id="sweep"></div>
+    <div class="l-column l-column--l"></div>
+    <div class="l-column l-column--r"></div>
+  </div>
+
+  <div id="word" aria-hidden="true"></div>
+
   <div id="frame">
-    <div id="rig" aria-hidden="true">
-      <div class="l-ambient"></div>
-      <div class="l-cone l-cone--l"></div>
-      <div class="l-cone l-cone--r"></div>
-      <div class="l-reflect"></div>
-      <div class="l-ember" id="ember"></div>
-      <div class="l-horizon" id="horizon"></div>
-      <div class="l-sweep" id="sweep"></div>
-      <div class="l-column l-column--l"></div>
-      <div class="l-column l-column--r"></div>
-    </div>
-    <div id="word" aria-hidden="true"></div>
     <div id="deck"></div>
   </div>
 
@@ -477,6 +511,35 @@ body{
   const still = !G || reduced;                 // sin animación: cambio seco
 
   const word = $('word'), deck = $('deck');
+
+  /* ─────────────────────────────────────────────────────────────
+     Encaje.
+
+     El marco del auto está atado al ALTO de la ventana, así que su
+     ancho no tiene nada que ver con el ancho de la pantalla: en un
+     teléfono el marco es cuatro veces más ancho que el visor. Por eso
+     la escala del auto no puede ser un número fijo en el CSS — hay
+     que calcularla para que el auto ocupe siempre la misma porción
+     del ancho disponible.
+
+     De paso publica --carw, el ancho real del auto en pantalla, que
+     es contra lo que se dimensiona la brasa del piso.
+     ───────────────────────────────────────────────────────────── */
+  const AR = 1672 / 941;
+  const CAR_IN_FRAME = .84;        // cuánto del marco ocupa el auto, medido
+
+  function fit(){
+    const vw = innerWidth, vh = innerHeight;
+    const frameW = vh * AR;
+    const share  = vw < 760 ? .84 : .50;   // del ancho de la ventana
+    const carW   = vw * share;
+    const root = document.documentElement.style;
+    root.setProperty('--car',  (carW / (frameW * CAR_IN_FRAME)).toFixed(4));
+    root.setProperty('--carw', Math.round(carW) + 'px');
+  }
+  fit();
+  addEventListener('resize', fit);
+  addEventListener('orientationchange', fit);
 
   /* ── montaje ───────────────────────────────────────────────── */
 
