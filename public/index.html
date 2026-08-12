@@ -55,6 +55,10 @@
   --ease:cubic-bezier(.22,1,.36,1);
 
   --ar:1672 / 941;           /* proporción nativa de las fotos */
+  /* Dónde apoyan las ruedas DENTRO de la foto. Lo fija el script de
+     recorte (GROUND en tools/build-cars.py) y no se toca desde acá:
+     si cambia uno hay que cambiar el otro. */
+  --img-ground:74%;
   --ground:74%;              /* altura de la línea del piso en la ventana */
   --car:.60;                 /* escala del auto — la recalcula el JS */
   --carw:50vw;               /* ancho real del auto en pantalla — ídem */
@@ -214,14 +218,21 @@ body{
 
 /* ── el auto ───────────────────────────────────────────────────── */
 
+/* Dos movimientos distintos, y hay que no mezclarlos:
+
+   · La ESCALA se hace desde donde apoyan las ruedas en la foto
+     (--img-ground). Así el auto se achica sin despegarse del piso.
+   · El DESPLAZAMIENTO lleva ese piso hasta donde está la barra de luz
+     (--ground). En horizontal los dos valores coinciden y no se mueve
+     nada; en vertical el auto sube para dejar lugar abajo.
+
+   Cuando escalaba desde --ground en vez de --img-ground, achicar el
+   auto le corría las ruedas hacia abajo y la barra quedaba por encima
+   de la rueda. */
 #deck{
   position:absolute; inset:0;
-  /* se achica desde la línea del piso, no desde el centro: así las
-     ruedas siguen apoyadas sobre la barra de luz por más que cambie
-     --car. Lo calcula el JS en cada resize para que el auto ocupe
-     siempre la misma porción del ancho de la ventana. */
-  transform:scale(var(--car));
-  transform-origin:50% var(--ground);
+  transform:translateY(calc(var(--ground) - var(--img-ground))) scale(var(--car));
+  transform-origin:50% var(--img-ground);
 }
 
 .car{
