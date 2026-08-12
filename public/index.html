@@ -668,7 +668,10 @@ body{
     const tl = G.timeline({
       onComplete(){
         from.classList.remove('is-on');
-        G.set(from, { clearProps:'transform,filter' });
+        /* opacity va incluido a propósito: si algún tween la dejó
+           escrita en línea, le ganaría a .car{opacity:0} y el auto
+           seguiría visible detrás del que está en escena. */
+        G.set(from, { clearProps:'transform,filter,opacity' });
         busy = false;
         if (queued !== null){ const q = queued; queued = null; go(0, q); }
       }
@@ -775,7 +778,12 @@ body{
       .from('#horizon',   { scaleX:0, duration:1.15, ease:'power4.out' }, .15)
       .from('.l-reflect, .l-ember', { opacity:0, duration:.9 }, .5)
       .from('.l-cone',    { opacity:0, duration:1.1 }, .5)
-      .from(imgs[0],      { opacity:0, scale:1.07, filter:'blur(14px)', duration:1.2 }, .45)
+      /* clearProps no es opcional acá. `from` deja el valor final
+         escrito en el atributo style, y un opacity:1 en línea le gana
+         a la regla .car{opacity:0}: el primer auto no se apagaba nunca
+         y quedaba asomando detrás de todos los demás. */
+      .from(imgs[0],      { opacity:0, scale:1.07, filter:'blur(14px)', duration:1.2,
+                            clearProps:'opacity,transform,filter' }, .45)
       .from(word,         { opacity:0, scale:1.06, duration:1 }, .6)
       .from('.hud--tl, .hud--tr', { opacity:0, y:-12, duration:.6, stagger:.08 }, .7)
       .from('.slot > *',  { yPercent:115, duration:.75, stagger:.06 }, .8)
