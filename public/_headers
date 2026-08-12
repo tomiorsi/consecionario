@@ -12,6 +12,10 @@
 # el versionado no sirve para nada. no-cache no significa "no guardar",
 # significa "preguntá antes de usar" — si no cambió, el servidor
 # responde 304 y no se descarga nada.
+#
+# Las reglas no se pueden solapar. Cuando dos coinciden con la misma
+# dirección, Cloudflare no elige la más específica: pega las dos headers
+# una detrás de la otra y queda un valor contradictorio.
 
 /
   Cache-Control: no-cache
@@ -22,5 +26,5 @@
 /assets/cars/*
   Cache-Control: public, max-age=31536000, immutable
 
-/assets/*
+/assets/mark.svg
   Cache-Control: public, max-age=604800
