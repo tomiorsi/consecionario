@@ -90,6 +90,19 @@ def cutout(path):
         if col.size > 3:
             alpha[col.min(): col.max() + 1, x] = 1.0
 
+    # Corte en el punto de apoyo. Lo que cada foto trae por debajo de la
+    # goma es distinto y no se puede unificar: cinco traen una línea de
+    # luz —el reflejo del zócalo— que se funde con la barra, y el RS 3
+    # trae una neblina gris oscura que sobre la barra se ve como una
+    # mancha sucia. Conservarla fue el error de los dos intentos
+    # anteriores.
+    #
+    # Así que no se conserva ninguna: el auto termina donde termina la
+    # goma, igual para todos, y el apoyo lo da la barra de luz de la
+    # página. Los 4px de degradado evitan el borde de cuchillo.
+    y = np.arange(alpha.shape[0])[:, None]
+    alpha *= np.clip((ground + 4 - y) / 4.0, 0, 1)
+
     return rgb, alpha
 
 
