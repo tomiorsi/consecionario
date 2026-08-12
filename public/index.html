@@ -602,7 +602,7 @@ body{
      guardada la vieja bajo esa misma dirección y la muestra sin volver a
      preguntar. En Cloudflare es peor, porque además hay un CDN cacheando
      en el medio. */
-  const FOTOS = 'b886024c';
+  const FOTOS = 'ef05ce9b';
 
   const imgs = CARS.map((c,i)=>{
     const el = document.createElement('img');
@@ -702,10 +702,18 @@ body{
        `travel` es cuánto hay que correrlos para que salgan limpios
        de cuadro, y lo calcula fit() según el tamaño de la ventana:
        un porcentaje fijo dejaría media trompa colgando en pantallas
-       anchas. */
-    G.set(next, { xPercent:-travel*D, filter:'blur(3px) brightness(.06)' });
+       anchas.
 
-    tl.to(from, { xPercent: travel*D, duration:T, ease:'power2.inOut' }, 0)
+       M es hacia dónde CORRE LA CINTA, y es al revés de la flecha que
+       se tocó: con "siguiente" la cinta empuja hacia la izquierda y el
+       auto nuevo entra por la derecha, igual que al pasar la página de
+       un libro. Al revés —el auto saliendo del mismo lado de la flecha—
+       se lee como retroceder, aunque el que aparezca sea el siguiente. */
+    const M = -D;
+
+    G.set(next, { xPercent:-travel*M, filter:'blur(3px) brightness(.06)' });
+
+    tl.to(from, { xPercent: travel*M, duration:T, ease:'power2.inOut' }, 0)
       .to(next, { xPercent: 0,        duration:T, ease:'power2.inOut' }, 0);
 
     /* El desenfoque de movimiento es simétrico y llega al máximo en
@@ -735,16 +743,16 @@ body{
     /* el punto caliente viaja CON los autos, no en contra: es el
        reflejo del auto corriendo sobre la barra */
     tl.fromTo('#sweep',
-      { xPercent: D>0 ? -90 : 430, opacity:0 },
-      { xPercent: D>0 ? 430 : -90, opacity:1, duration:T, ease:'power2.inOut' }, 0)
+      { xPercent: M>0 ? -90 : 430, opacity:0 },
+      { xPercent: M>0 ? 430 : -90, opacity:1, duration:T, ease:'power2.inOut' }, 0)
       .to('#sweep', { opacity:0, duration:.2 }, T*.85);
 
     /* el cartel del fondo viaja en el mismo sentido pero más lejos:
        ese desfasaje da profundidad sin usar 3D */
-    tl.to(word, { xPercent:-50 + 46*D, opacity:0, duration:T*.45, ease:'power2.in' }, 0)
+    tl.to(word, { xPercent:-50 + 46*M, opacity:0, duration:T*.45, ease:'power2.in' }, 0)
       .add(()=>paint(nx), T*.46)
       .fromTo(word,
-        { xPercent:-50 - 46*D, opacity:0 },
+        { xPercent:-50 - 46*M, opacity:0 },
         { xPercent:-50, opacity:1, duration:T*.62, ease:'power2.out' }, T*.46);
 
     /* las cifras y el nombre se recomponen desde su ventanita */

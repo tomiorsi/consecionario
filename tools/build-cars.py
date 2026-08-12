@@ -177,11 +177,19 @@ def reconstruir_borde(alpha, piso):
             coef = np.polyfit(xs[ok], ys[ok], 2)
 
         borde = np.polyval(coef, xs)[None, :]      # (1, columnas)
-        # opaco hasta el arco, con un pixel de transición para que el
-        # remate no quede cortado con tijera
-        hasta_el_arco = np.clip(borde + 1 - y, 0, 1)
         sub = alpha[:, cols]
-        out[:, cols] = np.where(y > piso - BANDA, hasta_el_arco, sub)
+
+        # El arco sólo manda en la franja que va entre donde termina el
+        # auto en cada columna y el arco: ahí se rellena lo que falta, y
+        # por debajo del arco se apaga todo.
+        #
+        # Sólo esa franja, y no la banda entera: la silueta de la rueda
+        # sube en los laterales, y pintar hasta el arco sin mirar dónde
+        # termina el auto deja un bloque negro rectangular colgando a los
+        # costados de cada neumático.
+        hueco = (y > ys[None, :]) & (y <= borde)
+        relleno = np.where(hueco, np.clip(borde + 1 - y, 0, 1), 0.0)
+        out[:, cols] = np.where(y > borde, 0.0, np.maximum(sub, relleno))
 
     return out
 
