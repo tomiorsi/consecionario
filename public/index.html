@@ -669,6 +669,7 @@ body{
     if (still){
       from.classList.remove('is-on');
       paint(nx); cur = nx;
+      seguir();               // sin transición, pero igual queda quieto un rato
       return;
     }
 
@@ -684,6 +685,7 @@ body{
         G.set(from, { clearProps:'transform,filter,opacity' });
         busy = false;
         if (queued !== null){ const q = queued; queued = null; go(0, q); }
+        else seguir();      // recién acá el auto quedó quieto de verdad
       }
     });
 
@@ -767,37 +769,36 @@ body{
   /* ─────────────────────────────────────────────────────────────
      El pase solo.
 
-     Los autos van pasando sin que nadie toque nada. Cada vez que
-     alguien SÍ toca algo, el reloj vuelve a cero: si acabás de pedir
-     un auto con la flecha, lo último que querés es que se te vaya a
-     los pocos milisegundos porque justo tocaba el cambio.
+     PAUSA es cuánto QUIETO tiene que quedar el auto, no cada cuánto
+     arranca la cinta. Si se programara con un intervalo fijo de 2s
+     desde que EMPIEZA cada cambio, y el cambio en sí tarda casi 1s,
+     el auto sólo estaría quieto ~1s de esos 2 — que es exactamente lo
+     que pasaba antes: se sentía el doble de rápido de lo que decía el
+     número. Por eso el próximo pase se agenda al TERMINAR el actual
+     (acá, al final de go), no en un reloj que corre por su cuenta.
 
      Y se detiene cuando la pestaña no está a la vista: seguir pasando
      autos que nadie mira sólo gasta batería.
      ───────────────────────────────────────────────────────────── */
   const PAUSA = 2000;
-  let reloj = null, vivo = false;
+  let espera = null, activo = false;
 
-  function arrancar(){
-    if (still) return;                  // sin animación no hay carrusel
-    vivo = true;
-    clearInterval(reloj);
-    reloj = setInterval(()=>go(1, undefined, true), PAUSA);
+  function seguir(){
+    if (still || !activo) return;       // sin animación no hay carrusel
+    clearTimeout(espera);
+    espera = setTimeout(()=>go(1, undefined, true), PAUSA);
   }
-  function frenar(){ clearInterval(reloj); reloj = null; }
+  function frenar(){ clearTimeout(espera); espera = null; }
 
-  /* Toda interacción manual pasa por acá: primero reinicia el reloj
-     —así el auto que acabás de pedir no se te va enseguida— y recién
-     después mueve la cinta. */
-  function pedir(dir, to){ arrancar(); go(dir, to); }
+  /* Toda interacción manual pasa por acá: se cancela el pase pendiente
+     —si acabás de pedir un auto, lo último que querés es que se te
+     vaya a los pocos milisegundos porque justo tocaba el cambio— y el
+     próximo se reagenda solo, PAUSA ms después de que ESTA transición
+     termine, vía el `seguir()` al final de go(). */
+  function pedir(dir, to){ activo = true; frenar(); go(dir, to); }
 
-  /* `vivo` es lo que distingue "volver a la pestaña" de "recién llegué".
-     Sin esa marca, el aviso de visibilidad que manda el navegador al
-     abrir arranca el pase antes de que termine de entrar la página, y
-     el primer auto dura la mitad que los demás. */
   document.addEventListener('visibilitychange', ()=>{
-    if (document.hidden) frenar();
-    else if (vivo) arrancar();
+    if (document.hidden) frenar(); else seguir();
   });
 
   /* ── controles ─────────────────────────────────────────────── */
@@ -809,7 +810,7 @@ body{
      tiempo a hacer clic sin que el auto se escape */
   [$('next'), $('prev')].forEach(b=>{
     b.addEventListener('pointerenter', frenar);
-    b.addEventListener('pointerleave', arrancar);
+    b.addEventListener('pointerleave', seguir);
   });
 
   addEventListener('keydown', e=>{
@@ -854,8 +855,9 @@ body{
       .from('.arrow',     { opacity:0, duration:.7, stagger:.08,
                             clearProps:'opacity' }, 1);
 
-    /* el pase solo empieza cuando terminó de entrar la página */
-    setTimeout(arrancar, 1800);
+    /* el pase solo empieza cuando terminó de entrar la página, y desde
+       acá cuenta PAUSA completos porque el auto ya está quieto */
+    setTimeout(()=>{ activo = true; seguir(); }, 1800);
   }
 })();
 </script>
