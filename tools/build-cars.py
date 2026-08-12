@@ -19,9 +19,11 @@ Qué hace, y por qué cada paso:
    escala para que todos compartan la misma relación px/mm. Por eso un
    SUV sigue viéndose más alto que un coupé: porque lo es.
 
-3. ALINEA. Todos los autos quedan apoyando sobre la misma línea de piso
-   (GROUND) y centrados en el mismo eje (CENTER). Eso es lo que hace que
-   al cambiar de auto se lea como un reemplazo y no como un salto.
+3. ALINEA. Todos los autos rematan la goma unos píxeles POR ENCIMA de
+   la línea de luz (GROUND - APOYO) y centrados en el mismo eje
+   (CENTER). La línea va exactamente debajo de la goma, nunca encima:
+   si el último píxel del neumático cae sobre la línea, el brillo se lo
+   come y la rueda se ve amputada.
 
 4. EXPORTA tres tamaños. El @2x existe para pantallas retina, que piden
    el doble de píxeles de los que mide la ventana.
@@ -70,6 +72,18 @@ REAL = {
 SEMILLA = 45.0
 PISO = 2.5
 
+# La zona de contacto y cómo remata el auto contra la línea de luz.
+#
+# BANDA: las últimas filas de la foto donde conviven goma oscura y
+# neblina. FADE: cuántas filas tarda en morir lo que sigue debajo del
+# material indudable. APOYO: la goma termina este margen POR ENCIMA de
+# la línea de luz de la página — la línea va exactamente debajo de la
+# goma, nunca encima. La medida sale de la GLC, que es la referencia
+# aprobada de cómo tiene que verse el apoyo.
+BANDA = 40
+FADE = 10
+APOYO = 4
+
 # Fotos que no se vuelven a generar: manda el archivo ya publicado.
 #
 # La Mercedes está acá por pedido explícito. Vale saber qué se congela:
@@ -103,37 +117,51 @@ def cutout(path):
     lum = rgb.max(2)
 
     alpha = np.clip((lum - PISO) / 9.0, 0, 1)
-    visible = alpha > 0.30
 
-    if not (lum > SEMILLA).any():
+    strong = lum > SEMILLA
+    if not strong.any():
         raise SystemExit(f"no se encontró ningún auto en {path}")
+    piso = np.where(strong.sum(1) > 3)[0].max()
 
-    # --- limpieza del piso ---
-    #
-    # Debajo del auto no va nada. Las dos fotos que salen bien no traen
-    # ahí ni un pixel suelto; las que salen mal traen hasta 758, y ese
-    # manchón es todo el problema: el relleno de más abajo lo une con los
-    # neumáticos y los convierte en patas.
-    #
-    # Se limpia por contacto, no por brillo. Debajo de la última fila que
-    # tiene material indudable sólo sobrevive lo que siga pegado al auto:
-    # así la goma se conserva hasta su último pixel por oscura que sea, y
-    # la neblina se va por más clara que sea. Arriba de esa línea no se
-    # toca nada — lo que ya estaba bien no se recalcula.
-    piso = np.where((lum > SEMILLA).sum(1) > 3)[0].max()
-    piezas, _ = ndimage.label(visible)
-    pegadas = np.unique(piezas[lum > SEMILLA])
-    visible[piso + 1:] &= np.isin(piezas[piso + 1:], pegadas[pegadas > 0])
-    alpha[piso + 1:] *= visible[piso + 1:]
+    # Lo que no está pegado al auto no existe: motas y manchones sueltos
+    # se van, por claros que sean.
+    piezas, _ = ndimage.label(lum > PISO)
+    ids = np.unique(piezas[strong])
+    auto = np.isin(piezas, ids[ids > 0])
+    alpha *= auto
+
+    estricta = (np.clip((lum - PISO) / 9.0, 0, 1) > 0.30) & auto
+    y = np.arange(lum.shape[0])[:, None]
+    banda = y > piso - BANDA
+
+    # Rescate de la goma oscura. En algunas fotos el neumático de abajo
+    # mide luminancia 3-8 —casi negro— y el ramp normal lo deja
+    # traslúcido: sobre la luz de la página desaparece y la rueda se ve
+    # amputada. La goma y la neblina miden lo mismo en gris; lo que las
+    # separa es dónde están. La goma abraza la rueda, así que el refuerzo
+    # crece POR CERCANÍA desde el material indudable de la zona de
+    # contacto; la neblina, que se extiende por el piso lejos de todo,
+    # queda afuera.
+    cerca = ndimage.binary_dilation(estricta & banda, iterations=18)
+    boost = np.clip((lum - 2.0) / 4.0, 0, 1)
+    alpha = np.where(banda & cerca & auto, np.maximum(alpha, boost), alpha)
 
     # Relleno del interior. Un auto es macizo: entre el punto más alto y
     # el más bajo de cada columna no puede haber transparencia. Sin esto
-    # se ve el fondo a través de un auto negro.
-    ys, xs = np.where(visible)
+    # se ve el fondo a través de un auto negro. La columna tiene que
+    # tener material del auto POR ENCIMA de la banda de contacto: una
+    # columna cuyo único contenido vive pegado al piso es neblina, y
+    # rellenarla la convierte en un manchón macizo sobre la barra.
+    ys, xs = np.where(estricta)
     for x in range(xs.min(), xs.max() + 1):
-        col = np.where(visible[:, x])[0]
-        if col.size > 3:
+        col = np.where(estricta[:, x])[0]
+        if col.size > 3 and col.min() <= piso - BANDA:
             alpha[col.min(): col.max() + 1, x] = 1.0
+
+    # Debajo del material indudable, todo remata en pocas filas: el
+    # apoyo cierra y la neblina no llega a la línea de luz.
+    fade = np.clip((piso + FADE - y) / float(FADE), 0, 1)
+    alpha = np.where(y > piso, alpha * fade, alpha)
 
     return rgb, alpha
 
@@ -176,9 +204,14 @@ def main():
                              Image.LANCZOS)
 
         a = np.asarray(scaled)[..., 3].astype(np.float32) / 255
-        x0, x1, _, y1 = bounds(a, 0.235)
+        x0, x1, _, _ = bounds(a, 0.235)
+        # La vertical se alinea contra el remate SÓLIDO de la goma, no
+        # contra la cola tenue del alfa, y queda APOYO px por encima de
+        # la línea: la línea va exactamente debajo de la goma, nunca
+        # encima de ella.
+        _, _, _, y1 = bounds(a, 0.55)
         dx = round(CENTER * W - (x0 + x1) / 2)
-        dy = round(GROUND * H - y1)
+        dy = round(GROUND * H - y1) - APOYO
 
         canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         canvas.paste(scaled, (dx, dy))
