@@ -84,6 +84,28 @@ BANDA = 40
 FADE = 10
 APOYO = 4
 
+# Fotos cuyo borde inferior de la goma viene dentado y hay que
+# reconstruirlo.
+#
+# En la mayoría de las fotos el neumático termina en un arco parejo: el
+# alfa baja macizo y se apaga con un degradé suave. En la del RS 3 el
+# alfa sólido corta 12 px antes de tiempo y debajo queda una franja de
+# basura gris con dientes y picos — colgando de la goma como flecos, que
+# es exactamente lo que se ve mal en pantalla.
+#
+# No es algo que se pueda arreglar con umbrales: la basura tiene el
+# mismo gris que la goma. Se arregla reconociendo que una rueda no tiene
+# dientes, y reconstruyendo el borde como la curva suave que es.
+#
+# Va como lista y no como comportamiento general porque a las otras
+# cinco fotos, que ya están aprobadas, este paso les movería el contorno
+# sin que haga falta.
+BORDE_DENTADO = {"audi-rs3"}
+
+# Columnas mínimas para considerar que un grupo es una rueda y no un
+# resto suelto de la foto.
+RUEDA_MIN = 25
+
 # Fotos que no se vuelven a generar: manda el archivo ya publicado.
 #
 # La Mercedes está acá por pedido explícito. Vale saber qué se congela:
@@ -110,7 +132,61 @@ ESCALA = 0.3054270976
 SIZES = [(3344, "@2x", 88), (1672, "", 94), (1100, "@sm", 88)]
 
 
-def cutout(path):
+def reconstruir_borde(alpha, piso):
+    """Deja el borde inferior de la goma como el arco que es.
+
+    Se localizan las ruedas —grupos de columnas cuyo alfa sólido llega a
+    la zona de contacto— y a cada una se le ajusta una parábola por
+    mínimos cuadrados sobre su borde inferior. Esa parábola es el
+    límite: lo que cuelgue por debajo se apaga.
+
+    Tiene que ser una parábola y no un promedio o una mediana. Un
+    suavizado deja mesetas y saltos —escalones nuevos donde había
+    dientes—, y una rueda no tiene ni una cosa ni la otra: tiene un
+    arco. Ajustando la curva que de verdad describe el borde, el
+    resultado no puede tener escalones.
+
+    El arco manda en los dos sentidos: lo que sobresale se apaga y lo
+    que falta se completa. Hace falta completar porque en esta foto la
+    goma no sólo tiene dientes, tiene huecos — el neumático es tan
+    oscuro que por tramos no se distingue del fondo y el borde se corta
+    en el aire. La goma está, la foto no la registró; el arco es la
+    mejor reconstrucción de por dónde pasaba.
+    """
+    solido = alpha > 0.55
+    h, w = alpha.shape
+    fondo = np.where(solido.any(0), h - 1 - np.argmax(solido[::-1], 0), -1)
+
+    lab, n = ndimage.label(fondo > piso - BANDA)
+    y = np.arange(h)[:, None]
+    out = alpha.copy()
+
+    for i in range(1, n + 1):
+        cols = np.where(lab == i)[0]
+        if cols.size < RUEDA_MIN:
+            continue
+        xs = cols.astype(float) - cols.mean()
+        ys = fondo[cols].astype(float)
+        coef = np.polyfit(xs, ys, 2)
+        # segunda pasada ignorando los puntos que se despegan del arco,
+        # que son justamente los dientes y los huecos que hay que
+        # corregir: si entraran al ajuste, torcerían la curva
+        resid = ys - np.polyval(coef, xs)
+        ok = np.abs(resid) <= max(2.0, 2.0 * resid.std())
+        if ok.sum() > RUEDA_MIN:
+            coef = np.polyfit(xs[ok], ys[ok], 2)
+
+        borde = np.polyval(coef, xs)[None, :]      # (1, columnas)
+        # opaco hasta el arco, con un pixel de transición para que el
+        # remate no quede cortado con tijera
+        hasta_el_arco = np.clip(borde + 1 - y, 0, 1)
+        sub = alpha[:, cols]
+        out[:, cols] = np.where(y > piso - BANDA, hasta_el_arco, sub)
+
+    return out
+
+
+def cutout(path, dentado=False):
     """Devuelve (rgb, alpha) del auto recortado sobre su lienzo original."""
     im = Image.open(path).convert("RGB")
     rgb = np.asarray(im).astype(np.float32)
@@ -163,6 +239,9 @@ def cutout(path):
     fade = np.clip((piso + FADE - y) / float(FADE), 0, 1)
     alpha = np.where(y > piso, alpha * fade, alpha)
 
+    if dentado:
+        alpha = reconstruir_borde(alpha, piso)
+
     return rgb, alpha
 
 
@@ -183,7 +262,7 @@ def main():
     # --- pasada 1: medir, para saber a qué escala llevar a todos ---
     cars = {}
     for s in slugs:
-        rgb, alpha = cutout(f"{SRC}/{s}.png")
+        rgb, alpha = cutout(f"{SRC}/{s}.png", s in BORDE_DENTADO)
         x0, x1, _, _ = bounds(alpha)
         # px por mm, normalizado al ancho del lienzo de salida
         cars[s] = (rgb, alpha, (x1 - x0) / rgb.shape[1] * CANVAS[0] / REAL[s])
@@ -209,9 +288,18 @@ def main():
         # contra la cola tenue del alfa, y queda APOYO px por encima de
         # la línea: la línea va exactamente debajo de la goma, nunca
         # encima de ella.
-        _, _, _, y1 = bounds(a, 0.55)
+        #
+        # Con el borde reconstruido no hay cola que descartar: el último
+        # píxel ES el remate de la goma, así que se mide contra él y
+        # basta un pelo de aire para que la línea pase por debajo.
+        if s in BORDE_DENTADO:
+            _, _, _, y1 = bounds(a, 0.06)
+            margen = 1
+        else:
+            _, _, _, y1 = bounds(a, 0.55)
+            margen = APOYO
         dx = round(CENTER * W - (x0 + x1) / 2)
-        dy = round(GROUND * H - y1) - APOYO
+        dy = round(GROUND * H - y1) - margen
 
         canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         canvas.paste(scaled, (dx, dy))
