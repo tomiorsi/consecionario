@@ -710,23 +710,38 @@ body{
        se lee como retroceder, aunque el que aparezca sea el siguiente. */
     const M = -D;
 
-    G.set(next, { xPercent:-travel*M, filter:'blur(3px) brightness(.06)' });
+    G.set(next, { xPercent:-travel*M, scale:1.035,
+                  filter:'blur(11px) brightness(1) saturate(1.16)' });
 
     tl.to(from, { xPercent: travel*M, duration:T, ease:'power2.inOut' }, 0)
       .to(next, { xPercent: 0,        duration:T, ease:'power2.inOut' }, 0);
 
-    /* El desenfoque de movimiento es simétrico y llega al máximo en
-       el medio del recorrido, que es donde más rápido van. Y el
-       brillo cae al salir del haz: el auto no se desvanece, se va de
-       la luz. */
+    /* ── el aire de la cinta ─────────────────────────────────────
+       Lo que da la sensación de velocidad es el DESENFOQUE, no el
+       apagón. Antes los dos autos pasaban por brightness .72 justo
+       en el medio del cuadro, que es donde más se los mira: un verde
+       al 72% no se lee como "a contraluz", se lee como lavado. Ése
+       era el gris.
+
+       Ahora el color va a pleno todo el trayecto y lo único que
+       cuenta el movimiento es el blur. El que se va sólo se apaga al
+       final, cuando ya salió de cuadro y no hay nada que ensuciar.
+       El que llega remata con un golpe de luz —brillo por encima de
+       1, no por debajo— como si lo agarrara el foco al frenar. */
     tl.to(from, { keyframes:[
-        { filter:'blur(8px) brightness(.72)', duration:T*.5, ease:'power1.in'  },
-        { filter:'blur(3px) brightness(.05)', duration:T*.5, ease:'power1.out' }
+        { filter:'blur(11px) brightness(1) saturate(1.16)', duration:T*.55, ease:'power1.in'  },
+        { filter:'blur(5px) brightness(.12) saturate(1)',   duration:T*.45, ease:'power2.in'  }
       ]}, 0)
       .to(next, { keyframes:[
-        { filter:'blur(8px) brightness(.72)', duration:T*.5, ease:'power1.in'  },
-        { filter:'blur(0px) brightness(1)',   duration:T*.5, ease:'power1.out' }
+        { filter:'blur(7px) brightness(1.04) saturate(1.14)', duration:T*.55, ease:'power1.inOut' },
+        { filter:'blur(0px) brightness(1.22) saturate(1.05)', duration:T*.30, ease:'power2.out'   },
+        { filter:'blur(0px) brightness(1) saturate(1)',       duration:T*.15, ease:'power1.out'   }
       ]}, 0);
+
+    /* y se asienta: llega apenas más grande y baja a su tamaño. Es un
+       gesto de peso, no de escala — 3,5% no se nota como zoom, se nota
+       como que el auto frenó. */
+    tl.to(next, { scale:1, duration:T*.92, ease:'power3.out' }, 0);
 
     /* ── el rig acompaña ─────────────────────────────────────────
        No se mueve: se apaga mientras el escenario está de paso y
