@@ -37,7 +37,9 @@ estaban.
 from PIL import Image, ImageFilter
 from scipy import ndimage
 import numpy as np
+import hashlib
 import os
+import re
 import sys
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -67,6 +69,15 @@ REAL = {
 # piso miden lo mismo. Cualquier umbral que borre una, borra la otra.
 SEMILLA = 45.0
 PISO = 2.5
+
+# Fotos que no se vuelven a generar: manda el archivo ya publicado.
+#
+# La Mercedes está acá por pedido explícito. Vale saber qué se congela:
+# arrastra un pixel de basura bajo el auto que le corre la alineación, y
+# por eso apoya en la fila 692 mientras las otras cinco apoyan en la 696
+# — está levantada 4 px. La limpieza del piso lo corrige sola; sacarla de
+# esta lista y correr el script es todo lo que hace falta.
+CONGELADAS = {"glc-coupe"}
 
 CANVAS = (1672, 941)   # lienzo de salida, proporción de las fotos
 GROUND = 0.740         # dónde apoyan las ruedas
@@ -180,6 +191,10 @@ def main():
         final = Image.fromarray(
             np.dstack([arr[..., :3], soft]).clip(0, 255).astype(np.uint8), "RGBA")
 
+        if s in CONGELADAS:
+            print(f"{s:12} congelada — se deja el archivo publicado")
+            continue
+
         line = f"{s:12} ×{factor:.3f}  "
         for w, suffix, q in SIZES:
             p = f"{OUT}/{s}{suffix}.webp"
@@ -196,6 +211,41 @@ def main():
         dev = ((x1 - x0) / REAL[s] / target - 1) * 100
         print(f"  {s:12} largo {x1-x0:4d}px  alto {y1-y0:4d}px  "
               f"ruedas {y1/H*100:5.1f}%  desvío {dev:+.1f}%")
+
+    sellar()
+
+
+def sellar():
+    """Escribe en la página la huella de las fotos recién generadas.
+
+    El navegador guarda cada imagen bajo su dirección y, si la dirección
+    no cambia, muestra la que ya tenía sin volver a preguntar. Por eso una
+    foto corregida puede seguir viéndose vieja durante días —y en el sitio
+    publicado es peor, porque además hay un CDN cacheando en el medio.
+
+    La huella resume el contenido de todos los webp, así que cambia sola
+    cuando cambia una foto y sólo entonces.
+    """
+    fotos = sorted(f for f in os.listdir(OUT) if f.endswith(".webp"))
+    h = hashlib.md5()
+    for f in fotos:
+        with open(f"{OUT}/{f}", "rb") as fh:
+            h.update(fh.read())
+    huella = h.hexdigest()[:8]
+
+    page = os.path.join(BASE, "public", "index.html")
+    with open(page, encoding="utf-8") as fh:
+        html = fh.read()
+
+    nuevo, n = re.subn(r"const FOTOS = '[0-9a-f]*';",
+                       f"const FOTOS = '{huella}';", html)
+    if n != 1:
+        raise SystemExit(f"no encontré dónde escribir la huella en {page}")
+
+    if nuevo != html:
+        with open(page, "w", encoding="utf-8") as fh:
+            fh.write(nuevo)
+    print(f"\nhuella de las fotos: {huella}  ({len(fotos)} archivos)")
 
 
 if __name__ == "__main__":

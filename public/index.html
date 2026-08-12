@@ -594,13 +594,23 @@ body{
 
   /* ── montaje ───────────────────────────────────────────────── */
 
+  /* Huella de las fotos. La escribe tools/build-cars.py en cada corrida
+     y va pegada a cada URL, así que cuando una foto cambia, cambia la
+     dirección que pide el navegador.
+
+     Sin esto no hay forma de que veas una foto nueva: el navegador tiene
+     guardada la vieja bajo esa misma dirección y la muestra sin volver a
+     preguntar. En Cloudflare es peor, porque además hay un CDN cacheando
+     en el medio. */
+  const FOTOS = 'f568049c';
+
   const imgs = CARS.map((c,i)=>{
     const el = document.createElement('img');
     el.className = 'car' + (i===0 ? ' is-on' : '');
-    el.src = `assets/cars/${c.slug}.webp`;
-    el.srcset = `assets/cars/${c.slug}@sm.webp 1100w, ` +
-                `assets/cars/${c.slug}.webp 1672w, ` +
-                `assets/cars/${c.slug}@2x.webp 3344w`;
+    el.src = `assets/cars/${c.slug}.webp?v=${FOTOS}`;
+    el.srcset = `assets/cars/${c.slug}@sm.webp?v=${FOTOS} 1100w, ` +
+                `assets/cars/${c.slug}.webp?v=${FOTOS} 1672w, ` +
+                `assets/cars/${c.slug}@2x.webp?v=${FOTOS} 3344w`;
     el.sizes = '100vw';
     el.alt = c.model;
     el.decoding = 'async';
