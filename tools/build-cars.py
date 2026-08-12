@@ -6,10 +6,12 @@ Convierte las fotos crudas de source/ en los recortes que usa la web.
 
 Qué hace, y por qué cada paso:
 
-1. RECORTA el auto. Las fotos vienen contra negro absoluto, así que todo
-   pixel que levanta por encima del negro es auto. Después RELLENA el
-   interior columna por columna — sin eso, un auto negro (el GLC) o los
-   vidrios polarizados quedan traslúcidos y se ve el fondo a través.
+1. RECORTA el auto. Las fotos vienen contra negro, así que lo que levanta
+   por encima del fondo es auto. Antes de nada LIMPIA el piso: algunas
+   fotos traen bajo el auto una neblina de estudio, y hay que sacarla
+   porque el paso siguiente la convierte en patas negras. Después RELLENA
+   el interior columna por columna — sin eso, un auto negro (el GLC) o
+   los vidrios polarizados quedan traslúcidos y se ve el fondo a través.
 
 2. CALIBRA la escala. El generador dibuja a ojo: cada auto sale de un
    tamaño distinto sin relación con la realidad. Acá se mide el largo en
@@ -27,10 +29,13 @@ Qué hace, y por qué cada paso:
 Sale a public/assets/cars/, que es la carpeta que se publica.
 
 Para sumar un auto: dejá la foto en source/<slug>.png y agregá su largo
-real de fábrica —en milímetros— a la tabla REAL.
+real de fábrica —en milímetros— a la tabla REAL. No hay nada más que
+tocar: no hay ajustes por foto, y una foto nueva no altera a las que ya
+estaban.
 """
 
 from PIL import Image, ImageFilter
+from scipy import ndimage
 import numpy as np
 import os
 import sys
@@ -51,71 +56,73 @@ REAL = {
     "audi-rs3":   4389,   # Audi RS 3 Sportback (8Y)
 }
 
-# Autos que necesitan que se les recorte la goma contra el piso.
+# Los dos umbrales del recorte, en luminancia sobre 255.
 #
-# Es una excepción y no el comportamiento por defecto, a propósito. Las
-# cinco primeras fotos traen bajo las ruedas una línea de luz —el
-# reflejo del zócalo— que se funde con la barra de la página y queda
-# bien; tocarlas las empeora. La del RS 3 viene de otra tanda: la goma
-# se desvanece en vez de cortar, y por debajo trae una neblina gris que
-# sobre la barra se ve como una mancha.
+# SEMILLA es "esto es auto sin ninguna duda": chapa, vidrio, llanta. El
+# fondo de estudio nunca llega a ese nivel.
 #
-# Cada foto que entre por acá tiene que justificarse mirándola, no por
-# las dudas: lo que le sirve a una le arruina a las otras.
-AL_PISO = {"audi-rs3"}
+# PISO es el borde de lo visible. Entre PISO y SEMILLA cae tanto la goma
+# en sombra como la neblina que algunas fotos traen bajo el auto, y por
+# nivel de gris son indistinguibles: un neumático oscuro y un manchón de
+# piso miden lo mismo. Cualquier umbral que borre una, borra la otra.
+SEMILLA = 45.0
+PISO = 2.5
 
 CANVAS = (1672, 941)   # lienzo de salida, proporción de las fotos
 GROUND = 0.740         # dónde apoyan las ruedas
 CENTER = 0.500         # eje horizontal del auto
 
+# Escala común, en px/mm sobre el lienzo de salida. Es la constante que
+# convierte milímetros de fábrica en píxeles de pantalla.
+#
+# Salió del promedio de las seis fotos, pero está fija a propósito: si
+# se recalculara en cada corrida, agregar un auto —o retocar el recorte
+# de uno— correría el promedio y reescalaría a todos los demás. Un auto
+# nuevo tiene que entrar a la escala que ya existe, no redefinirla.
+ESCALA = 0.3054270976
+
 # (ancho, sufijo, calidad). El @2x es para retina.
 SIZES = [(3344, "@2x", 88), (1672, "", 94), (1100, "@sm", 88)]
 
 
-def cutout(path, al_piso=False):
+def cutout(path):
     """Devuelve (rgb, alpha) del auto recortado sobre su lienzo original."""
     im = Image.open(path).convert("RGB")
     rgb = np.asarray(im).astype(np.float32)
+    lum = rgb.max(2)
 
-    # el fondo es negro absoluto: lo que levanta por encima de ~2.5 es auto
-    alpha = np.clip((rgb.max(2) - 2.5) / 9.0, 0, 1)
+    alpha = np.clip((lum - PISO) / 9.0, 0, 1)
+    visible = alpha > 0.30
+
+    if not (lum > SEMILLA).any():
+        raise SystemExit(f"no se encontró ningún auto en {path}")
+
+    # --- limpieza del piso ---
+    #
+    # Debajo del auto no va nada. Las dos fotos que salen bien no traen
+    # ahí ni un pixel suelto; las que salen mal traen hasta 758, y ese
+    # manchón es todo el problema: el relleno de más abajo lo une con los
+    # neumáticos y los convierte en patas.
+    #
+    # Se limpia por contacto, no por brillo. Debajo de la última fila que
+    # tiene material indudable sólo sobrevive lo que siga pegado al auto:
+    # así la goma se conserva hasta su último pixel por oscura que sea, y
+    # la neblina se va por más clara que sea. Arriba de esa línea no se
+    # toca nada — lo que ya estaba bien no se recalcula.
+    piso = np.where((lum > SEMILLA).sum(1) > 3)[0].max()
+    piezas, _ = ndimage.label(visible)
+    pegadas = np.unique(piezas[lum > SEMILLA])
+    visible[piso + 1:] &= np.isin(piezas[piso + 1:], pegadas[pegadas > 0])
+    alpha[piso + 1:] *= visible[piso + 1:]
 
     # Relleno del interior. Un auto es macizo: entre el punto más alto y
     # el más bajo de cada columna no puede haber transparencia. Sin esto
     # se ve el fondo a través de un auto negro.
-    solid = alpha > 0.30
-    ys, xs = np.where(solid)
-    if xs.size == 0:
-        raise SystemExit(f"no se encontró ningún auto en {path}")
-
-    if not al_piso:
-        # El camino de siempre, intacto. Los cinco autos que ya estaban
-        # aprobados salen por acá y tienen que dar byte a byte lo mismo.
-        for x in range(xs.min(), xs.max() + 1):
-            col = np.where(solid[:, x])[0]
-            if col.size > 3:
-                alpha[col.min(): col.max() + 1, x] = 1.0
-        return rgb, alpha
-
-    # --- camino especial: recortar la goma contra el piso ---
-    #
-    # La línea de apoyo se busca con umbral alto, donde sólo hay chapa y
-    # goma: la neblina del piso no llega a ese nivel.
-    ground = np.where((rgb.max(2) > 45).sum(1) > 3)[0].max()
-
-    # Si una columna termina CERCA del piso es un neumático, y se lo
-    # lleva macizo hasta la línea para que apoye plano en vez de
-    # desvanecerse. Si termina lejos es la panza del auto, y se la deja.
-    CERCA = 14   # px
+    ys, xs = np.where(visible)
     for x in range(xs.min(), xs.max() + 1):
-        col = np.where(solid[:ground + 1, x])[0]
+        col = np.where(visible[:, x])[0]
         if col.size > 3:
-            bot = col.max()
-            alpha[col.min(): (ground if ground - bot <= CERCA else bot) + 1, x] = 1.0
-
-    # y nada por debajo: el apoyo lo da la barra de luz de la página
-    y = np.arange(alpha.shape[0])[:, None]
-    alpha *= np.clip((ground + 2 - y) / 2.0, 0, 1)
+            alpha[col.min(): col.max() + 1, x] = 1.0
 
     return rgb, alpha
 
@@ -137,12 +144,12 @@ def main():
     # --- pasada 1: medir, para saber a qué escala llevar a todos ---
     cars = {}
     for s in slugs:
-        rgb, alpha = cutout(f"{SRC}/{s}.png", s in AL_PISO)
+        rgb, alpha = cutout(f"{SRC}/{s}.png")
         x0, x1, _, _ = bounds(alpha)
         # px por mm, normalizado al ancho del lienzo de salida
         cars[s] = (rgb, alpha, (x1 - x0) / rgb.shape[1] * CANVAS[0] / REAL[s])
 
-    target = float(np.mean([c[2] for c in cars.values()]))
+    target = ESCALA
     print(f"escala común: {target:.4f} px/mm\n")
 
     # --- pasada 2: escalar, alinear y exportar ---
