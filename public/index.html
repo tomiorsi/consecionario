@@ -61,6 +61,12 @@
   --ground:74%;              /* altura de la línea del piso en la ventana */
   --car:.60;                 /* escala del auto — la recalcula el JS */
   --carw:50vw;               /* ancho real del auto en pantalla — ídem */
+
+  /* Ancho del pedestal de luz. Se mide contra el auto, no contra la
+     ventana: la barra tiene que terminar poco después que el auto para
+     que se lea como una tarima donde está parado, y no como un
+     horizonte que cruza la pantalla. Es lo que lo deja flotando. */
+  --barw:calc(var(--carw) * 1.14);
 }
 
 *{margin:0;padding:0;box-sizing:border-box}
@@ -132,52 +138,57 @@ body{
 }
 
 
-/* LA FIRMA — la barra de horizonte. Cruza todo el ancho a la altura
-   del piso; es contra esto que el auto se recorta. */
+/* LA TARIMA. Todo lo que pasa a la altura del piso vive acá adentro y
+   mide --barw, no el ancho de la ventana: la luz termina poco después
+   que el auto y el conjunto queda flotando en el medio del negro. */
+.l-stage{
+  left:50%; top:var(--ground);
+  width:var(--barw);
+  transform:translateX(-50%);
+}
+.l-stage > *{ position:absolute; }
+
+/* LA FIRMA — la barra. Es contra esto que el auto se recorta. */
 .l-horizon{
-  left:0; right:0; top:var(--ground);
+  left:0; right:0; top:0;
   height:2px;
   transform:translateY(-1px);
   background:linear-gradient(90deg,
-    transparent 0%, rgba(var(--beam),.35) 14%,
-    rgba(var(--beam),.95) 38%, #FFFFFF 50%, rgba(var(--beam),.95) 62%,
-    rgba(var(--beam),.35) 86%, transparent 100%);
+    transparent 0%, rgba(var(--beam),.30) 10%,
+    rgba(var(--beam),.95) 34%, #FFFFFF 50%, rgba(var(--beam),.95) 66%,
+    rgba(var(--beam),.30) 90%, transparent 100%);
 }
 /* el resplandor que la barra tira hacia arriba */
 .l-horizon::before{
   content:"";
   position:absolute; left:0; right:0; bottom:0;
-  height:clamp(7rem,20vh,15rem);
-  background:linear-gradient(0deg, rgba(var(--beam),.22), transparent 78%);
-  -webkit-mask-image:linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
-          mask-image:linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+  height:clamp(6rem,17vh,13rem);
+  background:linear-gradient(0deg, rgba(var(--beam),.20), transparent 78%);
+  -webkit-mask-image:linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
+          mask-image:linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
 }
 /* el punto caliente que recorre la barra de punta a punta */
 .l-sweep{
-  left:0; top:var(--ground);
-  width:26%; height:2px;
-  transform:translate(-40%,-1px);
+  left:0; top:0;
+  width:30%; height:2px;
+  transform:translateY(-1px);
   background:radial-gradient(closest-side, #FFFFFF, transparent);
   opacity:.9;
 }
 
 /* el piso pulido devolviendo la barra */
 .l-reflect{
-  left:0; right:0; top:var(--ground); bottom:0;
-  background:linear-gradient(180deg, rgba(var(--beam),.14), transparent 58%);
-  -webkit-mask-image:linear-gradient(90deg, transparent, #000 26%, #000 74%, transparent);
-          mask-image:linear-gradient(90deg, transparent, #000 26%, #000 74%, transparent);
+  left:0; right:0; top:0;
+  height:clamp(5rem,16vh,12rem);
+  background:linear-gradient(180deg, rgba(var(--beam),.13), transparent 62%);
+  -webkit-mask-image:linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+          mask-image:linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
 }
 
-/* la brasa: la mancha caliente justo abajo del auto. Angosta y dura,
-   no el charco redondo y blando de antes. */
-/* Se mide contra --carw (el ancho real del auto en pantalla, que
-   calcula el JS) y no contra un % de la ventana: si no, en un
-   teléfono la brasa quedaba más angosta que el auto y se veía como
-   una mancha suelta abajo. */
+/* la brasa: la mancha caliente justo abajo del auto */
 .l-ember{
-  left:50%; top:var(--ground);
-  width:calc(var(--carw) * .92); height:clamp(2.5rem,8vh,7rem);
+  left:50%; top:0;
+  width:82%; height:clamp(2.2rem,7vh,6rem);
   transform:translate(-50%,-38%);
   background:radial-gradient(ellipse 50% 50% at 50% 50%, rgba(var(--beam),.5), transparent 68%);
   filter:blur(10px);
@@ -192,9 +203,9 @@ body{
   /* colgado de la línea del piso, no de un % suelto: así queda detrás
      del auto en cualquier formato de pantalla. La resta lo sube justo
      lo necesario para que asome por encima del techo. */
-  top:calc(var(--ground) - clamp(11rem,36vh,24rem));
+  top:calc(var(--ground) - clamp(9rem,30vh,20rem));
   transform:translate(-50%,-50%);
-  font-size:clamp(3.6rem,17vw,15rem);
+  font-size:clamp(2.6rem,11vw,9rem);
   font-variation-settings:"wdth" 66,"wght" 800;
   letter-spacing:-.025em;
   line-height:.8;
@@ -291,20 +302,47 @@ body{
 }
 .mark__type i{ font-style:normal; color:var(--graphite); }
 
+/* El menú. Mismo idioma que el rig: lo que se enciende es una barra de
+   luz, no un subrayado. Sale del borde inferior con la misma curva que
+   todo lo demás y deja el texto quieto — nada salta al pasar el mouse. */
 .menu{
   display:flex;
-  gap:clamp(1rem,2.2vw,2rem);
+  align-items:center;
+  gap:clamp(1.4rem,2.8vw,2.6rem);
   font-family:var(--mono);
-  font-size:.6rem;
-  letter-spacing:.22em;
+  font-size:.62rem;
+  font-weight:400;
+  letter-spacing:.26em;
+  text-transform:uppercase;
 }
 .menu a{
+  position:relative;
+  display:block;
+  padding:.55rem 0;
   color:var(--steel);
   text-decoration:none;
   transition:color .35s var(--ease);
 }
+.menu a::after{
+  content:"";
+  position:absolute;
+  left:0; right:0; bottom:.15rem;
+  height:1px;
+  background:linear-gradient(90deg,
+    rgba(var(--beam),0), rgba(var(--beam),.9) 22%, #FFFFFF 50%,
+    rgba(var(--beam),.9) 78%, rgba(var(--beam),0));
+  transform:scaleX(0);
+  transform-origin:50% 50%;
+  transition:transform .45s var(--ease), box-shadow .45s var(--ease);
+}
 .menu a:hover,
 .menu a:focus-visible{ color:var(--chrome); }
+.menu a:hover::after,
+.menu a:focus-visible::after{
+  transform:scaleX(1);
+  box-shadow:0 0 .65rem rgba(var(--beam),.7);
+}
+.menu a:focus-visible{ outline:none; }
 
 /* ── las cifras que flanquean al auto ──────────────────────────── */
 
@@ -343,82 +381,37 @@ body{
 }
 .figure .slot{ overflow:hidden; }
 
-/* ── el pie ────────────────────────────────────────────────────── */
-
-#foot{
-  position:absolute;
-  z-index:6;
-  left:0; right:0;
-  bottom:clamp(1.1rem,3.4vh,2.4rem);
-  padding:0 var(--gut);
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  gap:clamp(.75rem,2vh,1.35rem);
-}
-
 .slot{ overflow:hidden; }
 .slot > *{ display:block; will-change:transform; }
 
-.model{
-  font-size:clamp(1.35rem,3.6vw,3.1rem);
-  font-variation-settings:"wdth" 108,"wght" 600;
-  letter-spacing:.01em;
-  line-height:1.05;
-  text-align:center;
-  text-transform:uppercase;
-  /* nombres como "Mercedes-Benz GLC Coupé" llegan al borde en un
-     teléfono: que corten parejo en vez de dejar una palabra suelta */
-  text-wrap:balance;
-}
-.gearbox{
-  font-family:var(--mono);
-  font-size:.6rem;
-  letter-spacing:.3em;
-  color:var(--graphite);
-  text-align:center;
-  margin-top:.6rem;
-}
+/* ── las flechas ───────────────────────────────────────────────── */
 
-/* controles: van juntos abajo, no a los costados — los costados ahora
-   los ocupan las cifras */
-#controls{
-  display:flex;
-  align-items:center;
-  gap:clamp(.9rem,2.4vw,1.9rem);
-}
-
+/* Apenas visibles: los autos pasan solos, así que esto es para el que
+   se quiera adelantar. Sin círculo ni fondo — sólo el trazo, tenue,
+   que se enciende al acercarse. */
 .arrow{
-  width:2.7rem; height:2.7rem;
+  position:absolute;
+  z-index:7;
+  top:var(--ground);
+  transform:translateY(-190%);
+  width:2.6rem; height:2.6rem;
   display:grid; place-items:center;
-  border:1px solid rgba(242,244,248,.16);
-  border-radius:50%;
+  border:0;
   background:transparent;
-  color:var(--steel);
+  color:var(--chrome);
+  opacity:.26;
   cursor:pointer;
-  transition:color .3s var(--ease), border-color .3s var(--ease), background .3s var(--ease);
+  transition:opacity .35s var(--ease), transform .35s var(--ease);
   -webkit-tap-highlight-color:transparent;
 }
-.arrow svg{ width:1rem; height:1rem; }
-.arrow:hover,
-.arrow:focus-visible{
-  color:#000;
-  background:var(--chrome);
-  border-color:var(--chrome);
-}
-.arrow:focus-visible{ outline:2px solid rgba(var(--beam),.7); outline-offset:3px; }
+.arrow--l{ left:calc(var(--gut) * .5); }
+.arrow--r{ right:calc(var(--gut) * .5); }
+.arrow svg{ width:100%; height:100%; }
 
-#ticks{ display:flex; align-items:center; gap:.55rem; }
-.tick{
-  width:clamp(1.1rem,2.6vw,2.1rem);
-  height:2px;
-  background:rgba(242,244,248,.18);
-  transition:background .45s var(--ease), box-shadow .45s var(--ease);
-}
-.tick.on{
-  background:var(--chrome);
-  box-shadow:0 0 .7rem rgba(var(--beam),.9);
-}
+.arrow:hover, .arrow:focus-visible{ opacity:1; }
+.arrow--l:hover, .arrow--l:focus-visible{ transform:translate(-22%,-190%); }
+.arrow--r:hover, .arrow--r:focus-visible{ transform:translate(22%,-190%); }
+.arrow:focus-visible{ outline:1px solid rgba(var(--beam),.6); outline-offset:8px; }
 
 /* ── pantallas chicas ──────────────────────────────────────────── */
 
@@ -426,11 +419,11 @@ body{
    entran las cifras ni el pie debajo. */
 @media (orientation:portrait){
   :root{ --ground:57%; }
-  /* en vertical el auto es chico: el nombre tiene que arrimarse y
-     agrandarse, si no queda flotando solo arriba y no se lee */
+  /* en vertical el auto es chico: el nombre tiene que arrimarse, si no
+     queda flotando solo arriba y no se lee */
   #word{
-    top:calc(var(--ground) - clamp(3.5rem,12vh,9rem));
-    font-size:clamp(3.4rem,27vw,11rem);
+    top:calc(var(--ground) - clamp(3rem,10vh,7.5rem));
+    font-size:clamp(2.4rem,19vw,7.5rem);
     color:#1E2027;
   }
 }
@@ -445,6 +438,12 @@ body{
   }
   .figure b{ font-size:clamp(2.4rem,13vw,3.6rem); }
   .figure i{ margin-top:.45rem; font-size:.52rem; letter-spacing:.2em; }
+
+  /* con las cifras abajo, las flechas se corren a la altura del auto
+     para no encimarse con ellas */
+  .arrow{ width:2.1rem; height:2.1rem; transform:translateY(-260%); }
+  .arrow--l:hover, .arrow--l:focus-visible{ transform:translate(-18%,-260%); }
+  .arrow--r:hover, .arrow--r:focus-visible{ transform:translate(18%,-260%); }
 }
 
 @media (prefers-reduced-motion:reduce){
@@ -463,10 +462,14 @@ body{
     <div class="l-ambient"></div>
     <div class="l-cone l-cone--l"></div>
     <div class="l-cone l-cone--r"></div>
-    <div class="l-reflect"></div>
-    <div class="l-ember" id="ember"></div>
-    <div class="l-horizon" id="horizon"></div>
-    <div class="l-sweep" id="sweep"></div>
+    <!-- todo lo que pasa a la altura del piso va acá adentro, y esto
+         mide lo que mide el auto: por eso la luz no cruza la pantalla -->
+    <div class="l-stage">
+      <div class="l-reflect"></div>
+      <div class="l-ember" id="ember"></div>
+      <div class="l-horizon" id="horizon"></div>
+      <div class="l-sweep" id="sweep"></div>
+    </div>
   </div>
 
   <div id="word" aria-hidden="true"></div>
@@ -504,21 +507,16 @@ body{
     <i>SEGUNDOS 0–100</i>
   </div>
 
-  <div id="foot">
-    <div>
-      <div class="slot"><h1 class="model" id="model">—</h1></div>
-      <p class="gearbox" id="gearbox">—</p>
-    </div>
-    <div id="controls">
-      <button class="arrow" id="prev" aria-label="Auto anterior">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4 7 12l8 8"/></svg>
-      </button>
-      <div id="ticks"></div>
-      <button class="arrow" id="next" aria-label="Auto siguiente">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 8 8-8 8"/></svg>
-      </button>
-    </div>
-  </div>
+  <!-- Las flechas van pegadas a los bordes, a la altura del auto, y
+       apenas se ven hasta que se las busca: los autos pasan solos, así
+       que esto es para el que quiera adelantarse. El pie quedó libre
+       para los datos de contacto. -->
+  <button class="arrow arrow--l" id="prev" aria-label="Auto anterior">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4 7 12l8 8"/></svg>
+  </button>
+  <button class="arrow arrow--r" id="next" aria-label="Auto siguiente">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 8 8-8 8"/></svg>
+  </button>
 
 </main>
 
@@ -575,7 +573,7 @@ body{
   function fit(){
     const vw = innerWidth, vh = innerHeight;
     const frameW = vh * AR;
-    const share  = vw < 760 ? .84 : .50;   // del ancho de la ventana
+    const share  = vw < 760 ? .74 : .42;   // del ancho de la ventana
     const carW   = vw * share;
     const root = document.documentElement.style;
     root.setProperty('--car',  (carW / (frameW * CAR_IN_FRAME)).toFixed(4));
@@ -619,19 +617,11 @@ body{
     return el;
   });
 
-  $('ticks').innerHTML = CARS.map((c,i)=>
-    `<button class="tick${i===0?' on':''}" data-i="${i}" aria-label="${c.model}"></button>`
-  ).join('');
-  const ticks = [...document.querySelectorAll('.tick')];
-
   function paint(i){
     const c = CARS[i];
     word.textContent        = c.word;
-    $('model').textContent  = c.model;
-    $('gearbox').textContent= c.gearbox;
     $('fPower').textContent = c.power;
     $('fAccel').textContent = c.accel;
-    ticks.forEach((t,k)=> t.classList.toggle('on', k===i));
   }
 
   let cur = 0, busy = false, queued = null;
@@ -652,11 +642,18 @@ body{
        nuevo aterriza. Eso es lo que la hace sentir una luz de verdad
        y no un degradé pegado atrás.
      ───────────────────────────────────────────────────────────── */
-  function go(dir, to){
+  function go(dir, to, solo){
     /* Si llega un pedido mientras la cinta corre, se guarda el último
        y se ejecuta al terminar. Sin esto, apurar las flechas se siente
-       como que la página ignora los clics. */
+       como que la página ignora los clics.
+
+       El pase automático es la excepción: si está ocupado se saltea el
+       turno en vez de anotarse. Encolándolo pasaba que tocabas la
+       flecha para atrás, el pase encolaba su avance, y al terminar tu
+       transición saltaba para adelante — pedías el anterior y te daba
+       el siguiente. */
     if (busy){
+      if (solo) return;
       queued = to !== undefined ? to : (cur + dir + CARS.length) % CARS.length;
       return;
     }
@@ -740,11 +737,15 @@ body{
       .to('#ember', { opacity:1.4, duration:.16, ease:'power2.out' }, T*.78)
       .to('#ember', { opacity:1, duration:.6 }, T*.95);
 
-    /* el punto caliente viaja CON los autos, no en contra: es el
-       reflejo del auto corriendo sobre la barra */
+    /* El punto caliente viaja CON los autos, no en contra: es el
+       reflejo del auto corriendo sobre la barra.
+
+       Los porcentajes son de su propio ancho, que es el 30% de la
+       tarima: para cruzarla entera hace falta llegar a 233%, no más.
+       Cuando la barra iba de punta a punta el recorrido era otro. */
     tl.fromTo('#sweep',
-      { xPercent: M>0 ? -90 : 430, opacity:0 },
-      { xPercent: M>0 ? 430 : -90, opacity:1, duration:T, ease:'power2.inOut' }, 0)
+      { xPercent: M>0 ? -110 : 245, opacity:0 },
+      { xPercent: M>0 ? 245 : -110, opacity:1, duration:T, ease:'power2.inOut' }, 0)
       .to('#sweep', { opacity:0, duration:.2 }, T*.85);
 
     /* el cartel del fondo viaja en el mismo sentido pero más lejos:
@@ -760,21 +761,60 @@ body{
       .fromTo('.slot > *', { yPercent:115 },
         { yPercent:0, duration:T*.6, ease:'power3.out', stagger:.045 }, T*.48);
 
-    tl.to('#gearbox', { opacity:0, duration:T*.28, ease:'power2.in' }, 0)
-      .to('#gearbox', { opacity:1, duration:T*.5 }, T*.5);
-
     cur = nx;
   }
 
+  /* ─────────────────────────────────────────────────────────────
+     El pase solo.
+
+     Los autos van pasando sin que nadie toque nada. Cada vez que
+     alguien SÍ toca algo, el reloj vuelve a cero: si acabás de pedir
+     un auto con la flecha, lo último que querés es que se te vaya a
+     los pocos milisegundos porque justo tocaba el cambio.
+
+     Y se detiene cuando la pestaña no está a la vista: seguir pasando
+     autos que nadie mira sólo gasta batería.
+     ───────────────────────────────────────────────────────────── */
+  const PAUSA = 2000;
+  let reloj = null, vivo = false;
+
+  function arrancar(){
+    if (still) return;                  // sin animación no hay carrusel
+    vivo = true;
+    clearInterval(reloj);
+    reloj = setInterval(()=>go(1, undefined, true), PAUSA);
+  }
+  function frenar(){ clearInterval(reloj); reloj = null; }
+
+  /* Toda interacción manual pasa por acá: primero reinicia el reloj
+     —así el auto que acabás de pedir no se te va enseguida— y recién
+     después mueve la cinta. */
+  function pedir(dir, to){ arrancar(); go(dir, to); }
+
+  /* `vivo` es lo que distingue "volver a la pestaña" de "recién llegué".
+     Sin esa marca, el aviso de visibilidad que manda el navegador al
+     abrir arranca el pase antes de que termine de entrar la página, y
+     el primer auto dura la mitad que los demás. */
+  document.addEventListener('visibilitychange', ()=>{
+    if (document.hidden) frenar();
+    else if (vivo) arrancar();
+  });
+
   /* ── controles ─────────────────────────────────────────────── */
 
-  $('next').addEventListener('click', ()=>go(1));
-  $('prev').addEventListener('click', ()=>go(-1));
-  ticks.forEach(t => t.addEventListener('click', ()=>go(0, +t.dataset.i)));
+  $('next').addEventListener('click', ()=>pedir(1));
+  $('prev').addEventListener('click', ()=>pedir(-1));
+
+  /* mientras el mouse está sobre una flecha no se cambia solo: da
+     tiempo a hacer clic sin que el auto se escape */
+  [$('next'), $('prev')].forEach(b=>{
+    b.addEventListener('pointerenter', frenar);
+    b.addEventListener('pointerleave', arrancar);
+  });
 
   addEventListener('keydown', e=>{
-    if (e.key === 'ArrowRight'){ e.preventDefault(); go(1); }
-    if (e.key === 'ArrowLeft'){  e.preventDefault(); go(-1); }
+    if (e.key === 'ArrowRight'){ e.preventDefault(); pedir(1); }
+    if (e.key === 'ArrowLeft'){  e.preventDefault(); pedir(-1); }
   });
 
   let sx = null, sy = null;
@@ -784,7 +824,7 @@ body{
     if (sx === null) return;
     const dx = e.clientX - sx, dy = e.clientY - sy;
     sx = null;
-    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy)) go(dx < 0 ? 1 : -1);
+    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy)) pedir(dx < 0 ? 1 : -1);
   });
 
   /* ── vida propia: el rig respira aunque nadie toque nada ────── */
@@ -808,7 +848,14 @@ body{
       .from(word,         { opacity:0, scale:1.06, duration:1 }, .6)
       .from('.hud--tl, .hud--tr', { opacity:0, y:-12, duration:.6, stagger:.08 }, .7)
       .from('.slot > *',  { yPercent:115, duration:.75, stagger:.06 }, .8)
-      .from('#gearbox, #controls', { opacity:0, y:10, duration:.6, stagger:.08 }, 1);
+      /* clearProps otra vez: sin esto queda un opacity:1 en línea que
+         le gana a .arrow{opacity:.26} y las flechas dejan de ser
+         discretas — y encima el :hover no tendría a dónde subir. */
+      .from('.arrow',     { opacity:0, duration:.7, stagger:.08,
+                            clearProps:'opacity' }, 1);
+
+    /* el pase solo empieza cuando terminó de entrar la página */
+    setTimeout(arrancar, 1800);
   }
 })();
 </script>
