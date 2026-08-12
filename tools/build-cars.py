@@ -74,34 +74,10 @@ def cutout(path):
     ys, xs = np.where(solid)
     if xs.size == 0:
         raise SystemExit(f"no se encontró ningún auto en {path}")
-
-    # El relleno se corta en la línea de las ruedas. Algunas fotos traen
-    # una neblina tenue en el piso —luminancia 14 sobre 255— que igual
-    # supera el umbral, y sin este tope el relleno bajaba hasta ella y
-    # le colgaba al auto unas patas negras debajo de cada neumático.
-    #
-    # La línea se busca con un umbral alto (45) porque a esa altura sólo
-    # queda chapa y goma: la neblina no llega.
-    fuerte = rgb.max(2) > 45
-    ground = np.where(fuerte.sum(1) > 3)[0].max()
-
     for x in range(xs.min(), xs.max() + 1):
-        col = np.where(solid[:ground + 1, x])[0]
+        col = np.where(solid[:, x])[0]
         if col.size > 3:
             alpha[col.min(): col.max() + 1, x] = 1.0
-
-    # Corte en el punto de apoyo. Lo que cada foto trae por debajo de la
-    # goma es distinto y no se puede unificar: cinco traen una línea de
-    # luz —el reflejo del zócalo— que se funde con la barra, y el RS 3
-    # trae una neblina gris oscura que sobre la barra se ve como una
-    # mancha sucia. Conservarla fue el error de los dos intentos
-    # anteriores.
-    #
-    # Así que no se conserva ninguna: el auto termina donde termina la
-    # goma, igual para todos, y el apoyo lo da la barra de luz de la
-    # página. Los 4px de degradado evitan el borde de cuchillo.
-    y = np.arange(alpha.shape[0])[:, None]
-    alpha *= np.clip((ground + 4 - y) / 4.0, 0, 1)
 
     return rgb, alpha
 
@@ -109,21 +85,6 @@ def cutout(path):
 def bounds(alpha, thr=0.25):
     cols = np.where(alpha.max(0) > thr)[0]
     rows = np.where(alpha.max(1) > thr)[0]
-    return cols.min(), cols.max(), rows.min(), rows.max()
-
-
-def chassis(rgb, alpha):
-    """Caja del auto en sí, ignorando la neblina del piso.
-
-    Medir con el alfa no sirve para alinear: algunas fotos traen un velo
-    tenue de suelo que se extiende por debajo de los neumáticos, y si el
-    borde inferior del alfa se toma como línea de apoyo, el auto queda
-    flotando por encima de la barra de luz. Con umbral alto sólo quedan
-    chapa y goma, que es lo que de verdad toca el piso.
-    """
-    fuerte = (rgb.max(2) > 45) & (alpha > 0.5)
-    cols = np.where(fuerte.sum(0) > 2)[0]
-    rows = np.where(fuerte.sum(1) > 2)[0]
     return cols.min(), cols.max(), rows.min(), rows.max()
 
 
@@ -139,7 +100,7 @@ def main():
     cars = {}
     for s in slugs:
         rgb, alpha = cutout(f"{SRC}/{s}.png")
-        x0, x1, _, _ = chassis(rgb, alpha)
+        x0, x1, _, _ = bounds(alpha)
         # px por mm, normalizado al ancho del lienzo de salida
         cars[s] = (rgb, alpha, (x1 - x0) / rgb.shape[1] * CANVAS[0] / REAL[s])
 
@@ -158,10 +119,10 @@ def main():
         scaled = rgba.resize((sw, round(rgba.height * sw / rgba.width)),
                              Image.LANCZOS)
 
-        sa = np.asarray(scaled).astype(np.float32)
-        x0, x1, _, y1 = chassis(sa[..., :3], sa[..., 3] / 255)
+        a = np.asarray(scaled)[..., 3].astype(np.float32) / 255
+        x0, x1, _, y1 = bounds(a, 0.235)
         dx = round(CENTER * W - (x0 + x1) / 2)
-        dy = round(GROUND * H - y1)          # y1 = donde apoya el neumático
+        dy = round(GROUND * H - y1)
 
         canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         canvas.paste(scaled, (dx, dy))
@@ -185,8 +146,8 @@ def main():
     # --- comprobación: todos a escala real y sobre la misma línea ---
     print()
     for s in slugs:
-        im = np.asarray(Image.open(f"{OUT}/{s}.webp").convert("RGBA")).astype(np.float32)
-        x0, x1, y0, y1 = chassis(im[..., :3], im[..., 3] / 255)
+        a = np.asarray(Image.open(f"{OUT}/{s}.webp").convert("RGBA"))[..., 3]
+        x0, x1, y0, y1 = bounds(a.astype(np.float32) / 255)
         dev = ((x1 - x0) / REAL[s] / target - 1) * 100
         print(f"  {s:12} largo {x1-x0:4d}px  alto {y1-y0:4d}px  "
               f"ruedas {y1/H*100:5.1f}%  desvío {dev:+.1f}%")
