@@ -51,6 +51,19 @@ REAL = {
     "audi-rs3":   4389,   # Audi RS 3 Sportback (8Y)
 }
 
+# Autos que necesitan que se les recorte la goma contra el piso.
+#
+# Es una excepción y no el comportamiento por defecto, a propósito. Las
+# cinco primeras fotos traen bajo las ruedas una línea de luz —el
+# reflejo del zócalo— que se funde con la barra de la página y queda
+# bien; tocarlas las empeora. La del RS 3 viene de otra tanda: la goma
+# se desvanece en vez de cortar, y por debajo trae una neblina gris que
+# sobre la barra se ve como una mancha.
+#
+# Cada foto que entre por acá tiene que justificarse mirándola, no por
+# las dudas: lo que le sirve a una le arruina a las otras.
+AL_PISO = {"audi-rs3"}
+
 CANVAS = (1672, 941)   # lienzo de salida, proporción de las fotos
 GROUND = 0.740         # dónde apoyan las ruedas
 CENTER = 0.500         # eje horizontal del auto
@@ -59,7 +72,7 @@ CENTER = 0.500         # eje horizontal del auto
 SIZES = [(3344, "@2x", 88), (1672, "", 94), (1100, "@sm", 88)]
 
 
-def cutout(path):
+def cutout(path, al_piso=False):
     """Devuelve (rgb, alpha) del auto recortado sobre su lienzo original."""
     im = Image.open(path).convert("RGB")
     rgb = np.asarray(im).astype(np.float32)
@@ -74,10 +87,35 @@ def cutout(path):
     ys, xs = np.where(solid)
     if xs.size == 0:
         raise SystemExit(f"no se encontró ningún auto en {path}")
+
+    if not al_piso:
+        # El camino de siempre, intacto. Los cinco autos que ya estaban
+        # aprobados salen por acá y tienen que dar byte a byte lo mismo.
+        for x in range(xs.min(), xs.max() + 1):
+            col = np.where(solid[:, x])[0]
+            if col.size > 3:
+                alpha[col.min(): col.max() + 1, x] = 1.0
+        return rgb, alpha
+
+    # --- camino especial: recortar la goma contra el piso ---
+    #
+    # La línea de apoyo se busca con umbral alto, donde sólo hay chapa y
+    # goma: la neblina del piso no llega a ese nivel.
+    ground = np.where((rgb.max(2) > 45).sum(1) > 3)[0].max()
+
+    # Si una columna termina CERCA del piso es un neumático, y se lo
+    # lleva macizo hasta la línea para que apoye plano en vez de
+    # desvanecerse. Si termina lejos es la panza del auto, y se la deja.
+    CERCA = 14   # px
     for x in range(xs.min(), xs.max() + 1):
-        col = np.where(solid[:, x])[0]
+        col = np.where(solid[:ground + 1, x])[0]
         if col.size > 3:
-            alpha[col.min(): col.max() + 1, x] = 1.0
+            bot = col.max()
+            alpha[col.min(): (ground if ground - bot <= CERCA else bot) + 1, x] = 1.0
+
+    # y nada por debajo: el apoyo lo da la barra de luz de la página
+    y = np.arange(alpha.shape[0])[:, None]
+    alpha *= np.clip((ground + 2 - y) / 2.0, 0, 1)
 
     return rgb, alpha
 
@@ -99,7 +137,7 @@ def main():
     # --- pasada 1: medir, para saber a qué escala llevar a todos ---
     cars = {}
     for s in slugs:
-        rgb, alpha = cutout(f"{SRC}/{s}.png")
+        rgb, alpha = cutout(f"{SRC}/{s}.png", s in AL_PISO)
         x0, x1, _, _ = bounds(alpha)
         # px por mm, normalizado al ancho del lienzo de salida
         cars[s] = (rgb, alpha, (x1 - x0) / rgb.shape[1] * CANVAS[0] / REAL[s])
