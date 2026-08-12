@@ -16,12 +16,20 @@
 # Las reglas no se pueden solapar. Cuando dos coinciden con la misma
 # dirección, Cloudflare no elige la más específica: pega las dos headers
 # una detrás de la otra y queda un valor contradictorio.
+#
+# Y hacen falta las DOS instrucciones para la página. Cache-Control le
+# habla al navegador; CDN-Cache-Control le habla a Cloudflare, que si no
+# guarda su propia copia en el borde y la sigue repartiendo después de
+# publicar — con no-cache a secas la respuesta volvía con
+# "cf-cache-status: HIT" y el contenido de la versión anterior.
 
 /
   Cache-Control: no-cache
+  CDN-Cache-Control: no-store
 
 /index.html
   Cache-Control: no-cache
+  CDN-Cache-Control: no-store
 
 /assets/cars/*
   Cache-Control: public, max-age=31536000, immutable
