@@ -308,25 +308,6 @@ body{
   color:var(--ink);
 }
 
-.cover-eyebrow{
-  font-family:var(--mono);
-  font-size:.6rem;
-  font-weight:400;
-  letter-spacing:.42em;
-  text-transform:uppercase;
-  color:var(--ink-2);
-  margin-bottom:clamp(.9rem,2vh,1.4rem);
-  /* el hilo rojo del BMW, otra vez a un pixel */
-  padding-right:2.1rem;
-  position:relative;
-}
-.cover-eyebrow::before{
-  content:"";
-  position:absolute;
-  right:0; top:50%;
-  width:1.4rem; height:1px;
-  background:var(--ember);
-}
 
 .cover-title{
   font-size:clamp(2.1rem,5.1vw,3.9rem);
@@ -1190,7 +1171,6 @@ body.is-dark.is-scrolled #topbar{
   </script>
 
   <div class="cover-copy">
-    <p class="cover-eyebrow">Selección</p>
     <h1 class="cover-title">Autos que ya<br>pasaron el filtro.</h1>
     <p class="cover-sub">Cada unidad revisada, con historial verificado.</p>
   </div>
