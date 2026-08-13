@@ -72,20 +72,108 @@
 *{margin:0;padding:0;box-sizing:border-box}
 
 html,body{height:100%}
+
+/* Barra de scroll oculta, misma técnica que en PRUEBAS/auto.
+   Se OCULTA, no se le da estilo: darle estilo a ::-webkit-scrollbar en
+   macOS convierte las barras flotantes en permanentes y queda una
+   franja fija sobre el negro. El scroll sigue funcionando igual
+   (rueda, trackpad, teclado, dedo); sólo desaparece el indicador. */
+html{
+  scrollbar-width:none;        /* Firefox */
+  -ms-overflow-style:none;     /* Edge viejo */
+}
+html::-webkit-scrollbar{       /* Chrome, Safari */
+  display:none;
+}
 body{
   background:var(--void);
   color:var(--chrome);
   font-family:var(--display);
-  overflow:hidden;           /* esto no scrollea nunca */
+  /* Antes era overflow:hidden — la página era una sola pantalla fija.
+     Ahora hay dos: la portada en video y, debajo, el escenario del auto.
+     Se permite el scroll vertical y se corta el horizontal, que nunca
+     hizo falta y sólo puede aparecer por desbordes del marco. */
+  overflow-x:hidden;
+  overflow-y:auto;
   -webkit-font-smoothing:antialiased;
 }
 
-#stage{
-  position:fixed;
-  inset:0;
+/* ══════════════════════════════════════════════════════════════════
+   PORTADA EN VIDEO — primera pantalla
+   ══════════════════════════════════════════════════════════════════
+
+   Ocupa la ventana entera. Se usa 100svh y no 100vh porque en el
+   teléfono la barra del navegador se come el 100vh y la portada
+   quedaría más alta que la pantalla, dejando un salto al scrollear.
+
+   Hay DOS videos distintos, no uno recortado: el de computadora es
+   16:9 (1920x1080) y el de teléfono es vertical 9:16 (720x1278),
+   filmado aparte para esa pantalla.
+
+   Como cada archivo ya viene con la orientación de su pantalla, los
+   dos van COVER: llenan la ventana y recortan muy poco.
+
+   Único caso raro: una ventana de escritorio muy angosta y alta
+   recibiría igual el archivo horizontal (la elección va por
+   screen.width, ver el script) y el cover recortaría de más. Es un
+   formato que en la práctica no usa nadie. */
+
+#cover{
+  position:relative;
+  width:100%;
+  height:100svh;
   overflow:hidden;
   background:var(--void);
-  touch-action:none;
+  z-index:2;
+}
+
+#cover video{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:center;
+}
+
+/* Señal de que abajo sigue habiendo página. Sin esto la portada se lee
+   como el final del sitio y el escenario del auto no lo encuentra nadie. */
+#cover .scroll-cue{
+  position:absolute;
+  left:50%;
+  bottom:calc(var(--gut) + 4px);
+  transform:translateX(-50%);
+  z-index:3;
+  display:block;
+  width:22px;
+  height:22px;
+  color:var(--chrome);
+  opacity:.5;
+  animation:cue 2.4s ease-in-out infinite;
+}
+
+@keyframes cue{
+  0%,100%{ transform:translate(-50%,0); opacity:.35 }
+  50%    { transform:translate(-50%,6px); opacity:.7 }
+}
+
+#stage{
+  /* Era position:fixed + inset:0, porque el sitio era una única
+     pantalla. Ahora es la SEGUNDA: pasa a ser un bloque normal de una
+     ventana de alto, debajo de la portada.
+
+     Todo lo que vive adentro (#rig, #frame, el HUD, las cifras y las
+     flechas) es position:absolute, así que sigue posicionándose contra
+     #stage exactamente igual que antes. No hay que tocar nada de eso. */
+  position:relative;
+  width:100%;
+  height:100svh;
+  overflow:hidden;
+  background:var(--void);
+  /* Era touch-action:none, que en el teléfono mata el scroll vertical:
+     al llegar al escenario ya no se podía volver a la portada.
+     Con pan-y el dedo scrollea en vertical y el swipe horizontal de los
+     autos —que va por pointerdown— sigue funcionando igual. */
+  touch-action:pan-y;
 }
 
 /* ── marco: sólo el auto vive acá ──────────────────────────────── */
@@ -102,8 +190,13 @@ body{
   position:absolute;
   top:0; left:50%;
   transform:translateX(-50%);
-  height:100vh;
-  width:calc(100vh * var(--ar));
+  /* Mismo unidad que #stage (100svh), no 100vh: si el marco midiera
+     100vh y el escenario 100svh, en el teléfono el marco sería más alto
+     que el escenario y la línea del piso caería por debajo de la barra
+     del rig, que sí mide lo que el escenario. Los dos tienen que ir
+     siempre atados a la misma unidad. */
+  height:100svh;
+  width:calc(100svh * var(--ar));
   z-index:3;
 }
 
@@ -250,7 +343,17 @@ body{
    INTERFAZ
    ══════════════════════════════════════════════════════════════════ */
 
-.hud{ position:absolute; z-index:6; }
+/* FIXED, no absolute. La marca y el menú tienen que estar desde el
+   primer momento, sobre la portada: es la página principal, no una
+   pantalla de transición. Al ser fixed se anclan a la ventana y
+   acompañan las dos pantallas.
+
+   Funciona porque #stage no tiene transform, filter ni will-change: si
+   los tuviera, pasaría a ser el bloque contenedor del fixed y el HUD
+   quedaría encerrado adentro del escenario (y recortado por su
+   overflow:hidden). Si alguna vez se le agrega una de esas
+   propiedades, hay que sacar el HUD de #stage en el HTML. */
+.hud{ position:fixed; z-index:60; }
 .hud--tl{ top:var(--gut); left:var(--gut); }
 .hud--tr{ top:var(--gut); right:var(--gut); }
 
@@ -452,6 +555,50 @@ body{
 </style>
 </head>
 <body>
+
+<!-- Portada en video. Primera pantalla del sitio; el escenario del auto
+     quedó debajo. El video no tiene audio: muted + playsinline son lo que
+     habilita el autoplay en iOS y Chrome, no una cuestión de sonido.
+     El poster deja el primer cuadro fijo mientras carga, así que la
+     portada nunca se ve negra. -->
+<section id="cover">
+  <video id="coverVid"
+    autoplay
+    muted
+    loop
+    playsinline
+    preload="metadata"></video>
+
+  <script>
+  /* Acá se elige ENTRE DOS PIEZAS DISTINTAS, no entre dos calidades del
+     mismo video: la de computadora es horizontal y la de teléfono es
+     vertical. Por eso se cambian juntos el video y su poster.
+
+     No se usa <source media> porque Safari ignora ese atributo dentro
+     de <video> y le serviría la pieza horizontal al teléfono.
+
+     El script va inmediatamente después del elemento, antes de que el
+     navegador empiece a cargar nada. */
+  (function(){
+    var v = document.getElementById('coverVid');
+    /* Se mide la PANTALLA, no la ventana. innerWidth acá adentro se lee
+       mientras la página todavía se está parseando: si en ese instante
+       la ventana no tiene su tamaño final —o el usuario simplemente la
+       tiene angosta en una pantalla grande— quedaba fijada la pieza
+       equivocada para toda la sesión. screen.width no cambia. */
+    var pantalla = (window.screen && screen.width) || window.innerWidth || 1920;
+    var chico = pantalla <= 767;
+    v.poster = chico ? 'assets/video/portada-poster@sm.jpg'
+                     : 'assets/video/portada-poster.jpg';
+    v.src    = chico ? 'assets/video/portada@sm.mp4'
+                     : 'assets/video/portada.mp4';
+  })();
+  </script>
+
+  <svg class="scroll-cue" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+       stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
+       aria-hidden="true"><path d="M12 4v16m0 0-7-7m7 7 7-7"/></svg>
+</section>
 
 <main id="stage">
 
