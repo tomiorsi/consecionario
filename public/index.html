@@ -952,6 +952,20 @@ body.cargando{ overflow:hidden; }
   background:#000;
 }
 
+/* EN EL TELÉFONO, MÁS LARGO.
+
+   Un dedo recorre en un envión lo que un mouse tarda varias vueltas de
+   rueda: con el mismo alto, en el celular la vuelta al auto se pasaba
+   volando. Estirando la sección, el mismo envión avanza bastante menos
+   video y da tiempo a mirarlo.
+
+   Es la mitad del asunto; la otra mitad está en el script, que además
+   hace que el video persiga al scroll más despacio. Estirar solo no
+   alcanzaba: un envión rápido seguía siendo un envión rápido. */
+@media (max-width:767px){
+  #reel{ height:calc(var(--reel-h) * 1.6); }
+}
+
 .reel-stick{
   position:sticky;
   top:0;
@@ -1578,6 +1592,19 @@ body.is-dark.is-scrolled #topbar{
 
   var dur = 0, objetivo = 0, actual = 0, vivo = false;
 
+  /* CUÁNTO PERSIGUE EL VIDEO AL SCROLL, POR CUADRO.
+
+     El video no salta a donde está el scroll: se acerca un porcentaje
+     por cuadro. Ese retraso es lo que hace que frene solo en vez de
+     verse clavado al dedo.
+
+     En el teléfono el número es más bajo a propósito. Un envión de dedo
+     manda el scroll lejos de golpe, y con la persecución lenta el auto
+     lo sigue con calma y termina de girar después de que el dedo paró.
+     Por rápido que se scrollee, el giro se ve despacio — que es
+     exactamente lo que se pidió. */
+  var PERSECUCION = (pantalla <= 767) ? 0.055 : 0.12;
+
   /* Las notas que aparecen a los costados mientras el auto gira. Cada
      una trae su tramo del giro en el HTML (data-desde / data-hasta),
      así el texto y su momento viven juntos y se cambian en un lugar. */
@@ -1643,25 +1670,17 @@ body.is-dark.is-scrolled #topbar{
     var p = avance();
     notasEn(p);
 
-    /* EL REBOTE, AHORA ACÁ Y NO EN EL ARCHIVO.
+    /* El scroll recorre el video de punta a punta, sin rebote.
 
-       El reel va y vuelve. Antes el archivo guardaba las dos mitades, y
-       la vuelta era la ida al revés cuadro por cuadro: 191 cuadros
-       duplicados, la mitad del peso del video repetida.
-
-       Ahora el archivo tiene sólo la ida y el rebote se hace acá:
-       la primera mitad del scroll recorre el video de 0 a 1, y la
-       segunda lo recorre de 1 a 0. Se ve exactamente igual y el archivo
-       pesa la mitad, sin recomprimir un solo cuadro.
-
-       Las notas siguen usando `p` —el avance del scroll— y no esta
-       posición: van con el recorrido, no con el video. */
-    var pos = p <= .5 ? p * 2 : (1 - p) * 2;
-
-    objetivo = pos * dur;
+       Acá hubo un intento de guardar sólo la primera mitad del archivo
+       y "rebotar" a la mitad del scroll, dando por hecho que el reel
+       era un vaivén. No lo es: son DOS clips distintos, uno que va de
+       la trasera al perfil y otro del perfil a la trompa. Rebotando, el
+       auto llegaba al perfil y se volvía, y nunca se veía la trompa. */
+    objetivo = p * dur;
     var d = objetivo - actual;
     if (Math.abs(d) > 0.0015){
-      actual += d * 0.12;
+      actual += d * PERSECUCION;
       try { v.currentTime = actual; } catch(e){}
     }
     requestAnimationFrame(cuadro);
@@ -1738,8 +1757,7 @@ body.is-dark.is-scrolled #topbar{
 
   v.addEventListener('loadedmetadata', function(){
     dur = v.duration || 0;
-    var p = avance();
-    actual = objetivo = (p <= .5 ? p * 2 : (1 - p) * 2) * dur;
+    actual = objetivo = avance() * dur;
     try { v.currentTime = actual; } catch(e){}
     despertar();
     animar();
