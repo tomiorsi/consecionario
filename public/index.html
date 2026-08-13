@@ -850,7 +850,13 @@ body.cargando{ overflow:hidden; }
     margin-top:-19%;
     margin-left:11%;
     width:78%;
-    aspect-ratio:3/2;
+    /* 3:4 y no 3:2 como en escritorio. En una pantalla vertical el 3:2
+       daba 282x188 contra los 304x380 del video: la mitad de alto, se
+       leía como una tira. Con 3:4 sube a ~314x418 y recupera peso.
+
+       Sigue sin coincidir con las otras dos —4:5 el video, 1:1 el
+       cuadrado— que es lo que sostiene la lectura de collage. */
+    aspect-ratio:3/4;
     transform:translateY(calc(var(--y,1) * 52px));
   }
 }
@@ -1605,7 +1611,7 @@ body.is-dark.is-scrolled #topbar{
 <section id="collage">
   <div class="col-marco">
     <div class="col-pieza col-video">
-      <video id="colVid" muted loop playsinline autoplay preload="metadata"></video>
+      <video id="colVid" muted loop playsinline preload="none"></video>
     </div>
 
     <!-- El interior sí puede resolverse con <picture>: a diferencia de
@@ -1619,7 +1625,10 @@ body.is-dark.is-scrolled #topbar{
     </div>
 
     <div class="col-pieza col-exterior">
-      <img src="assets/collage/ciudad.webp" alt="La ciudad de noche" loading="lazy" decoding="async">
+      <picture>
+        <source media="(max-width:767px)" srcset="assets/collage/ciudad-mobile.webp">
+        <img src="assets/collage/ciudad.webp" alt="La ciudad de noche" loading="lazy" decoding="async">
+      </picture>
     </div>
   </div>
 </section>
@@ -1634,13 +1643,63 @@ body.is-dark.is-scrolled #topbar{
 (function(){
   var v = document.getElementById('colVid');
   if (!v) return;
+
   var pantalla = Math.min(
     (window.screen && screen.width) || 9999,
     window.innerWidth || 9999
   );
   var base = 'assets/collage/drive' + (pantalla <= 767 ? '-mobile' : '');
   v.poster = base + '-poster.jpg';
-  v.src    = base + '.mp4';
+
+  /* NI src NI autoplay HASTA QUE HAGA FALTA.
+
+     Este es el tercer video de la página. Con autoplay y preload puesto
+     desde el arranque provocaba dos problemas en el teléfono:
+
+       · se llevaba ancho de banda que necesitaba la portada, y la
+         entrada al sitio pasaba a tardar muchísimo;
+       · iOS limita cuántos videos pueden reproducirse a la vez. Al
+         pasarse, deja de autoreproducir y dibuja el botón de play — y
+         lo dibujaba sobre la PORTADA, que es el que más importa.
+
+     Ahora el archivo ni se pide hasta que el collage se acerca a
+     pantalla, y se pausa al salir. Mientras tanto se ve el póster, que
+     pesa 100 KB. */
+  var pedido = false;
+
+  function encender(){
+    if (!pedido){ pedido = true; v.src = base + '.mp4'; }
+    var pr = v.play();
+    if (pr && pr.catch) pr.catch(function(){});
+  }
+
+  var seccion = document.getElementById('collage');
+
+  if (!('IntersectionObserver' in window)){ encender(); return; }
+
+  var obs = new IntersectionObserver(function(entradas){
+    entradas.forEach(function(e){
+      if (e.isIntersecting) encender();
+      else if (pedido && !v.paused) v.pause();
+    });
+  }, { rootMargin: '200px 0px' });   /* arranca un poco antes de entrar */
+
+  obs.observe(seccion);
+
+  /* Red de seguridad. Si por lo que sea el observador no entregara su
+     aviso, el video no se pediría NUNCA y el collage quedaría con el
+     póster fijo para siempre. Este respaldo mira la distancia a mano y
+     se desconecta apenas cumplió. */
+  function porScroll(){
+    if (pedido){ removeEventListener('scroll', porScroll); return; }
+    var r = seccion.getBoundingClientRect();
+    if (r.top < window.innerHeight + 200 && r.bottom > -200){
+      encender();
+      removeEventListener('scroll', porScroll);
+    }
+  }
+  addEventListener('scroll', porScroll, { passive:true });
+  porScroll();
 })();
 </script>
 
