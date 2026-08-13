@@ -39,6 +39,37 @@
    ══════════════════════════════════════════════════════════════════ */
 
 :root{
+  /* ── EL ESTUDIO ──────────────────────────────────────────────────
+     Los valores salen del video de la portada, no de una paleta
+     inventada: es literalmente un ciclorama gris fotografiado, y el
+     resto de la página tiene que vivir adentro de esa misma luz.
+
+     Antes el escenario era un vacío NEGRO con haces de luz fría. El
+     problema es que los autos están recortados de fotos de estudio
+     CLARO: sobre el negro se leen pegoteados, como calcomanías. Por eso
+     la segunda pantalla se sentía de otro sitio que la primera. */
+  --cyc-hi:#D9DBDD;          /* alto del ciclorama */
+  --cyc:#C2C5C8;             /* medio */
+  --cyc-lo:#9B9EA2;          /* piso */
+
+  /* El gris exacto del borde inferior del video, medido sobre el
+     archivo. Es con lo que arranca el escenario para que el corte entre
+     una pantalla y la otra caiga entre dos grises iguales y no se vea,
+     sin necesidad de difuminar nada. */
+  --seam:#9A9A9A;
+
+  /* Los grises secundarios van más oscuros de lo que pedía el ojo sobre
+     negro: acá el fondo es CLARO, y un gris medio sobre gris claro no
+     llega al contraste mínimo para texto chico. */
+  --ink:#101216;             /* tipografía principal */
+  --ink-2:#3D4249;           /* secundaria */
+  --ink-3:#666C74;           /* terciaria: unidades, notas */
+
+  /* Único acento de toda la página, y sale de los assets: es el rojo de
+     la óptica trasera del BMW, que aparece en el video y en las fotos.
+     Se usa a escala de hilo — una línea de 2px, nunca un bloque. */
+  --ember:#C8102E;
+
   --void:#000000;
   --chrome:#F2F4F8;
   --steel:#7E8593;
@@ -50,7 +81,19 @@
   --display:"Archivo",-apple-system,system-ui,sans-serif;
   --mono:"Chivo Mono",ui-monospace,Menlo,monospace;
 
-  --gut:clamp(1.15rem,3.2vw,3rem);
+  /* Alto del escenario. Da aire arriba y abajo del auto en vez de
+     dejarlo apretado contra los bordes de la ventana. */
+  --stageh:min(114svh,60rem);
+
+  /* Relleno general. Se subió bastante: el sitio estaba pegado a los
+     bordes y eso es lo que le sacaba aire premium. */
+  --gut:clamp(1.6rem,4.4vw,4.5rem);
+
+  /* Header: alto de la barra y las dos alturas del HUD (suelto sobre la
+     portada / compacto una vez que se scrollea). */
+  --bar-h:clamp(4.2rem,7.2vh,5.6rem);
+  --hud-y:clamp(1.5rem,3.4vh,2.5rem);
+  --hud-y-min:clamp(1.1rem,2.4vh,1.7rem);
   --ease:cubic-bezier(.22,1,.36,1);
 
   --ar:1672 / 941;           /* proporción nativa de las fotos */
@@ -86,8 +129,11 @@ html::-webkit-scrollbar{       /* Chrome, Safari */
   display:none;
 }
 body{
-  background:var(--void);
-  color:var(--chrome);
+  /* El fondo de la página es el estudio, no el vacío negro: si el body
+     queda negro, cualquier rebote del scroll o un instante antes de que
+     pinte el video muestra un flash oscuro entre dos pantallas claras. */
+  background:var(--cyc);
+  color:var(--ink);
   font-family:var(--display);
   /* Antes era overflow:hidden — la página era una sola pantalla fija.
      Ahora hay dos: la portada en video y, debajo, el escenario del auto.
@@ -135,6 +181,75 @@ body{
   object-position:center;
 }
 
+/* SIN VELO. Había un degradado acá abajo para unir las dos pantallas y
+   para despegar el texto del capó. Se sacó: ensuciaba el video, que es
+   la mejor pieza del sitio, y con el texto corrido a la derecha —sobre
+   el gris limpio— ya no hace falta para leerlo.
+
+   La unión se resuelve por color en vez de por difuminado: el borde
+   inferior del video mide #9A9A9A (medido sobre el archivo, no a ojo)
+   y el piso del ciclorama de abajo arranca en ese mismo valor. El corte
+   existe pero cae entre dos grises iguales, así que no se ve. */
+
+/* ── el texto de la portada ────────────────────────────────────────
+
+   Poco y abajo a la izquierda: el video ya es el argumento, el texto
+   sólo dice de qué se trata. Va sobre el gris claro del estudio, así
+   que la tinta es oscura — un texto blanco ahí se perdería.
+
+   El bloque respira contra el borde con el mismo --gut que todo lo
+   demás, y se aparta del centro para no taparle los autos. */
+.cover-copy{
+  position:absolute;
+  /* A la derecha: es el lado despejado del cuadro. El sedán ocupa toda
+     la mitad izquierda y el texto le caía encima. */
+  right:var(--gut);
+  bottom:calc(var(--gut) + clamp(2.2rem,5vh,3.6rem));
+  z-index:4;
+  max-width:min(30rem,74vw);
+  text-align:right;
+  color:var(--ink);
+}
+
+.cover-eyebrow{
+  font-family:var(--mono);
+  font-size:.6rem;
+  font-weight:400;
+  letter-spacing:.42em;
+  text-transform:uppercase;
+  color:var(--ink-2);
+  margin-bottom:clamp(.9rem,2vh,1.4rem);
+  /* el hilo rojo del BMW, otra vez a un pixel */
+  padding-right:2.1rem;
+  position:relative;
+}
+.cover-eyebrow::before{
+  content:"";
+  position:absolute;
+  right:0; top:50%;
+  width:1.4rem; height:1px;
+  background:var(--ember);
+}
+
+.cover-title{
+  font-size:clamp(2.1rem,5.1vw,3.9rem);
+  font-variation-settings:"wdth" 88,"wght" 560;
+  letter-spacing:-.028em;
+  line-height:1.02;
+  margin-bottom:clamp(.8rem,1.8vh,1.2rem);
+}
+
+.cover-sub{
+  font-family:var(--mono);
+  font-size:clamp(.68rem,1.05vw,.8rem);
+  font-weight:300;
+  letter-spacing:.04em;
+  line-height:1.6;
+  color:var(--ink-2);
+  max-width:26rem;
+  margin-left:auto;
+}
+
 /* Señal de que abajo sigue habiendo página. Sin esto la portada se lee
    como el final del sitio y el escenario del auto no lo encuentra nadie. */
 #cover .scroll-cue{
@@ -146,8 +261,8 @@ body{
   display:block;
   width:22px;
   height:22px;
-  color:var(--chrome);
-  opacity:.5;
+  color:var(--ink);
+  opacity:.42;
   animation:cue 2.4s ease-in-out infinite;
 }
 
@@ -166,9 +281,13 @@ body{
      #stage exactamente igual que antes. No hay que tocar nada de eso. */
   position:relative;
   width:100%;
-  height:100svh;
+  /* --stageh y no 100svh suelto: el alto del escenario y el del marco
+     TIENEN que salir de la misma variable. Si divergen, la línea del
+     piso del rig y la línea donde apoyan las ruedas caen en lugares
+     distintos y el auto queda flotando o hundido. */
+  height:var(--stageh);
   overflow:hidden;
-  background:var(--void);
+  background:var(--cyc);
   /* Era touch-action:none, que en el teléfono mata el scroll vertical:
      al llegar al escenario ya no se podía volver a la portada.
      Con pan-y el dedo scrollea en vertical y el swipe horizontal de los
@@ -195,8 +314,8 @@ body{
      que el escenario y la línea del piso caería por debajo de la barra
      del rig, que sí mide lo que el escenario. Los dos tienen que ir
      siempre atados a la misma unidad. */
-  height:100svh;
-  width:calc(100svh * var(--ar));
+  height:var(--stageh);
+  width:calc(var(--stageh) * var(--ar));
   z-index:3;
 }
 
@@ -207,28 +326,41 @@ body{
 #rig{ position:absolute; inset:0; z-index:1; }
 #rig > *{ position:absolute; pointer-events:none; }
 
-/* lavado general: sin esto el negro se lee como un agujero */
+/* EL CICLORAMA. Un ciclorama de verdad no tiene línea de horizonte: la
+   pared baja y se curva hasta volverse piso, sin junta. Eso es lo que
+   se dibuja acá — la pared clara arriba, el piso más apagado abajo, y
+   entre medio una transición larga.
+
+   Encima va una luz cenital suave, centrada donde va a estar el auto:
+   es la que hace que el auto se recorte contra un fondo que no es
+   plano. Sin ella el gris se lee como una pared pintada. */
 .l-ambient{
   inset:0;
   background:
-    radial-gradient(120% 80% at 50% 96%, rgba(var(--beam),.07), transparent 62%),
-    radial-gradient(80% 55% at 50% 8%,  rgba(var(--beam),.045), transparent 70%);
+    /* luz cenital difusa, apenas por encima del auto */
+    radial-gradient(72% 48% at 50% 30%, rgba(255,255,255,.55), transparent 70%),
+    /* La pared curvándose hacia el piso. Arranca en --seam, que es el
+       gris con el que termina el video justo arriba: el corte entre las
+       dos pantallas cae entre dos grises idénticos. De ahí sube hacia
+       la pared clara y vuelve a bajar hacia el piso. */
+    linear-gradient(180deg,
+      var(--seam) 0%,
+      var(--cyc-hi) 22%,
+      var(--cyc) 46%,
+      var(--cyc) calc(var(--ground) - 14%),
+      var(--cyc-lo) calc(var(--ground) + 12%),
+      var(--cyc-lo) 100%);
 }
 
-/* dos haces cenitales que bajan y se abren hacia el auto */
-.l-cone{
-  top:-14%; width:46%; height:96%;
-  filter:blur(34px);
-  opacity:.5;
-}
-.l-cone--l{
-  left:-2%;
-  background:linear-gradient(163deg, rgba(var(--beam),.16) 0%, transparent 58%);
-}
-.l-cone--r{
-  right:-2%;
-  background:linear-gradient(197deg, rgba(var(--beam),.16) 0%, transparent 58%);
-}
+/* Los dos haces cenitales se retiran.
+
+   Eran el recurso más teatral del escenario y son justamente lo que
+   peleaba con las fotos: los autos vienen de un estudio de luz difusa,
+   sin haces marcados, así que dos conos duros encima los delataban como
+   recortes. El JS les sigue animando la opacidad y no pasa nada.
+
+   (La regla de Chanel: antes de salir, sacate un accesorio.) */
+.l-cone{ display:none; }
 
 
 /* LA TARIMA. Todo lo que pasa a la altura del piso vive acá adentro y
@@ -241,50 +373,46 @@ body{
 }
 .l-stage > *{ position:absolute; }
 
-/* LA FIRMA — la barra. Es contra esto que el auto se recorta. */
+/* La barra de luz también se retira: en un ciclorama no hay junta. Lo
+   único que queda a la altura del piso es un apoyo apenas insinuado,
+   para que el auto no flote. */
 .l-horizon{
-  left:0; right:0; top:0;
-  height:2px;
-  transform:translateY(-1px);
+  left:-15%; right:-15%; top:0;
+  height:1px;
   background:linear-gradient(90deg,
-    transparent 0%, rgba(var(--beam),.30) 10%,
-    rgba(var(--beam),.95) 34%, #FFFFFF 50%, rgba(var(--beam),.95) 66%,
-    rgba(var(--beam),.30) 90%, transparent 100%);
+    transparent, rgba(16,18,22,.07) 28%, rgba(16,18,22,.10) 50%,
+    rgba(16,18,22,.07) 72%, transparent);
 }
-/* el resplandor que la barra tira hacia arriba */
-.l-horizon::before{
-  content:"";
-  position:absolute; left:0; right:0; bottom:0;
-  height:clamp(6rem,17vh,13rem);
-  background:linear-gradient(0deg, rgba(var(--beam),.20), transparent 78%);
+
+.l-sweep{ display:none; }
+
+/* El piso devolviendo la luz cenital: un barrido claro que sale de la
+   línea de apoyo hacia abajo. Es sutil a propósito — un piso de
+   estudio no espeja, apenas satina. */
+.l-reflect{
+  left:0; right:0; top:0;
+  height:clamp(5rem,17vh,13rem);
+  background:linear-gradient(180deg, rgba(255,255,255,.30), transparent 66%);
   -webkit-mask-image:linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
           mask-image:linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
 }
-/* el punto caliente que recorre la barra de punta a punta */
-.l-sweep{
-  left:0; top:0;
-  width:30%; height:2px;
-  transform:translateY(-1px);
-  background:radial-gradient(closest-side, #FFFFFF, transparent);
-  opacity:.9;
-}
 
-/* el piso pulido devolviendo la barra */
-.l-reflect{
-  left:0; right:0; top:0;
-  height:clamp(5rem,16vh,12rem);
-  background:linear-gradient(180deg, rgba(var(--beam),.13), transparent 62%);
-  -webkit-mask-image:linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
-          mask-image:linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
-}
+/* LA FIRMA — la sombra de contacto.
 
-/* la brasa: la mancha caliente justo abajo del auto */
+   Es el detalle que separa una foto de producto de un recorte pegado:
+   la mancha oscura, corta y difusa que el auto proyecta justo debajo,
+   más densa bajo las ruedas que en el medio. Reemplaza a la "brasa"
+   —que era luz saliendo del piso, físicamente al revés— y es lo único
+   que ancla el auto al suelo ahora que no hay barra. */
 .l-ember{
   left:50%; top:0;
-  width:82%; height:clamp(2.2rem,7vh,6rem);
-  transform:translate(-50%,-38%);
-  background:radial-gradient(ellipse 50% 50% at 50% 50%, rgba(var(--beam),.5), transparent 68%);
-  filter:blur(10px);
+  width:86%; height:clamp(1.8rem,5.2vh,4.2rem);
+  transform:translate(-50%,-42%);
+  background:
+    radial-gradient(ellipse 42% 58% at 16% 50%, rgba(16,18,22,.34), transparent 72%),
+    radial-gradient(ellipse 42% 58% at 84% 50%, rgba(16,18,22,.34), transparent 72%),
+    radial-gradient(ellipse 54% 42% at 50% 50%, rgba(16,18,22,.20), transparent 76%);
+  filter:blur(13px);
 }
 
 /* ── el nombre gigante, atrás de todo ──────────────────────────── */
@@ -303,7 +431,10 @@ body{
   letter-spacing:-.025em;
   line-height:.8;
   white-space:nowrap;
-  color:var(--ghost);
+  /* Sobre el ciclorama claro el nombre no puede ser casi negro: pasaba
+     a competir con el auto. Va como una marca de agua apenas más oscura
+     que la pared — se lee si la buscás, no si mirás el auto. */
+  color:rgba(16,18,22,.09);
   pointer-events:none;
   user-select:none;
   will-change:transform,opacity;
@@ -354,8 +485,47 @@ body{
    overflow:hidden). Si alguna vez se le agrega una de esas
    propiedades, hay que sacar el HUD de #stage en el HTML. */
 .hud{ position:fixed; z-index:60; }
-.hud--tl{ top:var(--gut); left:var(--gut); }
-.hud--tr{ top:var(--gut); right:var(--gut); }
+.hud--tl{ top:var(--hud-y); left:var(--gut); }
+.hud--tr{ top:var(--hud-y); right:var(--gut); }
+
+/* LA BARRA DEL HEADER.
+
+   El pedido era que la marca y el menú se vean en TODA la página. Con
+   position:fixed ya se veían, pero flotaban sueltos sobre lo que
+   hubiera detrás y en la portada quedaban compitiendo con el video.
+
+   Ahora hay dos estados. Arriba de todo la barra es invisible y las
+   piezas flotan sobre el video, que es lo que corresponde a una
+   portada. Apenas se scrollea aparece un vidrio esmerilado con una
+   línea de un pixel: el header se separa del contenido sin taparlo.
+
+   El fondo se difumina con backdrop-filter en vez de pintarse opaco,
+   así el auto sigue viéndose por detrás cuando pasa. */
+#topbar{
+  position:fixed;
+  top:0; left:0; right:0;
+  height:var(--bar-h);
+  z-index:55;
+  pointer-events:none;
+  background:rgba(217,219,221,0);
+  border-bottom:1px solid transparent;
+  backdrop-filter:blur(0px);
+  -webkit-backdrop-filter:blur(0px);
+  transition:background .45s var(--ease), border-color .45s var(--ease),
+             backdrop-filter .45s var(--ease), -webkit-backdrop-filter .45s var(--ease);
+}
+
+body.is-scrolled #topbar{
+  background:rgba(217,219,221,.72);
+  border-bottom-color:rgba(16,18,22,.10);
+  backdrop-filter:blur(16px) saturate(1.15);
+  -webkit-backdrop-filter:blur(16px) saturate(1.15);
+}
+
+/* Al aparecer la barra las piezas suben un poco y se compactan: es lo
+   que hace que se lea como una barra y no como dos cosas flotando. */
+body.is-scrolled .hud--tl,
+body.is-scrolled .hud--tr{ top:var(--hud-y-min); }
 
 /* La marca. El emblema es el trazo vectorizado del logo original; el
    resto son letras, con el mismo espaciado ancho del logo.
@@ -368,23 +538,22 @@ body{
   align-items:center;
   gap:clamp(.6rem,1.1vw,.95rem);
   text-decoration:none;
-  color:var(--chrome);
+  color:var(--ink);
 }
 
 .mark__emblem{
   width:clamp(1.85rem,2.9vw,2.6rem);
   height:auto;
   flex:none;
-  /* el emblema es la única pieza de marca que brilla: le sienta el
-     mismo halo frío que el rig */
-  filter:drop-shadow(0 0 .55rem rgba(var(--beam),.28));
-  transition:filter .4s var(--ease);
+  /* Sobre el estudio claro el halo frío no tiene sentido: no hay una
+     fuente de luz que lo justifique. Queda la sombra corta y difusa que
+     proyectaría un objeto apoyado sobre la pared. */
+  filter:drop-shadow(0 1px 2px rgba(16,18,22,.18));
+  transition:opacity .4s var(--ease);
 }
 .mark:hover .mark__emblem,
-.mark:focus-visible .mark__emblem{
-  filter:drop-shadow(0 0 .95rem rgba(var(--beam),.55));
-}
-.mark:focus-visible{ outline:2px solid rgba(var(--beam),.7); outline-offset:6px; border-radius:4px; }
+.mark:focus-visible .mark__emblem{ opacity:.72; }
+.mark:focus-visible{ outline:2px solid var(--ink); outline-offset:6px; border-radius:4px; }
 
 .mark__type{ display:block; }
 .mark__type b{
@@ -401,9 +570,9 @@ body{
   font-size:.5rem;
   font-weight:400;
   letter-spacing:.34em;
-  color:var(--steel);
+  color:var(--ink-3);
 }
-.mark__type i{ font-style:normal; color:var(--graphite); }
+.mark__type i{ font-style:normal; color:var(--ink-3); opacity:.55; }
 
 /* El menú. Mismo idioma que el rig: lo que se enciende es una barra de
    luz, no un subrayado. Sale del borde inferior con la misma curva que
@@ -422,29 +591,28 @@ body{
   position:relative;
   display:block;
   padding:.55rem 0;
-  color:var(--steel);
+  color:var(--ink-2);
   text-decoration:none;
   transition:color .35s var(--ease);
 }
+/* El subrayado es el único lugar de toda la página donde aparece el
+   rojo, y aparece a un pixel de alto. Sale de la óptica trasera del
+   BMW: es el mismo rojo que ya está en el video y en las fotos, no un
+   acento traído de afuera. */
 .menu a::after{
   content:"";
   position:absolute;
   left:0; right:0; bottom:.15rem;
   height:1px;
-  background:linear-gradient(90deg,
-    rgba(var(--beam),0), rgba(var(--beam),.9) 22%, #FFFFFF 50%,
-    rgba(var(--beam),.9) 78%, rgba(var(--beam),0));
+  background:var(--ember);
   transform:scaleX(0);
   transform-origin:50% 50%;
-  transition:transform .45s var(--ease), box-shadow .45s var(--ease);
+  transition:transform .45s var(--ease);
 }
 .menu a:hover,
-.menu a:focus-visible{ color:var(--chrome); }
+.menu a:focus-visible{ color:var(--ink); }
 .menu a:hover::after,
-.menu a:focus-visible::after{
-  transform:scaleX(1);
-  box-shadow:0 0 .65rem rgba(var(--beam),.7);
-}
+.menu a:focus-visible::after{ transform:scaleX(1); }
 .menu a:focus-visible{ outline:none; }
 
 /* ── las cifras que flanquean al auto ──────────────────────────── */
@@ -468,8 +636,10 @@ body{
   font-variation-settings:"wdth" 64,"wght" 700;
   letter-spacing:-.02em;
   line-height:.82;
-  /* el número se apaga hacia abajo: presencia sin robarle brillo al auto */
-  background:linear-gradient(176deg, var(--chrome) 6%, #5C6270 88%);
+  /* El número se aclara hacia abajo, no se oscurece: sobre el estudio
+     claro el degradado tiene que ir de la tinta al gris de la pared,
+     que es al revés de como estaba sobre el negro. */
+  background:linear-gradient(176deg, var(--ink) 6%, rgba(16,18,22,.35) 88%);
   -webkit-background-clip:text;
           background-clip:text;
   color:transparent;
@@ -479,7 +649,7 @@ body{
   font-family:var(--mono);
   font-size:.58rem;
   letter-spacing:.28em;
-  color:var(--steel);
+  color:var(--ink-3);
   margin-top:.7rem;
 }
 .figure .slot{ overflow:hidden; }
@@ -501,8 +671,8 @@ body{
   display:grid; place-items:center;
   border:0;
   background:transparent;
-  color:var(--chrome);
-  opacity:.26;
+  color:var(--ink);
+  opacity:.34;
   cursor:pointer;
   transition:opacity .35s var(--ease), transform .35s var(--ease);
   -webkit-tap-highlight-color:transparent;
@@ -514,7 +684,7 @@ body{
 .arrow:hover, .arrow:focus-visible{ opacity:1; }
 .arrow--l:hover, .arrow--l:focus-visible{ transform:translate(-22%,-190%); }
 .arrow--r:hover, .arrow--r:focus-visible{ transform:translate(22%,-190%); }
-.arrow:focus-visible{ outline:1px solid rgba(var(--beam),.6); outline-offset:8px; }
+.arrow:focus-visible{ outline:1px solid var(--ink); outline-offset:8px; }
 
 /* ── pantallas chicas ──────────────────────────────────────────── */
 
@@ -527,7 +697,7 @@ body{
   #word{
     top:calc(var(--ground) - clamp(3rem,10vh,7.5rem));
     font-size:clamp(2.4rem,19vw,7.5rem);
-    color:#1E2027;
+    color:rgba(16,18,22,.11);
   }
 }
 
@@ -555,6 +725,11 @@ body{
 </style>
 </head>
 <body>
+
+<!-- La barra del header. Vacía a propósito: es sólo el vidrio que
+     aparece al scrollear. La marca y el menú son fixed y viven por
+     encima, así no hay que moverlos de lugar en el HTML. -->
+<div id="topbar" aria-hidden="true"></div>
 
 <!-- Portada en video. Primera pantalla del sitio; el escenario del auto
      quedó debajo. El video no tiene audio: muted + playsinline son lo que
@@ -618,7 +793,32 @@ body{
       v.appendChild(s);
     });
   })();
+
+  /* Estado del header. Apenas se scrollea un poco, el body recibe
+     .is-scrolled y con eso aparece el vidrio del #topbar y el HUD se
+     compacta. Todo el movimiento lo hace el CSS con transiciones; acá
+     sólo se prende y apaga una clase.
+
+     El listener es passive y sólo escribe cuando el estado CAMBIA, así
+     no toca el DOM en cada píxel de scroll. */
+  (function(){
+    var limite = 24, puesto = null;
+    function mirar(){
+      var si = window.scrollY > limite;
+      if (si === puesto) return;
+      puesto = si;
+      document.body.classList.toggle('is-scrolled', si);
+    }
+    addEventListener('scroll', mirar, { passive:true });
+    mirar();
+  })();
   </script>
+
+  <div class="cover-copy">
+    <p class="cover-eyebrow">Selección</p>
+    <h1 class="cover-title">Autos que ya<br>pasaron el filtro.</h1>
+    <p class="cover-sub">Cada unidad revisada, con historial verificado.</p>
+  </div>
 
   <svg class="scroll-cue" viewBox="0 0 24 24" fill="none" stroke="currentColor"
        stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
