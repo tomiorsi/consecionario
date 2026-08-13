@@ -1551,7 +1551,28 @@ body.is-dark.is-scrolled #topbar{
        el currentTime— así que se quedaba en readyState 0 para siempre y
        el scroll no movía nada. */
     v.preload = 'auto';
-    v.src = base + '.mp4';
+
+    /* DOS CODECS, COMO EN LA PORTADA — pero acá el motivo no es sólo el
+       peso. Se midió la búsqueda en Safari de iPhone, 40 saltos sobre el
+       archivo real, y HEVC no sólo pesa menos: además busca MÁS RÁPIDO
+       que el H.264 (4 ms de mediana contra 6), porque lo decodifica el
+       hardware. Para un video que se navega con el dedo eso es lo que
+       más importa.
+
+       La cadena de codecs dice 4.10 y no 1.6 porque un archivo donde
+       todos los cuadros son I se señaliza con el perfil intra, que vive
+       en las Range Extensions. Comprobado en iPhone: canPlayType
+       devuelve "probably" y el archivo decodifica. */
+    var HEVC = ['-hevc.mp4', 'video/mp4; codecs="hvc1.4.10.L120.B0"'];
+    var H264 = ['.mp4',      'video/mp4'];
+
+    [HEVC, H264].forEach(function(f){
+      var s = document.createElement('source');
+      s.src  = base + f[0];
+      s.type = f[1];
+      v.appendChild(s);
+    });
+
     v.load();
   }
 
@@ -1588,7 +1609,32 @@ body.is-dark.is-scrolled #topbar{
      es lo que convierte un golpe de rueda en un movimiento que frena
      solo. Cuando la diferencia es despreciable se deja de escribir en
      el video, para no pedirle un seek por cuadro estando quieto. */
+  /* ¿Está el reel cerca de la pantalla? Con margen, para que ya esté
+     funcionando cuando asome y no arranque con un tirón. */
+  function cerca(){
+    var r = sec.getBoundingClientRect();
+    return r.bottom > -400 && r.top < window.innerHeight + 400;
+  }
+
   function cuadro(){
+    /* EL BUCLE SE DUERME CUANDO EL REEL NO SE VE.
+
+       Antes arrancaba con loadedmetadata y no paraba nunca: seguía
+       pidiendo un cuadro por cuadro, pausando el video y escribiéndole
+       el currentTime con el reel tres pantallas más arriba.
+
+       Eso hacía que el video del collage —abajo de todo— no arrancara
+       nunca y se viera como una foto fija: el reel tenía tomado el
+       decodificador, y iOS los reparte de a uno. Soltándolo cuando el
+       reel no está a la vista, el de abajo consigue el suyo.
+
+       De paso deja de gastar batería animando algo que nadie mira. */
+    if (!cerca()){
+      vivo = false;
+      try { v.pause(); } catch(e){}
+      return;
+    }
+
     /* Red de seguridad: el reel NUNCA se reproduce solo. Si algo lo
        puso en play —el empujón de iOS, un gesto del sistema— se pausa
        en el mismo cuadro, así no llega a verse. */
@@ -1597,7 +1643,22 @@ body.is-dark.is-scrolled #topbar{
     var p = avance();
     notasEn(p);
 
-    objetivo = p * dur;
+    /* EL REBOTE, AHORA ACÁ Y NO EN EL ARCHIVO.
+
+       El reel va y vuelve. Antes el archivo guardaba las dos mitades, y
+       la vuelta era la ida al revés cuadro por cuadro: 191 cuadros
+       duplicados, la mitad del peso del video repetida.
+
+       Ahora el archivo tiene sólo la ida y el rebote se hace acá:
+       la primera mitad del scroll recorre el video de 0 a 1, y la
+       segunda lo recorre de 1 a 0. Se ve exactamente igual y el archivo
+       pesa la mitad, sin recomprimir un solo cuadro.
+
+       Las notas siguen usando `p` —el avance del scroll— y no esta
+       posición: van con el recorrido, no con el video. */
+    var pos = p <= .5 ? p * 2 : (1 - p) * 2;
+
+    objetivo = pos * dur;
     var d = objetivo - actual;
     if (Math.abs(d) > 0.0015){
       actual += d * 0.12;
@@ -1664,12 +1725,24 @@ body.is-dark.is-scrolled #topbar{
   addEventListener('scroll', porScroll, { passive:true });
   porScroll();
 
+  /* Arranca el bucle si hace falta. Se llama al cargar el video y en
+     cada scroll: como el bucle se duerme al alejarse, hay que tener
+     quién lo vuelva a despertar cuando el reel se acerca de nuevo. */
+  function animar(){
+    if (vivo || !dur || !cerca()) return;
+    vivo = true;
+    requestAnimationFrame(cuadro);
+  }
+
+  addEventListener('scroll', animar, { passive:true });
+
   v.addEventListener('loadedmetadata', function(){
     dur = v.duration || 0;
-    actual = objetivo = avance() * dur;
+    var p = avance();
+    actual = objetivo = (p <= .5 ? p * 2 : (1 - p) * 2) * dur;
     try { v.currentTime = actual; } catch(e){}
     despertar();
-    if (!vivo){ vivo = true; requestAnimationFrame(cuadro); }
+    animar();
   });
 })();
 </script>
@@ -1839,7 +1912,28 @@ body.is-dark.is-scrolled #topbar{
     if (!pedido){
       pedido = true;
       v.preload = 'auto';
-      v.src = base + '.mp4';
+
+      /* HEVC PRIMERO, H.264 DE RESPALDO.
+
+         Éste no se navega con el scroll: se reproduce y vuelve a
+         empezar. Sin la exigencia de buscar rápido no hace falta que
+         cada cuadro sea un keyframe, y con un GOP normal HEVC comprime
+         muchísimo: 2,3 MB donde el H.264 necesita 5,0, midiendo 98,5
+         de VMAF contra el archivo que ya estaba publicado. Es la misma
+         imagen pesando menos de la mitad.
+
+         Acá la cadena dice 1.6 —perfil Main— y no 4.10 como el reel,
+         justamente porque éste no es all-intra. */
+      var HEVC = ['-hevc.mp4', 'video/mp4; codecs="hvc1.1.6.L120.B0"'];
+      var H264 = ['.mp4',      'video/mp4'];
+
+      [HEVC, H264].forEach(function(f){
+        var s = document.createElement('source');
+        s.src  = base + f[0];
+        s.type = f[1];
+        v.appendChild(s);
+      });
+
       v.load();
       /* Cuando llegan los datos se vuelve a intentar: el primer play()
          sale con el video todavía vacío y puede rechazarse. Antes ese
