@@ -178,6 +178,24 @@ body{
   object-position:center;
 }
 
+/* EL BOTÓN DE PLAY DE iOS.
+
+   Cuando Safari decide que un video no puede arrancar solo, le dibuja
+   encima un botón de play propio. Decide eso en tres situaciones que
+   ninguna línea de código puede revertir: el modo de bajo consumo, el
+   modo de datos reducidos, y los navegadores embebidos dentro de otra
+   app (abrir el link desde WhatsApp o Instagram, por ejemplo).
+
+   Acá los tres videos son fondo, no reproductores. Ese botón no se toca
+   nunca y lo único que hace es que la portada se vea rota. Se apaga.
+   Que el video arranque igual es trabajo del script del final de la
+   portada, que lo reintenta con el primer toque. */
+video::-webkit-media-controls-start-playback-button{
+  display:none !important;
+  -webkit-appearance:none;
+}
+video::-webkit-media-controls{ display:none !important; }
+
 /* EL APAGADO A NEGRO.
 
    No es un velo fijo —eso ensuciaba el video y se sacó—: es una capa
@@ -563,14 +581,33 @@ body.is-scrolled .hud--tr{ top:var(--hud-y-min); }
     transform:scale(.94) translateY(-6px);
     transform-origin:100% 0;
     pointer-events:none;
-    transition:opacity .3s var(--ease), transform .34s var(--ease);
     z-index:65;
+
+    /* VISIBILITY, NO SÓLO OPACIDAD.
+
+       Con opacidad 0 el panel se sigue componiendo, y componer esto
+       significa que el teléfono recalcula el desenfoque de 22px de todo
+       lo que hay detrás EN CADA CUADRO — con la portada en movimiento
+       detrás, eso es todo el tiempo. Un menú cerrado le estaba comiendo
+       GPU a la reproducción del video.
+
+       visibility:hidden lo saca del pintado por completo. El retardo
+       hace que se apague recién cuando terminó de desvanecerse, así no
+       desaparece de golpe al cerrarlo. */
+    visibility:hidden;
+    transition:opacity .3s var(--ease),
+               transform .34s var(--ease),
+               visibility 0s linear .34s;
   }
 
   body.menu-abierto .menu{
     opacity:1;
     transform:none;
     pointer-events:auto;
+    visibility:visible;
+    transition:opacity .3s var(--ease),
+               transform .34s var(--ease),
+               visibility 0s linear 0s;
   }
 
   .menu a{
@@ -1178,10 +1215,50 @@ body.is-dark.is-scrolled #topbar{
        del collage pedía turno y se lo negaban, y quedaba como una foto
        fija. Soltando el decodificador cuando la portada no se ve, el de
        abajo arranca. */
+    /* EL ÚNICO RESPALDO QUE QUEDA.
+
+       Hay tres situaciones en las que iOS rechaza el autoplay pase lo
+       que pase, y ninguna se puede detectar ni evitar desde la página:
+
+         · el modo de bajo consumo (la batería en amarillo),
+         · el modo de datos reducidos,
+         · los navegadores embebidos en otra app — abrir el link desde
+           WhatsApp o Instagram no es abrirlo en Safari.
+
+       Lo que sí se puede es reintentar con el primer gesto del
+       visitante, que siempre desbloquea la reproducción. Como la
+       portada ocupa la pantalla entera y lo primero que hace cualquiera
+       es scrollear, en la práctica el video arranca en el primer
+       segundo igual.
+
+       Esto NO es un reintento a ciegas de los que hubo que sacar: se
+       engancha únicamente si el play fue rechazado de verdad, se
+       dispara una sola vez y se desengancha solo. Si el autoplay
+       funciona —que es lo normal— este código no existe. */
+    var armado = false;
+    function reintentarConGesto(){
+      if (armado) return;
+      armado = true;
+      var eventos = ['pointerdown','touchstart','scroll','keydown'];
+      function unaVez(){
+        eventos.forEach(function(n){ removeEventListener(n, unaVez); });
+        try { v.play(); } catch(e){}
+      }
+      eventos.forEach(function(n){
+        addEventListener(n, unaVez, { passive:true });
+      });
+    }
+
+    function arrancar(){
+      var pr;
+      try { pr = v.play(); } catch(e){ reintentarConGesto(); return; }
+      if (pr && pr.catch) pr.catch(reintentarConGesto);
+    }
+
     if ('IntersectionObserver' in window){
       new IntersectionObserver(function(e){
         e.forEach(function(x){
-          if (x.isIntersecting) { var pr = v.play(); if (pr && pr.catch) pr.catch(function(){}); }
+          if (x.isIntersecting) { arrancar(); }
           else { try { v.pause(); } catch(err){} }
         });
       }, { threshold:0.01 }).observe(v);
