@@ -229,63 +229,61 @@ body{
 #band{
   position:relative;
   background:#000;
-  /* La mitad de lo que era: es una pausa, no una sección. */
-  min-height:min(42svh,24rem);
+  /* Alto de SCROLL, no de contenido. La franja que se ve sigue siendo
+     compacta: lo que ocupa dos pantallas es el recorrido, para que las
+     palabras tengan dónde encenderse uno por uno. */
+  height:200svh;
+}
+
+.band-stick{
+  position:sticky;
+  top:0;
+  height:100svh;
   display:grid;
   place-items:center;
   padding:clamp(3rem,9vh,6rem) var(--gut);
   text-align:center;
 }
 
-/* EL EFECTO — entrar en foco.
+/* EL EFECTO — la frase se escribe con el scroll.
 
-   Las dos líneas llegan desenfocadas y separadas, y se van enfocando y
-   juntando a medida que la franja se acerca al centro de la pantalla.
-   Al salir, vuelven a desenfocarse.
+   Antes era un desenfoque que resolvía al centro. Se veía elegante
+   quieto y no se veía NADA scrolleando rápido, que es como se scrollea.
 
-   No es decoración: el negocio es SELECCIONAR y VERIFICAR autos, o sea
-   poner algo en foco. El efecto dice lo mismo que el texto.
+   Ahora cada palabra se enciende cuando el scroll llega a ella. Es
+   imposible no notarlo: el texto aparece al ritmo del dedo, y si se
+   frena, se frena. Eso es lo que hace que se sienta controlado.
 
-   Lo maneja --p (de 0 a 1), que escribe el JS desde el scroll: 0 es
-   lejos del centro, 1 es centrado. El valor por defecto es 1 a
-   propósito — si el JS no corriera, el texto queda nítido y legible en
-   vez de desaparecer desenfocado. */
-.band-copy{
-  --p:1;
-  max-width:52rem;
-}
+   Las palabras apagadas no desaparecen —quedan en un gris muy bajo— así
+   que se ve de entrada cuánta frase falta. Si arrancaran invisibles, el
+   bloque saltaría de tamaño a medida que aparecen. */
+.band-copy{ max-width:52rem; }
 
 .band-copy p{
-  color:var(--chrome);
-  font-size:clamp(1.5rem,3.4vw,2.9rem);
+  font-size:clamp(1.6rem,3.6vw,3.1rem);
   font-variation-settings:"wdth" 92,"wght" 500;
   letter-spacing:-.02em;
   line-height:1.24;
-
-  filter:blur(calc((1 - var(--p)) * 11px));
-  opacity:calc(.12 + var(--p) * .88);
-  will-change:filter,transform,opacity;
+  color:rgba(255,255,255,.13);
 }
 
-/* Las dos líneas convergen: la de arriba viene de la izquierda y la de
-   abajo de la derecha. Cuando el texto está enfocado, las dos están en
-   su lugar. */
-.band-copy p:first-child{
-  transform:translateX(calc((1 - var(--p)) * -3.4rem));
-}
-
-/* La segunda línea baja de peso y de tamaño: es el eco de la primera,
-   no una frase aparte. */
 .band-copy p + p{
   margin-top:clamp(.5rem,1.4vh,.9rem);
-  font-size:clamp(1.15rem,2.5vw,2.05rem);
+  font-size:clamp(1.2rem,2.6vw,2.15rem);
   font-variation-settings:"wdth" 92,"wght" 400;
-  color:var(--steel);
-  transform:translateX(calc((1 - var(--p)) * 3.4rem));
 }
 
+.band-copy .w{
+  transition:color .45s var(--ease);
+  color:inherit;
+}
+.band-copy .w.on{ color:var(--chrome); }
+/* la segunda línea enciende más apagada: es el eco, no el titular */
+.band-copy p + p .w.on{ color:var(--steel); }
+
 @media (prefers-reduced-motion:reduce){
-  .band-copy p{ filter:none; transform:none; opacity:1; }
+  .band-copy .w{ transition:none; color:var(--chrome); }
+  .band-copy p + p .w{ color:var(--steel); }
 }
 
 /* ── el texto de la portada ────────────────────────────────────────
@@ -1106,7 +1104,7 @@ body.is-dark.is-scrolled #topbar{
        DENTRO de #cover, así que corre mientras la página se está
        parseando y #band todavía no existe. Buscarla ahora devolvía
        null y el efecto no se aplicaba nunca. */
-    var franja = null, texto = null;
+    var franja = null, texto = null, palabras = null, encendidas = -1;
 
     function mirar(){
       var si = window.scrollY > limite;
@@ -1131,27 +1129,48 @@ body.is-dark.is-scrolled #topbar{
          interfaz se invierte para leerse sobre el negro de abajo. Se
          cambia antes de llegar del todo (al 72%) para que el logo no
          quede un instante en tinta oscura sobre fondo negro. */
-      /* EL FOCO DE LA FRANJA. --p va de 0 a 1 según qué tan cerca está
-         el centro de la franja del centro de la pantalla. El CSS lo usa
-         para el desenfoque, la opacidad y la convergencia de las dos
-         líneas.
+      /* LA FRASE QUE SE ESCRIBE CON EL SCROLL.
 
-         Se eleva al cuadrado (p*p) para que el enfoque no sea lineal:
-         así el texto pasa la mayor parte del recorrido todavía blando y
-         resuelve rápido cerca del centro, que es como enfoca una lente
-         de verdad. Lineal se siente mecánico. */
+         Antes esto era un desenfoque que resolvía al llegar al centro.
+         Se veía elegante con la página quieta y no se veía NADA
+         scrolleando rápido, que es como se scrollea de verdad.
+
+         Ahora cada palabra se enciende cuando el scroll llega a ella.
+         Es imposible no notarlo: el texto aparece al ritmo del dedo, y
+         si se frena, se frena. Eso es lo que lo hace sentir controlado.
+
+         El recorrido útil es el alto de la sección menos una pantalla,
+         que es lo que dura el sticky pegado arriba. Se usa el 88% de
+         ese recorrido para que la última palabra encienda ANTES de que
+         la franja empiece a irse, y no justo cuando ya salió.
+
+         La lista de palabras se arma una sola vez, en el primer scroll:
+         este script vive dentro de #cover y corre antes de que #band
+         exista en el DOM. */
       if (!texto){
         franja = document.getElementById('band');
         texto  = franja && franja.querySelector('.band-copy');
+        if (texto){
+          Array.prototype.forEach.call(texto.querySelectorAll('p'), function(linea){
+            linea.innerHTML = linea.textContent.trim().split(/\s+/)
+              .map(function(w){ return '<span class="w">' + w + '</span>'; })
+              .join(' ');
+          });
+          palabras = texto.querySelectorAll('.w');
+        }
       }
-      if (texto){
-        var rf = franja.getBoundingClientRect();
-        var centroF = rf.top + rf.height / 2;
-        var centroV = window.innerHeight / 2;
-        var alcance = window.innerHeight / 2 + rf.height / 2;
-        var p = 1 - Math.abs(centroF - centroV) / alcance;
-        p = p < 0 ? 0 : (p > 1 ? 1 : p);
-        texto.style.setProperty('--p', (p * p).toFixed(3));
+      if (palabras && palabras.length){
+        var rb = franja.getBoundingClientRect();
+        var util = franja.offsetHeight - window.innerHeight;
+        var q = util > 0 ? (-rb.top) / (util * 0.88) : 0;
+        q = q < 0 ? 0 : (q > 1 ? 1 : q);
+        var cuantas = Math.round(q * palabras.length);
+        if (cuantas !== encendidas){
+          for (var k = 0; k < palabras.length; k++){
+            palabras[k].classList.toggle('on', k < cuantas);
+          }
+          encendidas = cuantas;
+        }
       }
 
       /* Se reusa la misma `portada` de arriba. Declararla de nuevo acá
@@ -1185,9 +1204,11 @@ body.is-dark.is-scrolled #topbar{
      vuelta al auto. El texto es de ejemplo hasta que definamos el
      definitivo. -->
 <section id="band">
-  <div class="band-copy">
+  <div class="band-stick">
+   <div class="band-copy">
     <p>Elegidos, no conseguidos.</p>
     <p>Revisado. Verificado. Entregado.</p>
+   </div>
   </div>
 </section>
 
@@ -1246,10 +1267,35 @@ body.is-dark.is-scrolled #topbar{
     requestAnimationFrame(cuadro);
   }
 
+  /* iOS IGNORA preload. No descarga un video hasta que empieza a
+     reproducirse, y este nunca se reproduce: sólo se le mueve el
+     currentTime. Resultado en iPhone: el reel no bajaba NUNCA y la
+     pantalla quedaba negra.
+
+     Como es muted + playsinline, el autoplay está permitido: se arranca
+     y se pausa en el acto. Con eso iOS empieza la descarga y el scrub
+     tiene datos para trabajar. En escritorio es inofensivo.
+
+     Si el navegador rechazara el play (algunas configuraciones de
+     ahorro de datos), se reintenta con el primer toque, que ya es un
+     gesto del usuario y siempre alcanza. */
+  function despertar(){
+    var pr;
+    try { pr = v.play(); } catch(e){ return; }
+    if (pr && pr.then) pr.then(function(){ v.pause(); }).catch(function(){
+      addEventListener('touchstart', function una(){
+        removeEventListener('touchstart', una);
+        try { v.play().then(function(){ v.pause(); }).catch(function(){}); } catch(e){}
+      }, { passive:true, once:true });
+    });
+    else { try { v.pause(); } catch(e){} }
+  }
+
   v.addEventListener('loadedmetadata', function(){
     dur = v.duration || 0;
     actual = objetivo = avance() * dur;
     try { v.currentTime = actual; } catch(e){}
+    despertar();
     if (!vivo){ vivo = true; requestAnimationFrame(cuadro); }
   });
 })();
@@ -1382,7 +1428,7 @@ body.is-dark.is-scrolled #topbar{
   } else { estado.fuentes = 1; }
 
   /* Un video: se sigue cuánto lleva bufereado contra su duración. */
-  function seguir(id, clave){
+  function seguir(id, clave, umbral){
     var v = document.getElementById(id);
     if (!v){ estado[clave] = 1; pintar(); return; }
 
@@ -1390,9 +1436,7 @@ body.is-dark.is-scrolled #topbar{
       if (!v.duration || !isFinite(v.duration)) return;
       var fin = 0;
       for (var i = 0; i < v.buffered.length; i++) fin = Math.max(fin, v.buffered.end(i));
-      /* No se espera el archivo entero: con el 85% bajado el scrub ya
-         no se queda sin datos, y el resto llega mientras se mira. */
-      estado[clave] = Math.min(1, (fin / v.duration) / .85);
+      estado[clave] = Math.min(1, (fin / v.duration) / umbral);
       pintar();
     }
 
@@ -1403,8 +1447,16 @@ body.is-dark.is-scrolled #topbar{
     medir();
   }
 
-  seguir('coverVid', 'portada');
-  seguir('reelVid', 'reel');
+  /* La portada se reproduce apenas se entra, así que necesita estar
+     bien bajada (85%). El reel, en cambio, recién se ve después de la
+     portada y de la franja: alcanza con que haya arrancado (12%), y
+     sigue bajando mientras el visitante lee.
+
+     Antes los dos esperaban el 85% y eso era lo que hacía eterna la
+     carga: se quedaba esperando 10 MB de un video que todavía faltaba
+     mucho para ver. */
+  seguir('coverVid', 'portada', .85);
+  seguir('reelVid',  'reel',    .12);
 
   /* Red de seguridad: pase lo que pase, a los 15 segundos se entra. */
   setTimeout(listo, 15000);
