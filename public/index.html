@@ -1095,7 +1095,7 @@ body.is-dark.is-scrolled #topbar{
     muted
     loop
     playsinline
-    preload="metadata"></video>
+    preload="auto"></video>
 
   <script>
   /* DOS DECISIONES ACÁ ADENTRO
@@ -1137,14 +1137,56 @@ body.is-dark.is-scrolled #topbar{
 
     v.poster = base + '-poster.jpg';
 
-    [ ['-av1.mp4',  'video/mp4; codecs="av01.0.08M.08"'],
-      ['-hevc.mp4', 'video/mp4; codecs="hvc1.1.6.L120.B0"'],
-      ['.mp4',      'video/mp4'] ].forEach(function(f){
+    var AV1  = ['-av1.mp4',  'video/mp4; codecs="av01.0.08M.08"'];
+    var HEVC = ['-hevc.mp4', 'video/mp4; codecs="hvc1.1.6.L120.B0"'];
+    var H264 = ['.mp4',      'video/mp4'];
+
+    /* EN EL TELÉFONO, HEVC PRIMERO.
+
+       AV1 comprime mejor, pero en iPhone sólo tiene decodificación por
+       hardware en los modelos más nuevos; en el resto se decodifica por
+       software, y un video pesado por software arranca tarde, calienta
+       y a veces directamente no llega a reproducirse.
+
+       HEVC lo decodifican por hardware TODOS los iPhone. En escritorio
+       se mantiene AV1 primero, que ahí sí conviene. */
+    var orden = (pantalla <= 767) ? [HEVC, AV1, H264] : [AV1, HEVC, H264];
+
+    orden.forEach(function(f){
       var s = document.createElement('source');
       s.src  = base + f[0];
       s.type = f[1];
       v.appendChild(s);
     });
+
+    /* load() DESPUÉS de agregar las fuentes.
+
+       El <video> se parsea vacío y las fuentes se cuelgan acá. Sin este
+       load() explícito, iOS no vuelve a intentar la selección de
+       recurso de forma confiable: el archivo se descargaba igual, pero
+       el autoplay no se disparaba y el sistema dibujaba encima su botón
+       de play. Es el botón que aparecía sobre la portada. */
+    v.load();
+
+    /* Y el play explícito. El atributo autoplay solo no alcanza cuando
+       las fuentes llegaron por JS. Como es muted + playsinline, iOS lo
+       permite sin gesto. Si aun así lo rechaza —modo de bajo consumo,
+       por ejemplo— se reintenta con el primer toque. */
+    function arrancar(){
+      var pr;
+      try { pr = v.play(); } catch(e){ return; }
+      if (pr && pr.catch) pr.catch(function(){
+        ['touchstart','click'].forEach(function(ev){
+          addEventListener(ev, function una(){
+            removeEventListener(ev, una);
+            v.play().catch(function(){});
+          }, { passive:true, once:true });
+        });
+      });
+    }
+
+    if (v.readyState >= 2) arrancar();
+    v.addEventListener('loadeddata', arrancar, { once:true });
   })();
 
   /* EL MENÚ DE CELULAR.
@@ -1362,7 +1404,7 @@ body.is-dark.is-scrolled #topbar{
      pegado adentro mientras la sección pasa. -->
 <section id="reel">
   <div class="reel-stick">
-    <video id="reelVid" muted playsinline preload="auto"></video>
+    <video id="reelVid" muted playsinline preload="none"></video>
 
     <div class="reel-nota reel-nota--izq" data-desde=".08" data-hasta=".30">
       <p>La proporción manda. El resto es decoración.</p>
@@ -1405,7 +1447,37 @@ body.is-dark.is-scrolled #topbar{
   );
   var base = 'assets/video/reel-' + (pantalla <= 767 ? 'mobile' : 'desktop');
   v.poster = base + '-poster.jpg';
-  v.src    = base + '.mp4';
+
+  /* EL ARCHIVO NO SE PIDE HASTA ACERCARSE.
+
+     Antes el src se ponía acá, en el parseo, con preload="auto": 5,4 MB
+     bajando desde el segundo cero, en paralelo con la portada. En un
+     teléfono eso hacía dos cosas, y las dos se notaban:
+
+       · la entrada al sitio tardaba muchísimo;
+       · el empujón de iOS —el play()/pause() de más abajo— salía a los
+         1,5 s, cuando la PORTADA todavía estaba intentando arrancar.
+         iOS deja reproducir un video a la vez: el segundo le robaba el
+         turno al primero y sobre la portada aparecía el botón de play.
+
+     Ahora se pide cuando el reel está a 700px de entrar en pantalla,
+     que es después de la portada y la franja. Para entonces la portada
+     ya arrancó y tiene su decodificador. */
+  var pedido = false;
+
+  function traer(){
+    if (pedido) return;
+    pedido = true;
+    /* preload y load() son OBLIGATORIOS acá. Con preload="none",
+       asignar el src NO descarga nada: el navegador espera a que se
+       pida reproducir. El collage zafa porque después llama a play(),
+       que fuerza la carga; el reel nunca se reproduce —sólo se le mueve
+       el currentTime— así que se quedaba en readyState 0 para siempre y
+       el scroll no movía nada. */
+    v.preload = 'auto';
+    v.src = base + '.mp4';
+    v.load();
+  }
 
   var dur = 0, objetivo = 0, actual = 0, vivo = false;
 
@@ -1500,6 +1572,22 @@ body.is-dark.is-scrolled #topbar{
     }, 1500);
   }
 
+  if ('IntersectionObserver' in window){
+    var obs = new IntersectionObserver(function(e){
+      if (e.some(function(x){ return x.isIntersecting; })){ traer(); obs.disconnect(); }
+    }, { rootMargin:'700px 0px' });
+    obs.observe(sec);
+  }
+  /* Mismo respaldo que en el collage: si el aviso no llegara, el reel
+     se quedaría sin video para siempre. */
+  function porScroll(){
+    if (pedido){ removeEventListener('scroll', porScroll); return; }
+    var r = sec.getBoundingClientRect();
+    if (r.top < window.innerHeight + 700){ traer(); removeEventListener('scroll', porScroll); }
+  }
+  addEventListener('scroll', porScroll, { passive:true });
+  porScroll();
+
   v.addEventListener('loadedmetadata', function(){
     dur = v.duration || 0;
     actual = objetivo = avance() * dur;
@@ -1543,12 +1631,16 @@ body.is-dark.is-scrolled #topbar{
   window.scrollTo(0, 0);
 
   var linea = document.querySelector('.loader-linea span');
-  var pesos = { fuentes:.20, portada:.35, reel:.45 };
-  var estado = { fuentes:0, portada:0, reel:0 };
+  /* El reel salió de acá. Ya no se descarga al cargar la página, así
+     que esperarlo era esperar algo que no estaba pasando: la barra se
+     clavaba y se comía los 15 segundos del techo. Ahora sólo se espera
+     lo que de verdad se ve al entrar. */
+  var pesos = { fuentes:.25, portada:.75 };
+  var estado = { fuentes:0, portada:0 };
   var terminado = false;
 
   function pintar(){
-    var p = estado.fuentes*pesos.fuentes + estado.portada*pesos.portada + estado.reel*pesos.reel;
+    var p = estado.fuentes*pesos.fuentes + estado.portada*pesos.portada;
     if (linea) linea.style.setProperty('--carga', Math.min(1, p).toFixed(3));
     if (p >= .999) listo();
   }
@@ -1599,7 +1691,6 @@ body.is-dark.is-scrolled #topbar{
      carga: se quedaba esperando 10 MB de un video que todavía faltaba
      mucho para ver. */
   seguir('coverVid', 'portada', .85);
-  seguir('reelVid',  'reel',    .12);
 
   /* Red de seguridad: pase lo que pase, a los 15 segundos se entra. */
   setTimeout(listo, 15000);
