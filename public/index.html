@@ -495,6 +495,99 @@ body.is-scrolled .hud--tr{ top:var(--hud-y-min); }
 .menu a:hover::after,
 .menu a:focus-visible::after{ transform:scaleX(1); }
 /* ══════════════════════════════════════════════════════════════════
+   EL MENÚ EN CELULAR
+   ══════════════════════════════════════════════════════════════════
+
+   Los tres enlaces no entran en línea en un teléfono, así que pasan a
+   un panel que se abre desde el botón.
+
+   NO OCUPA TODA LA PANTALLA. Un menú de tres ítems que se toma la
+   ventana entera es un gesto de aplicación, no de sitio: obliga a
+   cerrarlo para seguir viendo, y por tres links no lo justifica. Este
+   mide lo que miden sus enlaces y se ancla a la esquina de donde salió,
+   así el fondo sigue a la vista y se entiende de dónde vino.
+
+   El vidrio esmerilado deja ver el auto por detrás, que es lo que lo
+   ata al resto del sitio en vez de parecer una capa pegada encima. */
+
+.burger{ display:none; }
+
+@media (max-width:767px){
+
+  .burger{
+    display:grid;
+    place-content:center;
+    gap:5px;
+    width:2.6rem;
+    height:2.6rem;
+    padding:0;
+    border:0;
+    background:transparent;
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+    z-index:70;
+  }
+  .burger span{
+    display:block;
+    width:20px;
+    height:1.5px;
+    background:var(--ink);
+    transition:transform .38s var(--ease), opacity .28s var(--ease), background-color .5s var(--ease);
+  }
+  body.is-dark .burger span{ background:var(--chrome); }
+
+  /* Las dos líneas se cruzan en X. Se desplazan a la mitad del gap
+     antes de rotar, si no la X queda descentrada. */
+  body.menu-abierto .burger span:first-child{ transform:translateY(3.25px) rotate(45deg); }
+  body.menu-abierto .burger span:last-child { transform:translateY(-3.25px) rotate(-45deg); }
+
+  .menu{
+    display:flex;
+    flex-direction:column;
+    align-items:stretch;
+    gap:0;
+    /* Cuelga del botón, no del borde de la pantalla. */
+    top:calc(var(--hud-y) + 3.2rem);
+    right:var(--gut);
+    width:max-content;
+    min-width:9.5rem;
+    padding:.4rem;
+    border-radius:14px;
+    background:rgba(12,13,16,.62);
+    backdrop-filter:blur(22px) saturate(1.2);
+    -webkit-backdrop-filter:blur(22px) saturate(1.2);
+    border:1px solid rgba(255,255,255,.12);
+    box-shadow:0 18px 44px rgba(0,0,0,.5);
+
+    opacity:0;
+    transform:scale(.94) translateY(-6px);
+    transform-origin:100% 0;
+    pointer-events:none;
+    transition:opacity .3s var(--ease), transform .34s var(--ease);
+    z-index:65;
+  }
+
+  body.menu-abierto .menu{
+    opacity:1;
+    transform:none;
+    pointer-events:auto;
+  }
+
+  .menu a{
+    padding:.85rem 1.1rem;
+    border-radius:10px;
+    color:var(--chrome);
+    font-size:.66rem;
+    letter-spacing:.24em;
+    transition:background-color .25s var(--ease), color .25s var(--ease);
+  }
+  .menu a:active{ background:rgba(255,255,255,.09); }
+  /* el subrayado rojo no va acá: en un panel se lee como un ítem
+     seleccionado, no como un hover */
+  .menu a::after{ display:none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
    LA CARGA
 
    El sitio son tres piezas de video pesadas. Sin esto, el visitante
@@ -739,15 +832,26 @@ body.cargando{ overflow:hidden; }
     width:52%;
     aspect-ratio:1/1;
     margin:-24% 0 0 auto;
-    transform:translateY(calc(var(--y,1) * -95px));
+    /* Se movía 95px y con eso se despegaba de las otras dos. Igual que
+       en escritorio: es la pieza chica de arriba, tiene que quedarse
+       casi quieta y que las otras se muevan a su alrededor. */
+    transform:translateY(calc(var(--y,1) * -34px));
   }
 
   .col-exterior{
-    margin-top:8%;
-    margin-left:0;
+    /* PEGADA A LAS OTRAS DOS, no suelta abajo.
+
+       Tenía un margen POSITIVO de 8% y quedaba flotando sola al pie,
+       separada del conjunto y contra el borde izquierdo. Con margen
+       negativo se mete por debajo del cuadrado —va en la capa 0, así
+       que pasa por detrás— y el collage se lee como un bloque.
+
+       El margen izquierdo la corre del borde hacia el centro. */
+    margin-top:-19%;
+    margin-left:11%;
     width:78%;
     aspect-ratio:3/2;
-    transform:translateY(calc(var(--y,1) * 70px));
+    transform:translateY(calc(var(--y,1) * 52px));
   }
 }
 
@@ -963,7 +1067,12 @@ body.is-dark.is-scrolled #topbar{
     </a>
   </header>
 
-  <nav class="hud hud--tr menu">
+  <button id="burger" class="hud hud--tr burger" type="button"
+          aria-label="Abrir menú" aria-expanded="false" aria-controls="menu">
+    <span></span><span></span>
+  </button>
+
+  <nav id="menu" class="hud hud--tr menu">
     <a href="#stock">Stock</a>
     <a href="#taller">Taller</a>
     <a href="#contacto">Contacto</a>
@@ -1029,6 +1138,45 @@ body.is-dark.is-scrolled #topbar{
       s.src  = base + f[0];
       s.type = f[1];
       v.appendChild(s);
+    });
+  })();
+
+  /* EL MENÚ DE CELULAR.
+
+     Se cierra de las tres formas que la gente espera: tocando un enlace,
+     tocando fuera del panel, o con Escape. Sin las tres, un menú que no
+     tapa la pantalla se siente roto: como el fondo sigue a la vista, el
+     primer reflejo es tocar afuera para cerrarlo.
+
+     aria-expanded se mantiene sincronizado para que un lector de
+     pantalla anuncie si está abierto o cerrado. */
+  (function(){
+    var boton = document.getElementById('burger');
+    var panel = document.getElementById('menu');
+    if (!boton || !panel) return;
+
+    function poner(abierto){
+      document.body.classList.toggle('menu-abierto', abierto);
+      boton.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+      boton.setAttribute('aria-label', abierto ? 'Cerrar menú' : 'Abrir menú');
+    }
+
+    boton.addEventListener('click', function(e){
+      e.stopPropagation();
+      poner(!document.body.classList.contains('menu-abierto'));
+    });
+
+    panel.addEventListener('click', function(e){
+      if (e.target.tagName === 'A') poner(false);
+    });
+
+    document.addEventListener('click', function(e){
+      if (!document.body.classList.contains('menu-abierto')) return;
+      if (!panel.contains(e.target) && e.target !== boton) poner(false);
+    });
+
+    addEventListener('keydown', function(e){
+      if (e.key === 'Escape') poner(false);
     });
   })();
 
