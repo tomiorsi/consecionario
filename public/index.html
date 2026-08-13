@@ -1186,7 +1186,55 @@ body.is-dark.is-scrolled #topbar{
     }
 
     if (v.readyState >= 2) arrancar();
-    v.addEventListener('loadeddata', arrancar, { once:true });
+    v.addEventListener('loadeddata', arrancar);
+
+    /* REINTENTOS. Un solo intento no alcanzaba.
+
+       El play() sale cuando el video termina de cargar, y en ese momento
+       la pantalla de carga TODAVÍA lo está tapando. iOS no reproduce un
+       video que no está efectivamente a la vista: lo rechazaba o lo
+       pausaba enseguida, y como no había segundo intento, quedaba pausado
+       para siempre con el botón de play encima.
+
+       Ahora se reintenta en los tres momentos en que el estado cambia:
+
+         · cuando se va la pantalla de carga y el video queda visible
+         · cuando se vuelve a la pestaña
+         · y si algo lo pausa sin que nadie se lo pida
+
+       El guardia de `parando` evita que el reintento pelee con una pausa
+       legítima y se quede en un bucle. */
+    var parando = false;
+
+    v.addEventListener('pause', function(){
+      if (parando || v.ended) return;
+      arrancar();
+    });
+
+    /* SE PAUSA AL SALIR DE PANTALLA.
+
+       No es sólo ahorro: iOS reproduce UN video a la vez. Con la portada
+       corriendo eternamente arriba, el video del collage —abajo de todo—
+       pedía su turno y se lo negaban, y quedaba como una foto fija.
+
+       Dejando libre el decodificador cuando la portada no se ve, el de
+       abajo puede arrancar. Al volver arriba, la portada retoma. */
+    if ('IntersectionObserver' in window){
+      new IntersectionObserver(function(e){
+        e.forEach(function(x){
+          if (x.isIntersecting){ parando = false; arrancar(); }
+          else { parando = true; try { v.pause(); } catch(err){} }
+        });
+      }, { threshold:0.01 }).observe(v);
+    }
+
+    document.addEventListener('visibilitychange', function(){
+      if (!document.hidden) arrancar();
+    });
+
+    /* La pantalla de carga avisa cuando se retira. */
+    window.addEventListener('nyna:cargado', arrancar);
+    addEventListener('pageshow', arrancar);
   })();
 
   /* EL MENÚ DE CELULAR.
@@ -1652,6 +1700,11 @@ body.is-dark.is-scrolled #topbar{
     window.scrollTo(0, 0);
     cuerpo.classList.remove('cargando');
     cuerpo.classList.add('ya-cargo');
+
+    /* Se avisa que el video de la portada ya quedó a la vista, para que
+       vuelva a intentar reproducirse. Mientras esta pantalla lo tapaba,
+       iOS podía estar negándose. */
+    window.dispatchEvent(new Event('nyna:cargado'));
     /* El scroll arranca recién ahora: se avisa a los efectos para que
        tomen su estado inicial en vez de esperar al primer movimiento. */
     window.dispatchEvent(new Event('scroll'));
@@ -1759,8 +1812,19 @@ body.is-dark.is-scrolled #topbar{
   var pedido = false;
 
   function encender(){
-    if (!pedido){ pedido = true; v.src = base + '.mp4'; }
-    var pr = v.play();
+    if (!pedido){
+      pedido = true;
+      v.preload = 'auto';
+      v.src = base + '.mp4';
+      v.load();
+      /* Cuando llegan los datos se vuelve a intentar: el primer play()
+         sale con el video todavía vacío y puede rechazarse. Antes ese
+         rechazo se tragaba en silencio y el video quedaba como una foto. */
+      v.addEventListener('loadeddata', encender);
+      v.addEventListener('canplay', encender);
+    }
+    var pr;
+    try { pr = v.play(); } catch(e){ return; }
     if (pr && pr.catch) pr.catch(function(){});
   }
 
