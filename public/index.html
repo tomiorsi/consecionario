@@ -48,15 +48,11 @@
      problema es que los autos están recortados de fotos de estudio
      CLARO: sobre el negro se leen pegoteados, como calcomanías. Por eso
      la segunda pantalla se sentía de otro sitio que la primera. */
-  --cyc-hi:#D9DBDD;          /* alto del ciclorama */
-  --cyc:#C2C5C8;             /* medio */
-  --cyc-lo:#9B9EA2;          /* piso */
 
   /* El gris exacto del borde inferior del video, medido sobre el
      archivo. Es con lo que arranca el escenario para que el corte entre
      una pantalla y la otra caiga entre dos grises iguales y no se vea,
      sin necesidad de difuminar nada. */
-  --seam:#9A9A9A;
 
   /* Los grises secundarios van más oscuros de lo que pedía el ojo sobre
      negro: acá el fondo es CLARO, y un gris medio sobre gris claro no
@@ -73,8 +69,6 @@
   --void:#000000;
   --chrome:#F2F4F8;
   --steel:#7E8593;
-  --graphite:#454A55;
-  --ghost:#141519;
 
   --beam:214,232,255;        /* el blanco frío del rig, en RGB */
 
@@ -83,7 +77,6 @@
 
   /* Alto del escenario. Da aire arriba y abajo del auto en vez de
      dejarlo apretado contra los bordes de la ventana. */
-  --stageh:min(114svh,60rem);
 
   /* LA PERILLA DEL RITMO DEL REEL. Es cuánto scroll ocupa la vuelta
      completa al auto: más alto = giro más lento y más control sobre
@@ -106,20 +99,14 @@
   --hud-y-min:clamp(1.1rem,2.4vh,1.7rem);
   --ease:cubic-bezier(.22,1,.36,1);
 
-  --ar:1672 / 941;           /* proporción nativa de las fotos */
   /* Dónde apoyan las ruedas DENTRO de la foto. Lo fija el script de
      recorte (GROUND en tools/build-cars.py) y no se toca desde acá:
      si cambia uno hay que cambiar el otro. */
-  --img-ground:74%;
-  --ground:74%;              /* altura de la línea del piso en la ventana */
-  --car:.60;                 /* escala del auto — la recalcula el JS */
-  --carw:50vw;               /* ancho real del auto en pantalla — ídem */
 
   /* Ancho del pedestal de luz. Se mide contra el auto, no contra la
      ventana: la barra tiene que terminar poco después que el auto para
      que se lea como una tarima donde está parado, y no como un
      horizonte que cruza la pantalla. Es lo que lo deja flotando. */
-  --barw:calc(var(--carw) * 1.14);
 }
 
 *{margin:0;padding:0;box-sizing:border-box}
@@ -229,19 +216,25 @@ body{
 #band{
   position:relative;
   background:#000;
-  /* Alto de SCROLL, no de contenido. La franja que se ve sigue siendo
-     compacta: lo que ocupa dos pantallas es el recorrido, para que las
-     palabras tengan dónde encenderse uno por uno. */
-  height:200svh;
+  /* Alto de SCROLL: sección (100svh) menos el bloque pegado (50svh)
+     dan 50svh de recorrido para que se escriba la frase. */
+  height:100svh;
 }
 
 .band-stick{
   position:sticky;
-  top:0;
-  height:100svh;
+  /* MEDIA PANTALLA, no una entera. Antes el bloque medía 100svh y la
+     frase quedaba sola en toda la ventana: se leía como una sección
+     completa en vez de una pausa entre dos.
+
+     El top de 25svh es lo que lo mantiene CENTRADO midiendo la mitad:
+     25 arriba + 50 de bloque + 25 abajo. Con top:0 la frase se habría
+     ido al borde superior. */
+  top:25svh;
+  height:50svh;
   display:grid;
   place-items:center;
-  padding:clamp(3rem,9vh,6rem) var(--gut);
+  padding:clamp(1.5rem,4vh,3rem) var(--gut);
   text-align:center;
 }
 
@@ -347,221 +340,12 @@ body{
   50%    { transform:translate(-50%,6px); opacity:.7 }
 }
 
-#stage{
-  /* Era position:fixed + inset:0, porque el sitio era una única
-     pantalla. Ahora es la SEGUNDA: pasa a ser un bloque normal de una
-     ventana de alto, debajo de la portada.
-
-     Todo lo que vive adentro (#rig, #frame, el HUD, las cifras y las
-     flechas) es position:absolute, así que sigue posicionándose contra
-     #stage exactamente igual que antes. No hay que tocar nada de eso. */
-  position:relative;
-  width:100%;
-  /* --stageh y no 100svh suelto: el alto del escenario y el del marco
-     TIENEN que salir de la misma variable. Si divergen, la línea del
-     piso del rig y la línea donde apoyan las ruedas caen en lugares
-     distintos y el auto queda flotando o hundido. */
-  height:var(--stageh);
-  overflow:hidden;
-  background:#000;
-  /* Era touch-action:none, que en el teléfono mata el scroll vertical:
-     al llegar al escenario ya no se podía volver a la portada.
-     Con pan-y el dedo scrollea en vertical y el swipe horizontal de los
-     autos —que va por pointerdown— sigue funcionando igual. */
-  touch-action:pan-y;
-}
-
-/* ── marco: sólo el auto vive acá ──────────────────────────────── */
-
-/* Va SIEMPRE atado al alto de la ventana, nunca al ancho. Ése es el
-   truco que mantiene la línea del piso en el mismo lugar de la
-   pantalla en cualquier formato: si el alto del marco es 100vh, el
-   piso cae en var(--ground) de la ventana, y el rig —que ocupa la
-   ventana entera— puede dibujar su barra justo ahí.
-
-   A lo ancho el marco se desborda, y no importa: lo único que hay
-   adentro es el auto, que se achica con --car hasta entrar. */
-#frame{
-  position:absolute;
-  top:0; left:50%;
-  transform:translateX(-50%);
-  /* Mismo unidad que #stage (100svh), no 100vh: si el marco midiera
-     100vh y el escenario 100svh, en el teléfono el marco sería más alto
-     que el escenario y la línea del piso caería por debajo de la barra
-     del rig, que sí mide lo que el escenario. Los dos tienen que ir
-     siempre atados a la misma unidad. */
-  height:var(--stageh);
-  width:calc(var(--stageh) * var(--ar));
-  z-index:3;
-}
-
-/* ══════════════════════════════════════════════════════════════════
-   EL RIG DE LUCES
-   ══════════════════════════════════════════════════════════════════ */
-
-#rig{ position:absolute; inset:0; z-index:1; }
-#rig > *{ position:absolute; pointer-events:none; }
-
-/* EL CICLORAMA. Un ciclorama de verdad no tiene línea de horizonte: la
-   pared baja y se curva hasta volverse piso, sin junta. Eso es lo que
-   se dibuja acá — la pared clara arriba, el piso más apagado abajo, y
-   entre medio una transición larga.
-
-   Encima va una luz cenital suave, centrada donde va a estar el auto:
-   es la que hace que el auto se recorte contra un fondo que no es
-   plano. Sin ella el gris se lee como una pared pintada. */
-/* EL ESTUDIO OSCURO. Mismo lenguaje que las fotos del RS3 que están
-   justo arriba en el reel: negro, y un charco de luz fría sobre el piso
-   donde está parado el auto. La pared no se ilumina — lo único que
-   existe es el piso y lo que se apoya en él. */
-.l-ambient{
-  inset:0;
-  background:
-    /* el charco de luz del piso, centrado en la línea de apoyo */
-    radial-gradient(58% 26% at 50% var(--ground), rgba(var(--beam),.20), transparent 72%),
-    /* un lavado altísimo, apenas suficiente para que el negro de arriba
-       no se lea como un agujero plano */
-    radial-gradient(86% 52% at 50% 16%, rgba(var(--beam),.045), transparent 74%),
-    #000;
-}
-
-/* Los dos haces cenitales se retiran.
-
-   Eran el recurso más teatral del escenario y son justamente lo que
-   peleaba con las fotos: los autos vienen de un estudio de luz difusa,
-   sin haces marcados, así que dos conos duros encima los delataban como
-   recortes. El JS les sigue animando la opacidad y no pasa nada.
-
-   (La regla de Chanel: antes de salir, sacate un accesorio.) */
-.l-cone{ display:none; }
-
-
-/* LA TARIMA. Todo lo que pasa a la altura del piso vive acá adentro y
-   mide --barw, no el ancho de la ventana: la luz termina poco después
-   que el auto y el conjunto queda flotando en el medio del negro. */
-.l-stage{
-  left:50%; top:var(--ground);
-  width:var(--barw);
-  transform:translateX(-50%);
-}
-.l-stage > *{ position:absolute; }
-
-/* La barra de luz también se retira: en un ciclorama no hay junta. Lo
-   único que queda a la altura del piso es un apoyo apenas insinuado,
-   para que el auto no flote. */
-/* Sin barra: el auto se apoya sobre el charco de luz, no sobre una
-   línea. Queda apenas el filo donde el piso empieza a recibirla. */
-.l-horizon{
-  left:-15%; right:-15%; top:0;
-  height:1px;
-  background:linear-gradient(90deg,
-    transparent, rgba(var(--beam),.10) 30%, rgba(var(--beam),.16) 50%,
-    rgba(var(--beam),.10) 70%, transparent);
-}
-
-.l-sweep{ display:none; }
-
-/* El piso devolviendo la luz cenital: un barrido claro que sale de la
-   línea de apoyo hacia abajo. Es sutil a propósito — un piso de
-   estudio no espeja, apenas satina. */
-.l-reflect{
-  left:0; right:0; top:0;
-  height:clamp(5rem,17vh,13rem);
-  background:linear-gradient(180deg, rgba(var(--beam),.14), transparent 64%);
-  -webkit-mask-image:linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
-          mask-image:linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
-}
-
-/* LA FIRMA — la sombra de contacto.
-
-   Es el detalle que separa una foto de producto de un recorte pegado:
-   la mancha oscura, corta y difusa que el auto proyecta justo debajo,
-   más densa bajo las ruedas que en el medio. Reemplaza a la "brasa"
-   —que era luz saliendo del piso, físicamente al revés— y es lo único
-   que ancla el auto al suelo ahora que no hay barra. */
-.l-ember{
-  left:50%; top:0;
-  width:86%; height:clamp(1.8rem,5.2vh,4.2rem);
-  transform:translate(-50%,-42%);
-  /* Sobre negro una sombra no se ve: lo que ancla el auto es la luz que
-     el piso devuelve alrededor de las ruedas. Mismo dibujo que el
-     contacto —más densa en los extremos, donde apoya— pero en positivo. */
-  background:
-    radial-gradient(ellipse 44% 60% at 17% 50%, rgba(var(--beam),.34), transparent 74%),
-    radial-gradient(ellipse 44% 60% at 83% 50%, rgba(var(--beam),.34), transparent 74%),
-    radial-gradient(ellipse 56% 44% at 50% 50%, rgba(var(--beam),.16), transparent 78%);
-  filter:blur(13px);
-}
-
-/* ── el nombre gigante, atrás de todo ──────────────────────────── */
-
-#word{
-  position:absolute;
-  z-index:2;
-  left:50%;
-  /* colgado de la línea del piso, no de un % suelto: así queda detrás
-     del auto en cualquier formato de pantalla. La resta lo sube justo
-     lo necesario para que asome por encima del techo. */
-  top:calc(var(--ground) - clamp(9rem,30vh,20rem));
-  transform:translate(-50%,-50%);
-  font-size:clamp(2.6rem,11vw,9rem);
-  font-variation-settings:"wdth" 66,"wght" 800;
-  letter-spacing:-.025em;
-  line-height:.8;
-  white-space:nowrap;
-  /* Sobre el ciclorama claro el nombre no puede ser casi negro: pasaba
-     a competir con el auto. Va como una marca de agua apenas más oscura
-     que la pared — se lee si la buscás, no si mirás el auto. */
-  color:#141519;
-  pointer-events:none;
-  user-select:none;
-  will-change:transform,opacity;
-}
-
-/* ── el auto ───────────────────────────────────────────────────── */
-
-/* Dos movimientos distintos, y hay que no mezclarlos:
-
-   · La ESCALA se hace desde donde apoyan las ruedas en la foto
-     (--img-ground). Así el auto se achica sin despegarse del piso.
-   · El DESPLAZAMIENTO lleva ese piso hasta donde está la barra de luz
-     (--ground). En horizontal los dos valores coinciden y no se mueve
-     nada; en vertical el auto sube para dejar lugar abajo.
-
-   Cuando escalaba desde --ground en vez de --img-ground, achicar el
-   auto le corría las ruedas hacia abajo y la barra quedaba por encima
-   de la rueda. */
-#deck{
-  position:absolute; inset:0;
-  transform:translateY(calc(var(--ground) - var(--img-ground))) scale(var(--car));
-  transform-origin:50% var(--img-ground);
-}
-
-.car{
-  position:absolute;
-  inset:0;
-  width:100%; height:100%;
-  object-fit:fill;          /* el marco ya tiene la proporción exacta */
-  opacity:0;
-  pointer-events:none;
-  will-change:transform,opacity,filter;
-}
-.car.is-on{ opacity:1; }
-
 /* ══════════════════════════════════════════════════════════════════
    INTERFAZ
    ══════════════════════════════════════════════════════════════════ */
 
-/* FIXED, no absolute. La marca y el menú tienen que estar desde el
-   primer momento, sobre la portada: es la página principal, no una
-   pantalla de transición. Al ser fixed se anclan a la ventana y
-   acompañan las dos pantallas.
-
-   Funciona porque #stage no tiene transform, filter ni will-change: si
-   los tuviera, pasaría a ser el bloque contenedor del fixed y el HUD
-   quedaría encerrado adentro del escenario (y recortado por su
-   overflow:hidden). Si alguna vez se le agrega una de esas
-   propiedades, hay que sacar el HUD de #stage en el HTML. */
+/* FIXED: la marca y el menú acompañan toda la página, desde la portada
+   hasta el final. */
 .hud{ position:fixed; z-index:60; }
 .hud--tl{ top:var(--hud-y); left:var(--gut); }
 .hud--tr{ top:var(--hud-y); right:var(--gut); }
@@ -662,9 +446,14 @@ body.is-scrolled .hud--tr{ top:var(--hud-y-min); }
   font-size:.5rem;
   font-weight:400;
   letter-spacing:.34em;
-  color:var(--ink-3);
+  /* En negro, igual que MANNA. Iba en un gris medio como "bajada" del
+     nombre, pero a 8px sobre el gris claro de la portada quedaba
+     ilegible: el tamaño ya establece la jerarquía, no hace falta
+     bajarle también el contraste. */
+  color:var(--ink);
 }
-.mark__type i{ font-style:normal; color:var(--ink-3); opacity:.55; }
+/* El punto separador sí queda más suave: es puntuación, no texto. */
+.mark__type i{ font-style:normal; color:var(--ink); opacity:.4; }
 
 /* El menú. Mismo idioma que el rig: lo que se enciende es una barra de
    luz, no un subrayado. Sale del borde inferior con la misma curva que
@@ -705,79 +494,6 @@ body.is-scrolled .hud--tr{ top:var(--hud-y-min); }
 .menu a:focus-visible{ color:var(--ink); }
 .menu a:hover::after,
 .menu a:focus-visible::after{ transform:scaleX(1); }
-.menu a:focus-visible{ outline:none; }
-
-/* ── las cifras que flanquean al auto ──────────────────────────── */
-
-/* Acá se reparte el peso: dos números enormes a los costados hacen
-   que el ojo cruce todo el cuadro en vez de clavarse en el auto. */
-.figure{
-  position:absolute;
-  z-index:5;
-  top:44%;
-  transform:translateY(-50%);
-  display:flex;
-  flex-direction:column;
-}
-.figure--l{ left:var(--gut); align-items:flex-start; }
-.figure--r{ right:var(--gut); align-items:flex-end; }
-
-.figure b{
-  display:block;
-  font-size:clamp(2.6rem,7.4vw,7.4rem);
-  font-variation-settings:"wdth" 64,"wght" 700;
-  letter-spacing:-.02em;
-  line-height:.82;
-  /* El número se aclara hacia abajo, no se oscurece: sobre el estudio
-     claro el degradado tiene que ir de la tinta al gris de la pared,
-     que es al revés de como estaba sobre el negro. */
-  background:linear-gradient(176deg, var(--chrome) 6%, #5C6270 88%);
-  -webkit-background-clip:text;
-          background-clip:text;
-  color:transparent;
-}
-.figure i{
-  font-style:normal;
-  font-family:var(--mono);
-  font-size:.58rem;
-  letter-spacing:.28em;
-  color:var(--steel);
-  margin-top:.7rem;
-}
-.figure .slot{ overflow:hidden; }
-
-.slot{ overflow:hidden; }
-.slot > *{ display:block; will-change:transform; }
-
-/* ── las flechas ───────────────────────────────────────────────── */
-
-/* Apenas visibles: los autos pasan solos, así que esto es para el que
-   se quiera adelantar. Sin círculo ni fondo — sólo el trazo, tenue,
-   que se enciende al acercarse. */
-.arrow{
-  position:absolute;
-  z-index:7;
-  top:var(--ground);
-  transform:translateY(-190%);
-  width:2.6rem; height:2.6rem;
-  display:grid; place-items:center;
-  border:0;
-  background:transparent;
-  color:var(--chrome);
-  opacity:.30;
-  cursor:pointer;
-  transition:opacity .35s var(--ease), transform .35s var(--ease);
-  -webkit-tap-highlight-color:transparent;
-}
-.arrow--l{ left:calc(var(--gut) * .5); }
-.arrow--r{ right:calc(var(--gut) * .5); }
-.arrow svg{ width:100%; height:100%; }
-
-.arrow:hover, .arrow:focus-visible{ opacity:1; }
-.arrow--l:hover, .arrow--l:focus-visible{ transform:translate(-22%,-190%); }
-.arrow--r:hover, .arrow--r:focus-visible{ transform:translate(22%,-190%); }
-.arrow:focus-visible{ outline:1px solid rgba(var(--beam),.6); outline-offset:8px; }
-
 /* ══════════════════════════════════════════════════════════════════
    LA CARGA
 
@@ -868,6 +584,191 @@ body.cargando{ overflow:hidden; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
+   EL COLLAGE — tres piezas que se acomodan con el scroll
+   ══════════════════════════════════════════════════════════════════
+
+   Un video y dos fotos que se pisan entre sí, cada una de una forma
+   distinta. Ésa es la regla del collage: si las tres compartieran
+   proporción y ancho se leería como una grilla. Acá el video es 16:9,
+   la foto del interior 4:3 y la del exterior 16:9 pero más ancha y
+   corrida — nunca se alinean.
+
+   EL MOVIMIENTO. Cada pieza entra desplazada y se acomoda a medida que
+   la sección cruza la pantalla. Se mueven a distinta velocidad, así que
+   durante el recorrido se separan y al final quedan en su lugar. Es
+   paralaje, no una animación de entrada: si se sube, se deshace.
+
+   El desplazamiento lo escribe el JS en --y (de 1 a 0). Cada pieza lo
+   multiplica por su propia distancia y su propio signo. */
+
+#collage{
+  position:relative;
+  background:#000;
+  padding:clamp(6rem,16vh,11rem) 0 clamp(7rem,18vh,13rem);
+  overflow:hidden;
+}
+
+.col-marco{
+  position:relative;
+  width:min(112rem,92vw);
+  margin:0 auto;
+  /* La altura la fija el video, que es la pieza base; las otras dos van
+     absolutas encima. */
+}
+
+.col-pieza{
+  position:relative;
+  /* El overflow es lo que hace que la foto y el video se recorten con
+     la esquina: sin esto el radio se aplicaría al contenedor pero el
+     contenido seguiría saliendo cuadrado por encima. */
+  overflow:hidden;
+  /* Esquinas redondeadas. En clamp y no en un valor fijo: a 12px se ve
+     bien en un video de 700px de ancho, pero en el mismo video a 1400px
+     se lee como si no tuviera radio. Escala con la pieza. */
+  border-radius:clamp(8px,1vw,18px);
+  background:#0A0B0D;
+  will-change:transform;
+}
+.col-pieza img,
+.col-pieza video{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+
+/* 1 · EL VIDEO. La pieza grande, arriba a la izquierda. Va por encima
+      de la foto de abajo pero por debajo del interior. */
+.col-video{
+  width:64%;
+  aspect-ratio:16/9;
+  z-index:1;
+  transform:translateY(calc(var(--y,1) * 58px));
+}
+
+/* 2 · EL INTERIOR. Se mete por la derecha pisando el borde inferior del
+      video: ese solape es lo que arma el collage. Sube más rápido que
+      las otras dos, por eso la distancia es mayor y negativa. */
+.col-interior{
+  position:absolute;
+  right:0;
+  /* OJO: el porcentaje es del alto de .col-marco, que incluye la
+     ciudad. Cuando la ciudad pasó de 16:9 a 3:2 se hizo más alta, el
+     marco creció y este mismo 46% quedó apuntando mucho más abajo: el
+     solape con el video se derrumbó de 152px a 10px.
+
+     Con 32% vuelve a montarse sobre el borde inferior del video. Si
+     alguna vez cambia la proporción de la ciudad, este número hay que
+     recalcularlo. */
+  top:32%;
+  width:38%;
+  aspect-ratio:4/3;
+  z-index:2;
+  /* CASI QUIETA. Llegó a moverse 155px y quedaba mal: al ser la pieza
+     más chica y estar arriba de las otras dos, tanto recorrido la hacía
+     ver suelta, como despegada del conjunto en vez de formando parte.
+
+     Con 28px apenas se despega —lo justo para que no parezca clavada—
+     y son el video y la ciudad los que se mueven a su alrededor. Sigue
+     yendo en sentido contrario, que es lo que abre y cierra el
+     conjunto, pero ahora de forma sutil. */
+  transform:translateY(calc(var(--y,1) * -28px));
+}
+
+/* 3 · LA CIUDAD. Abajo y corrida a la izquierda, saliéndose del ancho
+      del video para que la composición no quede encolumnada.
+
+      Es el telón de fondo: al no tener auto no compite con el video ni
+      con el interior, y al estar detrás de los dos les da contra qué
+      recortarse.
+
+      Va en 3:2, su proporción real, no forzada a 16:9. Con eso el
+      collage queda con TRES formas distintas —16:9, 4:3 y 3:2— que es
+      lo que evita que se lea como una grilla. */
+.col-exterior{
+  position:relative;
+  margin-top:-6%;
+  margin-left:14%;
+  width:70%;
+  aspect-ratio:3/2;
+  /* ATRÁS DE TODO. Pasa a ser el fondo del collage: las otras dos se le
+     montan encima. Antes estaba en 1 y le tapaba el borde al video. */
+  z-index:0;
+  transform:translateY(calc(var(--y,1) * 112px));
+}
+
+/* ── EL COLLAGE EN CELULAR ──────────────────────────────────────────
+
+   No es la versión de escritorio achicada: son piezas distintas y una
+   composición pensada para una pantalla alta y angosta.
+
+     video     4:5 vertical   la pieza principal, ocupa casi todo el ancho
+     interior  1:1 cuadrada   se monta sobre el borde inferior derecho
+     ciudad    3:2 horizontal el telón, atrás y corrido a la izquierda
+
+   Las tres proporciones siguen sin coincidir, que es lo que sostiene la
+   lectura de collage. En vertical el solape tiene que ser MÁS marcado
+   que en escritorio: con poco ancho, un solape tímido se lee como dos
+   piezas mal alineadas en vez de como una superposición buscada. */
+
+@media (max-width:767px){
+  #collage{ padding:clamp(4rem,12vh,7rem) 0 clamp(5rem,14vh,8rem); }
+
+  .col-marco{ width:min(34rem,90vw); }
+
+  .col-video{
+    width:84%;
+    aspect-ratio:4/5;
+    transform:translateY(calc(var(--y,1) * 40px));
+  }
+
+  /* EN FLUJO, no absoluto.
+
+     En escritorio el cuadrado va absolute contra .col-marco y funciona
+     porque ahí el marco mide casi lo mismo que el video. En celular el
+     marco es mucho más alto —video + ciudad apilados— así que un
+     bottom:-14% lo mandaba al pie de TODO y quedaba debajo del video en
+     vez de encima, con la ciudad encimándosele 111px.
+
+     Sacándolo del absoluto, el margen negativo lo sube contra el borde
+     del video, que es lo que se quiere, y la ciudad viene después en el
+     flujo sin poder chocarlo. */
+  .col-interior{
+    position:relative;
+    top:auto; bottom:auto; right:auto;
+    width:52%;
+    aspect-ratio:1/1;
+    margin:-24% 0 0 auto;
+    transform:translateY(calc(var(--y,1) * -95px));
+  }
+
+  .col-exterior{
+    margin-top:8%;
+    margin-left:0;
+    width:78%;
+    aspect-ratio:3/2;
+    transform:translateY(calc(var(--y,1) * 70px));
+  }
+}
+
+/* Tablets: el video y la ciudad a todo el ancho, el cuadrado montado
+   arriba a la derecha. */
+@media (min-width:768px) and (max-width:900px){
+  .col-video, .col-exterior{ width:100%; margin:0; }
+  .col-interior{
+    position:relative;
+    top:auto; right:auto;
+    width:72%;
+    margin:-10% 0 0 auto;
+  }
+  .col-exterior{ margin-top:10%; }
+}
+
+@media (prefers-reduced-motion:reduce){
+  .col-video, .col-interior, .col-exterior{ transform:none; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
    EL REEL — la vuelta al auto, movida por el scroll
    ══════════════════════════════════════════════════════════════════
 
@@ -910,6 +811,71 @@ body.cargando{ overflow:hidden; }
   height:100svh;
   overflow:hidden;
   background:#000;
+}
+
+/* LAS NOTAS DEL REEL.
+
+   Mientras el auto gira aparecen frases cortas abajo, alternando lados.
+   Hablan del auto como objeto: proporción, línea, volumen. No son datos
+   ni argumentos de venta — el reel ya es puro mirar, y el texto tiene
+   que acompañar eso, no interrumpirlo.
+
+   Van ABAJO y a los costados por dos motivos: ahí no tapan la
+   carrocería, que ocupa el centro, y el ojo las encuentra sin dejar de
+   mirar el auto.
+
+   Cada una tiene su tramo del giro (data-desde / data-hasta). Entran y
+   salen con el scroll, así que si se sube, se deshacen: es el mismo
+   idioma que el resto del sitio. */
+.reel-nota{
+  position:absolute;
+  bottom:clamp(2.5rem,9vh,5.5rem);
+  z-index:4;
+  max-width:min(20rem,42vw);
+  opacity:0;
+  transform:translateY(14px);
+  transition:opacity .7s var(--ease), transform .7s var(--ease);
+  pointer-events:none;
+}
+.reel-nota.on{ opacity:1; transform:none; }
+
+.reel-nota--izq{ left:var(--gut); text-align:left; }
+.reel-nota--der{ right:var(--gut); text-align:right; }
+
+.reel-nota p{
+  color:var(--chrome);
+  font-size:clamp(1rem,1.75vw,1.45rem);
+  font-variation-settings:"wdth" 94,"wght" 480;
+  letter-spacing:-.012em;
+  line-height:1.3;
+}
+.reel-nota small{
+  display:block;
+  margin-top:.7rem;
+  font-family:var(--mono);
+  font-size:.58rem;
+  font-weight:300;
+  letter-spacing:.26em;
+  text-transform:uppercase;
+  color:var(--steel);
+}
+
+@media (max-width:767px){
+  /* En vertical no hay lugar para dos columnas de texto: las notas se
+     centran abajo y se achican. Siguen alternando en el tiempo, que es
+     lo que las hace aparecer de a una. */
+  .reel-nota{
+    left:var(--gut); right:var(--gut);
+    max-width:none;
+    text-align:center;
+    bottom:clamp(2rem,7vh,4rem);
+  }
+  .reel-nota--izq, .reel-nota--der{ text-align:center; }
+  .reel-nota p{ font-size:clamp(.95rem,4.2vw,1.2rem); }
+}
+
+@media (prefers-reduced-motion:reduce){
+  .reel-nota{ transition:opacity .01ms; transform:none; }
 }
 
 #reelVid{
@@ -955,52 +921,6 @@ body.is-dark.is-scrolled #topbar{
 
 /* En vertical el auto necesita subir: si el piso queda al 74% no
    entran las cifras ni el pie debajo. */
-@media (orientation:portrait){
-  :root{ --ground:57%; }
-  /* en vertical el auto es chico: el nombre tiene que arrimarse, si no
-     queda flotando solo arriba y no se lee */
-  #word{
-    top:calc(var(--ground) - clamp(3rem,10vh,7.5rem));
-    font-size:clamp(2.4rem,19vw,7.5rem);
-    color:#1E2027;
-  }
-}
-
-@media (max-width:767px){
-  /* El reel SÍ va en celular, con su pieza vertical propia, pero el
-     recorrido se acorta.
-
-     EL EQUILIBRIO. Con los 720svh de computadora el giro avanza 2,56 s
-     de video por pantalla. A 380svh en celular avanzaba 5,68 s: el
-     doble de apurado, se sentía otro sitio. A 520svh queda en ~3,2 s
-     por pantalla, cerca del ritmo de computadora.
-
-     No se copia el valor de escritorio tal cual a propósito: en un
-     teléfono un envión del pulgar recorre muchas más pantallas que una
-     rueda de mouse, así que 720svh ahí se vuelve una escalera
-     interminable. Lo que tiene que coincidir es la SENSACIÓN, no el
-     número. */
-  :root{ --reel-h:520svh; }
-}
-
-@media (max-width:760px){
-  .menu{ display:none; }
-  /* las cifras bajan y se apoyan sobre la línea del piso, una a cada
-     lado, en vez de flotar a media altura */
-  .figure{
-    top:calc(var(--ground) + clamp(2.2rem,7vh,4.5rem));
-    transform:none;
-  }
-  .figure b{ font-size:clamp(2.4rem,13vw,3.6rem); }
-  .figure i{ margin-top:.45rem; font-size:.52rem; letter-spacing:.2em; }
-
-  /* con las cifras abajo, las flechas se corren a la altura del auto
-     para no encimarse con ellas */
-  .arrow{ width:2.1rem; height:2.1rem; transform:translateY(-260%); }
-  .arrow--l:hover, .arrow--l:focus-visible{ transform:translate(-18%,-260%); }
-  .arrow--r:hover, .arrow--r:focus-visible{ transform:translate(18%,-260%); }
-}
-
 @media (prefers-reduced-motion:reduce){
   *{ animation-duration:.001s !important; transition-duration:.001s !important }
 }
@@ -1025,6 +945,29 @@ body.is-dark.is-scrolled #topbar{
      aparece al scrollear. La marca y el menú son fixed y viven por
      encima, así no hay que moverlos de lugar en el HTML. -->
 <div id="topbar" aria-hidden="true"></div>
+
+<!-- La marca y el menú. Vivían adentro del escenario del auto y se
+     fueron con él cuando se eliminó esa sección. Ahora cuelgan del body
+     directamente, que es donde corresponde: son position:fixed y tienen
+     que acompañar toda la página, no pertenecer a una sección. -->
+  <header class="hud hud--tl">
+    <a class="mark" href="/" aria-label="Manna Motors Selected — inicio">
+      <!-- Emblema vectorizado del logo original. El resto de la marca
+           va como texto: son letras, no hace falta trazarlas. -->
+      <svg class="mark__emblem" viewBox="0 0 100 100" fill="currentColor"
+           fill-rule="evenodd" aria-hidden="true"><path d="M52.76,99.88C56.14,99.67 59.98,99.09 61.91,98.47C62.28,98.35 62.78,98.23 63.07,98.15C63.64,98.06 66.65,97.03 68.22,96.46C75.06,93.82 84.09,87.14 87.84,81.90C88.09,81.62 88.33,81.33 88.38,81.29C88.66,81.12 88.54,80.63 88.25,80.50C88.05,80.46 87.72,80.26 87.43,80.05C87.14,79.88 86.81,79.68 86.60,79.64C86.44,79.55 86.07,79.39 85.78,79.18C84.91,78.65 84.83,78.69 82.73,80.87C80.83,82.93 78.90,84.67 77.16,85.99C76.63,86.36 76.17,86.73 76.13,86.77C76.01,86.93 74.57,87.84 74.07,88.09C73.83,88.21 73.41,88.46 73.21,88.62C72.38,89.24 68.05,91.47 66.61,91.96C65.83,92.25 64.63,92.70 64.01,92.91C63.36,93.16 62.61,93.40 62.37,93.49C62.12,93.53 61.54,93.65 61.13,93.78C55.23,95.30 46.83,95.63 42.46,94.56C42.13,94.48 41.10,94.27 40.23,94.06C37.72,93.57 37.88,93.61 33.72,92.13C32.19,91.59 31.53,91.26 29.51,90.19C24.44,87.51 20.12,84.17 16.69,80.34C15.25,78.69 15.13,78.61 14.63,78.98C14.47,79.14 13.93,79.43 13.48,79.64C11.79,80.54 11.50,80.71 11.50,81.04C11.50,81.20 11.58,81.33 11.62,81.33C11.67,81.33 12.04,81.70 12.41,82.19C15.70,86.27 21.19,90.93 25.76,93.49C29.31,95.51 34.91,97.82 37.06,98.19C37.39,98.23 37.72,98.31 37.84,98.39C38.13,98.52 41.30,99.18 42.37,99.34C42.83,99.38 43.57,99.51 44.02,99.59C44.77,99.71 47.61,99.92 49.59,100.00C50.00,100.00 51.44,99.96 52.76,99.88Z M53.01,79.31C54.78,79.18 54.62,81.04 54.58,63.03C54.53,54.33 54.58,47.24 54.62,47.24C54.70,47.24 54.86,47.44 55.03,47.69C55.19,47.94 55.98,49.05 56.72,50.12C57.46,51.20 58.37,52.47 58.70,52.97C59.03,53.42 59.85,54.62 60.51,55.56C61.21,56.55 62.08,57.79 62.45,58.33C62.82,58.86 63.56,59.89 64.10,60.63C64.63,61.38 65.17,62.16 65.33,62.37C65.62,62.86 70.73,63.36 71.15,62.90C71.19,62.86 71.60,62.24 72.14,61.50C72.63,60.76 73.25,59.89 73.45,59.56C74.24,58.57 75.97,56.14 77.37,54.12C79.47,50.99 80.67,49.26 82.61,46.62C83.55,45.26 84.83,43.49 85.41,42.66C87.06,40.27 87.35,39.94 87.47,40.23C87.72,40.93 88.13,43.20 88.66,46.62C88.83,47.69 88.83,53.01 88.66,54.25C88.62,54.78 88.50,55.69 88.42,56.27C88.33,56.84 88.21,57.54 88.13,57.83C88.09,58.12 87.92,58.74 87.80,59.23C87.06,62.49 86.64,63.69 84.75,67.52C84.01,69.04 83.97,68.96 85.99,70.07C86.77,70.49 88.58,71.48 90.02,72.30C92.79,73.91 92.99,73.99 93.32,73.58C93.69,73.17 95.67,68.92 95.88,68.14C95.96,67.81 96.13,67.52 96.17,67.48C96.25,67.44 96.33,67.27 96.33,67.11C96.33,66.94 96.37,66.74 96.41,66.65C96.62,66.49 97.77,62.74 97.94,61.75C98.06,61.29 98.19,60.51 98.31,59.98C99.79,52.72 99.63,46.29 97.82,38.50C97.40,36.60 95.96,32.52 95.09,30.71C94.81,30.05 94.56,29.47 94.56,29.47C94.56,29.23 93.12,26.55 92.99,26.46C92.87,26.42 92.17,26.71 91.38,27.12C88.66,28.52 86.15,29.84 85.70,30.13C85.41,30.30 84.67,30.67 84.05,31.00C82.81,31.62 82.23,32.15 81.66,33.18C81.45,33.55 81.04,34.09 80.79,34.42C80.50,34.75 79.84,35.70 79.35,36.48C77.86,38.66 76.67,40.40 75.93,41.47C75.56,41.96 74.86,42.95 74.40,43.65C73.95,44.31 73.08,45.55 72.51,46.41C71.93,47.24 71.35,48.06 71.31,48.19C70.98,48.68 69.95,50.16 69.79,50.33C69.70,50.37 69.37,50.87 69.04,51.36C68.34,52.47 68.18,52.43 67.15,50.70C66.90,50.25 64.84,47.28 64.34,46.62C64.10,46.33 63.85,46.00 63.81,45.88C63.77,45.75 63.31,45.09 62.78,44.39C62.24,43.65 61.54,42.66 61.17,42.13C60.80,41.59 60.14,40.60 59.65,39.94C58.45,38.29 57.71,37.26 56.97,36.15C56.60,35.61 55.81,34.46 55.15,33.55C54.49,32.69 53.83,31.74 53.67,31.49C53.38,31.04 53.38,31.04 50.00,31.04C45.92,31.04 46.95,30.34 43.32,35.49C42.70,36.36 41.67,37.84 41.01,38.79C38.42,42.58 37.76,43.53 37.59,43.69C37.35,43.98 34.42,48.15 33.14,50.04C31.45,52.47 31.45,52.47 30.87,51.48C30.67,51.20 30.05,50.21 29.43,49.34C28.81,48.43 27.62,46.66 26.71,45.34C25.85,44.02 24.77,42.46 24.32,41.84C23.91,41.22 22.96,39.86 22.26,38.79C21.52,37.72 20.73,36.56 20.49,36.27C20.07,35.70 20.03,35.66 18.34,33.18C17.27,31.62 17.27,31.62 15.95,30.96C13.81,29.88 10.22,27.99 10.10,27.86C9.56,27.49 7.21,26.38 7.09,26.42C6.72,26.59 4.58,31.24 3.59,34.01C2.56,36.89 2.39,37.30 1.98,39.08C0.21,46.37 0.21,54.08 1.98,61.71C2.14,62.32 2.31,63.03 2.39,63.27C2.80,64.63 3.38,66.28 3.46,66.49C3.54,66.61 3.59,66.82 3.59,66.86C3.59,67.15 4.62,69.54 5.40,71.19C5.85,72.14 6.18,72.92 6.18,72.96C6.18,74.11 7.05,74.03 9.40,72.67C10.35,72.09 11.17,71.64 11.21,71.64C11.21,71.64 11.95,71.23 12.78,70.73C13.60,70.24 14.59,69.70 14.96,69.50C15.75,69.13 15.87,68.88 15.54,68.30C15.00,67.39 14.51,66.41 14.51,66.28C14.51,66.24 14.30,65.70 14.01,65.13C13.07,63.07 11.67,58.20 11.46,55.98C11.42,55.56 11.29,54.86 11.25,54.45C11.05,53.46 11.05,47.61 11.25,46.29C11.34,45.71 11.46,44.89 11.50,44.39C11.62,43.53 11.71,43.08 12.12,41.38C12.24,40.97 12.32,40.52 12.37,40.35C12.45,39.74 12.61,39.90 16.74,45.71C17.23,46.46 17.77,47.20 17.89,47.40C18.34,48.02 20.53,51.11 21.27,52.14C21.68,52.72 22.18,53.50 22.42,53.92C22.67,54.33 23.00,54.82 23.12,55.03C23.29,55.19 23.95,56.14 24.61,57.05C25.27,58.00 26.09,59.11 26.38,59.56C26.71,60.02 27.00,60.43 27.04,60.51C27.08,60.59 27.37,61.01 27.66,61.42C27.99,61.83 28.32,62.32 28.44,62.53C29.10,63.56 34.83,62.94 34.83,61.87C34.83,61.79 35.04,61.42 35.33,61.05C35.61,60.72 36.15,59.98 36.52,59.44C36.85,58.90 37.43,58.12 37.76,57.67C38.09,57.21 38.79,56.27 39.24,55.56C39.74,54.86 40.48,53.79 40.93,53.17C41.38,52.56 42.09,51.57 42.54,50.91C44.27,48.39 45.26,47.11 45.34,47.20C45.42,47.24 45.42,54.41 45.42,63.11C45.42,71.85 45.42,79.02 45.51,79.10C45.75,79.35 50.54,79.47 53.01,79.31Z M16.69,20.20C17.97,18.76 20.49,16.32 21.56,15.50C21.93,15.25 22.51,14.80 22.84,14.47C23.37,14.01 26.01,12.20 26.17,12.20C26.17,12.20 26.59,11.95 27.00,11.67C27.45,11.38 28.28,10.92 28.81,10.63C29.39,10.39 30.01,10.06 30.21,9.93C31.24,9.40 33.88,8.29 35.49,7.75C37.18,7.21 37.84,7.01 39.61,6.51C40.35,6.35 43.36,5.85 46.13,5.52C47.94,5.28 52.06,5.28 53.79,5.52C54.49,5.61 56.06,5.81 57.25,5.94C59.48,6.22 59.65,6.27 61.42,6.76C70.45,9.32 77.70,13.81 83.64,20.49C84.67,21.64 84.62,21.64 86.23,20.86C88.62,19.66 88.71,19.50 87.84,18.47C83.88,13.73 79.93,10.18 76.05,7.91C72.18,5.65 70.32,4.70 66.94,3.42C64.80,2.60 62.90,2.02 62.12,1.90C61.75,1.85 61.34,1.73 61.13,1.69C56.84,0.08 46.21,-0.00 39.82,1.48C39.04,1.69 38.13,1.90 37.76,1.98C37.02,2.10 34.21,3.01 33.06,3.46C32.65,3.63 32.11,3.83 31.86,3.92C30.09,4.45 23.91,7.75 22.34,9.03C22.05,9.23 21.52,9.65 21.10,9.89C18.63,11.46 11.50,18.51 11.50,19.41C11.50,19.58 12.24,20.07 13.69,20.82C14.26,21.10 14.76,21.39 14.84,21.48C15.17,21.81 15.54,21.56 16.69,20.20Z"/></svg>
+      <span class="mark__type">
+        <b>MANNA</b>
+        <small>MOTORS <i>·</i> SELECTED</small>
+      </span>
+    </a>
+  </header>
+
+  <nav class="hud hud--tr menu">
+    <a href="#stock">Stock</a>
+    <a href="#taller">Taller</a>
+    <a href="#contacto">Contacto</a>
+  </nav>
 
 <!-- Portada en video. Primera pantalla del sitio; el escenario del auto
      quedó debajo. El video no tiene audio: muted + playsinline son lo que
@@ -1105,6 +1048,32 @@ body.is-dark.is-scrolled #topbar{
        parseando y #band todavía no existe. Buscarla ahora devolvía
        null y el efecto no se aplicaba nunca. */
     var franja = null, texto = null, palabras = null, encendidas = -1;
+    var collage = null;
+
+    /* LA FLOTACIÓN. El scroll no escribe --y directamente: fija un
+       objetivo y un bucle lo persigue al 9% por cuadro.
+
+       Ése retraso es todo el efecto. Si la posición siguiera al scroll
+       al instante, las piezas se verían pegadas al dedo, como si
+       estuvieran clavadas a la página. Llegando un poco después parecen
+       tener peso propio: se atrasan al arrancar y siguen de largo un
+       instante al frenar. Eso es lo que se lee como "flotan".
+
+       El bucle se apaga solo cuando la diferencia es imperceptible, así
+       no queda un rAF girando de fondo con la página quieta. */
+    var objetivoY = 1, actualY = 1, flotando = false;
+
+    function flotar(){
+      var d = objetivoY - actualY;
+      if (Math.abs(d) < 0.0008){
+        actualY = objetivoY;
+        flotando = false;
+      } else {
+        actualY += d * 0.09;
+      }
+      if (collage) collage.style.setProperty('--y', actualY.toFixed(4));
+      if (flotando) requestAnimationFrame(flotar);
+    }
 
     function mirar(){
       var si = window.scrollY > limite;
@@ -1161,7 +1130,11 @@ body.is-dark.is-scrolled #topbar{
       }
       if (palabras && palabras.length){
         var rb = franja.getBoundingClientRect();
-        var util = franja.offsetHeight - window.innerHeight;
+        /* El pegado dura lo que mide la sección MENOS el bloque pegado,
+           no menos la ventana: el bloque ahora mide media pantalla, así
+           que medir contra la ventana daba un recorrido equivocado. */
+        var pegado = franja.querySelector('.band-stick');
+        var util = franja.offsetHeight - (pegado ? pegado.offsetHeight : window.innerHeight);
         var q = util > 0 ? (-rb.top) / (util * 0.88) : 0;
         q = q < 0 ? 0 : (q > 1 ? 1 : q);
         var cuantas = Math.round(q * palabras.length);
@@ -1171,6 +1144,24 @@ body.is-dark.is-scrolled #topbar{
           }
           encendidas = cuantas;
         }
+      }
+
+      /* EL PARALAJE DEL COLLAGE. --y va de 1 (la sección todavía viene
+         subiendo) a 0 (acomodada). Cada pieza multiplica ese valor por
+         su propia distancia y su propio signo, así se mueven a
+         velocidades distintas y terminan calzando.
+
+         Se mide contra el CENTRO de la sección y el de la pantalla: el
+         valor llega a 0 cuando el collage está centrado, que es cuando
+         se lo está mirando. */
+      if (!collage) collage = document.getElementById('collage');
+      if (collage){
+        var rc = collage.getBoundingClientRect();
+        var centro = rc.top + rc.height / 2 - window.innerHeight / 2;
+        var alcance = (window.innerHeight + rc.height) / 2;
+        var y = centro / alcance;
+        objetivoY = y < -1 ? -1 : (y > 1 ? 1 : y);
+        if (!flotando){ flotando = true; requestAnimationFrame(flotar); }
       }
 
       /* Se reusa la misma `portada` de arriba. Declararla de nuevo acá
@@ -1218,6 +1209,26 @@ body.is-dark.is-scrolled #topbar{
 <section id="reel">
   <div class="reel-stick">
     <video id="reelVid" muted playsinline preload="auto"></video>
+
+    <div class="reel-nota reel-nota--izq" data-desde=".08" data-hasta=".30">
+      <p>La proporción manda. El resto es decoración.</p>
+      <small>Diseño</small>
+    </div>
+
+    <div class="reel-nota reel-nota--der" data-desde=".34" data-hasta=".56">
+      <p>Una sola línea del faro al portón.</p>
+      <small>Perfil</small>
+    </div>
+
+    <div class="reel-nota reel-nota--izq" data-desde=".60" data-hasta=".82">
+      <p>El músculo sobre las ruedas, que no se dibuja: se esculpe.</p>
+      <small>Volumen</small>
+    </div>
+
+    <div class="reel-nota reel-nota--der" data-desde=".86" data-hasta="1.01">
+      <p>Se estaciona y todavía se lo mira de lejos.</p>
+      <small>Presencia</small>
+    </div>
   </div>
 </section>
 
@@ -1244,6 +1255,24 @@ body.is-dark.is-scrolled #topbar{
 
   var dur = 0, objetivo = 0, actual = 0, vivo = false;
 
+  /* Las notas que aparecen a los costados mientras el auto gira. Cada
+     una trae su tramo del giro en el HTML (data-desde / data-hasta),
+     así el texto y su momento viven juntos y se cambian en un lugar. */
+  var notas = [].map.call(sec.querySelectorAll('.reel-nota'), function(n){
+    return { el:n, desde:parseFloat(n.dataset.desde), hasta:parseFloat(n.dataset.hasta), puesta:null };
+  });
+
+  function notasEn(p){
+    for (var i = 0; i < notas.length; i++){
+      var n = notas[i];
+      var dentro = p >= n.desde && p < n.hasta;
+      if (dentro !== n.puesta){
+        n.puesta = dentro;
+        n.el.classList.toggle('on', dentro);
+      }
+    }
+  }
+
   /* Cuánto se avanzó de la sección, de 0 a 1. */
   function avance(){
     var r = sec.getBoundingClientRect();
@@ -1258,7 +1287,15 @@ body.is-dark.is-scrolled #topbar{
      solo. Cuando la diferencia es despreciable se deja de escribir en
      el video, para no pedirle un seek por cuadro estando quieto. */
   function cuadro(){
-    objetivo = avance() * dur;
+    /* Red de seguridad: el reel NUNCA se reproduce solo. Si algo lo
+       puso en play —el empujón de iOS, un gesto del sistema— se pausa
+       en el mismo cuadro, así no llega a verse. */
+    if (!v.paused){ try { v.pause(); } catch(e){} }
+
+    var p = avance();
+    notasEn(p);
+
+    objetivo = p * dur;
     var d = objetivo - actual;
     if (Math.abs(d) > 0.0015){
       actual += d * 0.12;
@@ -1279,16 +1316,34 @@ body.is-dark.is-scrolled #topbar{
      Si el navegador rechazara el play (algunas configuraciones de
      ahorro de datos), se reintenta con el primer toque, que ya es un
      gesto del usuario y siempre alcanza. */
-  function despertar(){
+  function empujon(){
     var pr;
     try { pr = v.play(); } catch(e){ return; }
-    if (pr && pr.then) pr.then(function(){ v.pause(); }).catch(function(){
-      addEventListener('touchstart', function una(){
-        removeEventListener('touchstart', una);
-        try { v.play().then(function(){ v.pause(); }).catch(function(){}); } catch(e){}
-      }, { passive:true, once:true });
-    });
-    else { try { v.pause(); } catch(e){} }
+    if (pr && pr.then){
+      pr.then(function(){ v.pause(); }).catch(function(){
+        /* Si el navegador rechaza el play, se reintenta con el primer
+           toque, que ya es un gesto del usuario y siempre alcanza. */
+        addEventListener('touchstart', function una(){
+          try { v.play().then(function(){ v.pause(); }).catch(function(){}); } catch(e){}
+        }, { passive:true, once:true });
+      });
+    } else { try { v.pause(); } catch(e){} }
+  }
+
+  /* El empujón SÓLO si hace falta.
+
+     Se le da un segundo y medio a preload. Si para entonces el video ya
+     empezó a bajar —que es lo que pasa en escritorio y en Android— no
+     se toca nada: arrancarlo ahí lo hacía reproducirse de verdad unos
+     cuadros antes de pausarse, y se veía el video corriendo solo sin
+     que nadie scrolleara.
+
+     Si a esa altura no bajó un byte, es iOS ignorando preload, y ahí sí
+     el único camino es arrancarlo y pausarlo. */
+  function despertar(){
+    setTimeout(function(){
+      if (!v.buffered || v.buffered.length === 0) empujon();
+    }, 1500);
   }
 
   v.addEventListener('loadedmetadata', function(){
@@ -1301,72 +1356,6 @@ body.is-dark.is-scrolled #topbar{
 })();
 </script>
 
-<main id="stage">
-
-  <!-- El rig ocupa la ventana entera, no el marco del auto. Cuando
-       vivía adentro del marco, en un teléfono el marco quedaba como
-       una banda en el medio y las luces se cortaban con ella. -->
-  <div id="rig" aria-hidden="true">
-    <div class="l-ambient"></div>
-    <div class="l-cone l-cone--l"></div>
-    <div class="l-cone l-cone--r"></div>
-    <!-- todo lo que pasa a la altura del piso va acá adentro, y esto
-         mide lo que mide el auto: por eso la luz no cruza la pantalla -->
-    <div class="l-stage">
-      <div class="l-reflect"></div>
-      <div class="l-ember" id="ember"></div>
-      <div class="l-horizon" id="horizon"></div>
-      <div class="l-sweep" id="sweep"></div>
-    </div>
-  </div>
-
-  <div id="word" aria-hidden="true"></div>
-
-  <div id="frame">
-    <div id="deck"></div>
-  </div>
-
-  <header class="hud hud--tl">
-    <a class="mark" href="/" aria-label="Manna Motors Selected — inicio">
-      <!-- Emblema vectorizado del logo original. El resto de la marca
-           va como texto: son letras, no hace falta trazarlas. -->
-      <svg class="mark__emblem" viewBox="0 0 100 100" fill="currentColor"
-           fill-rule="evenodd" aria-hidden="true"><path d="M52.76,99.88C56.14,99.67 59.98,99.09 61.91,98.47C62.28,98.35 62.78,98.23 63.07,98.15C63.64,98.06 66.65,97.03 68.22,96.46C75.06,93.82 84.09,87.14 87.84,81.90C88.09,81.62 88.33,81.33 88.38,81.29C88.66,81.12 88.54,80.63 88.25,80.50C88.05,80.46 87.72,80.26 87.43,80.05C87.14,79.88 86.81,79.68 86.60,79.64C86.44,79.55 86.07,79.39 85.78,79.18C84.91,78.65 84.83,78.69 82.73,80.87C80.83,82.93 78.90,84.67 77.16,85.99C76.63,86.36 76.17,86.73 76.13,86.77C76.01,86.93 74.57,87.84 74.07,88.09C73.83,88.21 73.41,88.46 73.21,88.62C72.38,89.24 68.05,91.47 66.61,91.96C65.83,92.25 64.63,92.70 64.01,92.91C63.36,93.16 62.61,93.40 62.37,93.49C62.12,93.53 61.54,93.65 61.13,93.78C55.23,95.30 46.83,95.63 42.46,94.56C42.13,94.48 41.10,94.27 40.23,94.06C37.72,93.57 37.88,93.61 33.72,92.13C32.19,91.59 31.53,91.26 29.51,90.19C24.44,87.51 20.12,84.17 16.69,80.34C15.25,78.69 15.13,78.61 14.63,78.98C14.47,79.14 13.93,79.43 13.48,79.64C11.79,80.54 11.50,80.71 11.50,81.04C11.50,81.20 11.58,81.33 11.62,81.33C11.67,81.33 12.04,81.70 12.41,82.19C15.70,86.27 21.19,90.93 25.76,93.49C29.31,95.51 34.91,97.82 37.06,98.19C37.39,98.23 37.72,98.31 37.84,98.39C38.13,98.52 41.30,99.18 42.37,99.34C42.83,99.38 43.57,99.51 44.02,99.59C44.77,99.71 47.61,99.92 49.59,100.00C50.00,100.00 51.44,99.96 52.76,99.88Z M53.01,79.31C54.78,79.18 54.62,81.04 54.58,63.03C54.53,54.33 54.58,47.24 54.62,47.24C54.70,47.24 54.86,47.44 55.03,47.69C55.19,47.94 55.98,49.05 56.72,50.12C57.46,51.20 58.37,52.47 58.70,52.97C59.03,53.42 59.85,54.62 60.51,55.56C61.21,56.55 62.08,57.79 62.45,58.33C62.82,58.86 63.56,59.89 64.10,60.63C64.63,61.38 65.17,62.16 65.33,62.37C65.62,62.86 70.73,63.36 71.15,62.90C71.19,62.86 71.60,62.24 72.14,61.50C72.63,60.76 73.25,59.89 73.45,59.56C74.24,58.57 75.97,56.14 77.37,54.12C79.47,50.99 80.67,49.26 82.61,46.62C83.55,45.26 84.83,43.49 85.41,42.66C87.06,40.27 87.35,39.94 87.47,40.23C87.72,40.93 88.13,43.20 88.66,46.62C88.83,47.69 88.83,53.01 88.66,54.25C88.62,54.78 88.50,55.69 88.42,56.27C88.33,56.84 88.21,57.54 88.13,57.83C88.09,58.12 87.92,58.74 87.80,59.23C87.06,62.49 86.64,63.69 84.75,67.52C84.01,69.04 83.97,68.96 85.99,70.07C86.77,70.49 88.58,71.48 90.02,72.30C92.79,73.91 92.99,73.99 93.32,73.58C93.69,73.17 95.67,68.92 95.88,68.14C95.96,67.81 96.13,67.52 96.17,67.48C96.25,67.44 96.33,67.27 96.33,67.11C96.33,66.94 96.37,66.74 96.41,66.65C96.62,66.49 97.77,62.74 97.94,61.75C98.06,61.29 98.19,60.51 98.31,59.98C99.79,52.72 99.63,46.29 97.82,38.50C97.40,36.60 95.96,32.52 95.09,30.71C94.81,30.05 94.56,29.47 94.56,29.47C94.56,29.23 93.12,26.55 92.99,26.46C92.87,26.42 92.17,26.71 91.38,27.12C88.66,28.52 86.15,29.84 85.70,30.13C85.41,30.30 84.67,30.67 84.05,31.00C82.81,31.62 82.23,32.15 81.66,33.18C81.45,33.55 81.04,34.09 80.79,34.42C80.50,34.75 79.84,35.70 79.35,36.48C77.86,38.66 76.67,40.40 75.93,41.47C75.56,41.96 74.86,42.95 74.40,43.65C73.95,44.31 73.08,45.55 72.51,46.41C71.93,47.24 71.35,48.06 71.31,48.19C70.98,48.68 69.95,50.16 69.79,50.33C69.70,50.37 69.37,50.87 69.04,51.36C68.34,52.47 68.18,52.43 67.15,50.70C66.90,50.25 64.84,47.28 64.34,46.62C64.10,46.33 63.85,46.00 63.81,45.88C63.77,45.75 63.31,45.09 62.78,44.39C62.24,43.65 61.54,42.66 61.17,42.13C60.80,41.59 60.14,40.60 59.65,39.94C58.45,38.29 57.71,37.26 56.97,36.15C56.60,35.61 55.81,34.46 55.15,33.55C54.49,32.69 53.83,31.74 53.67,31.49C53.38,31.04 53.38,31.04 50.00,31.04C45.92,31.04 46.95,30.34 43.32,35.49C42.70,36.36 41.67,37.84 41.01,38.79C38.42,42.58 37.76,43.53 37.59,43.69C37.35,43.98 34.42,48.15 33.14,50.04C31.45,52.47 31.45,52.47 30.87,51.48C30.67,51.20 30.05,50.21 29.43,49.34C28.81,48.43 27.62,46.66 26.71,45.34C25.85,44.02 24.77,42.46 24.32,41.84C23.91,41.22 22.96,39.86 22.26,38.79C21.52,37.72 20.73,36.56 20.49,36.27C20.07,35.70 20.03,35.66 18.34,33.18C17.27,31.62 17.27,31.62 15.95,30.96C13.81,29.88 10.22,27.99 10.10,27.86C9.56,27.49 7.21,26.38 7.09,26.42C6.72,26.59 4.58,31.24 3.59,34.01C2.56,36.89 2.39,37.30 1.98,39.08C0.21,46.37 0.21,54.08 1.98,61.71C2.14,62.32 2.31,63.03 2.39,63.27C2.80,64.63 3.38,66.28 3.46,66.49C3.54,66.61 3.59,66.82 3.59,66.86C3.59,67.15 4.62,69.54 5.40,71.19C5.85,72.14 6.18,72.92 6.18,72.96C6.18,74.11 7.05,74.03 9.40,72.67C10.35,72.09 11.17,71.64 11.21,71.64C11.21,71.64 11.95,71.23 12.78,70.73C13.60,70.24 14.59,69.70 14.96,69.50C15.75,69.13 15.87,68.88 15.54,68.30C15.00,67.39 14.51,66.41 14.51,66.28C14.51,66.24 14.30,65.70 14.01,65.13C13.07,63.07 11.67,58.20 11.46,55.98C11.42,55.56 11.29,54.86 11.25,54.45C11.05,53.46 11.05,47.61 11.25,46.29C11.34,45.71 11.46,44.89 11.50,44.39C11.62,43.53 11.71,43.08 12.12,41.38C12.24,40.97 12.32,40.52 12.37,40.35C12.45,39.74 12.61,39.90 16.74,45.71C17.23,46.46 17.77,47.20 17.89,47.40C18.34,48.02 20.53,51.11 21.27,52.14C21.68,52.72 22.18,53.50 22.42,53.92C22.67,54.33 23.00,54.82 23.12,55.03C23.29,55.19 23.95,56.14 24.61,57.05C25.27,58.00 26.09,59.11 26.38,59.56C26.71,60.02 27.00,60.43 27.04,60.51C27.08,60.59 27.37,61.01 27.66,61.42C27.99,61.83 28.32,62.32 28.44,62.53C29.10,63.56 34.83,62.94 34.83,61.87C34.83,61.79 35.04,61.42 35.33,61.05C35.61,60.72 36.15,59.98 36.52,59.44C36.85,58.90 37.43,58.12 37.76,57.67C38.09,57.21 38.79,56.27 39.24,55.56C39.74,54.86 40.48,53.79 40.93,53.17C41.38,52.56 42.09,51.57 42.54,50.91C44.27,48.39 45.26,47.11 45.34,47.20C45.42,47.24 45.42,54.41 45.42,63.11C45.42,71.85 45.42,79.02 45.51,79.10C45.75,79.35 50.54,79.47 53.01,79.31Z M16.69,20.20C17.97,18.76 20.49,16.32 21.56,15.50C21.93,15.25 22.51,14.80 22.84,14.47C23.37,14.01 26.01,12.20 26.17,12.20C26.17,12.20 26.59,11.95 27.00,11.67C27.45,11.38 28.28,10.92 28.81,10.63C29.39,10.39 30.01,10.06 30.21,9.93C31.24,9.40 33.88,8.29 35.49,7.75C37.18,7.21 37.84,7.01 39.61,6.51C40.35,6.35 43.36,5.85 46.13,5.52C47.94,5.28 52.06,5.28 53.79,5.52C54.49,5.61 56.06,5.81 57.25,5.94C59.48,6.22 59.65,6.27 61.42,6.76C70.45,9.32 77.70,13.81 83.64,20.49C84.67,21.64 84.62,21.64 86.23,20.86C88.62,19.66 88.71,19.50 87.84,18.47C83.88,13.73 79.93,10.18 76.05,7.91C72.18,5.65 70.32,4.70 66.94,3.42C64.80,2.60 62.90,2.02 62.12,1.90C61.75,1.85 61.34,1.73 61.13,1.69C56.84,0.08 46.21,-0.00 39.82,1.48C39.04,1.69 38.13,1.90 37.76,1.98C37.02,2.10 34.21,3.01 33.06,3.46C32.65,3.63 32.11,3.83 31.86,3.92C30.09,4.45 23.91,7.75 22.34,9.03C22.05,9.23 21.52,9.65 21.10,9.89C18.63,11.46 11.50,18.51 11.50,19.41C11.50,19.58 12.24,20.07 13.69,20.82C14.26,21.10 14.76,21.39 14.84,21.48C15.17,21.81 15.54,21.56 16.69,20.20Z"/></svg>
-      <span class="mark__type">
-        <b>MANNA</b>
-        <small>MOTORS <i>·</i> SELECTED</small>
-      </span>
-    </a>
-  </header>
-
-  <nav class="hud hud--tr menu">
-    <a href="#stock">Stock</a>
-    <a href="#taller">Taller</a>
-    <a href="#contacto">Contacto</a>
-  </nav>
-
-  <div class="figure figure--l">
-    <span class="slot"><b id="fPower">—</b></span>
-    <i>CV DE POTENCIA</i>
-  </div>
-
-  <div class="figure figure--r">
-    <span class="slot"><b id="fAccel">—</b></span>
-    <i>SEGUNDOS 0–100</i>
-  </div>
-
-  <!-- Las flechas van pegadas a los bordes, a la altura del auto, y
-       apenas se ven hasta que se las busca: los autos pasan solos, así
-       que esto es para el que quiera adelantarse. El pie quedó libre
-       para los datos de contacto. -->
-  <button class="arrow arrow--l" id="prev" aria-label="Auto anterior">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4 7 12l8 8"/></svg>
-  </button>
-  <button class="arrow arrow--r" id="next" aria-label="Auto siguiente">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 4 8 8-8 8"/></svg>
-  </button>
-
-</main>
 
 <script>
 /* ═══════════════════════════════════════════════════════════════════
@@ -1464,361 +1453,49 @@ body.is-dark.is-scrolled #topbar{
 })();
 </script>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<!-- El collage: un video y dos fotos que se acomodan con el scroll. -->
+<section id="collage">
+  <div class="col-marco">
+    <div class="col-pieza col-video">
+      <video id="colVid" muted loop playsinline autoplay preload="metadata"></video>
+    </div>
+
+    <!-- El interior sí puede resolverse con <picture>: a diferencia de
+         <video>, el atributo media en <source> de una imagen SÍ lo
+         respetan todos los navegadores, Safari incluido. -->
+    <div class="col-pieza col-interior">
+      <picture>
+        <source media="(max-width:767px)" srcset="assets/collage/interior-mobile.webp">
+        <img src="assets/collage/interior.webp" alt="Interior de un Range Rover Evoque de noche" loading="lazy" decoding="async">
+      </picture>
+    </div>
+
+    <div class="col-pieza col-exterior">
+      <img src="assets/collage/ciudad.webp" alt="La ciudad de noche" loading="lazy" decoding="async">
+    </div>
+  </div>
+</section>
+
 <script>
+/* La pieza de video del collage. Mismo criterio que la portada y el
+   reel: dos archivos distintos, no dos calidades del mismo. El de
+   computadora es horizontal 16:9 y el de celular vertical 4:5.
+
+   No se usa <source media> porque Safari lo ignora dentro de <video> y
+   le serviría la pieza horizontal al teléfono. */
 (function(){
-  "use strict";
-
-  const CARS = [
-    { slug:'bmw-serie2', word:'SERIE 2', model:'BMW Serie 2 Coupé',
-      power:374, accel:'4,3', gearbox:'AUTOMÁTICA 8V · TRACCIÓN TRASERA' },
-
-    { slug:'camaro-ss',  word:'CAMARO',  model:'Chevrolet Camaro SS',
-      power:453, accel:'4,0', gearbox:'MANUAL 6V · V8 6.2' },
-
-    { slug:'glc-coupe',  word:'GLC',     model:'Mercedes-Benz GLC Coupé',
-      power:258, accel:'6,2', gearbox:'AUTOMÁTICA 9V · 4MATIC' },
-
-    { slug:'audi-rs3',   word:'RS 3',    model:'Audi RS 3 Sportback',
-      power:400, accel:'3,8', gearbox:'S TRONIC 7V · QUATTRO' },
-
-    { slug:'golf-gti',   word:'GTI',     model:'Volkswagen Golf GTI',
-      power:245, accel:'6,2', gearbox:'DSG 7V · TRACCIÓN DELANTERA' },
-
-    { slug:'audi-q5',    word:'Q5',      model:'Audi Q5 Sportback',
-      power:265, accel:'6,1', gearbox:'S TRONIC 7V · QUATTRO' }
-  ];
-
-  const $ = id => document.getElementById(id);
-  const G = window.gsap;                       // puede faltar si no hay red
-  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const still = !G || reduced;                 // sin animación: cambio seco
-
-  const word = $('word'), deck = $('deck');
-
-  /* ─────────────────────────────────────────────────────────────
-     Encaje.
-
-     El marco del auto está atado al ALTO de la ventana, así que su
-     ancho no tiene nada que ver con el ancho de la pantalla: en un
-     teléfono el marco es cuatro veces más ancho que el visor. Por eso
-     la escala del auto no puede ser un número fijo en el CSS — hay
-     que calcularla para que el auto ocupe siempre la misma porción
-     del ancho disponible.
-
-     De paso publica --carw, el ancho real del auto en pantalla, que
-     es contra lo que se dimensiona la brasa del piso.
-     ───────────────────────────────────────────────────────────── */
-  const AR = 1672 / 941;
-  const CAR_IN_FRAME = .84;        // cuánto del marco ocupa el auto, medido
-
-  let travel = 130;                // recorrido de la cinta, en xPercent
-
-  function fit(){
-    const vw = innerWidth, vh = innerHeight;
-    const frameW = vh * AR;
-    const share  = vw < 760 ? .74 : .42;   // del ancho de la ventana
-    const carW   = vw * share;
-    const root = document.documentElement.style;
-    root.setProperty('--car',  (carW / (frameW * CAR_IN_FRAME)).toFixed(4));
-    root.setProperty('--carw', Math.round(carW) + 'px');
-
-    /* Cuánto tiene que viajar el auto para salir limpio de cuadro:
-       media pantalla más medio auto, más un respiro. Se expresa en
-       xPercent —que es relativo al ancho del <img>, no al de la
-       ventana—, y por eso hay que recalcularlo: un número fijo dejaba
-       media trompa colgando en pantallas anchas. */
-    travel = ((vw + carW) / 2 + 40) / (carW / CAR_IN_FRAME) * 100;
-  }
-  fit();
-  addEventListener('resize', fit);
-  addEventListener('orientationchange', fit);
-
-  /* ── montaje ───────────────────────────────────────────────── */
-
-  /* Huella de las fotos. La escribe tools/build-cars.py en cada corrida
-     y va pegada a cada URL, así que cuando una foto cambia, cambia la
-     dirección que pide el navegador.
-
-     Sin esto no hay forma de que veas una foto nueva: el navegador tiene
-     guardada la vieja bajo esa misma dirección y la muestra sin volver a
-     preguntar. En Cloudflare es peor, porque además hay un CDN cacheando
-     en el medio. */
-  const FOTOS = 'ef05ce9b';
-
-  const imgs = CARS.map((c,i)=>{
-    const el = document.createElement('img');
-    el.className = 'car' + (i===0 ? ' is-on' : '');
-    el.src = `assets/cars/${c.slug}.webp?v=${FOTOS}`;
-    el.srcset = `assets/cars/${c.slug}@sm.webp?v=${FOTOS} 1100w, ` +
-                `assets/cars/${c.slug}.webp?v=${FOTOS} 1672w, ` +
-                `assets/cars/${c.slug}@2x.webp?v=${FOTOS} 3344w`;
-    el.sizes = '100vw';
-    el.alt = c.model;
-    el.decoding = 'async';
-    el.fetchPriority = i===0 ? 'high' : 'low';
-    deck.appendChild(el);
-    return el;
-  });
-
-  function paint(i){
-    const c = CARS[i];
-    word.textContent        = c.word;
-    $('fPower').textContent = c.power;
-    $('fAccel').textContent = c.accel;
-  }
-
-  let cur = 0, busy = false, queued = null;
-  paint(0);
-
-  /* ─────────────────────────────────────────────────────────────
-     El cambio.
-
-     El auto que está se va DEL LADO DE LA FLECHA que se tocó, y el
-     que entra crece desde atrás, como si hubiera estado esperando en
-     la penumbra detrás del primero.
-
-     Dos reglas que no se negocian:
-     · Nada se mueve en Y. Cualquier corrimiento vertical acá se lee
-       como que la página se movió.
-     · El rig no se desplaza NUNCA. Sólo late: la barra se apaga
-       cuando el escenario queda vacío y pega un flash cuando el auto
-       nuevo aterriza. Eso es lo que la hace sentir una luz de verdad
-       y no un degradé pegado atrás.
-     ───────────────────────────────────────────────────────────── */
-  function go(dir, to, solo){
-    /* Si llega un pedido mientras la cinta corre, se guarda el último
-       y se ejecuta al terminar. Sin esto, apurar las flechas se siente
-       como que la página ignora los clics.
-
-       El pase automático es la excepción: si está ocupado se saltea el
-       turno en vez de anotarse. Encolándolo pasaba que tocabas la
-       flecha para atrás, el pase encolaba su avance, y al terminar tu
-       transición saltaba para adelante — pedías el anterior y te daba
-       el siguiente. */
-    if (busy){
-      if (solo) return;
-      queued = to !== undefined ? to : (cur + dir + CARS.length) % CARS.length;
-      return;
-    }
-    const nx = to !== undefined
-      ? to
-      : (cur + dir + CARS.length) % CARS.length;
-    if (nx === cur) return;
-    const D = to !== undefined ? (nx > cur ? 1 : -1) : (dir > 0 ? 1 : -1);
-
-    const from = imgs[cur], next = imgs[nx];
-    next.classList.add('is-on');
-
-    if (still){
-      from.classList.remove('is-on');
-      paint(nx); cur = nx;
-      seguir();               // sin transición, pero igual queda quieto un rato
-      return;
-    }
-
-    busy = true;
-    const T = .95;                       // dura lo mismo para los dos
-
-    const tl = G.timeline({
-      onComplete(){
-        from.classList.remove('is-on');
-        /* opacity va incluido a propósito: si algún tween la dejó
-           escrita en línea, le ganaría a .car{opacity:0} y el auto
-           seguiría visible detrás del que está en escena. */
-        G.set(from, { clearProps:'transform,filter,opacity' });
-        busy = false;
-        if (queued !== null){ const q = queued; queued = null; go(0, q); }
-        else seguir();      // recién acá el auto quedó quieto de verdad
-      }
-    });
-
-    /* ── LA CINTA ────────────────────────────────────────────────
-       Los dos autos son un solo movimiento. Arrancan juntos, viajan
-       la MISMA distancia, en la MISMA dirección, con la MISMA curva
-       de velocidad. Es lo que hace que se lea como una calesita y no
-       como dos animaciones que casualmente coinciden.
-
-       Nada de escala ni de desplazamiento vertical: sobre una
-       carretera el auto no se acerca ni se aleja, sólo pasa.
-
-       `travel` es cuánto hay que correrlos para que salgan limpios
-       de cuadro, y lo calcula fit() según el tamaño de la ventana:
-       un porcentaje fijo dejaría media trompa colgando en pantallas
-       anchas.
-
-       M es hacia dónde CORRE LA CINTA, y es al revés de la flecha que
-       se tocó: con "siguiente" la cinta empuja hacia la izquierda y el
-       auto nuevo entra por la derecha, igual que al pasar la página de
-       un libro. Al revés —el auto saliendo del mismo lado de la flecha—
-       se lee como retroceder, aunque el que aparezca sea el siguiente. */
-    const M = -D;
-
-    G.set(next, { xPercent:-travel*M, scale:1.035,
-                  filter:'blur(11px) brightness(1) saturate(1.16)' });
-
-    tl.to(from, { xPercent: travel*M, duration:T, ease:'power2.inOut' }, 0)
-      .to(next, { xPercent: 0,        duration:T, ease:'power2.inOut' }, 0);
-
-    /* ── el aire de la cinta ─────────────────────────────────────
-       Lo que da la sensación de velocidad es el DESENFOQUE, no el
-       apagón. Antes los dos autos pasaban por brightness .72 justo
-       en el medio del cuadro, que es donde más se los mira: un verde
-       al 72% no se lee como "a contraluz", se lee como lavado. Ése
-       era el gris.
-
-       Ahora el color va a pleno todo el trayecto y lo único que
-       cuenta el movimiento es el blur. El que se va sólo se apaga al
-       final, cuando ya salió de cuadro y no hay nada que ensuciar.
-       El que llega remata con un golpe de luz —brillo por encima de
-       1, no por debajo— como si lo agarrara el foco al frenar. */
-    tl.to(from, { keyframes:[
-        { filter:'blur(11px) brightness(1) saturate(1.16)', duration:T*.55, ease:'power1.in'  },
-        { filter:'blur(5px) brightness(.12) saturate(1)',   duration:T*.45, ease:'power2.in'  }
-      ]}, 0)
-      .to(next, { keyframes:[
-        { filter:'blur(7px) brightness(1.04) saturate(1.14)', duration:T*.55, ease:'power1.inOut' },
-        { filter:'blur(0px) brightness(1.22) saturate(1.05)', duration:T*.30, ease:'power2.out'   },
-        { filter:'blur(0px) brightness(1) saturate(1)',       duration:T*.15, ease:'power1.out'   }
-      ]}, 0);
-
-    /* y se asienta: llega apenas más grande y baja a su tamaño. Es un
-       gesto de peso, no de escala — 3,5% no se nota como zoom, se nota
-       como que el auto frenó. */
-    tl.to(next, { scale:1, duration:T*.92, ease:'power3.out' }, 0);
-
-    /* ── el rig acompaña ─────────────────────────────────────────
-       No se mueve: se apaga mientras el escenario está de paso y
-       vuelve cuando el auto nuevo frena en el centro. */
-    tl.to('#horizon', { opacity:.34, duration:T*.42, ease:'power2.inOut' }, 0)
-      .to('#horizon', { opacity:1, scaleY:2.4, duration:.14, ease:'power2.out' }, T*.78)
-      .to('#horizon', { scaleY:1, duration:.7, ease:'elastic.out(1,.5)' }, T*.9);
-
-    tl.to('#ember', { opacity:.2, duration:T*.42, ease:'power2.inOut' }, 0)
-      .to('#ember', { opacity:1.4, duration:.16, ease:'power2.out' }, T*.78)
-      .to('#ember', { opacity:1, duration:.6 }, T*.95);
-
-    /* El punto caliente viaja CON los autos, no en contra: es el
-       reflejo del auto corriendo sobre la barra.
-
-       Los porcentajes son de su propio ancho, que es el 30% de la
-       tarima: para cruzarla entera hace falta llegar a 233%, no más.
-       Cuando la barra iba de punta a punta el recorrido era otro. */
-    tl.fromTo('#sweep',
-      { xPercent: M>0 ? -110 : 245, opacity:0 },
-      { xPercent: M>0 ? 245 : -110, opacity:1, duration:T, ease:'power2.inOut' }, 0)
-      .to('#sweep', { opacity:0, duration:.2 }, T*.85);
-
-    /* el cartel del fondo viaja en el mismo sentido pero más lejos:
-       ese desfasaje da profundidad sin usar 3D */
-    tl.to(word, { xPercent:-50 + 46*M, opacity:0, duration:T*.45, ease:'power2.in' }, 0)
-      .add(()=>paint(nx), T*.46)
-      .fromTo(word,
-        { xPercent:-50 - 46*M, opacity:0 },
-        { xPercent:-50, opacity:1, duration:T*.62, ease:'power2.out' }, T*.46);
-
-    /* las cifras y el nombre se recomponen desde su ventanita */
-    tl.to('.slot > *', { yPercent:-115, duration:T*.3, ease:'power2.in', stagger:.03 }, 0)
-      .fromTo('.slot > *', { yPercent:115 },
-        { yPercent:0, duration:T*.6, ease:'power3.out', stagger:.045 }, T*.48);
-
-    cur = nx;
-  }
-
-  /* ─────────────────────────────────────────────────────────────
-     El pase solo.
-
-     PAUSA es cuánto QUIETO tiene que quedar el auto, no cada cuánto
-     arranca la cinta. Si se programara con un intervalo fijo de 2s
-     desde que EMPIEZA cada cambio, y el cambio en sí tarda casi 1s,
-     el auto sólo estaría quieto ~1s de esos 2 — que es exactamente lo
-     que pasaba antes: se sentía el doble de rápido de lo que decía el
-     número. Por eso el próximo pase se agenda al TERMINAR el actual
-     (acá, al final de go), no en un reloj que corre por su cuenta.
-
-     Y se detiene cuando la pestaña no está a la vista: seguir pasando
-     autos que nadie mira sólo gasta batería.
-     ───────────────────────────────────────────────────────────── */
-  const PAUSA = 2000;
-  let espera = null, activo = false;
-
-  function seguir(){
-    if (still || !activo) return;       // sin animación no hay carrusel
-    clearTimeout(espera);
-    espera = setTimeout(()=>go(1, undefined, true), PAUSA);
-  }
-  function frenar(){ clearTimeout(espera); espera = null; }
-
-  /* Toda interacción manual pasa por acá: se cancela el pase pendiente
-     —si acabás de pedir un auto, lo último que querés es que se te
-     vaya a los pocos milisegundos porque justo tocaba el cambio— y el
-     próximo se reagenda solo, PAUSA ms después de que ESTA transición
-     termine, vía el `seguir()` al final de go(). */
-  function pedir(dir, to){ activo = true; frenar(); go(dir, to); }
-
-  document.addEventListener('visibilitychange', ()=>{
-    if (document.hidden) frenar(); else seguir();
-  });
-
-  /* ── controles ─────────────────────────────────────────────── */
-
-  $('next').addEventListener('click', ()=>pedir(1));
-  $('prev').addEventListener('click', ()=>pedir(-1));
-
-  /* mientras el mouse está sobre una flecha no se cambia solo: da
-     tiempo a hacer clic sin que el auto se escape */
-  [$('next'), $('prev')].forEach(b=>{
-    b.addEventListener('pointerenter', frenar);
-    b.addEventListener('pointerleave', seguir);
-  });
-
-  addEventListener('keydown', e=>{
-    if (e.key === 'ArrowRight'){ e.preventDefault(); pedir(1); }
-    if (e.key === 'ArrowLeft'){  e.preventDefault(); pedir(-1); }
-  });
-
-  let sx = null, sy = null;
-  const stage = $('stage');
-  stage.addEventListener('pointerdown', e=>{ sx = e.clientX; sy = e.clientY; });
-  stage.addEventListener('pointerup', e=>{
-    if (sx === null) return;
-    const dx = e.clientX - sx, dy = e.clientY - sy;
-    sx = null;
-    if (Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy)) pedir(dx < 0 ? 1 : -1);
-  });
-
-  /* ── vida propia: el rig respira aunque nadie toque nada ────── */
-
-  if (!still){
-    G.to('.l-cone--l', { opacity:.32, duration:5.5, yoyo:true, repeat:-1, ease:'sine.inOut' });
-    G.to('.l-cone--r', { opacity:.32, duration:6.8, yoyo:true, repeat:-1, ease:'sine.inOut', delay:.9 });
-    G.set('#sweep', { opacity:0 });
-
-    G.timeline({ defaults:{ ease:'power3.out' } })
-      .from('.l-ambient', { opacity:0, duration:1.3 })
-      .from('#horizon',   { scaleX:0, duration:1.15, ease:'power4.out' }, .15)
-      .from('.l-reflect, .l-ember', { opacity:0, duration:.9 }, .5)
-      .from('.l-cone',    { opacity:0, duration:1.1 }, .5)
-      /* clearProps no es opcional acá. `from` deja el valor final
-         escrito en el atributo style, y un opacity:1 en línea le gana
-         a la regla .car{opacity:0}: el primer auto no se apagaba nunca
-         y quedaba asomando detrás de todos los demás. */
-      .from(imgs[0],      { opacity:0, scale:1.07, filter:'blur(14px)', duration:1.2,
-                            clearProps:'opacity,transform,filter' }, .45)
-      .from(word,         { opacity:0, scale:1.06, duration:1 }, .6)
-      .from('.hud--tl, .hud--tr', { opacity:0, y:-12, duration:.6, stagger:.08 }, .7)
-      .from('.slot > *',  { yPercent:115, duration:.75, stagger:.06 }, .8)
-      /* clearProps otra vez: sin esto queda un opacity:1 en línea que
-         le gana a .arrow{opacity:.26} y las flechas dejan de ser
-         discretas — y encima el :hover no tendría a dónde subir. */
-      .from('.arrow',     { opacity:0, duration:.7, stagger:.08,
-                            clearProps:'opacity' }, 1);
-
-    /* el pase solo empieza cuando terminó de entrar la página, y desde
-       acá cuenta PAUSA completos porque el auto ya está quieto */
-    setTimeout(()=>{ activo = true; seguir(); }, 1800);
-  }
+  var v = document.getElementById('colVid');
+  if (!v) return;
+  var pantalla = Math.min(
+    (window.screen && screen.width) || 9999,
+    window.innerWidth || 9999
+  );
+  var base = 'assets/collage/drive' + (pantalla <= 767 ? '-mobile' : '');
+  v.poster = base + '-poster.jpg';
+  v.src    = base + '.mp4';
 })();
 </script>
+
+
 </body>
 </html>
