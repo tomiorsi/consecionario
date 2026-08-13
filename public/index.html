@@ -85,13 +85,23 @@
      dejarlo apretado contra los bordes de la ventana. */
   --stageh:min(114svh,60rem);
 
+  /* LA PERILLA DEL RITMO DEL REEL. Es cuánto scroll ocupa la vuelta
+     completa al auto: más alto = giro más lento y más control sobre
+     cada tramo. Los 15,9 segundos de video se reparten en este alto,
+     así que a 720svh cada pantalla de scroll son ~2,2 segundos.
+     Es el único número a tocar si el giro se siente rápido o lento. */
+  --reel-h:720svh;
+
   /* Relleno general. Se subió bastante: el sitio estaba pegado a los
      bordes y eso es lo que le sacaba aire premium. */
   --gut:clamp(1.6rem,4.4vw,4.5rem);
 
   /* Header: alto de la barra y las dos alturas del HUD (suelto sobre la
      portada / compacto una vez que se scrollea). */
-  --bar-h:clamp(4.2rem,7.2vh,5.6rem);
+  /* Más alta que antes: el desvanecido necesita recorrido. Si la barra
+     mide lo justo, el degradado se apura y vuelve a leerse como un
+     borde, que es lo que se quería evitar. */
+  --bar-h:clamp(6rem,10.5vh,8.5rem);
   --hud-y:clamp(1.5rem,3.4vh,2.5rem);
   --hud-y-min:clamp(1.1rem,2.4vh,1.7rem);
   --ease:cubic-bezier(.22,1,.36,1);
@@ -132,8 +142,8 @@ body{
   /* El fondo de la página es el estudio, no el vacío negro: si el body
      queda negro, cualquier rebote del scroll o un instante antes de que
      pinte el video muestra un flash oscuro entre dos pantallas claras. */
-  background:var(--cyc);
-  color:var(--ink);
+  background:#000;
+  color:var(--chrome);
   font-family:var(--display);
   /* Antes era overflow:hidden — la página era una sola pantalla fija.
      Ahora hay dos: la portada en video y, debajo, el escenario del auto.
@@ -181,15 +191,102 @@ body{
   object-position:center;
 }
 
-/* SIN VELO. Había un degradado acá abajo para unir las dos pantallas y
-   para despegar el texto del capó. Se sacó: ensuciaba el video, que es
-   la mejor pieza del sitio, y con el texto corrido a la derecha —sobre
-   el gris limpio— ya no hace falta para leerlo.
+/* EL APAGADO A NEGRO.
 
-   La unión se resuelve por color en vez de por difuminado: el borde
-   inferior del video mide #9A9A9A (medido sobre el archivo, no a ojo)
-   y el piso del ciclorama de abajo arranca en ese mismo valor. El corte
-   existe pero cae entre dos grises iguales, así que no se ve. */
+   No es un velo fijo —eso ensuciaba el video y se sacó—: es una capa
+   negra que arranca invisible y se va encendiendo A MEDIDA QUE SE
+   SCROLLEA. Arriba de todo el video se ve intacto; cuando la portada
+   está por irse, ya es negro puro, y abajo lo que sigue también es
+   negro. Por eso no hay corte entre una sección y la otra: no hay dos
+   colores que empalmar, el gris se convirtió en negro en el camino.
+
+   La opacidad la escribe el JS en --fade (0 a 1) desde el listener de
+   scroll. Va sobre TODO el contenido de la portada, texto incluido:
+   se apaga la escena entera, no el fondo por un lado y las letras por
+   otro. */
+#cover::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:5;
+  pointer-events:none;
+  background:#000;
+  opacity:var(--fade,0);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   LA FRANJA — la frase entre la portada y el reel
+   ══════════════════════════════════════════════════════════════════
+
+   Negro pleno y mucho aire: es una pausa, no una sección con
+   contenido. Después del apagado de la portada el ojo llega a un
+   silencio, lee dos líneas y recién ahí empieza la vuelta al auto.
+
+   El texto entra con un fundido cuando la franja aparece en pantalla.
+   Se dispara con IntersectionObserver y no con el scroll: así el
+   navegador avisa cuando corresponde en vez de que estemos midiendo
+   posiciones en cada píxel. */
+#band{
+  position:relative;
+  background:#000;
+  /* La mitad de lo que era: es una pausa, no una sección. */
+  min-height:min(42svh,24rem);
+  display:grid;
+  place-items:center;
+  padding:clamp(3rem,9vh,6rem) var(--gut);
+  text-align:center;
+}
+
+/* EL EFECTO — entrar en foco.
+
+   Las dos líneas llegan desenfocadas y separadas, y se van enfocando y
+   juntando a medida que la franja se acerca al centro de la pantalla.
+   Al salir, vuelven a desenfocarse.
+
+   No es decoración: el negocio es SELECCIONAR y VERIFICAR autos, o sea
+   poner algo en foco. El efecto dice lo mismo que el texto.
+
+   Lo maneja --p (de 0 a 1), que escribe el JS desde el scroll: 0 es
+   lejos del centro, 1 es centrado. El valor por defecto es 1 a
+   propósito — si el JS no corriera, el texto queda nítido y legible en
+   vez de desaparecer desenfocado. */
+.band-copy{
+  --p:1;
+  max-width:52rem;
+}
+
+.band-copy p{
+  color:var(--chrome);
+  font-size:clamp(1.5rem,3.4vw,2.9rem);
+  font-variation-settings:"wdth" 92,"wght" 500;
+  letter-spacing:-.02em;
+  line-height:1.24;
+
+  filter:blur(calc((1 - var(--p)) * 11px));
+  opacity:calc(.12 + var(--p) * .88);
+  will-change:filter,transform,opacity;
+}
+
+/* Las dos líneas convergen: la de arriba viene de la izquierda y la de
+   abajo de la derecha. Cuando el texto está enfocado, las dos están en
+   su lugar. */
+.band-copy p:first-child{
+  transform:translateX(calc((1 - var(--p)) * -3.4rem));
+}
+
+/* La segunda línea baja de peso y de tamaño: es el eco de la primera,
+   no una frase aparte. */
+.band-copy p + p{
+  margin-top:clamp(.5rem,1.4vh,.9rem);
+  font-size:clamp(1.15rem,2.5vw,2.05rem);
+  font-variation-settings:"wdth" 92,"wght" 400;
+  color:var(--steel);
+  transform:translateX(calc((1 - var(--p)) * 3.4rem));
+}
+
+@media (prefers-reduced-motion:reduce){
+  .band-copy p{ filter:none; transform:none; opacity:1; }
+}
 
 /* ── el texto de la portada ────────────────────────────────────────
 
@@ -287,7 +384,7 @@ body{
      distintos y el auto queda flotando o hundido. */
   height:var(--stageh);
   overflow:hidden;
-  background:var(--cyc);
+  background:#000;
   /* Era touch-action:none, que en el teléfono mata el scroll vertical:
      al llegar al escenario ya no se podía volver a la portada.
      Con pan-y el dedo scrollea en vertical y el swipe horizontal de los
@@ -334,22 +431,19 @@ body{
    Encima va una luz cenital suave, centrada donde va a estar el auto:
    es la que hace que el auto se recorte contra un fondo que no es
    plano. Sin ella el gris se lee como una pared pintada. */
+/* EL ESTUDIO OSCURO. Mismo lenguaje que las fotos del RS3 que están
+   justo arriba en el reel: negro, y un charco de luz fría sobre el piso
+   donde está parado el auto. La pared no se ilumina — lo único que
+   existe es el piso y lo que se apoya en él. */
 .l-ambient{
   inset:0;
   background:
-    /* luz cenital difusa, apenas por encima del auto */
-    radial-gradient(72% 48% at 50% 30%, rgba(255,255,255,.55), transparent 70%),
-    /* La pared curvándose hacia el piso. Arranca en --seam, que es el
-       gris con el que termina el video justo arriba: el corte entre las
-       dos pantallas cae entre dos grises idénticos. De ahí sube hacia
-       la pared clara y vuelve a bajar hacia el piso. */
-    linear-gradient(180deg,
-      var(--seam) 0%,
-      var(--cyc-hi) 22%,
-      var(--cyc) 46%,
-      var(--cyc) calc(var(--ground) - 14%),
-      var(--cyc-lo) calc(var(--ground) + 12%),
-      var(--cyc-lo) 100%);
+    /* el charco de luz del piso, centrado en la línea de apoyo */
+    radial-gradient(58% 26% at 50% var(--ground), rgba(var(--beam),.20), transparent 72%),
+    /* un lavado altísimo, apenas suficiente para que el negro de arriba
+       no se lea como un agujero plano */
+    radial-gradient(86% 52% at 50% 16%, rgba(var(--beam),.045), transparent 74%),
+    #000;
 }
 
 /* Los dos haces cenitales se retiran.
@@ -376,12 +470,14 @@ body{
 /* La barra de luz también se retira: en un ciclorama no hay junta. Lo
    único que queda a la altura del piso es un apoyo apenas insinuado,
    para que el auto no flote. */
+/* Sin barra: el auto se apoya sobre el charco de luz, no sobre una
+   línea. Queda apenas el filo donde el piso empieza a recibirla. */
 .l-horizon{
   left:-15%; right:-15%; top:0;
   height:1px;
   background:linear-gradient(90deg,
-    transparent, rgba(16,18,22,.07) 28%, rgba(16,18,22,.10) 50%,
-    rgba(16,18,22,.07) 72%, transparent);
+    transparent, rgba(var(--beam),.10) 30%, rgba(var(--beam),.16) 50%,
+    rgba(var(--beam),.10) 70%, transparent);
 }
 
 .l-sweep{ display:none; }
@@ -392,7 +488,7 @@ body{
 .l-reflect{
   left:0; right:0; top:0;
   height:clamp(5rem,17vh,13rem);
-  background:linear-gradient(180deg, rgba(255,255,255,.30), transparent 66%);
+  background:linear-gradient(180deg, rgba(var(--beam),.14), transparent 64%);
   -webkit-mask-image:linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
           mask-image:linear-gradient(90deg, transparent, #000 20%, #000 80%, transparent);
 }
@@ -408,10 +504,13 @@ body{
   left:50%; top:0;
   width:86%; height:clamp(1.8rem,5.2vh,4.2rem);
   transform:translate(-50%,-42%);
+  /* Sobre negro una sombra no se ve: lo que ancla el auto es la luz que
+     el piso devuelve alrededor de las ruedas. Mismo dibujo que el
+     contacto —más densa en los extremos, donde apoya— pero en positivo. */
   background:
-    radial-gradient(ellipse 42% 58% at 16% 50%, rgba(16,18,22,.34), transparent 72%),
-    radial-gradient(ellipse 42% 58% at 84% 50%, rgba(16,18,22,.34), transparent 72%),
-    radial-gradient(ellipse 54% 42% at 50% 50%, rgba(16,18,22,.20), transparent 76%);
+    radial-gradient(ellipse 44% 60% at 17% 50%, rgba(var(--beam),.34), transparent 74%),
+    radial-gradient(ellipse 44% 60% at 83% 50%, rgba(var(--beam),.34), transparent 74%),
+    radial-gradient(ellipse 56% 44% at 50% 50%, rgba(var(--beam),.16), transparent 78%);
   filter:blur(13px);
 }
 
@@ -434,7 +533,7 @@ body{
   /* Sobre el ciclorama claro el nombre no puede ser casi negro: pasaba
      a competir con el auto. Va como una marca de agua apenas más oscura
      que la pared — se lee si la buscás, no si mirás el auto. */
-  color:rgba(16,18,22,.09);
+  color:#141519;
   pointer-events:none;
   user-select:none;
   will-change:transform,opacity;
@@ -507,17 +606,31 @@ body{
   height:var(--bar-h);
   z-index:55;
   pointer-events:none;
-  background:rgba(217,219,221,0);
-  border-bottom:1px solid transparent;
+  background:linear-gradient(180deg, rgba(217,219,221,0), rgba(217,219,221,0));
   backdrop-filter:blur(0px);
   -webkit-backdrop-filter:blur(0px);
-  transition:background .45s var(--ease), border-color .45s var(--ease),
+
+  /* SIN LÍNEA, SE DESVANECE.
+
+     Antes la barra terminaba en un borde de 1px. Ahora no termina: se
+     apaga. La máscara en degradado es la pieza clave, y tiene que ir
+     acá y no en el background, porque enmascara TODO el elemento —el
+     color de fondo Y el desenfoque del backdrop-filter juntos.
+
+     Si sólo se difuminara el color, el corte del desenfoque seguiría
+     dibujando una línea nítida donde termina la barra: se vería
+     exactamente lo que queremos sacar. */
+  -webkit-mask-image:linear-gradient(180deg, #000 42%, rgba(0,0,0,.55) 74%, transparent 100%);
+          mask-image:linear-gradient(180deg, #000 42%, rgba(0,0,0,.55) 74%, transparent 100%);
+
+  transition:background .45s var(--ease),
              backdrop-filter .45s var(--ease), -webkit-backdrop-filter .45s var(--ease);
 }
 
 body.is-scrolled #topbar{
-  background:rgba(217,219,221,.72);
-  border-bottom-color:rgba(16,18,22,.10);
+  /* el fondo también se abre hacia abajo, para que el desvanecido
+     arranque antes de que termine la máscara */
+  background:linear-gradient(180deg, rgba(217,219,221,.80), rgba(217,219,221,.38));
   backdrop-filter:blur(16px) saturate(1.15);
   -webkit-backdrop-filter:blur(16px) saturate(1.15);
 }
@@ -639,7 +752,7 @@ body.is-scrolled .hud--tr{ top:var(--hud-y-min); }
   /* El número se aclara hacia abajo, no se oscurece: sobre el estudio
      claro el degradado tiene que ir de la tinta al gris de la pared,
      que es al revés de como estaba sobre el negro. */
-  background:linear-gradient(176deg, var(--ink) 6%, rgba(16,18,22,.35) 88%);
+  background:linear-gradient(176deg, var(--chrome) 6%, #5C6270 88%);
   -webkit-background-clip:text;
           background-clip:text;
   color:transparent;
@@ -649,7 +762,7 @@ body.is-scrolled .hud--tr{ top:var(--hud-y-min); }
   font-family:var(--mono);
   font-size:.58rem;
   letter-spacing:.28em;
-  color:var(--ink-3);
+  color:var(--steel);
   margin-top:.7rem;
 }
 .figure .slot{ overflow:hidden; }
@@ -671,8 +784,8 @@ body.is-scrolled .hud--tr{ top:var(--hud-y-min); }
   display:grid; place-items:center;
   border:0;
   background:transparent;
-  color:var(--ink);
-  opacity:.34;
+  color:var(--chrome);
+  opacity:.30;
   cursor:pointer;
   transition:opacity .35s var(--ease), transform .35s var(--ease);
   -webkit-tap-highlight-color:transparent;
@@ -684,7 +797,180 @@ body.is-scrolled .hud--tr{ top:var(--hud-y-min); }
 .arrow:hover, .arrow:focus-visible{ opacity:1; }
 .arrow--l:hover, .arrow--l:focus-visible{ transform:translate(-22%,-190%); }
 .arrow--r:hover, .arrow--r:focus-visible{ transform:translate(22%,-190%); }
-.arrow:focus-visible{ outline:1px solid var(--ink); outline-offset:8px; }
+.arrow:focus-visible{ outline:1px solid rgba(var(--beam),.6); outline-offset:8px; }
+
+/* ══════════════════════════════════════════════════════════════════
+   LA CARGA
+
+   El sitio son tres piezas de video pesadas. Sin esto, el visitante
+   entra a una portada en negro que va apareciendo de a pedazos y, si
+   scrollea enseguida, el reel se mueve a los saltos porque todavía se
+   está bajando. Peor primera impresión imposible para una marca que
+   vende autos premium.
+
+   Así que se espera. Mientras tanto: negro, la marca, y una línea que
+   avanza. No es un adorno — es la única forma de que una espera se
+   sienta corta.
+
+   El scroll queda bloqueado hasta el final: es literal lo que se pidió,
+   que no se llegue al contenido antes de tiempo.
+   ══════════════════════════════════════════════════════════════════ */
+
+#loader{
+  position:fixed;
+  inset:0;
+  z-index:200;
+  background:#000;
+  display:grid;
+  place-items:center;
+  gap:0;
+  opacity:1;
+  transition:opacity .7s var(--ease), visibility 0s linear .7s;
+}
+
+/* Al terminar se desvanece y deja de existir para el mouse y el
+   teclado — si sólo bajara la opacidad seguiría tapando los clics. */
+body.ya-cargo #loader{
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+}
+
+/* Mientras carga, la página no se mueve. */
+body.cargando{ overflow:hidden; }
+
+.loader-caja{ display:grid; justify-items:center; gap:clamp(1.8rem,4vh,2.8rem); }
+
+.loader-marca{
+  display:flex;
+  align-items:center;
+  gap:clamp(.6rem,1.1vw,.95rem);
+  color:var(--chrome);
+}
+.loader-marca svg{
+  width:clamp(2.4rem,4.2vw,3.4rem);
+  height:auto;
+  /* respira: no es un spinner, es una marca esperando */
+  animation:latir 2.6s ease-in-out infinite;
+}
+.loader-marca b{
+  font-size:clamp(1rem,1.5vw,1.3rem);
+  font-variation-settings:"wdth" 112,"wght" 500;
+  letter-spacing:.3em;
+  line-height:1;
+}
+
+@keyframes latir{
+  0%,100%{ opacity:.55 }
+  50%    { opacity:1 }
+}
+
+/* La línea de progreso. Fina y ancha, en el idioma del resto del
+   sitio: nada de círculos girando ni porcentajes. */
+.loader-linea{
+  position:relative;
+  width:min(15rem,42vw);
+  height:1px;
+  background:rgba(255,255,255,.16);
+  overflow:hidden;
+}
+.loader-linea span{
+  position:absolute;
+  inset:0 auto 0 0;
+  width:100%;
+  background:var(--chrome);
+  transform:scaleX(var(--carga,0));
+  transform-origin:0 50%;
+  transition:transform .35s var(--ease);
+}
+
+@media (prefers-reduced-motion:reduce){
+  .loader-marca svg{ animation:none; opacity:1; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   EL REEL — la vuelta al auto, movida por el scroll
+   ══════════════════════════════════════════════════════════════════
+
+   Son los dos videos del RS3 unidos en uno: de la cola al perfil y del
+   perfil al frente. No se reproducen solos — el scroll es el que mueve
+   el tiempo del video. Bajás y la cámara gira; parás y la cámara para.
+
+   CÓMO FUNCIONA. La sección mide varias pantallas de alto y adentro
+   hay un contenedor sticky de una pantalla. Mientras la sección pasa
+   por la ventana, el video queda clavado y lo único que cambia es su
+   currentTime, mapeado contra cuánto se avanzó de la sección.
+
+   POR QUÉ NO SE TRABA. Dos cosas, y las dos son necesarias:
+
+     1. El archivo está codificado ALL-INTRA: los 385 cuadros son
+        keyframes. En un video normal los keyframes van cada 1-2
+        segundos y el navegador, para mostrar un instante cualquiera,
+        tiene que decodificar desde el keyframe anterior — eso es el
+        tirón. Con todos los cuadros independientes, saltar a cualquier
+        punto es inmediato. Cuesta tamaño y lo vale.
+
+     2. El JS no escribe el scroll directo en el video: interpola. El
+        tiempo real persigue al objetivo un 12% por cuadro, así que un
+        golpe de rueda se convierte en un movimiento que desacelera
+        solo. Sin eso el video se mueve a los saltos aunque el archivo
+        esté bien.
+   ══════════════════════════════════════════════════════════════════ */
+
+#reel{
+  position:relative;
+  /* Cuánto scroll ocupa la vuelta completa. Más alto = giro más lento
+     y más control; más bajo = más rápido. Es la perilla del ritmo. */
+  height:var(--reel-h);
+  background:#000;
+}
+
+.reel-stick{
+  position:sticky;
+  top:0;
+  height:100svh;
+  overflow:hidden;
+  background:#000;
+}
+
+#reelVid{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:center;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   MODO OSCURO DE LA INTERFAZ
+
+   La portada es un estudio CLARO y las dos secciones de abajo son
+   negras. El HUD es fixed: el mismo logo y el mismo menú tienen que
+   leerse sobre los dos fondos.
+
+   Por eso hay dos estados. Sobre la portada la tipografía va en tinta
+   oscura; apenas se pasa la portada, el body recibe .is-dark y todo se
+   invierte. La transición es larga a propósito, para que se lea como
+   un cambio de luz y no como un parpadeo.
+   ══════════════════════════════════════════════════════════════════ */
+
+.mark, .mark__type small, .mark__type i,
+.menu a, .arrow, .scroll-cue{
+  transition:color .5s var(--ease), opacity .5s var(--ease);
+}
+
+body.is-dark .mark{ color:var(--chrome); }
+body.is-dark .mark__emblem{ filter:drop-shadow(0 0 .6rem rgba(var(--beam),.35)); }
+body.is-dark .mark__type small,
+body.is-dark .mark__type i{ color:var(--steel); }
+body.is-dark .menu a{ color:var(--steel); }
+body.is-dark .menu a:hover,
+body.is-dark .menu a:focus-visible{ color:var(--chrome); }
+
+/* el vidrio del header también se da vuelta */
+body.is-dark.is-scrolled #topbar{
+  background:linear-gradient(180deg, rgba(6,7,9,.82), rgba(6,7,9,.30));
+}
 
 /* ── pantallas chicas ──────────────────────────────────────────── */
 
@@ -697,8 +983,25 @@ body.is-scrolled .hud--tr{ top:var(--hud-y-min); }
   #word{
     top:calc(var(--ground) - clamp(3rem,10vh,7.5rem));
     font-size:clamp(2.4rem,19vw,7.5rem);
-    color:rgba(16,18,22,.11);
+    color:#1E2027;
   }
+}
+
+@media (max-width:767px){
+  /* El reel SÍ va en celular, con su pieza vertical propia, pero el
+     recorrido se acorta.
+
+     EL EQUILIBRIO. Con los 720svh de computadora el giro avanza 2,56 s
+     de video por pantalla. A 380svh en celular avanzaba 5,68 s: el
+     doble de apurado, se sentía otro sitio. A 520svh queda en ~3,2 s
+     por pantalla, cerca del ritmo de computadora.
+
+     No se copia el valor de escritorio tal cual a propósito: en un
+     teléfono un envión del pulgar recorre muchas más pantallas que una
+     rueda de mouse, así que 720svh ahí se vuelve una escalera
+     interminable. Lo que tiene que coincidir es la SENSACIÓN, no el
+     número. */
+  :root{ --reel-h:520svh; }
 }
 
 @media (max-width:760px){
@@ -725,6 +1028,19 @@ body.is-scrolled .hud--tr{ top:var(--hud-y-min); }
 </style>
 </head>
 <body>
+
+<!-- La pantalla de carga. Va primera en el body para que se pinte antes
+     que cualquier otra cosa: si estuviera más abajo, se vería un
+     instante de la página a medio armar antes de que la tape. -->
+<div id="loader" role="status" aria-live="polite" aria-label="Cargando">
+  <div class="loader-caja">
+    <div class="loader-marca">
+      <svg viewBox="0 0 100 100" fill="currentColor" fill-rule="evenodd" aria-hidden="true"><path d="M52.76,99.88C56.14,99.67 59.98,99.09 61.91,98.47C62.28,98.35 62.78,98.23 63.07,98.15C63.64,98.06 66.65,97.03 68.22,96.46C75.06,93.82 84.09,87.14 87.84,81.90C88.09,81.62 88.33,81.33 88.38,81.29C88.66,81.12 88.54,80.63 88.25,80.50C88.05,80.46 87.72,80.26 87.43,80.05C87.14,79.88 86.81,79.68 86.60,79.64C86.44,79.55 86.07,79.39 85.78,79.18C84.91,78.65 84.83,78.69 82.73,80.87C80.83,82.93 78.90,84.67 77.16,85.99C76.63,86.36 76.17,86.73 76.13,86.77C76.01,86.93 74.57,87.84 74.07,88.09C73.83,88.21 73.41,88.46 73.21,88.62C72.38,89.24 68.05,91.47 66.61,91.96C65.83,92.25 64.63,92.70 64.01,92.91C63.36,93.16 62.61,93.40 62.37,93.49C62.12,93.53 61.54,93.65 61.13,93.78C55.23,95.30 46.83,95.63 42.46,94.56C42.13,94.48 41.10,94.27 40.23,94.06C37.72,93.57 37.88,93.61 33.72,92.13C32.19,91.59 31.53,91.26 29.51,90.19C24.44,87.51 20.12,84.17 16.69,80.34C15.25,78.69 15.13,78.61 14.63,78.98C14.47,79.14 13.93,79.43 13.48,79.64C11.79,80.54 11.50,80.71 11.50,81.04C11.50,81.20 11.58,81.33 11.62,81.33C11.67,81.33 12.04,81.70 12.41,82.19C15.70,86.27 21.19,90.93 25.76,93.49C29.31,95.51 34.91,97.82 37.06,98.19C37.39,98.23 37.72,98.31 37.84,98.39C38.13,98.52 41.30,99.18 42.37,99.34C42.83,99.38 43.57,99.51 44.02,99.59C44.77,99.71 47.61,99.92 49.59,100.00C50.00,100.00 51.44,99.96 52.76,99.88Z M53.01,79.31C54.78,79.18 54.62,81.04 54.58,63.03C54.53,54.33 54.58,47.24 54.62,47.24C54.70,47.24 54.86,47.44 55.03,47.69C55.19,47.94 55.98,49.05 56.72,50.12C57.46,51.20 58.37,52.47 58.70,52.97C59.03,53.42 59.85,54.62 60.51,55.56C61.21,56.55 62.08,57.79 62.45,58.33C62.82,58.86 63.56,59.89 64.10,60.63C64.63,61.38 65.17,62.16 65.33,62.37C65.62,62.86 70.73,63.36 71.15,62.90C71.19,62.86 71.60,62.24 72.14,61.50C72.63,60.76 73.25,59.89 73.45,59.56C74.24,58.57 75.97,56.14 77.37,54.12C79.47,50.99 80.67,49.26 82.61,46.62C83.55,45.26 84.83,43.49 85.41,42.66C87.06,40.27 87.35,39.94 87.47,40.23C87.72,40.93 88.13,43.20 88.66,46.62C88.83,47.69 88.83,53.01 88.66,54.25C88.62,54.78 88.50,55.69 88.42,56.27C88.33,56.84 88.21,57.54 88.13,57.83C88.09,58.12 87.92,58.74 87.80,59.23C87.06,62.49 86.64,63.69 84.75,67.52C84.01,69.04 83.97,68.96 85.99,70.07C86.77,70.49 88.58,71.48 90.02,72.30C92.79,73.91 92.99,73.99 93.32,73.58C93.69,73.17 95.67,68.92 95.88,68.14C95.96,67.81 96.13,67.52 96.17,67.48C96.25,67.44 96.33,67.27 96.33,67.11C96.33,66.94 96.37,66.74 96.41,66.65C96.62,66.49 97.77,62.74 97.94,61.75C98.06,61.29 98.19,60.51 98.31,59.98C99.79,52.72 99.63,46.29 97.82,38.50C97.40,36.60 95.96,32.52 95.09,30.71C94.81,30.05 94.56,29.47 94.56,29.47C94.56,29.23 93.12,26.55 92.99,26.46C92.87,26.42 92.17,26.71 91.38,27.12C88.66,28.52 86.15,29.84 85.70,30.13C85.41,30.30 84.67,30.67 84.05,31.00C82.81,31.62 82.23,32.15 81.66,33.18C81.45,33.55 81.04,34.09 80.79,34.42C80.50,34.75 79.84,35.70 79.35,36.48C77.86,38.66 76.67,40.40 75.93,41.47C75.56,41.96 74.86,42.95 74.40,43.65C73.95,44.31 73.08,45.55 72.51,46.41C71.93,47.24 71.35,48.06 71.31,48.19C70.98,48.68 69.95,50.16 69.79,50.33C69.70,50.37 69.37,50.87 69.04,51.36C68.34,52.47 68.18,52.43 67.15,50.70C66.90,50.25 64.84,47.28 64.34,46.62C64.10,46.33 63.85,46.00 63.81,45.88C63.77,45.75 63.31,45.09 62.78,44.39C62.24,43.65 61.54,42.66 61.17,42.13C60.80,41.59 60.14,40.60 59.65,39.94C58.45,38.29 57.71,37.26 56.97,36.15C56.60,35.61 55.81,34.46 55.15,33.55C54.49,32.69 53.83,31.74 53.67,31.49C53.38,31.04 53.38,31.04 50.00,31.04C45.92,31.04 46.95,30.34 43.32,35.49C42.70,36.36 41.67,37.84 41.01,38.79C38.42,42.58 37.76,43.53 37.59,43.69C37.35,43.98 34.42,48.15 33.14,50.04C31.45,52.47 31.45,52.47 30.87,51.48C30.67,51.20 30.05,50.21 29.43,49.34C28.81,48.43 27.62,46.66 26.71,45.34C25.85,44.02 24.77,42.46 24.32,41.84C23.91,41.22 22.96,39.86 22.26,38.79C21.52,37.72 20.73,36.56 20.49,36.27C20.07,35.70 20.03,35.66 18.34,33.18C17.27,31.62 17.27,31.62 15.95,30.96C13.81,29.88 10.22,27.99 10.10,27.86C9.56,27.49 7.21,26.38 7.09,26.42C6.72,26.59 4.58,31.24 3.59,34.01C2.56,36.89 2.39,37.30 1.98,39.08C0.21,46.37 0.21,54.08 1.98,61.71C2.14,62.32 2.31,63.03 2.39,63.27C2.80,64.63 3.38,66.28 3.46,66.49C3.54,66.61 3.59,66.82 3.59,66.86C3.59,67.15 4.62,69.54 5.40,71.19C5.85,72.14 6.18,72.92 6.18,72.96C6.18,74.11 7.05,74.03 9.40,72.67C10.35,72.09 11.17,71.64 11.21,71.64C11.21,71.64 11.95,71.23 12.78,70.73C13.60,70.24 14.59,69.70 14.96,69.50C15.75,69.13 15.87,68.88 15.54,68.30C15.00,67.39 14.51,66.41 14.51,66.28C14.51,66.24 14.30,65.70 14.01,65.13C13.07,63.07 11.67,58.20 11.46,55.98C11.42,55.56 11.29,54.86 11.25,54.45C11.05,53.46 11.05,47.61 11.25,46.29C11.34,45.71 11.46,44.89 11.50,44.39C11.62,43.53 11.71,43.08 12.12,41.38C12.24,40.97 12.32,40.52 12.37,40.35C12.45,39.74 12.61,39.90 16.74,45.71C17.23,46.46 17.77,47.20 17.89,47.40C18.34,48.02 20.53,51.11 21.27,52.14C21.68,52.72 22.18,53.50 22.42,53.92C22.67,54.33 23.00,54.82 23.12,55.03C23.29,55.19 23.95,56.14 24.61,57.05C25.27,58.00 26.09,59.11 26.38,59.56C26.71,60.02 27.00,60.43 27.04,60.51C27.08,60.59 27.37,61.01 27.66,61.42C27.99,61.83 28.32,62.32 28.44,62.53C29.10,63.56 34.83,62.94 34.83,61.87C34.83,61.79 35.04,61.42 35.33,61.05C35.61,60.72 36.15,59.98 36.52,59.44C36.85,58.90 37.43,58.12 37.76,57.67C38.09,57.21 38.79,56.27 39.24,55.56C39.74,54.86 40.48,53.79 40.93,53.17C41.38,52.56 42.09,51.57 42.54,50.91C44.27,48.39 45.26,47.11 45.34,47.20C45.42,47.24 45.42,54.41 45.42,63.11C45.42,71.85 45.42,79.02 45.51,79.10C45.75,79.35 50.54,79.47 53.01,79.31Z M16.69,20.20C17.97,18.76 20.49,16.32 21.56,15.50C21.93,15.25 22.51,14.80 22.84,14.47C23.37,14.01 26.01,12.20 26.17,12.20C26.17,12.20 26.59,11.95 27.00,11.67C27.45,11.38 28.28,10.92 28.81,10.63C29.39,10.39 30.01,10.06 30.21,9.93C31.24,9.40 33.88,8.29 35.49,7.75C37.18,7.21 37.84,7.01 39.61,6.51C40.35,6.35 43.36,5.85 46.13,5.52C47.94,5.28 52.06,5.28 53.79,5.52C54.49,5.61 56.06,5.81 57.25,5.94C59.48,6.22 59.65,6.27 61.42,6.76C70.45,9.32 77.70,13.81 83.64,20.49C84.67,21.64 84.62,21.64 86.23,20.86C88.62,19.66 88.71,19.50 87.84,18.47C83.88,13.73 79.93,10.18 76.05,7.91C72.18,5.65 70.32,4.70 66.94,3.42C64.80,2.60 62.90,2.02 62.12,1.90C61.75,1.85 61.34,1.73 61.13,1.69C56.84,0.08 46.21,-0.00 39.82,1.48C39.04,1.69 38.13,1.90 37.76,1.98C37.02,2.10 34.21,3.01 33.06,3.46C32.65,3.63 32.11,3.83 31.86,3.92C30.09,4.45 23.91,7.75 22.34,9.03C22.05,9.23 21.52,9.65 21.10,9.89C18.63,11.46 11.50,18.51 11.50,19.41C11.50,19.58 12.24,20.07 13.69,20.82C14.26,21.10 14.76,21.39 14.84,21.48C15.17,21.81 15.54,21.56 16.69,20.20Z"/></svg>
+      <b>MANNA</b>
+    </div>
+    <div class="loader-linea"><span></span></div>
+  </div>
+</div>
 
 <!-- La barra del header. Vacía a propósito: es sólo el vidrio que
      aparece al scrollear. La marca y el menú son fixed y viven por
@@ -803,15 +1119,74 @@ body.is-scrolled .hud--tr{ top:var(--hud-y-min); }
      no toca el DOM en cada píxel de scroll. */
   (function(){
     var limite = 24, puesto = null;
+    var oscuro = null;
+    var portada = document.getElementById('cover');
+    /* La franja se busca en el primer scroll y no acá: este script vive
+       DENTRO de #cover, así que corre mientras la página se está
+       parseando y #band todavía no existe. Buscarla ahora devolvía
+       null y el efecto no se aplicaba nunca. */
+    var franja = null, texto = null;
+
     function mirar(){
       var si = window.scrollY > limite;
-      if (si === puesto) return;
-      puesto = si;
-      document.body.classList.toggle('is-scrolled', si);
+      if (si !== puesto){
+        puesto = si;
+        document.body.classList.toggle('is-scrolled', si);
+      }
+
+      /* EL APAGADO A NEGRO. La portada se va oscureciendo con el scroll
+         y llega a negro pleno ANTES de terminar de salir (al 82% de su
+         alto), no justo al final. Si llegara justo, el último tramo se
+         vería todavía con algo de imagen y el corte con la franja negra
+         de abajo se notaría. Terminando antes, lo último que se ve de
+         la portada ya es del mismo color que lo que sigue. */
+      if (portada){
+        var h = portada.offsetHeight * 0.82;
+        var f = h > 0 ? window.scrollY / h : 0;
+        f = f < 0 ? 0 : (f > 1 ? 1 : f);
+        portada.style.setProperty('--fade', f.toFixed(3));
+      }
+      /* Segundo estado: apenas se deja atrás la portada clara, la
+         interfaz se invierte para leerse sobre el negro de abajo. Se
+         cambia antes de llegar del todo (al 72%) para que el logo no
+         quede un instante en tinta oscura sobre fondo negro. */
+      /* EL FOCO DE LA FRANJA. --p va de 0 a 1 según qué tan cerca está
+         el centro de la franja del centro de la pantalla. El CSS lo usa
+         para el desenfoque, la opacidad y la convergencia de las dos
+         líneas.
+
+         Se eleva al cuadrado (p*p) para que el enfoque no sea lineal:
+         así el texto pasa la mayor parte del recorrido todavía blando y
+         resuelve rápido cerca del centro, que es como enfoca una lente
+         de verdad. Lineal se siente mecánico. */
+      if (!texto){
+        franja = document.getElementById('band');
+        texto  = franja && franja.querySelector('.band-copy');
+      }
+      if (texto){
+        var rf = franja.getBoundingClientRect();
+        var centroF = rf.top + rf.height / 2;
+        var centroV = window.innerHeight / 2;
+        var alcance = window.innerHeight / 2 + rf.height / 2;
+        var p = 1 - Math.abs(centroF - centroV) / alcance;
+        p = p < 0 ? 0 : (p > 1 ? 1 : p);
+        texto.style.setProperty('--p', (p * p).toFixed(3));
+      }
+
+      /* Se reusa la misma `portada` de arriba. Declararla de nuevo acá
+         con var la elevaba al inicio de la función y la dejaba en
+         undefined justo donde se calcula el apagado. */
+      var corte = portada ? portada.offsetHeight * 0.72 : window.innerHeight * 0.72;
+      var osc = window.scrollY > corte;
+      if (osc !== oscuro){
+        oscuro = osc;
+        document.body.classList.toggle('is-dark', osc);
+      }
     }
     addEventListener('scroll', mirar, { passive:true });
     mirar();
   })();
+
   </script>
 
   <div class="cover-copy">
@@ -824,6 +1199,81 @@ body.is-scrolled .hud--tr{ top:var(--hud-y-min); }
        stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"
        aria-hidden="true"><path d="M12 4v16m0 0-7-7m7 7 7-7"/></svg>
 </section>
+
+<!-- La franja. Una pausa entre la portada y el reel: la portada llega
+     apagada a negro, acá se lee una frase, y recién después arranca la
+     vuelta al auto. El texto es de ejemplo hasta que definamos el
+     definitivo. -->
+<section id="band">
+  <div class="band-copy">
+    <p>Elegidos, no conseguidos.</p>
+    <p>Revisado. Verificado. Entregado.</p>
+  </div>
+</section>
+
+<!-- El reel: la vuelta al auto. No se reproduce solo — lo mueve el
+     scroll. El contenedor mide varias pantallas y el video queda
+     pegado adentro mientras la sección pasa. -->
+<section id="reel">
+  <div class="reel-stick">
+    <video id="reelVid" muted playsinline preload="auto"></video>
+  </div>
+</section>
+
+<script>
+(function(){
+  var sec = document.getElementById('reel');
+  var v   = document.getElementById('reelVid');
+
+  /* En celular todavia no hay pieza propia, asi que la seccion entera
+     se oculta (ver el @media) y aca ni siquiera se pide el archivo: no
+     tiene sentido bajar 10 MB para algo que no se muestra. Cuando
+     llegue el video vertical se agrega aca y se saca el display:none. */
+  /* Dos piezas distintas, como en la portada: la de computadora es
+     horizontal y la de celular es vertical, filmadas aparte. Se mira el
+     MENOR entre pantalla y ventana para que una ventana de escritorio
+     angosta reciba la vertical, que es la que le va a entrar bien. */
+  var pantalla = Math.min(
+    (window.screen && screen.width) || 9999,
+    window.innerWidth || 9999
+  );
+  var base = 'assets/video/reel-' + (pantalla <= 767 ? 'mobile' : 'desktop');
+  v.poster = base + '-poster.jpg';
+  v.src    = base + '.mp4';
+
+  var dur = 0, objetivo = 0, actual = 0, vivo = false;
+
+  /* Cuánto se avanzó de la sección, de 0 a 1. */
+  function avance(){
+    var r = sec.getBoundingClientRect();
+    var recorrido = sec.offsetHeight - window.innerHeight;
+    if (recorrido <= 0) return 0;
+    var p = -r.top / recorrido;
+    return p < 0 ? 0 : (p > 1 ? 1 : p);
+  }
+
+  /* El bucle. `actual` persigue a `objetivo` en vez de saltar a él: eso
+     es lo que convierte un golpe de rueda en un movimiento que frena
+     solo. Cuando la diferencia es despreciable se deja de escribir en
+     el video, para no pedirle un seek por cuadro estando quieto. */
+  function cuadro(){
+    objetivo = avance() * dur;
+    var d = objetivo - actual;
+    if (Math.abs(d) > 0.0015){
+      actual += d * 0.12;
+      try { v.currentTime = actual; } catch(e){}
+    }
+    requestAnimationFrame(cuadro);
+  }
+
+  v.addEventListener('loadedmetadata', function(){
+    dur = v.duration || 0;
+    actual = objetivo = avance() * dur;
+    try { v.currentTime = actual; } catch(e){}
+    if (!vivo){ vivo = true; requestAnimationFrame(cuadro); }
+  });
+})();
+</script>
 
 <main id="stage">
 
@@ -891,6 +1341,96 @@ body.is-scrolled .hud--tr{ top:var(--hud-y-min); }
   </button>
 
 </main>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   LA CARGA — qué se espera y hasta cuándo
+
+   Se espera lo que hace falta para que la PRIMERA impresión y el
+   PRIMER scroll estén bien:
+
+     · las tipografías        20%   si llegan tarde, el texto salta
+     · el video de portada    35%   es lo primero que se ve
+     · el video del reel      45%   es lo que se rompe si falta
+
+   El reel pesa 10 MB en computadora y 5,4 en celular. Es el que más
+   tarda y por eso el que más porcentaje ocupa: la barra tiene que
+   reflejar la espera real, no llegar al 90% en un segundo y quedarse
+   ahí, que es la forma más rápida de que una carga se sienta rota.
+
+   HAY UN TECHO DE 15 SEGUNDOS. Con una conexión mala, esperar los
+   10 MB completos es peor que entrar con el reel a medio bajar: el
+   scroll se recupera solo a medida que llega. Nadie se queda mirando
+   un negro indefinido.
+   ═══════════════════════════════════════════════════════════════════ */
+(function(){
+  var cuerpo = document.body;
+  cuerpo.classList.add('cargando');
+
+  /* El navegador restaura el scroll al recargar. Si no se desactiva,
+     alguien que recarga a mitad de página entra con el loader puesto
+     pero el scroll a la mitad, y al soltarlo aparece en cualquier lado. */
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  window.scrollTo(0, 0);
+
+  var linea = document.querySelector('.loader-linea span');
+  var pesos = { fuentes:.20, portada:.35, reel:.45 };
+  var estado = { fuentes:0, portada:0, reel:0 };
+  var terminado = false;
+
+  function pintar(){
+    var p = estado.fuentes*pesos.fuentes + estado.portada*pesos.portada + estado.reel*pesos.reel;
+    if (linea) linea.style.setProperty('--carga', Math.min(1, p).toFixed(3));
+    if (p >= .999) listo();
+  }
+
+  function listo(){
+    if (terminado) return;
+    terminado = true;
+    if (linea) linea.style.setProperty('--carga', '1');
+    window.scrollTo(0, 0);
+    cuerpo.classList.remove('cargando');
+    cuerpo.classList.add('ya-cargo');
+    /* El scroll arranca recién ahora: se avisa a los efectos para que
+       tomen su estado inicial en vez de esperar al primer movimiento. */
+    window.dispatchEvent(new Event('scroll'));
+  }
+
+  /* Tipografías */
+  if (document.fonts && document.fonts.ready){
+    document.fonts.ready.then(function(){ estado.fuentes = 1; pintar(); });
+  } else { estado.fuentes = 1; }
+
+  /* Un video: se sigue cuánto lleva bufereado contra su duración. */
+  function seguir(id, clave){
+    var v = document.getElementById(id);
+    if (!v){ estado[clave] = 1; pintar(); return; }
+
+    function medir(){
+      if (!v.duration || !isFinite(v.duration)) return;
+      var fin = 0;
+      for (var i = 0; i < v.buffered.length; i++) fin = Math.max(fin, v.buffered.end(i));
+      /* No se espera el archivo entero: con el 85% bajado el scrub ya
+         no se queda sin datos, y el resto llega mientras se mira. */
+      estado[clave] = Math.min(1, (fin / v.duration) / .85);
+      pintar();
+    }
+
+    ['progress','loadeddata','canplay','canplaythrough','timeupdate'].forEach(function(e){
+      v.addEventListener(e, medir);
+    });
+    v.addEventListener('error', function(){ estado[clave] = 1; pintar(); });
+    medir();
+  }
+
+  seguir('coverVid', 'portada');
+  seguir('reelVid', 'reel');
+
+  /* Red de seguridad: pase lo que pase, a los 15 segundos se entra. */
+  setTimeout(listo, 15000);
+  pintar();
+})();
+</script>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
 <script>
