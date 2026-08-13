@@ -1159,82 +1159,33 @@ body.is-dark.is-scrolled #topbar{
       v.appendChild(s);
     });
 
-    /* load() DESPUÉS de agregar las fuentes.
+    /* Y NADA MÁS.
 
-       El <video> se parsea vacío y las fuentes se cuelgan acá. Sin este
-       load() explícito, iOS no vuelve a intentar la selección de
-       recurso de forma confiable: el archivo se descargaba igual, pero
-       el autoplay no se disparaba y el sistema dibujaba encima su botón
-       de play. Es el botón que aparecía sobre la portada. */
-    v.load();
+       Acá llegó a haber un load(), un play() explícito y cuatro
+       reintentos (pause, visibilitychange, un evento propio de la
+       pantalla de carga y pageshow). Todo eso era para forzar el
+       autoplay en iOS, y era ruido tapando el problema real, que estaba
+       en otro lado: había un TERCER video con autoplay y precarga
+       peleando por el decodificador, que iOS entrega de a uno.
 
-    /* Y el play explícito. El atributo autoplay solo no alcanza cuando
-       las fuentes llegaron por JS. Como es muted + playsinline, iOS lo
-       permite sin gesto. Si aun así lo rechaza —modo de bajo consumo,
-       por ejemplo— se reintenta con el primer toque. */
-    function arrancar(){
-      var pr;
-      try { pr = v.play(); } catch(e){ return; }
-      if (pr && pr.catch) pr.catch(function(){
-        ['touchstart','click'].forEach(function(ev){
-          addEventListener(ev, function una(){
-            removeEventListener(ev, una);
-            v.play().catch(function(){});
-          }, { passive:true, once:true });
-        });
-      });
-    }
+       Resuelto eso —el reel y el collage no se piden hasta acercarse—,
+       el atributo autoplay alcanza solo. El load() encima incluso
+       molestaba: aborta la carga que agregar las fuentes ya había
+       arrancado, y la vuelve a empezar.
 
-    if (v.readyState >= 2) arrancar();
-    v.addEventListener('loadeddata', arrancar);
-
-    /* REINTENTOS. Un solo intento no alcanzaba.
-
-       El play() sale cuando el video termina de cargar, y en ese momento
-       la pantalla de carga TODAVÍA lo está tapando. iOS no reproduce un
-       video que no está efectivamente a la vista: lo rechazaba o lo
-       pausaba enseguida, y como no había segundo intento, quedaba pausado
-       para siempre con el botón de play encima.
-
-       Ahora se reintenta en los tres momentos en que el estado cambia:
-
-         · cuando se va la pantalla de carga y el video queda visible
-         · cuando se vuelve a la pestaña
-         · y si algo lo pausa sin que nadie se lo pida
-
-       El guardia de `parando` evita que el reintento pelee con una pausa
-       legítima y se quede en un bucle. */
-    var parando = false;
-
-    v.addEventListener('pause', function(){
-      if (parando || v.ended) return;
-      arrancar();
-    });
-
-    /* SE PAUSA AL SALIR DE PANTALLA.
-
-       No es sólo ahorro: iOS reproduce UN video a la vez. Con la portada
-       corriendo eternamente arriba, el video del collage —abajo de todo—
-       pedía su turno y se lo negaban, y quedaba como una foto fija.
-
-       Dejando libre el decodificador cuando la portada no se ve, el de
-       abajo puede arrancar. Al volver arriba, la portada retoma. */
+       Lo único que se conserva es la pausa al salir de pantalla, y no
+       por ahorro: con la portada corriendo eternamente arriba, el video
+       del collage pedía turno y se lo negaban, y quedaba como una foto
+       fija. Soltando el decodificador cuando la portada no se ve, el de
+       abajo arranca. */
     if ('IntersectionObserver' in window){
       new IntersectionObserver(function(e){
         e.forEach(function(x){
-          if (x.isIntersecting){ parando = false; arrancar(); }
-          else { parando = true; try { v.pause(); } catch(err){} }
+          if (x.isIntersecting) { var pr = v.play(); if (pr && pr.catch) pr.catch(function(){}); }
+          else { try { v.pause(); } catch(err){} }
         });
       }, { threshold:0.01 }).observe(v);
     }
-
-    document.addEventListener('visibilitychange', function(){
-      if (!document.hidden) arrancar();
-    });
-
-    /* La pantalla de carga avisa cuando se retira. */
-    window.addEventListener('nyna:cargado', arrancar);
-    addEventListener('pageshow', arrancar);
   })();
 
   /* EL MENÚ DE CELULAR.
@@ -1701,10 +1652,6 @@ body.is-dark.is-scrolled #topbar{
     cuerpo.classList.remove('cargando');
     cuerpo.classList.add('ya-cargo');
 
-    /* Se avisa que el video de la portada ya quedó a la vista, para que
-       vuelva a intentar reproducirse. Mientras esta pantalla lo tapaba,
-       iOS podía estar negándose. */
-    window.dispatchEvent(new Event('nyna:cargado'));
     /* El scroll arranca recién ahora: se avisa a los efectos para que
        tomen su estado inicial en vez de esperar al primer movimiento. */
     window.dispatchEvent(new Event('scroll'));
