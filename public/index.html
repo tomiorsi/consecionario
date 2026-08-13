@@ -570,28 +570,53 @@ body{
     preload="metadata"></video>
 
   <script>
-  /* Acá se elige ENTRE DOS PIEZAS DISTINTAS, no entre dos calidades del
-     mismo video: la de computadora es horizontal y la de teléfono es
-     vertical. Por eso se cambian juntos el video y su poster.
+  /* DOS DECISIONES ACÁ ADENTRO
+     ─────────────────────────────────────────────────────────────────
+     1) QUÉ PIEZA: son dos videos distintos, no dos calidades del mismo.
+        El de computadora es horizontal y el de teléfono es vertical,
+        filmados aparte. Cambian juntos el video y su poster.
 
-     No se usa <source media> porque Safari ignora ese atributo dentro
-     de <video> y le serviría la pieza horizontal al teléfono.
+        Se mide la PANTALLA y no la ventana: innerWidth acá se lee
+        mientras la página todavía se parsea, y si en ese instante la
+        ventana no tiene su tamaño final —o el usuario la tiene angosta
+        en un monitor grande— quedaba fijada la pieza equivocada para
+        toda la sesión. screen.width no cambia.
 
-     El script va inmediatamente después del elemento, antes de que el
-     navegador empiece a cargar nada. */
+     2) QUÉ CODEC: se ofrecen tres archivos del MISMO video y el
+        navegador se queda con el primero que sabe decodificar.
+
+          AV1   1,3-1,6 MB  Chrome, Edge, Firefox, Android, Safari 17+
+          HEVC  1,4-1,6 MB  Safari e iOS (decodifican por hardware)
+          H.264  13-14 MB   red de seguridad universal
+
+        Los tres tienen la misma calidad visual; AV1 y HEVC son
+        simplemente codecs más eficientes. En la práctica casi nadie
+        baja el H.264: está para que ningún navegador quede afuera.
+
+        La cadena de `codecs` tiene que ser exacta — si falta o está
+        mal, el navegador no puede saber si sabe reproducir el archivo
+        y termina eligiendo uno que no puede decodificar. Los valores
+        salen del archivo real: AV1 perfil Main nivel 8 (4.0) 8 bits,
+        HEVC perfil Main nivel 120 (4.0).
+
+        Se usan <source> y no una asignación directa a src porque si un
+        archivo falla al cargar, el navegador pasa solo al siguiente. */
   (function(){
     var v = document.getElementById('coverVid');
-    /* Se mide la PANTALLA, no la ventana. innerWidth acá adentro se lee
-       mientras la página todavía se está parseando: si en ese instante
-       la ventana no tiene su tamaño final —o el usuario simplemente la
-       tiene angosta en una pantalla grande— quedaba fijada la pieza
-       equivocada para toda la sesión. screen.width no cambia. */
+
     var pantalla = (window.screen && screen.width) || window.innerWidth || 1920;
-    var chico = pantalla <= 767;
-    v.poster = chico ? 'assets/video/portada-poster@sm.jpg'
-                     : 'assets/video/portada-poster.jpg';
-    v.src    = chico ? 'assets/video/portada@sm.mp4'
-                     : 'assets/video/portada.mp4';
+    var base = 'assets/video/portada-' + (pantalla <= 767 ? 'mobile' : 'desktop');
+
+    v.poster = base + '-poster.jpg';
+
+    [ ['-av1.mp4',  'video/mp4; codecs="av01.0.08M.08"'],
+      ['-hevc.mp4', 'video/mp4; codecs="hvc1.1.6.L120.B0"'],
+      ['.mp4',      'video/mp4'] ].forEach(function(f){
+      var s = document.createElement('source');
+      s.src  = base + f[0];
+      s.type = f[1];
+      v.appendChild(s);
+    });
   })();
   </script>
 
