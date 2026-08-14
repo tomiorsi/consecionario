@@ -48,13 +48,23 @@ def a_svg(lat, lon):
 
 # Grosor y capa segun el tipo de calle. El orden importa: primero las
 # chicas, despues las grandes, asi las avenidas quedan por encima.
+#
+# LOS GRISES SON NEUTROS Y ESO ES A PROPOSITO. Antes eran azul-grises
+# (#31363F, #4A515D, #5A6270...), copiados del estilo nocturno de Google.
+# Sobre una pagina que es negra de punta a punta ese azulado se leia como
+# una mancha fria, y era lo unico de color en toda la pantalla.
+#
+# Los neutros de ahora NO se eligieron a ojo: cada uno tiene exactamente
+# la misma luminancia que el azul-gris que reemplazo, calculada en sRGB
+# lineal. Por eso la jerarquia —calle fina y oscura, avenida gruesa y
+# clara— quedo intacta: lo unico que se fue es el tinte.
 CAPAS = [
-    (("service", "footway", "path", "pedestrian", "steps", "track"), 0.9, "#31363F"),
-    (("residential", "unclassified", "living_street", "road"),       1.8, "#4A515D"),
-    (("tertiary", "tertiary_link"),                                  2.6, "#5A6270"),
-    (("secondary", "secondary_link"),                                3.4, "#69717F"),
+    (("service", "footway", "path", "pedestrian", "steps", "track"), 0.9, "#363636"),
+    (("residential", "unclassified", "living_street", "road"),       1.8, "#515151"),
+    (("tertiary", "tertiary_link"),                                  2.6, "#616161"),
+    (("secondary", "secondary_link"),                                3.4, "#707070"),
     (("primary", "primary_link", "trunk", "trunk_link",
-      "motorway", "motorway_link"),                                  4.6, "#7C8492"),
+      "motorway", "motorway_link"),                                  4.6, "#838383"),
 ]
 
 # Como los escribe Google en el mapa, que es con lo que se compara.
@@ -167,14 +177,14 @@ def main():
         out.append('</g>')
 
     for pts in vias_tren:
-        out.append(f'<path d="{d_de(pts)}" stroke="#363C48" stroke-width="1.6" '
+        out.append(f'<path d="{d_de(pts)}" stroke="#3C3C3C" stroke-width="1.6" '
                    f'stroke-dasharray="6 5"/>')
 
     # EL PASAJE, ENCIMA DE TODO Y EN CLARO. Es de lo que habla la
     # seccion: el resto del barrio esta para dar contexto, no para
     # competir.
     if lanin:
-        out.append('<g stroke="#F2F4F8" stroke-width="4.6" stroke-linecap="round">')
+        out.append('<g stroke="#FFFFFF" stroke-width="4.6" stroke-linecap="round">')
         out += [f'<path d="{d_de(p)}"/>' for p in lanin]
         out.append('</g>')
 
@@ -184,7 +194,7 @@ def main():
     # lee como una etiqueta pegada encima; girado se lee como un mapa.
     out.append(f'<g font-family="system-ui,-apple-system,Helvetica,Arial,sans-serif" '
                f'font-size="{TXT}" letter-spacing="{TXT*0.06:.2f}" '
-               f'fill="#8A92A0" stroke="#000000" stroke-width="{TXT*0.30:.2f}" '
+               f'fill="#919191" stroke="#000000" stroke-width="{TXT*0.30:.2f}" '
                f'paint-order="stroke" stroke-linejoin="round" '
                f'text-anchor="middle">')
 
