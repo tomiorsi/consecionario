@@ -2513,9 +2513,21 @@ body.is-dark.is-scrolled #topbar{
    target="_blank" rel="noopener"
    aria-label="Pasaje Lanín 154, Barracas — abrir en Google Maps">
 
-  <img src="assets/mapa/barracas.svg"
-       alt="Mapa de Barracas con el Pasaje Lanín señalado"
-       loading="lazy" decoding="async" width="1000" height="1000">
+  <!-- Dos dibujos, no dos tamaños del mismo. El SVG se ve a 1440 px de
+       ancho en computadora y a unos 560 en teléfono: con un solo
+       archivo, o los nombres de calle salen enormes en uno o ilegibles
+       en el otro. El de teléfono además abarca menos cuadras, porque en
+       una pantalla angosta entra menos.
+
+       Acá sí sirve <source media>: en <picture> lo respetan todos los
+       navegadores. Es dentro de <video> donde Safari lo ignora, que es
+       el motivo por el que los videos del sitio se eligen por script. -->
+  <picture>
+    <source media="(max-width:767px)" srcset="assets/mapa/barracas-movil.svg">
+    <img src="assets/mapa/barracas.svg"
+         alt="Mapa de Barracas con el Pasaje Lanín señalado"
+         loading="lazy" decoding="async" width="1000" height="1000">
+  </picture>
 
   <span class="donde-pin" aria-hidden="true"></span>
 
