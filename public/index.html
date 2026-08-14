@@ -440,10 +440,13 @@ video::-webkit-media-controls{ display:none !important; }
    tape la pantalla es el golpe. Meterla en un recuadro con montañas
    detrás sería decir lo mismo dos veces y aplanarlo.
 
-   HOY SON TRES FOTOS, MAÑANA UN VIDEO. El montaje —tres planos, corte
-   seco, en loop— ya es el definitivo; lo que falta es que cada plano
-   se mueva. Cuando llegue el video, las tres .ruta-toma se reemplazan
-   por un solo <video> y esta sección no cambia en nada más.
+   Son tres planos montados en UN archivo, no tres videos. El corte va
+   adentro del video: seco, cada 1,5 s. Un fundido entre plano y plano
+   mataría la velocidad en el acto — lo que da adrenalina es el corte.
+
+   Y en un archivo, además, porque tres videos sueltos serían tres
+   decodificadores peleando, que es exactamente lo que rompió la
+   portada y el collage en iPhone.
    ══════════════════════════════════════════════════════════════════ */
 #ruta{
   position:relative;
@@ -452,16 +455,7 @@ video::-webkit-media-controls{ display:none !important; }
   background:var(--void);
 }
 
-.ruta-toma{
-  position:absolute;
-  inset:0;
-  opacity:0;
-}
-/* Corte SECO, sin transición. Un fundido entre plano y plano mata la
-   velocidad en el acto: lo que da adrenalina es el corte. */
-.ruta-toma.on{ opacity:1; }
-
-.ruta-toma img{
+#rutaVid{
   display:block;
   width:100%;
   height:100%;
@@ -2220,24 +2214,13 @@ body.is-dark.is-scrolled #topbar{
   </div>
 </section>
 
-<!-- La ruta. Tres planos, corte seco, en loop.
+<!-- La ruta. Tres planos montados en un solo archivo, corte seco, loop.
 
      El orden no es casual: viene de frente, pasa al lado, se va. Leído
-     así los tres se sienten UN SOLO manejo y no tres fotos distintas.
-
-     PROVISORIO: cuando lleguen los videos, estos tres <div> se cambian
-     por un <video> con los tres cortes ya montados y se borra el
-     script del final de la sección. Nada más. -->
+     así los tres se sienten UN SOLO manejo y no tres clips distintos. -->
 <section id="ruta">
-  <div class="ruta-toma">
-    <img src="assets/ruta/toma-1.webp" alt="Golf GTI rojo llegando de frente por un camino de montaña" loading="lazy" decoding="async">
-  </div>
-  <div class="ruta-toma">
-    <img src="assets/ruta/toma-2.webp" alt="Detalle del lateral trasero del Golf GTI a velocidad" loading="lazy" decoding="async">
-  </div>
-  <div class="ruta-toma">
-    <img src="assets/ruta/toma-3.webp" alt="Golf GTI rojo alejándose por el camino de montaña" loading="lazy" decoding="async">
-  </div>
+  <video id="rutaVid" muted loop playsinline preload="none"
+         aria-label="Golf GTI rojo en un camino de montaña"></video>
 
   <div class="ruta-copy">
     <p>Lo que no entra en una ficha técnica.</p>
@@ -2246,60 +2229,79 @@ body.is-dark.is-scrolled #topbar{
 </section>
 
 <script>
-/* EL MONTAJE.
+/* Mismo criterio que el collage, que es el otro video que se reproduce
+   solo: no se pide hasta acercarse y se pausa al salir de pantalla.
 
-   Tres planos que se cambian solos cada 1,6 s. Corto a propósito: tres
-   cortes rápidos se leen como velocidad y tres planos largos se leen
-   como un pase de diapositivas.
-
-   Sólo corre cuando la sección está en pantalla. Es la misma regla que
-   el resto del sitio —nada trabaja de fondo— y acá además evita que el
-   montaje esté a mitad de camino cuando alguien llega: al entrar
-   siempre arranca del primer plano, que es el que abre la secuencia. */
+   Lo segundo no es ahorro: iOS reparte los decodificadores de a uno, y
+   un video corriendo eternamente en una sección que nadie está mirando
+   es el que le niega el turno al siguiente. Es literalmente el bug que
+   dejaba el collage como una foto fija. */
 (function(){
   var sec = document.getElementById('ruta');
-  if (!sec) return;
+  var v   = document.getElementById('rutaVid');
+  if (!sec || !v) return;
 
-  var tomas = sec.querySelectorAll('.ruta-toma');
-  if (!tomas.length) return;
+  /* Todavía no hay pieza vertical: por ahora el teléfono recibe la
+     horizontal y object-fit:cover la centra en el auto. Cuando llegue,
+     se elige acá igual que en la portada y el reel. */
+  var base = 'assets/ruta/ruta-desktop';
+  v.poster = base + '-poster.jpg';
 
-  var CADA = 1600;
-  var actual = 0, reloj = null;
+  var pedido = false;
 
-  function poner(i){
-    for (var k = 0; k < tomas.length; k++){
-      tomas[k].classList.toggle('on', k === i);
+  function encender(){
+    if (!pedido){
+      pedido = true;
+      /* Con preload="none", asignar la fuente no descarga nada: hay que
+         subirlo a 'auto' y llamar a load(). */
+      v.preload = 'auto';
+
+      var HEVC = ['-hevc.mp4', 'video/mp4; codecs="hvc1.1.6.L120.B0"'];
+      var H264 = ['.mp4',      'video/mp4'];
+
+      [HEVC, H264].forEach(function(f){
+        var s = document.createElement('source');
+        s.src  = base + f[0];
+        s.type = f[1];
+        v.appendChild(s);
+      });
+
+      v.load();
+
+      /* El primer play() sale con el video todavía vacío y puede
+         rechazarse. Si ese rechazo se traga en silencio, la sección
+         queda con el póster puesto para siempre. */
+      v.addEventListener('loadeddata', encender);
+      v.addEventListener('canplay', encender);
     }
-    actual = i;
-  }
-
-  function arrancar(){
-    if (reloj) return;
-    poner(0);
-    reloj = setInterval(function(){
-      poner((actual + 1) % tomas.length);
-    }, CADA);
-  }
-
-  function parar(){
-    if (!reloj) return;
-    clearInterval(reloj);
-    reloj = null;
-  }
-
-  /* Quien pidió no ver movimiento ve el primer plano y nada más. */
-  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches){
-    poner(0);
-    return;
+    var pr;
+    try { pr = v.play(); } catch(e){ return; }
+    if (pr && pr.catch) pr.catch(function(){});
   }
 
   if ('IntersectionObserver' in window){
     new IntersectionObserver(function(e){
-      e.forEach(function(x){ x.isIntersecting ? arrancar() : parar(); });
-    }, { threshold:0.15 }).observe(sec);
+      e.forEach(function(x){
+        if (x.isIntersecting) encender();
+        else if (pedido && !v.paused){ try { v.pause(); } catch(err){} }
+      });
+    }, { rootMargin:'300px 0px' }).observe(sec);
   } else {
-    arrancar();
+    encender();
   }
+
+  /* Respaldo por scroll: si el aviso no llegara, la sección se quedaría
+     con el póster y nada más. */
+  function porScroll(){
+    if (pedido){ removeEventListener('scroll', porScroll); return; }
+    var r = sec.getBoundingClientRect();
+    if (r.top < window.innerHeight + 300 && r.bottom > -300){
+      encender();
+      removeEventListener('scroll', porScroll);
+    }
+  }
+  addEventListener('scroll', porScroll, { passive:true });
+  porScroll();
 })();
 </script>
 
