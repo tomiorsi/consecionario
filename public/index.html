@@ -1485,62 +1485,21 @@ body.is-scrolled #topbar{
 body.is-scrolled .hud--tl,
 body.is-scrolled .hud--tr{ top:var(--hud-y-min); }
 
-/* ── EL MENÚ INTELIGENTE ──────────────────────────────────────────
-   El documento lo pide con todas las letras: la barra se esconde
-   cuando el usuario BAJA, "para dejar ver las fotos por completo", y
-   reaparece cuando SUBE.
+/* EL HEADER NO SE ESCONDE. La marca se ve en toda la página, siempre.
 
-   Se mueve con transform y no con top, por dos razones. La primera es
-   que top ya está ocupado: es lo que compacta las piezas al aparecer
-   el vidrio, y pelearse por la misma propiedad daría un salto cada vez
-   que los dos estados cambian juntos. La segunda es que transform y
-   opacity son las dos únicas propiedades que el navegador puede animar
-   sin volver a calcular el layout, y esto se dispara scrolleando: si
-   costara un reflujo, se notaría justo cuando la página está en
-   movimiento, que es el peor momento.
+   Estuvo un rato escondiéndose al bajar y reapareciendo al subir —el
+   documento lo pide así, "para dejar ver las fotos por completo"— pero
+   en uso real molesta más de lo que suma: el logo desapareciendo apenas
+   arrancás a scrollear se lee como que algo se rompió, no como una
+   cortesía. Se probó, se ajustó el umbral, y aun así seguía molestando.
+   Queda fijo.
 
-   El desplazamiento es "todo mi alto + lo que estoy separado de
-   arriba": así la pieza sale entera de la pantalla sin importar cuánto
-   mida el logo en cada tamaño. */
-body.nav-oculto #topbar,
-body.nav-oculto header.hud--tl,
-body.nav-oculto #burger{
-  transform:translateY(calc(-100% - var(--hud-y)));
-  opacity:0;
-  pointer-events:none;
-}
-
-#topbar, header.hud--tl, #burger{
-  /* Irse rápido y volver despacio. Al bajar, la barra estorba y cuanto
-     antes se vaya mejor; al subir, el usuario la está PIDIENDO, y una
-     barra que aparece de golpe se lee como un parpadeo. El documento
-     dice "reaparecer de forma sutil": eso es la asimetría. */
-  transition:transform .34s var(--ease), opacity .24s var(--ease);
-}
-body.nav-oculto #topbar,
-body.nav-oculto header.hud--tl,
-body.nav-oculto #burger{
-  transition:transform .26s var(--ease), opacity .18s var(--ease);
-}
-
-/* El #topbar además transiciona su vidrio; se repite acá para no
-   perderlo al declarar la transición de arriba. */
+   Se conserva sólo la transición del vidrio, que es la que hace que el
+   fondo esmerilado aparezca de a poco al dejar la portada en vez de
+   prenderse de golpe. */
 #topbar{
-  transition:transform .34s var(--ease), opacity .24s var(--ease),
-             background .45s var(--ease),
+  transition:background .45s var(--ease),
              backdrop-filter .45s var(--ease), -webkit-backdrop-filter .45s var(--ease);
-}
-
-/* Con el panel abierto la barra NO se esconde, pase lo que pase con el
-   scroll. Es una red de seguridad declarativa: si algo llegara a
-   ocultar el header con el menú desplegado, el menú quedaría abierto y
-   sin forma de cerrarlo. */
-body.menu-abierto.nav-oculto #topbar,
-body.menu-abierto.nav-oculto header.hud--tl,
-body.menu-abierto.nav-oculto #burger{
-  transform:none;
-  opacity:1;
-  pointer-events:auto;
 }
 
 /* La marca. El emblema es el trazo vectorizado del logo original; el
@@ -2650,99 +2609,6 @@ body.is-dark.is-scrolled #topbar{
        no queda un rAF girando de fondo con la página quieta. */
     var objetivoY = 1, actualY = 1, flotando = false;
 
-    /* EL MENÚ INTELIGENTE — la parte que decide.
-
-       No alcanza con mirar si el último cuadro fue para arriba o para
-       abajo. Scrolleando con el dedo o con un trackpad la dirección se
-       invierte sola todo el tiempo, un píxel para acá y dos para allá,
-       y una barra que reacciona a eso titila.
-
-       Por eso se ACUMULA el movimiento y sólo se actúa al pasar un
-       umbral. Al cambiar de sentido el acumulador vuelve a cero, así
-       cada gesto se mide desde donde empezó y no arrastra el anterior.
-
-       Los dos umbrales son distintos a propósito: hay que bajar bastante
-       para que la barra se vaya (64 px, más que cualquier temblor de
-       dedo) y muy poquito para que vuelva (18 px). Esconderla de más
-       molesta; mostrarla de más, no. El usuario que sube la está
-       buscando.
-
-       ZONA_LIBRE es el tramo de arriba donde nunca se esconde: ahí la
-       barra es transparente y no tapa nada, así que ocultarla sería
-       movimiento sin motivo. */
-    var UMBRAL_BAJA = 64, UMBRAL_SUBE = 18, ZONA_LIBRE = 140;
-    var ultimoY = window.scrollY, junta = 0, escondido = false;
-    var sinMovimiento = window.matchMedia &&
-                        matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    /* LA GRACIA. Tocar un link del menú provoca el scroll hacia abajo
-       más grande de toda la página, así que sin esto el header se
-       escondía justo después de que el usuario lo usó: elegís una
-       sección y lo primero que ves es que el menú se te va.
-
-       Durante el salto no se esconde. Es el único momento en que bajar
-       NO significa "quiero ver el contenido": significa "llevame ahí".
-
-       Los links no hacen scroll suave: el salto es INSTANTÁNEO, un solo
-       evento con un delta enorme. Por eso la gracia se mide en tiempo y
-       no en píxeles recorridos —un presupuesto de píxeles se gastaría
-       entero en ese único evento y no serviría de nada—. La ventana es
-       corta a propósito: alcanza para el salto y se apaga antes de que
-       el usuario alcance a scrollear por su cuenta.
-
-       El listener va en el documento y no en los links porque este
-       script vive dentro de #cover y corre antes de que exista #menu. */
-    var gracia = 0;
-    document.addEventListener('click', function(e){
-      var a = e.target && e.target.closest && e.target.closest('#menu a[href^="#"]');
-      if (a) gracia = performance.now() + 400;
-    }, true);
-
-    function menuInteligente(){
-      /* A quien pidió no ver movimiento no se le mueve el header. */
-      if (sinMovimiento) return;
-
-      var y = window.scrollY;
-      if (y < 0) y = 0;                 /* el rebote de iOS da negativos */
-      var d = y - ultimoY;
-      ultimoY = y;
-
-      /* BUG QUE HABÍA ACÁ: el acumulador seguía sumando aunque todavía
-         se estuviera DENTRO de la zona libre. Bajando de corrido desde
-         arriba, al llegar al borde de los 140 px "junta" ya traía esos
-         140 acumulados — más que el umbral de 64 — y el header se
-         escondía en el mismo instante en que cruzaba el borde, sin que
-         hiciera falta ningún gesto real más allá. Se veía como que el
-         logo desaparecía apenas se tocaba el scroll.
-
-         Reiniciarlo mientras y <= ZONA_LIBRE hace que, al salir de la
-         zona, el acumulador arranque en cero: recién ahí empieza a
-         contar el gesto de bajada, y hacen falta los 64 px de verdad. */
-      if (y <= ZONA_LIBRE) junta = 0;
-      else if (d !== 0){
-        if ((d > 0) !== (junta > 0)) junta = 0;
-        junta += d;
-      }
-
-      var enGracia = gracia > 0 && performance.now() < gracia;
-      if (enGracia) junta = 0;   /* el salto no cuenta como intención */
-
-      var esconder = escondido;
-      if (y <= ZONA_LIBRE || enGracia ||
-          document.body.classList.contains('menu-abierto')){
-        esconder = false;
-      } else if (junta >  UMBRAL_BAJA){
-        esconder = true;
-      } else if (junta < -UMBRAL_SUBE){
-        esconder = false;
-      }
-
-      if (esconder !== escondido){
-        escondido = esconder;
-        document.body.classList.toggle('nav-oculto', escondido);
-      }
-    }
-
     function flotar(){
       var d = objetivoY - actualY;
       if (Math.abs(d) < 0.0008){
@@ -2762,7 +2628,6 @@ body.is-dark.is-scrolled #topbar{
         document.body.classList.toggle('is-scrolled', si);
       }
 
-      menuInteligente();
 
       /* EL APAGADO A NEGRO. La portada se va oscureciendo con el scroll
          y llega a negro pleno ANTES de terminar de salir (al 82% de su
