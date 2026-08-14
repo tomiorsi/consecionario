@@ -2194,20 +2194,40 @@ body.is-dark.is-scrolled #topbar{
   function apagar(){
     if (!pegado) return;
 
-    /* CUÁNDO SE APAGA: MIENTRAS LA SECCIÓN SE VA, NO ANTES.
+    /* EL APAGADO VA EN DOS TRAMOS, Y HUBO QUE PROBAR LOS DOS EXTREMOS
+       PARA ENCONTRARLO.
 
-       Primero esto gastaba el último 14% del recorrido del reel, o sea
-       casi una pantalla entera de scroll mirando cómo se apaga un auto
-       que ya había terminado de girar. Se sentía como una demora para
-       poder salir de la sección.
+       Primero gastaba casi una pantalla entera del recorrido del reel
+       mirando apagarse un auto que ya había terminado de girar: se
+       sentía como una demora para poder salir de la sección.
 
-       Ahora se mide contra el borde de abajo de la sección: mientras el
-       reel llena la pantalla vale 0, y sube a 1 a medida que se va por
-       arriba. Ese tramo es el scroll que uno hace igual para pasar a lo
-       que sigue, así que la transición no cuesta recorrido: el auto se
-       disuelve al mismo tiempo que el mapa entra desde abajo. */
+       Después pasó a apagarse sólo mientras la sección se iba. Eso no
+       costaba recorrido, pero no se veía: para cuando arrancaba, el
+       auto ya estaba deslizándose fuera de pantalla, así que lo que se
+       apagaba era una franja que de todos modos se estaba yendo.
+
+       Un fundido que se vea necesita que el auto esté a la vista
+       mientras ocurre. No hay forma de esquivarlo; lo que sí se puede
+       es que cueste poco:
+
+         TRAMO 1 — media pantalla antes de soltarse, todavía pegado y
+                   llenando la ventana, baja hasta el 60%. Ahí se ve.
+         TRAMO 2 — mientras la sección se va, del 60% al 100%, montado
+                   sobre scroll que uno hace igual.
+
+       O sea: media pantalla de costo en vez de una entera, y a cambio
+       la transición se nota. */
     var alto = window.innerHeight || 1;
-    var a = 1 - (sec.getBoundingClientRect().bottom / alto);
+    var r = sec.getBoundingClientRect();
+    var a;
+
+    if (r.bottom > alto){
+      var falta = (r.bottom - alto) / (alto * .5);   // 1 → 0
+      a = falta >= 1 ? 0 : (1 - falta) * .6;
+    } else {
+      a = .6 + (1 - r.bottom / alto) * .4;
+    }
+
     if (a < 0) a = 0;
     if (a > 1) a = 1;
 
