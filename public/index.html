@@ -427,119 +427,167 @@ video::-webkit-media-controls{ display:none !important; }
 #concierge{
   position:relative;
   background:var(--void);
-  padding:clamp(4.5rem,12vh,8rem) var(--gut);
+  padding:clamp(5rem,13vh,9rem) var(--gut);
 }
 
 .conc-caja{
-  max-width:44rem;
+  max-width:46rem;
   margin:0 auto;
   text-align:center;
 }
 
+/* El rótulo, con una línea corta debajo. Es el único adorno de toda la
+   sección y hace bastante: da un punto de partida vertical y separa el
+   rótulo del título sin necesidad de meter aire de más. */
 .conc-eyebrow{
   display:block;
-  font-size:.66rem;
+  font-size:.6rem;
   font-weight:600;
-  letter-spacing:.3em;
+  letter-spacing:.38em;
+  text-indent:.38em;          /* compensa el espaciado del último carácter */
   text-transform:uppercase;
-  color:var(--steel);
+  color:var(--ink-3);
+}
+.conc-eyebrow::after{
+  content:"";
+  display:block;
+  width:2.2rem;
+  height:1px;
+  margin:clamp(.9rem,2vh,1.3rem) auto 0;
+  background:rgba(209,213,219,.28);
 }
 
+/* Menos espaciado entre letras que antes (.08 → .045). Syncopate ya es
+   una tipografía muy abierta; sumarle tracking en un título de dos
+   líneas la desarma y hace que se lea letra por letra en vez de como
+   palabras — que es lo que se veía "raro". */
 .conc-titulo{
   font-family:var(--display);
-  font-size:clamp(1.1rem,2.6vw,1.9rem);
+  font-size:clamp(1.15rem,2.7vw,2rem);
   font-weight:700;
   text-transform:uppercase;
-  letter-spacing:.08em;
-  line-height:1.45;
-  margin:clamp(.9rem,2.2vh,1.4rem) 0 0;
+  letter-spacing:.045em;
+  line-height:1.4;
+  margin:clamp(1.1rem,2.6vh,1.7rem) 0 0;
   color:var(--chrome);
 }
 
 .conc-bajada{
-  margin:clamp(.8rem,1.8vh,1.1rem) auto 0;
-  max-width:32rem;
-  font-size:clamp(.92rem,1.25vw,1.05rem);
-  line-height:1.65;
+  margin:clamp(1rem,2.2vh,1.4rem) auto 0;
+  max-width:30rem;
+  font-size:clamp(.92rem,1.2vw,1rem);
+  line-height:1.7;
   color:var(--steel);
 }
 
-/* EL SELECTOR. Dos estados de lo mismo, no dos formularios: cambia el
-   rótulo del segundo campo y el mensaje que se arma. */
+/* EL SELECTOR, AHORA EN SOLAPAS Y NO EN BLOQUE.
+
+   Antes era un rectángulo con la opción activa rellena de blanco puro.
+   En una sección que es toda tipografía sobre negro, ese bloque macizo
+   era lo más pesado de la pantalla y se llevaba toda la atención — por
+   encima del título, que es lo que tendría que mandar.
+
+   Ahora son dos palabras con una línea fina debajo de la activa. Dice
+   exactamente lo mismo, ocupa el mismo lugar, y deja de gritar. */
 .conc-modos{
   display:inline-flex;
-  margin:clamp(2rem,4.5vh,3rem) 0 0;
-  border:1px solid rgba(209,213,219,.22);
-  border-radius:2px;
-  overflow:hidden;
+  gap:clamp(1.4rem,3vw,2.4rem);
+  margin:clamp(2.2rem,5vh,3.2rem) 0 0;
 }
 
 .conc-modos button{
+  position:relative;
   appearance:none;
   border:0;
   background:transparent;
-  padding:.85em 1.5em;
+  padding:0 0 .7rem;
   font-family:var(--display);
-  font-size:.6rem;
+  font-size:.62rem;
   font-weight:700;
-  letter-spacing:.14em;
+  letter-spacing:.16em;
   text-transform:uppercase;
-  color:var(--steel);
+  color:var(--ink-3);
   cursor:pointer;
-  transition:background-color .35s var(--ease), color .35s var(--ease);
+  transition:color .35s var(--ease);
 }
 
-.conc-modos button[aria-pressed="true"]{
+/* La línea vive en el ::after y se estira desde el centro. Animar el
+   ancho de un pseudo-elemento con transform no toca el layout, así que
+   el texto de al lado no se mueve ni un pixel al cambiar de solapa. */
+.conc-modos button::after{
+  content:"";
+  position:absolute;
+  left:0; right:0; bottom:0;
+  height:1px;
   background:var(--chrome);
-  color:var(--void);
+  transform:scaleX(0);
+  transition:transform .4s var(--ease);
 }
 
+.conc-modos button[aria-pressed="true"]{ color:var(--chrome); }
+.conc-modos button[aria-pressed="true"]::after{ transform:scaleX(1); }
+
+@media (hover:hover){
+  .conc-modos button:hover{ color:var(--gris); }
+}
+
+/* EL FORMULARIO ES UNA COLUMNA ANGOSTA Y CENTRADA.
+
+   Antes ocupaba los 44rem del bloque entero. Dos campos de texto corto
+   estirados a 700px se leen como un trámite: el ojo tiene que viajar
+   por una línea larguísima para encontrar un dato de cuatro palabras.
+   A 24rem la línea del campo mide lo que mide el dato que va adentro. */
 .conc-form{
-  margin-top:clamp(1.8rem,4vh,2.6rem);
+  max-width:24rem;
+  margin:clamp(2.4rem,5vh,3.4rem) auto 0;
   display:grid;
-  gap:clamp(1.2rem,2.6vh,1.8rem);
+  gap:clamp(1.4rem,3vh,2rem);
   text-align:left;
 }
 
-/* Campos con una línea abajo y nada más. Una caja con borde y fondo se
-   ve a formulario de trámite; esto se lee como una ficha. */
 .conc-campo label{
   display:block;
-  font-size:.62rem;
+  font-size:.58rem;
   font-weight:600;
-  letter-spacing:.18em;
+  letter-spacing:.2em;
   text-transform:uppercase;
   color:var(--ink-3);
-  margin-bottom:.6rem;
+  margin-bottom:.7rem;
+  transition:color .35s var(--ease);
 }
+.conc-campo:focus-within label{ color:var(--steel); }
 
 .conc-campo input{
   width:100%;
   appearance:none;
   border:0;
-  border-bottom:1px solid rgba(209,213,219,.28);
+  border-bottom:1px solid rgba(209,213,219,.20);
   background:transparent;
-  padding:.55rem 0;
+  padding:.6rem 0;
   font-family:var(--texto);
-  font-size:clamp(.95rem,1.2vw,1.05rem);
+  font-size:1rem;
   color:var(--chrome);
   transition:border-color .35s var(--ease);
 }
-.conc-campo input::placeholder{ color:rgba(209,213,219,.30); }
+.conc-campo input::placeholder{ color:rgba(209,213,219,.26); }
 .conc-campo input:focus{ outline:none; border-bottom-color:var(--chrome); }
 
+/* El botón ocupa el ancho de la columna. Un botón chico alineado a la
+   izquierda debajo de dos campos que llegan hasta el borde deja un
+   escalón que no cierra; a lo ancho, la columna termina en una pieza
+   sólida y se lee como un bloque terminado. */
 .conc-enviar{
-  justify-self:start;
-  margin-top:clamp(.6rem,1.4vh,1rem);
+  width:100%;
+  margin-top:clamp(.8rem,1.8vh,1.2rem);
   appearance:none;
   border:1px solid var(--chrome);
   border-radius:2px;
   background:var(--chrome);
-  padding:1em 2.2em;
+  padding:1.05em 2em;
   font-family:var(--display);
-  font-size:.64rem;
+  font-size:.62rem;
   font-weight:700;
-  letter-spacing:.16em;
+  letter-spacing:.18em;
   text-transform:uppercase;
   color:var(--void);
   cursor:pointer;
@@ -553,16 +601,21 @@ video::-webkit-media-controls{ display:none !important; }
    algo que no va a pasar: se apaga y lo dice. */
 .conc-enviar[disabled]{
   background:transparent;
-  border-color:rgba(209,213,219,.3);
+  border-color:rgba(209,213,219,.22);
   color:var(--ink-3);
   cursor:not-allowed;
 }
 
 .conc-nota{
   margin:0;
-  font-size:.72rem;
-  line-height:1.6;
+  text-align:center;
+  font-size:.7rem;
+  line-height:1.65;
   color:var(--ink-3);
+}
+
+@media (prefers-reduced-motion:reduce){
+  .conc-modos button::after{ transition:none; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
