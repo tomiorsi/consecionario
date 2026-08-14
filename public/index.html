@@ -431,56 +431,9 @@ video::-webkit-media-controls{ display:none !important; }
   text-align:center;
 }
 
-.pie-titulo{
-  font-family:var(--display);
-  font-size:clamp(1.05rem,2.5vw,1.8rem);
-  font-weight:700;
-  text-transform:uppercase;
-  letter-spacing:.09em;
-  line-height:1.5;
-  margin:0;
-  color:var(--chrome);
-}
 
-.pie-bajada{
-  margin:clamp(.9rem,2vh,1.3rem) auto 0;
-  max-width:34rem;
-  font-size:clamp(.9rem,1.2vw,1rem);
-  line-height:1.65;
-  color:var(--steel);
-}
 
-/* El botón del Garage todavía no lleva a ningún lado: hace falta que
-   exista el registro de usuarios. Se muestra apagado y con la etiqueta
-   puesta, que es lo honesto — un botón que no hace nada es peor que no
-   tenerlo. */
-.pie-boton{
-  display:inline-flex;
-  align-items:center;
-  gap:.7rem;
-  margin-top:clamp(1.6rem,3.5vh,2.4rem);
-  padding:.95em 1.9em;
-  border:1px solid var(--gris);
-  border-radius:2px;
-  background:transparent;
-  font-family:var(--display);
-  font-size:.66rem;
-  font-weight:700;
-  letter-spacing:.16em;
-  text-transform:uppercase;
-  color:var(--chrome);
-  opacity:.55;
-  cursor:not-allowed;
-}
 
-.pie-boton em{
-  font-style:normal;
-  font-family:var(--texto);
-  font-size:.6rem;
-  font-weight:600;
-  letter-spacing:.12em;
-  color:var(--steel);
-}
 
 .pie-datos{
   margin-top:clamp(3rem,7vh,4.5rem);
@@ -532,51 +485,77 @@ video::-webkit-media-controls{ display:none !important; }
   grid-template-columns:repeat(3,1fr);
 }
 
+/* LOS AUTOS FLOTAN. NO HAY FOTO METIDA EN UNA CAJA.
+
+   Antes la imagen iba dentro de un panel negro con esquinas
+   redondeadas, porque los archivos venían sobre negro sin
+   transparencia. Se leía como una estampilla pegada en una tarjeta:
+   nada de agresivo ni de fino.
+
+   Ahora los recortes tienen alfa de verdad, sacado por conectividad
+   desde el borde —no por luminancia, que se comía los vidrios y las
+   llantas del Mercedes negro—, así que el auto se apoya directo sobre
+   la tarjeta y el rectángulo desapareció.
+
+   El resto es lo que hace que se sienta deportivo: esquina casi recta
+   en vez de redondeada, el auto SANGRANDO fuera del ancho de la
+   tarjeta, y una línea fina arriba que se enciende entera al pasar por
+   encima. */
 .linea{
   position:relative;
   background:var(--grafito);
-  border-radius:14px;
+  border-radius:3px;
   overflow:hidden;
-  padding:clamp(1.4rem,2.4vw,2rem);
+  padding:0 0 clamp(1.5rem,2.6vw,2.1rem);
   display:flex;
   flex-direction:column;
   transition:background-color .5s var(--ease);
 }
 
-/* EL PANEL DE LA FOTO VA EN NEGRO PURO, Y ES A PROPÓSITO.
-
-   Las fotos son recortes sobre negro exacto (#000), sin transparencia.
-   El primer intento fue disimular ese rectángulo con mezcla `screen`
-   sobre el grafito de la tarjeta. Funcionaba para hacerlo desaparecer,
-   pero `screen` SUMA el color de abajo a cada píxel: los negros del
-   auto no podían quedar más oscuros que el grafito, y eso lavaba el
-   color y hacía ver las fotos borrosas y desteñidas.
-
-   Poniendo el panel en el mismo negro que traen las fotos, la imagen
-   calza sin costura y el auto conserva su color y su contraste
-   exactos. Se lee como una ventana al estudio dentro de la tarjeta,
-   que además es el lenguaje del resto del sitio. */
-.linea-foto{
-  aspect-ratio:16/9;
-  margin:0 0 clamp(1rem,2vh,1.5rem);
-  overflow:hidden;
-  border-radius:10px;
-  background:#000;
+/* El filo de arriba. Apagado es una línea de un píxel; al pasar el
+   cursor se enciende de lado a lado. */
+.linea::before{
+  content:"";
+  position:absolute;
+  top:0; left:0;
+  height:1px;
+  width:100%;
+  background:var(--gris);
+  opacity:.16;
+  transform:scaleX(1);
+  transform-origin:0 50%;
+  transition:opacity .45s var(--ease);
 }
 
+.linea-foto{
+  margin:0 0 clamp(.6rem,1.4vh,1rem);
+  padding:clamp(1.2rem,2.4vw,2rem) 0 0;
+}
+
+/* SANGRA A LOS COSTADOS. El auto mide más que la tarjeta y se sale por
+   los dos lados: eso es lo que le da velocidad al bloque. Con la foto
+   contenida y centrada, el conjunto se veía quieto. */
 .linea-foto img{
   display:block;
-  width:100%;
-  height:100%;
-  object-fit:cover;
-  transition:transform .7s var(--ease);
+  width:118%;
+  height:auto;
+  margin-left:-9%;
+  transition:transform .8s var(--ease);
 }
 
-/* La micro-interacción que pide el documento: zoom suave al pasar el
-   cursor. Sólo donde hay cursor de verdad. */
 @media (hover:hover){
-  .linea:hover{ background:#26313D; }
-  .linea:hover .linea-foto img{ transform:scale(1.06); }
+  .linea:hover{ background:#25303C; }
+  .linea:hover::before{ opacity:.85; }
+  .linea:hover .linea-foto img{ transform:translateX(2.5%) scale(1.04); }
+}
+
+/* El texto sí lleva margen propio: la foto sangra, las letras no. */
+.linea-num,
+.linea h3,
+.linea p,
+.linea-nota{
+  padding-left:clamp(1.4rem,2.4vw,2rem);
+  padding-right:clamp(1.4rem,2.4vw,2rem);
 }
 
 .linea-num{
@@ -617,7 +596,10 @@ video::-webkit-media-controls{ display:none !important; }
 
 @media (max-width:900px){
   .lineas-grilla{ grid-template-columns:1fr; }
-  .linea-foto{ aspect-ratio:2/1; }
+
+  /* Con una sola columna la tarjeta es ancha y el sangrado de 118%
+     dejaba al auto sin trompa ni cola. Acá alcanza con insinuarlo. */
+  .linea-foto img{ width:106%; margin-left:-3%; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -762,9 +744,20 @@ video::-webkit-media-controls{ display:none !important; }
    decodificadores peleando, que es exactamente lo que rompió la
    portada y el collage en iPhone.
    ══════════════════════════════════════════════════════════════════ */
+/* MEDIA PANTALLA, NO UNA ENTERA.
+
+   A esta altura la caja deja de ser 16:9 y pasa a ser una franja:
+   3,2:1 en un notebook, 3,56:1 en un monitor, 0,92:1 —casi cuadrada—
+   en un teléfono.
+
+   Los archivos se recortaron a esas proporciones en vez de dejar que
+   el navegador recorte con object-fit. Se gana en dos cosas: el video
+   deja de cargar píxeles que nadie ve —el de escritorio bajó de 2,65 a
+   1,69 MB— y el encuadre se eligió a propósito en vez de quedar en
+   manos del recorte automático. */
 #ruta{
   position:relative;
-  height:100svh;
+  height:50svh;
   overflow:hidden;
   background:var(--void);
 }
@@ -2832,78 +2825,7 @@ body.is-dark.is-scrolled #topbar{
 })();
 </script>
 
-<!-- DÓNDE ESTAMOS.
 
-     Toda la sección es un enlace: se pidió que tocar el mapa abra
-     Google Maps, así que el <a> envuelve todo en vez de haber un botón
-     chiquito en una esquina.
-
-     El mapa es un dibujo con datos de OpenStreetMap, no un iframe de
-     Google. Los motivos, en el CSS de #donde. -->
-<a id="donde"
-   href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8"
-   target="_blank" rel="noopener"
-   aria-label="Pasaje Lanín 154, Barracas — abrir en Google Maps">
-
-  <!-- Dos dibujos, no dos tamaños del mismo. El SVG se ve a 1440 px de
-       ancho en computadora y a unos 560 en teléfono: con un solo
-       archivo, o los nombres de calle salen enormes en uno o ilegibles
-       en el otro. El de teléfono además abarca menos cuadras, porque en
-       una pantalla angosta entra menos.
-
-       Acá sí sirve <source media>: en <picture> lo respetan todos los
-       navegadores. Es dentro de <video> donde Safari lo ignora, que es
-       el motivo por el que los videos del sitio se eligen por script. -->
-  <picture>
-    <source media="(max-width:767px)" srcset="assets/mapa/barracas-movil.svg">
-    <img src="assets/mapa/barracas.svg"
-         alt="Mapa de Barracas con el Pasaje Lanín señalado"
-         loading="lazy" decoding="async" width="1000" height="1000">
-  </picture>
-
-  <span class="donde-pin" aria-hidden="true"></span>
-
-  <div class="donde-caja">
-    <small>Dónde estamos</small>
-    <h2>Pasaje Lanín 154, Barracas.</h2>
-    <p>La calle de las casas pintadas: unas cuarenta fachadas
-       intervenidas por Marino Santa María en pintura y mosaico
-       veneciano, declarada Sitio de Interés Cultural por la
-       Legislatura porteña.</p>
-    <span class="donde-ir">
-      Abrir en Google Maps
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-           stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
-           aria-hidden="true">
-        <path d="M7 17 17 7M8 7h9v9"/>
-      </svg>
-    </span>
-  </div>
-</a>
-
-<script>
-/* La deriva del mapa sólo corre cuando la sección está a la vista.
-
-   Una animación de transform es barata, pero mantiene viva una capa en
-   el compositor todo el tiempo aunque nadie la mire. Es la misma regla
-   que ya siguen la portada, el reel y el collage: nada trabaja de
-   fondo. Sin IntersectionObserver, corre siempre y listo. */
-(function(){
-  var sec = document.getElementById('donde');
-  if (!sec) return;
-
-  if (!('IntersectionObserver' in window)){
-    sec.classList.add('a-la-vista');
-    return;
-  }
-
-  new IntersectionObserver(function(e){
-    e.forEach(function(x){
-      sec.classList.toggle('a-la-vista', x.isIntersecting);
-    });
-  }, { threshold:0.01 }).observe(sec);
-})();
-</script>
 
 <!-- El collage: un video y dos fotos que se acomodan con el scroll. -->
 <section id="collage">
@@ -3183,6 +3105,79 @@ body.is-dark.is-scrolled #topbar{
 })();
 </script>
 
+<!-- DÓNDE ESTAMOS.
+
+     Toda la sección es un enlace: se pidió que tocar el mapa abra
+     Google Maps, así que el <a> envuelve todo en vez de haber un botón
+     chiquito en una esquina.
+
+     El mapa es un dibujo con datos de OpenStreetMap, no un iframe de
+     Google. Los motivos, en el CSS de #donde. -->
+<a id="donde"
+   href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8"
+   target="_blank" rel="noopener"
+   aria-label="Pasaje Lanín 154, Barracas — abrir en Google Maps">
+
+  <!-- Dos dibujos, no dos tamaños del mismo. El SVG se ve a 1440 px de
+       ancho en computadora y a unos 560 en teléfono: con un solo
+       archivo, o los nombres de calle salen enormes en uno o ilegibles
+       en el otro. El de teléfono además abarca menos cuadras, porque en
+       una pantalla angosta entra menos.
+
+       Acá sí sirve <source media>: en <picture> lo respetan todos los
+       navegadores. Es dentro de <video> donde Safari lo ignora, que es
+       el motivo por el que los videos del sitio se eligen por script. -->
+  <picture>
+    <source media="(max-width:767px)" srcset="assets/mapa/barracas-movil.svg">
+    <img src="assets/mapa/barracas.svg"
+         alt="Mapa de Barracas con el Pasaje Lanín señalado"
+         loading="lazy" decoding="async" width="1000" height="1000">
+  </picture>
+
+  <span class="donde-pin" aria-hidden="true"></span>
+
+  <div class="donde-caja">
+    <small>Dónde estamos</small>
+    <h2>Pasaje Lanín 154, Barracas.</h2>
+    <p>La calle de las casas pintadas: unas cuarenta fachadas
+       intervenidas por Marino Santa María en pintura y mosaico
+       veneciano, declarada Sitio de Interés Cultural por la
+       Legislatura porteña.</p>
+    <span class="donde-ir">
+      Abrir en Google Maps
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+           aria-hidden="true">
+        <path d="M7 17 17 7M8 7h9v9"/>
+      </svg>
+    </span>
+  </div>
+</a>
+
+<script>
+/* La deriva del mapa sólo corre cuando la sección está a la vista.
+
+   Una animación de transform es barata, pero mantiene viva una capa en
+   el compositor todo el tiempo aunque nadie la mire. Es la misma regla
+   que ya siguen la portada, el reel y el collage: nada trabaja de
+   fondo. Sin IntersectionObserver, corre siempre y listo. */
+(function(){
+  var sec = document.getElementById('donde');
+  if (!sec) return;
+
+  if (!('IntersectionObserver' in window)){
+    sec.classList.add('a-la-vista');
+    return;
+  }
+
+  new IntersectionObserver(function(e){
+    e.forEach(function(x){
+      sec.classList.toggle('a-la-vista', x.isIntersecting);
+    });
+  }, { threshold:0.01 }).observe(sec);
+})();
+</script>
+
 <!-- BLOQUE 6 — EL PIE.
 
      La invitación al Garage Virtual, los datos institucionales y el
@@ -3196,16 +3191,6 @@ body.is-dark.is-scrolled #topbar{
        fill-rule="evenodd" aria-hidden="true"><use href="#mm-emblema"/></svg>
 
   <div class="pie-caja">
-    <h2 class="pie-titulo">Creá tu Garage Virtual</h2>
-    <p class="pie-bajada">
-      Guardá tus unidades favoritas y recibí aviso de cada ingreso antes
-      de que se publique en redes.
-    </p>
-
-    <span class="pie-boton" aria-disabled="true">
-      Crear mi Garage <em>Próximamente</em>
-    </span>
-
     <div class="pie-datos">
       <span>Manna Motors <span aria-hidden="true">·</span> Selected</span>
       <a href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8" target="_blank" rel="noopener">
