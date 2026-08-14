@@ -63,7 +63,12 @@
      portada (#000000, #F2F4F8, #AFAFB0). Se veía bien, pero era una
      paleta propia y no la de la marca. */
   --void:#0B0C10;            /* Negro Profundo — fondo principal */
-  --grafito:#1F2833;         /* Gris Grafito — fondos secundarios, tarjetas */
+  /* Gris Grafito. El documento lo reserva para "fondos secundarios o
+     tarjetas de autos", pero en pantalla ese azulado chocaba contra el
+     negro de todo lo demás, así que NINGÚN fondo lo usa: la página es
+     negra de punta a punta. Sobrevive sólo como tinta secundaria sobre
+     el bloque claro, que es donde sí funciona. */
+  --grafito:#1F2833;
   --chrome:#FFFFFF;          /* Blanco Puro — títulos y botones */
   --hueso:#F4F1EA;           /* Blanco Hueso — el bloque claro de confianza */
   --gris:#D1D5DB;            /* Gris Claro — líneas y texto secundario */
@@ -606,7 +611,7 @@ video::-webkit-media-controls{ display:none !important; }
   aspect-ratio:1;
   overflow:hidden;
   border-radius:2px;
-  background:var(--grafito);
+  background:var(--void);
 }
 
 .social-grilla img{
@@ -748,13 +753,23 @@ video::-webkit-media-controls{ display:none !important; }
 }
 
 /* EL ESCENARIO. overflow:hidden es lo que hace de ventana: los autos
-   que no están en escena viajan por fuera y no se ven. */
+   que no están en escena viajan por fuera y no se ven.
+
+   Y ES NEGRO, COMO TODO EL RESTO. Era un rectángulo de grafito y su
+   borde de abajo chocaba contra el negro de la página: se veía la
+   caja. Se probó disolverlo con un degradado, pero la decisión fue más
+   simple y mejor — si el escenario es del mismo negro que la página,
+   no hay caja que disimular ni borde que resolver. El auto queda
+   flotando y nada más.
+
+   De paso se ahorra el grano que ese degradado habría necesitado: 35
+   niveles de gris repartidos en 185 px son 5,3 píxeles por nivel, y a
+   esa densidad se ve como franjas. */
 .gar-escena{
   position:relative;
   overflow:hidden;
   aspect-ratio:16/7;
-  border-radius:3px;
-  background:var(--grafito);
+  background:var(--void);
 }
 
 .gar-auto{
@@ -1751,7 +1766,9 @@ body.cargando{ overflow:hidden; }
      bien en un video de 700px de ancho, pero en el mismo video a 1400px
      se lee como si no tuviera radio. Escala con la pieza. */
   border-radius:clamp(8px,1vw,18px);
-  background:#0A0B0D;
+  /* Lo que se ve mientras el video todavía no cargó. El mismo negro que
+     la página: así la pieza no se anuncia como un rectángulo vacío. */
+  background:var(--void);
   will-change:transform;
 }
 .col-pieza img,
