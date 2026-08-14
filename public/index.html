@@ -393,6 +393,265 @@ video::-webkit-media-controls{ display:none !important; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
+   BLOQUE 5 — EL CONCIERGE
+
+   El formulario del documento, con la sección que pediste a mano en el
+   margen: "AGREGAR SECCIÓN para que nos ofrezcan su auto".
+
+   Son las dos puntas del mismo negocio —alguien busca, alguien vende—
+   así que van en un solo formulario con un selector arriba, no en dos
+   bloques separados. Dos campos, como pide el documento: nombre y auto.
+
+   Va después del Estándar y de la ruta a propósito: primero la
+   confianza, después el deseo, y recién ahí el pedido. Un formulario
+   antes de eso es pedirle los datos a alguien que todavía no sabe
+   quién sos.
+   ══════════════════════════════════════════════════════════════════ */
+#concierge{
+  position:relative;
+  background:var(--void);
+  padding:clamp(4.5rem,12vh,8rem) var(--gut);
+}
+
+.conc-caja{
+  max-width:44rem;
+  margin:0 auto;
+  text-align:center;
+}
+
+.conc-eyebrow{
+  display:block;
+  font-size:.66rem;
+  font-weight:600;
+  letter-spacing:.3em;
+  text-transform:uppercase;
+  color:var(--steel);
+}
+
+.conc-titulo{
+  font-family:var(--display);
+  font-size:clamp(1.1rem,2.6vw,1.9rem);
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  line-height:1.45;
+  margin:clamp(.9rem,2.2vh,1.4rem) 0 0;
+  color:var(--chrome);
+}
+
+.conc-bajada{
+  margin:clamp(.8rem,1.8vh,1.1rem) auto 0;
+  max-width:32rem;
+  font-size:clamp(.92rem,1.25vw,1.05rem);
+  line-height:1.65;
+  color:var(--steel);
+}
+
+/* EL SELECTOR. Dos estados de lo mismo, no dos formularios: cambia el
+   rótulo del segundo campo y el mensaje que se arma. */
+.conc-modos{
+  display:inline-flex;
+  margin:clamp(2rem,4.5vh,3rem) 0 0;
+  border:1px solid rgba(209,213,219,.22);
+  border-radius:2px;
+  overflow:hidden;
+}
+
+.conc-modos button{
+  appearance:none;
+  border:0;
+  background:transparent;
+  padding:.85em 1.5em;
+  font-family:var(--display);
+  font-size:.6rem;
+  font-weight:700;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--steel);
+  cursor:pointer;
+  transition:background-color .35s var(--ease), color .35s var(--ease);
+}
+
+.conc-modos button[aria-pressed="true"]{
+  background:var(--chrome);
+  color:var(--void);
+}
+
+.conc-form{
+  margin-top:clamp(1.8rem,4vh,2.6rem);
+  display:grid;
+  gap:clamp(1.2rem,2.6vh,1.8rem);
+  text-align:left;
+}
+
+/* Campos con una línea abajo y nada más. Una caja con borde y fondo se
+   ve a formulario de trámite; esto se lee como una ficha. */
+.conc-campo label{
+  display:block;
+  font-size:.62rem;
+  font-weight:600;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:var(--ink-3);
+  margin-bottom:.6rem;
+}
+
+.conc-campo input{
+  width:100%;
+  appearance:none;
+  border:0;
+  border-bottom:1px solid rgba(209,213,219,.28);
+  background:transparent;
+  padding:.55rem 0;
+  font-family:var(--texto);
+  font-size:clamp(.95rem,1.2vw,1.05rem);
+  color:var(--chrome);
+  transition:border-color .35s var(--ease);
+}
+.conc-campo input::placeholder{ color:rgba(209,213,219,.30); }
+.conc-campo input:focus{ outline:none; border-bottom-color:var(--chrome); }
+
+.conc-enviar{
+  justify-self:start;
+  margin-top:clamp(.6rem,1.4vh,1rem);
+  appearance:none;
+  border:1px solid var(--chrome);
+  border-radius:2px;
+  background:var(--chrome);
+  padding:1em 2.2em;
+  font-family:var(--display);
+  font-size:.64rem;
+  font-weight:700;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--void);
+  cursor:pointer;
+  transition:background-color .35s var(--ease), color .35s var(--ease);
+}
+@media (hover:hover){
+  .conc-enviar:hover{ background:transparent; color:var(--chrome); }
+}
+
+/* Si todavía no se cargó el WhatsApp del negocio, el botón no promete
+   algo que no va a pasar: se apaga y lo dice. */
+.conc-enviar[disabled]{
+  background:transparent;
+  border-color:rgba(209,213,219,.3);
+  color:var(--ink-3);
+  cursor:not-allowed;
+}
+
+.conc-nota{
+  margin:0;
+  font-size:.72rem;
+  line-height:1.6;
+  color:var(--ink-3);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   BLOQUE 6, PRIMERA PARTE — INSTAGRAM
+
+   El documento pide las redes en el cierre. Va acá, pegado al pie, y no
+   suelto en el medio de la página: es la despedida, no un contenido.
+
+   IMPORTANTE, PARA QUE NO SE CONFUNDA CON OTRA COSA: esto NO es el feed
+   en vivo. Es una selección de imágenes de la marca con el enlace al
+   perfil. Un feed que se actualice solo necesita cuenta de empresa,
+   token de la API de Instagram y algo que lo renueve — no se puede
+   hacer con archivos sueltos. Cuando eso esté, se reemplazan las
+   imágenes de la grilla y el resto de la sección queda igual.
+   ══════════════════════════════════════════════════════════════════ */
+#social{
+  position:relative;
+  background:var(--void);
+  padding:clamp(4rem,10vh,6.5rem) var(--gut) clamp(1rem,3vh,2rem);
+}
+
+.social-caja{
+  max-width:82rem;
+  margin:0 auto;
+  text-align:center;
+}
+
+.social-eyebrow{
+  display:block;
+  font-size:.66rem;
+  font-weight:600;
+  letter-spacing:.3em;
+  text-transform:uppercase;
+  color:var(--steel);
+}
+
+.social-titulo{
+  font-family:var(--display);
+  font-size:clamp(1rem,2.3vw,1.6rem);
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.09em;
+  line-height:1.45;
+  margin:clamp(.8rem,2vh,1.2rem) 0 0;
+  color:var(--chrome);
+}
+
+.social-grilla{
+  margin-top:clamp(2.2rem,5vh,3.4rem);
+  display:grid;
+  grid-template-columns:repeat(6,1fr);
+  gap:clamp(.4rem,.8vw,.7rem);
+}
+
+.social-grilla a{
+  display:block;
+  position:relative;
+  aspect-ratio:1;
+  overflow:hidden;
+  border-radius:2px;
+  background:var(--grafito);
+}
+
+.social-grilla img{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  opacity:.82;
+  transition:opacity .45s var(--ease), transform .7s var(--ease);
+}
+
+@media (hover:hover){
+  .social-grilla a:hover img{ opacity:1; transform:scale(1.06); }
+}
+
+.social-perfil{
+  display:inline-flex;
+  align-items:center;
+  gap:.6rem;
+  margin-top:clamp(1.8rem,4vh,2.6rem);
+  font-family:var(--display);
+  font-size:.64rem;
+  font-weight:700;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--chrome);
+  text-decoration:none;
+  border-bottom:1px solid transparent;
+  transition:border-color .35s var(--ease);
+}
+@media (hover:hover){
+  .social-perfil:hover{ border-bottom-color:var(--gris); }
+}
+
+.social-perfil[aria-disabled="true"]{
+  color:var(--ink-3);
+  cursor:not-allowed;
+}
+
+@media (max-width:767px){
+  /* Seis en fila son sellos ilegibles en un teléfono. Tres y tres. */
+  .social-grilla{ grid-template-columns:repeat(3,1fr); }
+}
+
+/* ══════════════════════════════════════════════════════════════════
    BLOQUE 6 — EL PIE
 
    Lo que el documento pide de cierre: la invitación al Garage Virtual,
@@ -471,7 +730,7 @@ video::-webkit-media-controls{ display:none !important; }
    Todavía no llevan a ningún lado: el catálogo no existe. Son las
    categorías, no los autos.
    ══════════════════════════════════════════════════════════════════ */
-#lineas{
+#garage{
   position:relative;
   background:var(--void);
   padding:clamp(1rem,3vh,2rem) var(--gut) clamp(5rem,12vh,9rem);
@@ -1800,7 +2059,7 @@ body.is-dark.is-scrolled #topbar{
     <!-- Apuntan a secciones que EXISTEN. Antes iban a #stock, #taller y
          #contacto, que nunca se crearon: los tres links no hacían nada.
          Cuando existan el catálogo y el contacto, vuelven. -->
-    <a href="#lineas">Colección</a>
+    <a href="#garage">El Garage</a>
     <a href="#estandar">El Estándar</a>
     <a href="#donde">Showroom</a>
   </nav>
@@ -2202,7 +2461,7 @@ body.is-dark.is-scrolled #topbar{
      El documento las pide justo debajo del manifiesto: reparten el
      catálogo de hoy y dejan planteado el de mañana. Todavía no llevan a
      ningún lado porque el catálogo no existe; son las categorías. -->
-<section id="lineas">
+<section id="garage">
   <div class="lineas-grilla">
 
     <article class="linea">
@@ -3027,6 +3286,140 @@ body.is-dark.is-scrolled #topbar{
   porScroll();
 })();
 </script>
+
+<!-- BLOQUE 5 — EL CONCIERGE.
+
+     El formulario del documento más la sección que pediste en el margen:
+     que puedan ofrecer su auto. Son las dos puntas del mismo negocio,
+     así que van en un solo formulario con un selector arriba. -->
+<section id="concierge">
+  <div class="conc-caja">
+    <small class="conc-eyebrow">El Concierge</small>
+    <h2 class="conc-titulo">¿Buscás una pieza específica?<br>La encontramos.</h2>
+    <p class="conc-bajada">
+      Decinos qué estás buscando y lo rastreamos en el mercado global. Y
+      si lo que tenés es un auto para vender, también es acá.
+    </p>
+
+    <div class="conc-modos" role="group" aria-label="Qué querés hacer">
+      <button type="button" data-modo="busco"   aria-pressed="true">Busco un auto</button>
+      <button type="button" data-modo="ofrezco" aria-pressed="false">Ofrezco el mío</button>
+    </div>
+
+    <form class="conc-form" novalidate>
+      <div class="conc-campo">
+        <label for="conc-nombre">Tu nombre</label>
+        <input id="conc-nombre" name="nombre" type="text"
+               autocomplete="name" placeholder="Como querés que te llamemos" required>
+      </div>
+
+      <div class="conc-campo">
+        <label for="conc-auto" id="conc-auto-label">Auto que buscás</label>
+        <input id="conc-auto" name="auto" type="text"
+               placeholder="Marca, modelo y año" required>
+      </div>
+
+      <button type="submit" class="conc-enviar">Enviar por WhatsApp</button>
+      <p class="conc-nota" id="conc-nota">
+        Se abre WhatsApp con el mensaje ya escrito. No guardamos nada acá.
+      </p>
+    </form>
+  </div>
+</section>
+
+<script>
+/* EL FORMULARIO NO TIENE SERVIDOR, Y ES A PROPÓSITO.
+
+   Un formulario común necesita algo que reciba el envío: un backend, o
+   un servicio de terceros con cuenta y tablero. Las dos cosas suman
+   piezas y ninguna resuelve lo que de verdad pasa después, que es
+   contestarle a la persona.
+
+   Acá el envío arma un mensaje de WhatsApp y lo abre. Sin backend, sin
+   base de datos, sin datos de nadie guardados en ningún lado — y el
+   pedido cae donde el negocio ya contesta todos los días.
+
+   FALTA UN DATO: el número. Mientras esté vacío el botón se apaga y lo
+   dice, en vez de abrir un WhatsApp que no existe. Es la única línea
+   que hay que completar. */
+(function(){
+  var WHATSAPP = '';   /* ← el número con código de país y sin signos,
+                          por ejemplo '5491122334455' */
+
+  var form = document.querySelector('.conc-form');
+  if (!form) return;
+
+  var modos   = document.querySelectorAll('.conc-modos button');
+  var rotulo  = document.getElementById('conc-auto-label');
+  var campo   = document.getElementById('conc-auto');
+  var enviar  = form.querySelector('.conc-enviar');
+  var nota    = document.getElementById('conc-nota');
+  var modo    = 'busco';
+
+  var TEXTOS = {
+    busco:   { rotulo:'Auto que buscás',  hint:'Marca, modelo y año' },
+    ofrezco: { rotulo:'Auto que ofrecés', hint:'Marca, modelo, año y kilómetros' }
+  };
+
+  modos.forEach(function(b){
+    b.addEventListener('click', function(){
+      modo = b.dataset.modo;
+      modos.forEach(function(o){
+        o.setAttribute('aria-pressed', String(o === b));
+      });
+      rotulo.textContent = TEXTOS[modo].rotulo;
+      campo.placeholder  = TEXTOS[modo].hint;
+    });
+  });
+
+  if (!WHATSAPP){
+    enviar.disabled = true;
+    enviar.textContent = 'Falta cargar el WhatsApp';
+    nota.textContent = 'El formulario está listo: sólo falta cargar el número de WhatsApp del negocio.';
+    return;
+  }
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var nombre = form.nombre.value.trim();
+    var auto   = form.auto.value.trim();
+    if (!nombre || !auto){
+      (nombre ? campo : form.nombre).focus();
+      return;
+    }
+    var mensaje = modo === 'busco'
+      ? 'Hola, soy ' + nombre + '. Estoy buscando: ' + auto + '.'
+      : 'Hola, soy ' + nombre + '. Quiero ofrecerles mi auto: ' + auto + '.';
+    window.open('https://wa.me/' + WHATSAPP + '?text=' + encodeURIComponent(mensaje),
+                '_blank', 'noopener');
+  });
+})();
+</script>
+
+<!-- BLOQUE 6, PRIMERA PARTE — INSTAGRAM.
+
+     Selección de imágenes de la marca con el enlace al perfil. NO es el
+     feed en vivo: eso necesita cuenta de empresa y token de la API. Ver
+     el comentario en el CSS de #social. -->
+<section id="social">
+  <div class="social-caja">
+    <small class="social-eyebrow">Comunidad</small>
+    <h2 class="social-titulo">Todo lo que entra, primero pasa por acá.</h2>
+
+    <div class="social-grilla">
+      <a href="#" aria-disabled="true"><img src="assets/social/ig-1.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
+      <a href="#" aria-disabled="true"><img src="assets/social/ig-2.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
+      <a href="#" aria-disabled="true"><img src="assets/social/ig-3.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
+      <a href="#" aria-disabled="true"><img src="assets/social/ig-4.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
+      <a href="#" aria-disabled="true"><img src="assets/social/ig-5.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
+      <a href="#" aria-disabled="true"><img src="assets/social/ig-6.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
+    </div>
+
+    <!-- El enlace queda apagado hasta que haya usuario de Instagram. Un
+         enlace a ningún lado es peor que no tenerlo. -->
+    <span class="social-perfil" aria-disabled="true">Falta cargar el Instagram</span>
+  </div>
+</section>
 
 <!-- BLOQUE 6 — EL PIE.
 
