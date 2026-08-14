@@ -718,106 +718,84 @@ video::-webkit-media-controls{ display:none !important; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   BLOQUE 2 — LAS TRES LÍNEAS
+   BLOQUE 2 — EL GARAGE, EN CINTA
 
-   Van justo debajo del manifiesto, que es donde el documento las pide:
-   tres tarjetas grandes que reparten el catálogo de hoy y el de mañana.
+   Las tres líneas dejan de ser tres tarjetas quietas y vuelven a ser
+   una CINTA: un auto por vez, y los tres pasando de costado. Es el
+   mismo mecanismo que tenía el escenario original del sitio.
 
-   El fondo de la tarjeta es el Gris Grafito, que es el color que la
-   paleta reserva textualmente para "fondos secundarios o tarjetas de
-   autos". No se eligió acá.
+   LO QUE HACE QUE SE LEA COMO UNA CINTA Y NO COMO DOS ANIMACIONES:
+   los dos autos —el que sale y el que entra— se mueven JUNTOS. Misma
+   distancia, misma dirección, misma curva de velocidad. Si cada uno
+   tuviera lo suyo se leería como dos cosas que casualmente coinciden.
 
-   Todavía no llevan a ningún lado: el catálogo no existe. Son las
-   categorías, no los autos.
+   Y LA VELOCIDAD LA DA EL DESENFOQUE, NO EL APAGÓN. Bajarles el brillo
+   al pasar no se lee como movimiento, se lee como lavado. El color va
+   a pleno todo el trayecto; lo único que cuenta el viaje es el blur.
+
+   Nada se mueve en vertical: sobre una calle el auto no sube ni baja,
+   pasa. Cualquier corrimiento en Y se lee como que saltó la página.
    ══════════════════════════════════════════════════════════════════ */
 #garage{
   position:relative;
   background:var(--void);
-  padding:clamp(1rem,3vh,2rem) var(--gut) clamp(5rem,12vh,9rem);
+  padding:clamp(1rem,3vh,2rem) var(--gut) clamp(4rem,10vh,7rem);
 }
 
-.lineas-grilla{
-  max-width:82rem;
+.gar-caja{
+  max-width:76rem;
   margin:0 auto;
-  display:grid;
-  gap:clamp(1rem,1.8vw,1.6rem);
-  grid-template-columns:repeat(3,1fr);
 }
 
-/* LOS AUTOS FLOTAN. NO HAY FOTO METIDA EN UNA CAJA.
-
-   Antes la imagen iba dentro de un panel negro con esquinas
-   redondeadas, porque los archivos venían sobre negro sin
-   transparencia. Se leía como una estampilla pegada en una tarjeta:
-   nada de agresivo ni de fino.
-
-   Ahora los recortes tienen alfa de verdad, sacado por conectividad
-   desde el borde —no por luminancia, que se comía los vidrios y las
-   llantas del Mercedes negro—, así que el auto se apoya directo sobre
-   la tarjeta y el rectángulo desapareció.
-
-   El resto es lo que hace que se sienta deportivo: esquina casi recta
-   en vez de redondeada, el auto SANGRANDO fuera del ancho de la
-   tarjeta, y una línea fina arriba que se enciende entera al pasar por
-   encima. */
-.linea{
+/* EL ESCENARIO. overflow:hidden es lo que hace de ventana: los autos
+   que no están en escena viajan por fuera y no se ven. */
+.gar-escena{
   position:relative;
-  background:var(--grafito);
-  border-radius:3px;
   overflow:hidden;
-  padding:0 0 clamp(1.5rem,2.6vw,2.1rem);
-  display:flex;
-  flex-direction:column;
-  transition:background-color .5s var(--ease);
+  aspect-ratio:16/7;
+  border-radius:3px;
+  background:var(--grafito);
 }
 
-/* El filo de arriba. Apagado es una línea de un píxel; al pasar el
-   cursor se enciende de lado a lado. */
-.linea::before{
-  content:"";
+.gar-auto{
   position:absolute;
-  top:0; left:0;
-  height:1px;
-  width:100%;
-  background:var(--gris);
-  opacity:.16;
-  transform:scaleX(1);
-  transform-origin:0 50%;
-  transition:opacity .45s var(--ease);
+  inset:0;
+  display:grid;
+  place-items:center;
+  padding:clamp(1rem,3vw,2.6rem);
+  opacity:0;
+  visibility:hidden;
+  transform:translateX(115%);
+  will-change:transform, filter;
 }
 
-.linea-foto{
-  margin:0 0 clamp(.6rem,1.4vh,1rem);
-  padding:clamp(1.2rem,2.4vw,2rem) 0 0;
+.gar-auto.presente{ opacity:1; visibility:visible; }
+
+/* La curva es la misma para los dos autos. Acá vive el "viaja junto". */
+.gar-auto.viaja{
+  transition:transform .95s cubic-bezier(.62,0,.32,1),
+             filter    .95s cubic-bezier(.62,0,.32,1);
 }
 
-/* SANGRA A LOS COSTADOS. El auto mide más que la tarjeta y se sale por
-   los dos lados: eso es lo que le da velocidad al bloque. Con la foto
-   contenida y centrada, el conjunto se veía quieto. */
-.linea-foto img{
+.gar-auto img{
   display:block;
-  width:118%;
-  height:auto;
-  margin-left:-9%;
-  transition:transform .8s var(--ease);
+  width:100%;
+  height:100%;
+  object-fit:contain;
 }
 
-@media (hover:hover){
-  .linea:hover{ background:#25303C; }
-  .linea:hover::before{ opacity:.85; }
-  .linea:hover .linea-foto img{ transform:translateX(2.5%) scale(1.04); }
+/* ── el texto de la línea ─────────────────────────────────────────
+   Cambia con el auto. Se desvanece y vuelve, para que el ojo entienda
+   que es información nueva y no un renglón que se movió. */
+.gar-texto{
+  margin-top:clamp(1.6rem,3.5vh,2.4rem);
+  min-height:9.5rem;
+  transition:opacity .3s var(--ease);
 }
+.gar-texto.cambiando{ opacity:0; }
 
-/* El texto sí lleva margen propio: la foto sangra, las letras no. */
-.linea-num,
-.linea h3,
-.linea p,
-.linea-nota{
-  padding-left:clamp(1.4rem,2.4vw,2rem);
-  padding-right:clamp(1.4rem,2.4vw,2rem);
-}
-
-.linea-num{
+.gar-num{
+  display:block;
   font-family:var(--display);
   font-size:.62rem;
   font-weight:700;
@@ -825,27 +803,28 @@ video::-webkit-media-controls{ display:none !important; }
   color:var(--steel);
 }
 
-.linea h3{
+.gar-texto h3{
+  margin:clamp(.6rem,1.4vh,.9rem) 0 0;
   font-family:var(--display);
-  font-size:clamp(.8rem,1.15vw,.95rem);
+  font-size:clamp(.9rem,1.6vw,1.25rem);
   font-weight:700;
   text-transform:uppercase;
   letter-spacing:.1em;
-  line-height:1.5;
-  margin:clamp(.6rem,1.4vh,.9rem) 0 0;
+  line-height:1.45;
   color:var(--chrome);
 }
 
-.linea p{
-  margin:clamp(.55rem,1.2vh,.8rem) 0 0;
-  font-size:clamp(.85rem,1.1vw,.95rem);
-  line-height:1.6;
+.gar-texto p{
+  margin:clamp(.6rem,1.3vh,.9rem) 0 0;
+  max-width:38rem;
+  font-size:clamp(.9rem,1.15vw,1rem);
+  line-height:1.65;
   color:var(--steel);
 }
 
-.linea-nota{
-  margin-top:auto;
-  padding-top:clamp(.9rem,2vh,1.3rem);
+.gar-estado{
+  display:block;
+  margin-top:clamp(.7rem,1.6vh,1.1rem);
   font-size:.6rem;
   font-weight:600;
   letter-spacing:.16em;
@@ -853,14 +832,63 @@ video::-webkit-media-controls{ display:none !important; }
   color:var(--ink-3);
 }
 
-@media (max-width:900px){
-  .lineas-grilla{ grid-template-columns:1fr; }
-
-  /* Con una sola columna la tarjeta es ancha y el sangrado de 118%
-     dejaba al auto sin trompa ni cola. Acá alcanza con insinuarlo. */
-  .linea-foto img{ width:106%; margin-left:-3%; }
+/* ── los mandos ───────────────────────────────────────────────────
+   Las rayitas dicen cuántas líneas hay y en cuál estás; las flechas
+   están para quien no quiere esperar el pase automático. */
+.gar-mandos{
+  display:flex;
+  align-items:center;
+  gap:clamp(1rem,2.4vw,1.8rem);
+  margin-top:clamp(1.4rem,3vh,2rem);
 }
 
+.gar-rayas{
+  display:flex;
+  gap:.5rem;
+  flex:1;
+}
+
+.gar-raya{
+  appearance:none;
+  border:0;
+  padding:0;
+  height:2px;
+  flex:1;
+  max-width:5rem;
+  background:rgba(209,213,219,.22);
+  cursor:pointer;
+  transition:background-color .4s var(--ease);
+}
+.gar-raya[aria-current="true"]{ background:var(--chrome); }
+
+.gar-flecha{
+  appearance:none;
+  width:2.6rem;
+  height:2.6rem;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(209,213,219,.24);
+  border-radius:2px;
+  background:transparent;
+  color:var(--steel);
+  cursor:pointer;
+  transition:border-color .35s var(--ease), color .35s var(--ease);
+}
+.gar-flecha svg{ width:1rem; height:1rem; }
+@media (hover:hover){
+  .gar-flecha:hover{ border-color:var(--chrome); color:var(--chrome); }
+}
+
+@media (max-width:767px){
+  .gar-escena{ aspect-ratio:4/3; }
+  .gar-texto{ min-height:11rem; }
+}
+
+/* Quien pidió no ver movimiento ve el cambio sin viaje ni desenfoque. */
+@media (prefers-reduced-motion:reduce){
+  .gar-auto.viaja{ transition:none; }
+  .gar-texto{ transition:none; }
+}
 /* ══════════════════════════════════════════════════════════════════
    BLOQUE 4 — EL ESTÁNDAR MANNA
 
@@ -1554,10 +1582,10 @@ body.cargando{ overflow:hidden; }
   inset:0;
   pointer-events:none;
   background:linear-gradient(to right,
-    rgba(0,0,0,.94) 0%,
-    rgba(0,0,0,.86) 26%,
-    rgba(0,0,0,.42) 58%,
-    rgba(0,0,0,.28) 100%);
+    rgba(11,12,16,.94) 0%,
+    rgba(11,12,16,.86) 26%,
+    rgba(11,12,16,.42) 58%,
+    rgba(11,12,16,.28) 100%);
 }
 
 .donde-caja{
@@ -1649,10 +1677,10 @@ body.cargando{ overflow:hidden; }
 @media (max-width:767px){
   #donde::after{
     background:linear-gradient(to bottom,
-      rgba(0,0,0,.34) 0%,
-      rgba(0,0,0,.14) 30%,
-      rgba(0,0,0,.88) 70%,
-      rgba(0,0,0,.97) 100%);
+      rgba(11,12,16,.34) 0%,
+      rgba(11,12,16,.14) 30%,
+      rgba(11,12,16,.88) 70%,
+      rgba(11,12,16,.97) 100%);
   }
   .donde-caja{
     top:auto;
@@ -2456,52 +2484,211 @@ body.is-dark.is-scrolled #topbar{
   </div>
 </section>
 
-<!-- BLOQUE 2, SEGUNDA MITAD — LAS TRES LÍNEAS.
+<!-- BLOQUE 2, SEGUNDA MITAD — EL GARAGE EN CINTA.
 
-     El documento las pide justo debajo del manifiesto: reparten el
-     catálogo de hoy y dejan planteado el de mañana. Todavía no llevan a
-     ningún lado porque el catálogo no existe; son las categorías. -->
+     Un auto por vez, los tres pasando de costado. Cada auto es una
+     línea del catálogo; el texto de abajo cambia con él. -->
 <section id="garage">
-  <div class="lineas-grilla">
+  <div class="gar-caja">
 
-    <article class="linea">
-      <div class="linea-foto">
+    <div class="gar-escena" aria-live="off">
+      <div class="gar-auto presente">
         <img src="assets/lineas/linea-1.webp" alt="Mercedes-Benz GLC Coupé de perfil"
-             loading="lazy" decoding="async" width="900" height="506">
+             loading="lazy" decoding="async" width="1000" height="563">
       </div>
-      <span class="linea-num">01</span>
+      <div class="gar-auto">
+        <img src="assets/lineas/linea-2.webp" alt="BMW Serie 2 de perfil"
+             loading="lazy" decoding="async" width="1000" height="563">
+      </div>
+      <div class="gar-auto">
+        <img src="assets/lineas/linea-3.webp" alt="Chevrolet Camaro SS de perfil"
+             loading="lazy" decoding="async" width="1000" height="563">
+      </div>
+    </div>
+
+    <div class="gar-texto">
+      <span class="gar-num">01</span>
       <h3>Colección Selected</h3>
       <p>Mercedes-Benz, BMW, MINI y Volkswagen. Unidades preservadas,
          revisadas y listas para entregar.</p>
-      <span class="linea-nota">Disponible</span>
-    </article>
+      <span class="gar-estado">Disponible</span>
+    </div>
 
-    <article class="linea">
-      <div class="linea-foto">
-        <img src="assets/lineas/linea-2.webp" alt="BMW Serie 2 de perfil"
-             loading="lazy" decoding="async" width="900" height="506">
+    <div class="gar-mandos">
+      <div class="gar-rayas" role="tablist" aria-label="Líneas del garage">
+        <button class="gar-raya" role="tab" aria-current="true"  aria-label="Colección Selected"></button>
+        <button class="gar-raya" role="tab" aria-current="false" aria-label="Línea Evolution"></button>
+        <button class="gar-raya" role="tab" aria-current="false" aria-label="Históricos y Carreras"></button>
       </div>
-      <span class="linea-num">02</span>
-      <h3>Línea Evolution</h3>
-      <p>Eléctricos e híbridos. La misma exigencia de selección aplicada
-         a la generación que viene.</p>
-      <span class="linea-nota">Disponible</span>
-    </article>
 
-    <article class="linea">
-      <div class="linea-foto">
-        <img src="assets/lineas/linea-3.webp" alt="Chevrolet Camaro SS de perfil"
-             loading="lazy" decoding="async" width="900" height="506">
-      </div>
-      <span class="linea-num">03</span>
-      <h3>Históricos y Carreras</h3>
-      <p>Clásicos, competición y piezas de colección. Si buscás una en
-         particular, la encontramos en el mercado global.</p>
-      <span class="linea-nota">Búsqueda a pedido</span>
-    </article>
+      <button class="gar-flecha" data-paso="-1" type="button" aria-label="Línea anterior">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg>
+      </button>
+      <button class="gar-flecha" data-paso="1" type="button" aria-label="Línea siguiente">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
+      </button>
+    </div>
 
   </div>
 </section>
+
+<script>
+/* LA CINTA.
+
+   Reconstrucción del mecanismo que tenía el escenario original, sin la
+   biblioteca de animación que usaba entonces: acá alcanza con dos
+   transiciones de CSS bien coordinadas.
+
+   LAS DOS REGLAS QUE LO HACEN LEER COMO UNA CINTA:
+
+   1. Los dos autos se mueven JUNTOS. Misma distancia, misma dirección,
+      misma curva. Por eso comparten la clase .viaja y no hay ningún
+      retardo entre uno y otro. Si cada uno tuviera su tiempo se leería
+      como dos animaciones que casualmente coinciden.
+
+   2. La cinta corre AL REVÉS de la flecha que se toca. Con "siguiente"
+      la cinta empuja hacia la izquierda y el auto nuevo entra por la
+      derecha, igual que al pasar la página de un libro. Al revés se
+      lee como retroceder aunque aparezca el auto que sigue.
+
+   Y la velocidad la da el desenfoque, no bajar el brillo. */
+(function(){
+  var sec = document.getElementById('garage');
+  if (!sec) return;
+
+  var autos  = [].slice.call(sec.querySelectorAll('.gar-auto'));
+  var rayas  = [].slice.call(sec.querySelectorAll('.gar-raya'));
+  var texto  = sec.querySelector('.gar-texto');
+  var escena = sec.querySelector('.gar-escena');
+  if (autos.length < 2) return;
+
+  var LINEAS = [
+    { num:'01', titulo:'Colección Selected',
+      texto:'Mercedes-Benz, BMW, MINI y Volkswagen. Unidades preservadas, revisadas y listas para entregar.',
+      estado:'Disponible' },
+    { num:'02', titulo:'Línea Evolution',
+      texto:'Eléctricos e híbridos. La misma exigencia de selección aplicada a la generación que viene.',
+      estado:'Disponible' },
+    { num:'03', titulo:'Históricos y Carreras',
+      texto:'Clásicos, competición y piezas de colección. Si buscás una en particular, la encontramos en el mercado global.',
+      estado:'Búsqueda a pedido' }
+  ];
+
+  var VIAJE = 115;      /* % del ancho: lo que hay que correr para salir limpio */
+  var DURA  = 950;      /* ms, igual que la transición del CSS */
+  var PAUSA = 4200;     /* cuánto queda quieto cada auto */
+
+  var actual = 0, ocupado = false, reloj = null;
+  var quieto = window.matchMedia &&
+               matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function pintar(i){
+    var l = LINEAS[i];
+    texto.querySelector('.gar-num').textContent    = l.num;
+    texto.querySelector('h3').textContent          = l.titulo;
+    texto.querySelector('p').textContent           = l.texto;
+    texto.querySelector('.gar-estado').textContent = l.estado;
+    rayas.forEach(function(r, k){
+      r.setAttribute('aria-current', String(k === i));
+    });
+  }
+
+  function ir(destino, dir){
+    if (ocupado || destino === actual) return;
+
+    var sale  = autos[actual];
+    var entra = autos[destino];
+
+    if (quieto){
+      sale.classList.remove('presente');
+      entra.classList.add('presente');
+      entra.style.transform = 'translateX(0)';
+      actual = destino; pintar(actual);
+      return;
+    }
+
+    ocupado = true;
+
+    /* Hacia dónde CORRE la cinta: al revés del sentido pedido. */
+    var M = -dir;
+
+    /* 1 · el que entra se para del lado contrario, sin transición y
+           todavía desenfocado, como esperando en la penumbra. */
+    entra.classList.remove('viaja');
+    entra.style.transform = 'translateX(' + (-VIAJE * M) + '%) scale(1.035)';
+    entra.style.filter    = 'blur(11px)';
+    entra.classList.add('presente');
+
+    /* 2 · se fuerza el cálculo del estilo para que el paso 3 sea un
+           cambio y no quede fundido con el anterior. */
+    void entra.offsetWidth;
+
+    /* 3 · los dos arrancan en el mismo instante. */
+    sale.classList.add('viaja');
+    entra.classList.add('viaja');
+    sale.style.transform  = 'translateX(' + (VIAJE * M) + '%)';
+    sale.style.filter     = 'blur(11px)';
+    entra.style.transform = 'translateX(0) scale(1)';
+    entra.style.filter    = 'blur(0px)';
+
+    /* El texto se va y vuelve con el auto nuevo ya en camino. */
+    texto.classList.add('cambiando');
+    setTimeout(function(){
+      pintar(destino);
+      texto.classList.remove('cambiando');
+    }, DURA * 0.45);
+
+    setTimeout(function(){
+      sale.classList.remove('presente', 'viaja');
+      sale.style.transform = 'translateX(' + VIAJE + '%)';
+      sale.style.filter    = '';
+      entra.classList.remove('viaja');
+      actual = destino;
+      ocupado = false;
+      programar();
+    }, DURA);
+  }
+
+  function paso(d){ ir((actual + d + autos.length) % autos.length, d); }
+
+  function programar(){
+    clearTimeout(reloj);
+    if (quieto) return;
+    reloj = setTimeout(function(){ paso(1); }, PAUSA);
+  }
+  function frenar(){ clearTimeout(reloj); }
+
+  sec.querySelectorAll('.gar-flecha').forEach(function(b){
+    b.addEventListener('click', function(){
+      frenar();
+      paso(parseInt(b.dataset.paso, 10));
+    });
+  });
+
+  rayas.forEach(function(r, i){
+    r.addEventListener('click', function(){
+      frenar();
+      if (i !== actual) ir(i, i > actual ? 1 : -1);
+    });
+  });
+
+  /* Con el cursor encima no pasa solo: si alguien está mirando una
+     línea, cambiársela es pelearle. */
+  escena.addEventListener('mouseenter', frenar);
+  escena.addEventListener('mouseleave', programar);
+
+  /* Y no trabaja de fondo, como el resto del sitio. */
+  if ('IntersectionObserver' in window){
+    new IntersectionObserver(function(e){
+      e.forEach(function(x){ x.isIntersecting ? programar() : frenar(); });
+    }, { threshold:0.25 }).observe(sec);
+  } else {
+    programar();
+  }
+})();
+</script>
 
 <!-- El reel: la vuelta al auto. No se reproduce solo — lo mueve el
      scroll. El contenedor mide varias pantallas y el video queda
