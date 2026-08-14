@@ -543,26 +543,32 @@ video::-webkit-media-controls{ display:none !important; }
   transition:background-color .5s var(--ease);
 }
 
+/* EL PANEL DE LA FOTO VA EN NEGRO PURO, Y ES A PROPÓSITO.
+
+   Las fotos son recortes sobre negro exacto (#000), sin transparencia.
+   El primer intento fue disimular ese rectángulo con mezcla `screen`
+   sobre el grafito de la tarjeta. Funcionaba para hacerlo desaparecer,
+   pero `screen` SUMA el color de abajo a cada píxel: los negros del
+   auto no podían quedar más oscuros que el grafito, y eso lavaba el
+   color y hacía ver las fotos borrosas y desteñidas.
+
+   Poniendo el panel en el mismo negro que traen las fotos, la imagen
+   calza sin costura y el auto conserva su color y su contraste
+   exactos. Se lee como una ventana al estudio dentro de la tarjeta,
+   que además es el lenguaje del resto del sitio. */
 .linea-foto{
   aspect-ratio:16/9;
   margin:0 0 clamp(1rem,2vh,1.5rem);
   overflow:hidden;
+  border-radius:10px;
+  background:#000;
 }
 
-/* LAS FOTOS SON RECORTES SOBRE NEGRO, SIN TRANSPARENCIA.
-
-   Sobre el grafito de la tarjeta se vería el rectángulo negro de la
-   foto. Con mezcla `screen` el negro se vuelve exactamente el color que
-   tiene debajo y desaparece: el auto queda flotando sobre la tarjeta
-   sin haber tenido que recortar nada a mano.
-
-   El auto aclara apenas, pero el grafito es tan oscuro que no se nota. */
 .linea-foto img{
   display:block;
   width:100%;
   height:100%;
-  object-fit:contain;
-  mix-blend-mode:screen;
+  object-fit:cover;
   transition:transform .7s var(--ease);
 }
 
