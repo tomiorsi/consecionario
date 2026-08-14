@@ -774,11 +774,22 @@ video::-webkit-media-controls{ display:none !important; }
   margin:0 auto;
 }
 
+/* LA PROPORCIÓN DEL ESCENARIO SIGUE A LA DE LA FOTO, NO AL REVÉS.
+
+   Las fotos miden 1100×562 (1.96). Como la <img> va a ancho 100% y alto
+   automático, la altura del auto en pantalla queda determinada por el
+   ancho del elemento — el escenario sólo tiene que ser lo bastante alto
+   para contenerlo, y ni un pixel más. Cualquier exceso es banda negra
+   entre el auto y el texto de abajo.
+
+   La cuenta: el auto central ocupa el 58% del ancho del escenario, así
+   que su alto es 0.58/1.96 = 0.296 de ese ancho. Con un respiro chico,
+   el escenario necesita ~0.34 → proporción ~2.9. */
 .gar-escena{
   position:relative;
   overflow:hidden;
   isolation:isolate;
-  aspect-ratio:23/10;
+  aspect-ratio:2.9;
   background:var(--void);
 }
 
@@ -829,6 +840,11 @@ video::-webkit-media-controls{ display:none !important; }
 }
 .gar-auto.es-previo   { left:20%; }
 .gar-auto.es-siguiente{ left:80%; }
+
+/* El <picture> es inline por defecto y dejaría una línea base debajo de
+   la foto, o sea unos píxeles de aire fantasma justo donde estamos
+   tratando de sacar aire. */
+.gar-auto picture{ display:block; }
 
 .gar-auto img{
   display:block;
@@ -929,7 +945,9 @@ video::-webkit-media-controls{ display:none !important; }
    cuenta que en escritorio, otros números porque el auto central ocupa
    más proporción de la escena acá. */
 @media (max-width:820px){
-  .gar-escena{ aspect-ratio:13/9; }
+  /* Misma cuenta con el auto al 76%: 0.76/1.96 = 0.388, más respiro
+     → proporción ~2.25. */
+  .gar-escena{ aspect-ratio:2.25; }
   .gar-auto{ width:76%; }
   .gar-auto.es-previo,
   .gar-auto.es-siguiente{ transform:translate(-50%,-50%) scale(.58); }
@@ -2850,20 +2868,32 @@ body.is-dark.is-scrolled #topbar{
 
     <div class="gar-escena" aria-live="off">
       <div class="gar-auto">
-        <img src="assets/grupos/alta-gama.webp" alt="Mercedes-AMG GLE 63 Coupé blanco"
-             loading="lazy" decoding="async" width="1100" height="752">
+        <picture>
+          <source media="(max-width:767px)" srcset="assets/grupos/alta-gama@sm.webp">
+          <img src="assets/grupos/alta-gama.webp" alt="Mercedes-AMG GLE 63 Coupé blanco"
+               loading="lazy" decoding="async" width="1100" height="562">
+        </picture>
       </div>
       <div class="gar-auto">
-        <img src="assets/grupos/deportivos.webp" alt="BMW M240i violeta"
-             loading="lazy" decoding="async" width="1100" height="752">
+        <picture>
+          <source media="(max-width:767px)" srcset="assets/grupos/deportivos@sm.webp">
+          <img src="assets/grupos/deportivos.webp" alt="BMW M240i violeta"
+               loading="lazy" decoding="async" width="1100" height="562">
+        </picture>
       </div>
       <div class="gar-auto">
-        <img src="assets/grupos/evolution.webp" alt="Ford Mustang Mach-E verde"
-             loading="lazy" decoding="async" width="1100" height="752">
+        <picture>
+          <source media="(max-width:767px)" srcset="assets/grupos/evolution@sm.webp">
+          <img src="assets/grupos/evolution.webp" alt="Ford Mustang Mach-E verde"
+               loading="lazy" decoding="async" width="1100" height="562">
+        </picture>
       </div>
       <div class="gar-auto">
-        <img src="assets/grupos/urbanos.webp" alt="MINI Cooper S rojo"
-             loading="lazy" decoding="async" width="1100" height="752">
+        <picture>
+          <source media="(max-width:767px)" srcset="assets/grupos/urbanos@sm.webp">
+          <img src="assets/grupos/urbanos.webp" alt="MINI Cooper S rojo"
+               loading="lazy" decoding="async" width="1100" height="562">
+        </picture>
       </div>
     </div>
 
