@@ -979,12 +979,42 @@ body.cargando{ overflow:hidden; }
   height:100%;
   object-fit:cover;
   object-position:center;
-  transition:transform 1.2s var(--ease), opacity .5s var(--ease);
   opacity:.9;
+  transition:opacity .5s var(--ease);
+
+  /* LA DERIVA. El mapa se mueve siempre, no cuando pasa el mouse: en
+     el teléfono no hay mouse, así que un efecto de hover ahí no existe.
+     Además un mapa quieto se lee como una captura de pantalla; uno que
+     respira se lee como algo vivo.
+
+     Arranca en pausa y corre sólo cuando la sección está a la vista.
+     Es la misma regla del resto del sitio: nada trabaja de fondo. */
+  animation:deriva 34s ease-in-out infinite;
+  animation-play-state:paused;
+}
+
+#donde.a-la-vista img{ animation-play-state:running; }
+
+/* POR QUÉ LA ESCALA NUNCA BAJA DE 1.05.
+
+   En computadora el mapa es cuadrado dentro de una franja apaisada:
+   con object-fit:cover entra JUSTO de ancho y sobra de alto. O sea que
+   a escala 1 no hay ni un píxel de sobra a los costados, y correrlo
+   aunque sea un poco mostraría el borde.
+
+   Con 1.05 sobra un 2,5% de cada lado, y la deriva no pasa del 1,1%.
+   Por eso la escala se mueve entre 1.05 y 1.09 en vez de arrancar en 1:
+   no es gusto, es el margen que necesita para no despegarse. */
+@keyframes deriva{
+  0%   { transform:scale(1.05) translate(0, 0) }
+  25%  { transform:scale(1.08) translate(-1.1%, .8%) }
+  50%  { transform:scale(1.06) translate(.9%, -.6%) }
+  75%  { transform:scale(1.09) translate(-.6%, -1%) }
+  100% { transform:scale(1.05) translate(0, 0) }
 }
 
 @media (hover:hover){
-  #donde:hover img{ transform:scale(1.04); opacity:1; }
+  #donde:hover img{ opacity:1; }
 }
 
 /* El velo. En computadora va de izquierda a derecha —el texto ocupa la
@@ -1119,7 +1149,7 @@ body.cargando{ overflow:hidden; }
 
 @media (prefers-reduced-motion:reduce){
   .donde-pin::after{ animation:none; opacity:.5 }
-  #donde img{ transition:none }
+  #donde img{ animation:none; transform:scale(1.05); transition:none }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -1454,6 +1484,30 @@ body.cargando{ overflow:hidden; }
   height:100%;
   object-fit:cover;
   object-position:center;
+}
+
+/* EL APAGADO DEL REEL.
+
+   Antes el reel terminaba de golpe: el auto estaba ahí y a la línea
+   siguiente empezaba el mapa. Ahora, en el último tramo del giro, una
+   capa negra se va encendiendo sobre el video y el auto se disuelve.
+   Cuando arranca la sección de abajo ya no hay nada que cortar.
+
+   Es la misma idea que el apagado de la portada, y por el mismo motivo:
+   dos secciones no se empalman mejor buscándoles un color en común,
+   se empalman llegando las dos al negro.
+
+   z-index 2 la deja encima del video pero DEBAJO de las notas, que van
+   en 4. Así el auto se apaga y la última línea —la de los papeles—
+   queda sola sobre negro, que es un final mejor que el que tenía. */
+.reel-stick::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:2;
+  background:#000;
+  opacity:var(--apagado,0);
+  pointer-events:none;
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -2018,6 +2072,10 @@ body.is-dark.is-scrolled #topbar{
 (function(){
   var sec = document.getElementById('reel');
   var v   = document.getElementById('reelVid');
+  /* El bloque pegado. Se guarda acá porque el bucle le escribe el
+     apagado en cada cuadro y no conviene buscarlo sesenta veces por
+     segundo. */
+  var pegado = sec && sec.querySelector('.reel-stick');
 
   /* En celular todavia no hay pieza propia, asi que la seccion entera
      se oculta (ver el @media) y aca ni siquiera se pide el archivo: no
@@ -2119,6 +2177,57 @@ body.is-dark.is-scrolled #topbar{
     }
   }
 
+  /* EL APAGADO DEL FINAL: de 0 en el 86% del recorrido a 1 al llegar
+     abajo. Es el 14% de una sección que mide varias pantallas, o sea
+     casi una pantalla entera de scroll para que el auto se disuelva.
+     Corto se ve como un parpadeo; así se siente que la sección se está
+     terminando.
+
+     Vive afuera del bucle a propósito. Adentro dependía de dos cosas
+     que pueden no pasar —que el video haya cargado y que el bucle esté
+     despierto—, y si alguna fallaba el corte volvía a ser seco. Es una
+     cuenta directa sobre la posición del scroll: no necesita ni el
+     video ni suavizado, así que se calcula sola y también se llama
+     desde el scroll. */
+  var apagadoPuesto = -1;
+
+  function apagar(){
+    if (!pegado) return;
+
+    /* CUÁNDO SE APAGA: MIENTRAS LA SECCIÓN SE VA, NO ANTES.
+
+       Primero esto gastaba el último 14% del recorrido del reel, o sea
+       casi una pantalla entera de scroll mirando cómo se apaga un auto
+       que ya había terminado de girar. Se sentía como una demora para
+       poder salir de la sección.
+
+       Ahora se mide contra el borde de abajo de la sección: mientras el
+       reel llena la pantalla vale 0, y sube a 1 a medida que se va por
+       arriba. Ese tramo es el scroll que uno hace igual para pasar a lo
+       que sigue, así que la transición no cuesta recorrido: el auto se
+       disuelve al mismo tiempo que el mapa entra desde abajo. */
+    var alto = window.innerHeight || 1;
+    var a = 1 - (sec.getBoundingClientRect().bottom / alto);
+    if (a < 0) a = 0;
+    if (a > 1) a = 1;
+
+    /* SÓLO SE ESCRIBE SI CAMBIA, y redondeado a centésimas.
+
+       Escribirlo en cada cuadro dejaba el reel trabado: son sesenta
+       recálculos de estilo por segundo sobre el bloque pegado —el
+       video y las cuatro notas adentro— compitiendo con los seeks del
+       scrub, que es lo único que ahí tiene que llegar a tiempo.
+
+       Cien pasos de opacidad son más de los que el ojo distingue en un
+       fundido a negro, así que no se pierde nada: la mayoría de los
+       cuadros no escriben nada. Es la misma regla que ya seguían las
+       notas, que sólo tocan el DOM cuando se prenden o se apagan. */
+    var paso = Math.round(a * 100);
+    if (paso === apagadoPuesto) return;
+    apagadoPuesto = paso;
+    pegado.style.setProperty('--apagado', (paso / 100).toFixed(2));
+  }
+
   /* Cuánto se avanzó de la sección, de 0 a 1. */
   function avance(){
     var r = sec.getBoundingClientRect();
@@ -2165,6 +2274,8 @@ body.is-dark.is-scrolled #topbar{
 
     var p = avance();
     notasEn(p);
+
+    apagar();
 
     /* El scroll recorre el video de punta a punta, sin rebote.
 
@@ -2249,7 +2360,14 @@ body.is-dark.is-scrolled #topbar{
     requestAnimationFrame(cuadro);
   }
 
-  addEventListener('scroll', animar, { passive:true });
+  /* El scroll despierta el bucle y, aparte, mantiene el apagado al día
+     por su cuenta. Así el final se funde en negro aunque el video no
+     haya cargado. */
+  addEventListener('scroll', function(){
+    apagar();
+    animar();
+  }, { passive:true });
+  apagar();
 
   v.addEventListener('loadedmetadata', function(){
     dur = v.duration || 0;
@@ -2398,6 +2516,30 @@ body.is-dark.is-scrolled #topbar{
     </span>
   </div>
 </a>
+
+<script>
+/* La deriva del mapa sólo corre cuando la sección está a la vista.
+
+   Una animación de transform es barata, pero mantiene viva una capa en
+   el compositor todo el tiempo aunque nadie la mire. Es la misma regla
+   que ya siguen la portada, el reel y el collage: nada trabaja de
+   fondo. Sin IntersectionObserver, corre siempre y listo. */
+(function(){
+  var sec = document.getElementById('donde');
+  if (!sec) return;
+
+  if (!('IntersectionObserver' in window)){
+    sec.classList.add('a-la-vista');
+    return;
+  }
+
+  new IntersectionObserver(function(e){
+    e.forEach(function(x){
+      sec.classList.toggle('a-la-vista', x.isIntersecting);
+    });
+  }, { threshold:0.01 }).observe(sec);
+})();
+</script>
 
 <!-- El collage: un video y dos fotos que se acomodan con el scroll. -->
 <section id="collage">
