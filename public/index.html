@@ -2681,6 +2681,79 @@ body.is-dark.is-scrolled #topbar{
 
 
 
+<!-- DÓNDE ESTAMOS.
+
+     Toda la sección es un enlace: se pidió que tocar el mapa abra
+     Google Maps, así que el <a> envuelve todo en vez de haber un botón
+     chiquito en una esquina.
+
+     El mapa es un dibujo con datos de OpenStreetMap, no un iframe de
+     Google. Los motivos, en el CSS de #donde. -->
+<a id="donde"
+   href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8"
+   target="_blank" rel="noopener"
+   aria-label="Pasaje Lanín 154, Barracas — abrir en Google Maps">
+
+  <!-- Dos dibujos, no dos tamaños del mismo. El SVG se ve a 1440 px de
+       ancho en computadora y a unos 560 en teléfono: con un solo
+       archivo, o los nombres de calle salen enormes en uno o ilegibles
+       en el otro. El de teléfono además abarca menos cuadras, porque en
+       una pantalla angosta entra menos.
+
+       Acá sí sirve <source media>: en <picture> lo respetan todos los
+       navegadores. Es dentro de <video> donde Safari lo ignora, que es
+       el motivo por el que los videos del sitio se eligen por script. -->
+  <picture>
+    <source media="(max-width:767px)" srcset="assets/mapa/barracas-movil.svg">
+    <img src="assets/mapa/barracas.svg"
+         alt="Mapa de Barracas con el Pasaje Lanín señalado"
+         loading="lazy" decoding="async" width="1000" height="1000">
+  </picture>
+
+  <span class="donde-pin" aria-hidden="true"></span>
+
+  <div class="donde-caja">
+    <small>Dónde estamos</small>
+    <h2>Pasaje Lanín 154, Barracas.</h2>
+    <p>La calle de las casas pintadas: unas cuarenta fachadas
+       intervenidas por Marino Santa María en pintura y mosaico
+       veneciano, declarada Sitio de Interés Cultural por la
+       Legislatura porteña.</p>
+    <span class="donde-ir">
+      Abrir en Google Maps
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+           aria-hidden="true">
+        <path d="M7 17 17 7M8 7h9v9"/>
+      </svg>
+    </span>
+  </div>
+</a>
+
+<script>
+/* La deriva del mapa sólo corre cuando la sección está a la vista.
+
+   Una animación de transform es barata, pero mantiene viva una capa en
+   el compositor todo el tiempo aunque nadie la mire. Es la misma regla
+   que ya siguen la portada, el reel y el collage: nada trabaja de
+   fondo. Sin IntersectionObserver, corre siempre y listo. */
+(function(){
+  var sec = document.getElementById('donde');
+  if (!sec) return;
+
+  if (!('IntersectionObserver' in window)){
+    sec.classList.add('a-la-vista');
+    return;
+  }
+
+  new IntersectionObserver(function(e){
+    e.forEach(function(x){
+      sec.classList.toggle('a-la-vista', x.isIntersecting);
+    });
+  }, { threshold:0.01 }).observe(sec);
+})();
+</script>
+
 <!-- El collage: un video y dos fotos que se acomodan con el scroll. -->
 <section id="collage">
   <div class="col-marco">
@@ -2952,79 +3025,6 @@ body.is-dark.is-scrolled #topbar{
   }
   addEventListener('scroll', porScroll, { passive:true });
   porScroll();
-})();
-</script>
-
-<!-- DÓNDE ESTAMOS.
-
-     Toda la sección es un enlace: se pidió que tocar el mapa abra
-     Google Maps, así que el <a> envuelve todo en vez de haber un botón
-     chiquito en una esquina.
-
-     El mapa es un dibujo con datos de OpenStreetMap, no un iframe de
-     Google. Los motivos, en el CSS de #donde. -->
-<a id="donde"
-   href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8"
-   target="_blank" rel="noopener"
-   aria-label="Pasaje Lanín 154, Barracas — abrir en Google Maps">
-
-  <!-- Dos dibujos, no dos tamaños del mismo. El SVG se ve a 1440 px de
-       ancho en computadora y a unos 560 en teléfono: con un solo
-       archivo, o los nombres de calle salen enormes en uno o ilegibles
-       en el otro. El de teléfono además abarca menos cuadras, porque en
-       una pantalla angosta entra menos.
-
-       Acá sí sirve <source media>: en <picture> lo respetan todos los
-       navegadores. Es dentro de <video> donde Safari lo ignora, que es
-       el motivo por el que los videos del sitio se eligen por script. -->
-  <picture>
-    <source media="(max-width:767px)" srcset="assets/mapa/barracas-movil.svg">
-    <img src="assets/mapa/barracas.svg"
-         alt="Mapa de Barracas con el Pasaje Lanín señalado"
-         loading="lazy" decoding="async" width="1000" height="1000">
-  </picture>
-
-  <span class="donde-pin" aria-hidden="true"></span>
-
-  <div class="donde-caja">
-    <small>Dónde estamos</small>
-    <h2>Pasaje Lanín 154, Barracas.</h2>
-    <p>La calle de las casas pintadas: unas cuarenta fachadas
-       intervenidas por Marino Santa María en pintura y mosaico
-       veneciano, declarada Sitio de Interés Cultural por la
-       Legislatura porteña.</p>
-    <span class="donde-ir">
-      Abrir en Google Maps
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-           stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
-           aria-hidden="true">
-        <path d="M7 17 17 7M8 7h9v9"/>
-      </svg>
-    </span>
-  </div>
-</a>
-
-<script>
-/* La deriva del mapa sólo corre cuando la sección está a la vista.
-
-   Una animación de transform es barata, pero mantiene viva una capa en
-   el compositor todo el tiempo aunque nadie la mire. Es la misma regla
-   que ya siguen la portada, el reel y el collage: nada trabaja de
-   fondo. Sin IntersectionObserver, corre siempre y listo. */
-(function(){
-  var sec = document.getElementById('donde');
-  if (!sec) return;
-
-  if (!('IntersectionObserver' in window)){
-    sec.classList.add('a-la-vista');
-    return;
-  }
-
-  new IntersectionObserver(function(e){
-    e.forEach(function(x){
-      sec.classList.toggle('a-la-vista', x.isIntersecting);
-    });
-  }, { threshold:0.01 }).observe(sec);
 })();
 </script>
 
