@@ -735,23 +735,33 @@ video::-webkit-media-controls{ display:none !important; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   BLOQUE 2 — EL GARAGE, EN CINTA
+   BLOQUE 2 — EL GARAGE
 
-   Las tres líneas dejan de ser tres tarjetas quietas y vuelven a ser
-   una CINTA: un auto por vez, y los tres pasando de costado. Es el
-   mismo mecanismo que tenía el escenario original del sitio.
+   Cuatro grupos, uno por auto. El elegido va al centro y los dos
+   vecinos asoman a los costados, achicados y apagados. No es adorno:
+   es lo que le dice al ojo que hay más de un grupo y hacia dónde
+   siguen, sin obligar a tocar nada para descubrirlo.
 
-   LO QUE HACE QUE SE LEA COMO UNA CINTA Y NO COMO DOS ANIMACIONES:
-   los dos autos —el que sale y el que entra— se mueven JUNTOS. Misma
-   distancia, misma dirección, misma curva de velocidad. Si cada uno
-   tuviera lo suyo se leería como dos cosas que casualmente coinciden.
+   EL TRUCO QUE HACE QUE ESTO FUNCIONE SIN RECORTAR LAS FOTOS.
 
-   Y LA VELOCIDAD LA DA EL DESENFOQUE, NO EL APAGÓN. Bajarles el brillo
-   al pasar no se lee como movimiento, se lee como lavado. El color va
-   a pleno todo el trayecto; lo único que cuenta el viaje es el blur.
+   Las cuatro fotos son rectángulos OPACOS con el auto sobre negro. Al
+   solaparse, el rectángulo del vecino taparía al del medio con una
+   mancha negra — que es exactamente lo que se ve en cualquier carrusel
+   mal hecho.
 
-   Nada se mueve en vertical: sobre una calle el auto no sube ni baja,
-   pasa. Cualquier corrimiento en Y se lee como que saltó la página.
+   mix-blend-mode:screen lo resuelve de raíz. La fórmula del modo es
+   1-(1-a)(1-b): donde el pixel de arriba es negro, el resultado es
+   EXACTAMENTE el de abajo, intacto. O sea que sobre un fondo negro el
+   negro se comporta como transparente, sin canal alfa y sin recortar
+   nada. Y donde hay chapa, gana el más claro, que es lo que uno espera
+   de dos autos superpuestos en penumbra.
+
+   Esto sólo es válido porque el fondo es NEGRO PURO. Cuando la página
+   era #0B0C10 este mismo modo lavaba los oscuros y los autos se veían
+   desteñidos; se probó y se descartó por eso. Ahora es correcto.
+
+   El isolation:isolate acota la mezcla al escenario: sin él, screen
+   seguiría buscando hacia abajo fuera de la sección.
    ══════════════════════════════════════════════════════════════════ */
 #garage{
   position:relative;
@@ -764,59 +774,72 @@ video::-webkit-media-controls{ display:none !important; }
   margin:0 auto;
 }
 
-/* EL ESCENARIO. overflow:hidden es lo que hace de ventana: los autos
-   que no están en escena viajan por fuera y no se ven.
+/* Flecha · escenario · flecha. Las flechas van AFUERA del escenario y
+   no encima: sobre el auto obligarían a un fondo o una sombra para
+   poder leerse, y eso volvería a meter una caja en una sección que
+   justamente no tiene ninguna. */
+.gar-marco{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  gap:clamp(.5rem,2vw,1.6rem);
+}
 
-   Y ES NEGRO, COMO TODO EL RESTO. Era un rectángulo de grafito y su
-   borde de abajo chocaba contra el negro de la página: se veía la
-   caja. Se probó disolverlo con un degradado, pero la decisión fue más
-   simple y mejor — si el escenario es del mismo negro que la página,
-   no hay caja que disimular ni borde que resolver. El auto queda
-   flotando y nada más.
-
-   De paso se ahorra el grano que ese degradado habría necesitado: 35
-   niveles de gris repartidos en 185 px son 5,3 píxeles por nivel, y a
-   esa densidad se ve como franjas. */
 .gar-escena{
   position:relative;
   overflow:hidden;
-  aspect-ratio:16/7;
+  isolation:isolate;
+  aspect-ratio:23/10;
   background:var(--void);
 }
 
 .gar-auto{
   position:absolute;
-  inset:0;
-  display:grid;
-  place-items:center;
-  padding:clamp(1rem,3vw,2.6rem);
+  top:50%;
+  left:50%;
+  width:58%;
+  mix-blend-mode:screen;
   opacity:0;
-  visibility:hidden;
-  transform:translateX(115%);
-  will-change:transform, filter;
+  transform:translate(-50%,-50%) scale(.55);
+  transition:transform .72s var(--ease), opacity .72s var(--ease);
+  will-change:transform, opacity;
+  pointer-events:none;
 }
 
-.gar-auto.presente{ opacity:1; visibility:visible; }
-
-/* La curva es la misma para los dos autos. Acá vive el "viaja junto". */
-.gar-auto.viaja{
-  transition:transform .95s cubic-bezier(.62,0,.32,1),
-             filter    .95s cubic-bezier(.62,0,.32,1);
+/* El del medio. Es el único a tamaño y brillo plenos. */
+.gar-auto.es-actual{
+  opacity:1;
+  transform:translate(-50%,-50%) scale(1);
+  z-index:3;
 }
+
+/* Los vecinos. Achicados y apagados, y corridos lo justo para que se
+   vea de qué auto se trata sin que le pisen la trompa al del medio. */
+.gar-auto.es-previo,
+.gar-auto.es-siguiente{
+  opacity:.34;
+  z-index:2;
+}
+.gar-auto.es-previo   { transform:translate(-50%,-50%) translateX(-74%) scale(.66); }
+.gar-auto.es-siguiente{ transform:translate(-50%,-50%) translateX( 74%) scale(.66); }
 
 .gar-auto img{
   display:block;
   width:100%;
-  height:100%;
-  object-fit:contain;
+  height:auto;
 }
 
-/* ── el texto de la línea ─────────────────────────────────────────
-   Cambia con el auto. Se desvanece y vuelve, para que el ojo entienda
-   que es información nueva y no un renglón que se movió. */
+/* ── el texto del grupo ───────────────────────────────────────────
+   Centrado y debajo del auto. Con los vecinos asomando a izquierda y
+   derecha, cualquier cosa puesta a un costado compite con ellos.
+
+   Se desvanece y vuelve al cambiar, para que se lea como información
+   nueva y no como un renglón que se movió. */
 .gar-texto{
-  margin-top:clamp(1.6rem,3.5vh,2.4rem);
-  min-height:9.5rem;
+  margin:clamp(1.4rem,3.2vh,2.2rem) auto 0;
+  max-width:34rem;
+  text-align:center;
+  min-height:8.5rem;
   transition:opacity .3s var(--ease);
 }
 .gar-texto.cambiando{ opacity:0; }
@@ -833,7 +856,7 @@ video::-webkit-media-controls{ display:none !important; }
 .gar-texto h3{
   margin:clamp(.6rem,1.4vh,.9rem) 0 0;
   font-family:var(--display);
-  font-size:clamp(.9rem,1.6vw,1.25rem);
+  font-size:clamp(.95rem,1.7vw,1.35rem);
   font-weight:700;
   text-transform:uppercase;
   letter-spacing:.1em;
@@ -843,36 +866,18 @@ video::-webkit-media-controls{ display:none !important; }
 
 .gar-texto p{
   margin:clamp(.6rem,1.3vh,.9rem) 0 0;
-  max-width:38rem;
   font-size:clamp(.9rem,1.15vw,1rem);
   line-height:1.65;
   color:var(--steel);
 }
 
-.gar-estado{
-  display:block;
-  margin-top:clamp(.7rem,1.6vh,1.1rem);
-  font-size:.6rem;
-  font-weight:600;
-  letter-spacing:.16em;
-  text-transform:uppercase;
-  color:var(--ink-3);
-}
-
 /* ── los mandos ───────────────────────────────────────────────────
-   Las rayitas dicen cuántas líneas hay y en cuál estás; las flechas
-   están para quien no quiere esperar el pase automático. */
-.gar-mandos{
-  display:flex;
-  align-items:center;
-  gap:clamp(1rem,2.4vw,1.8rem);
-  margin-top:clamp(1.4rem,3vh,2rem);
-}
-
+   Las rayitas dicen cuántos grupos hay y en cuál estás. */
 .gar-rayas{
   display:flex;
+  justify-content:center;
   gap:.5rem;
-  flex:1;
+  margin-top:clamp(1.2rem,2.6vh,1.8rem);
 }
 
 .gar-raya{
@@ -880,8 +885,7 @@ video::-webkit-media-controls{ display:none !important; }
   border:0;
   padding:0;
   height:2px;
-  flex:1;
-  max-width:5rem;
+  width:3.2rem;
   background:rgba(209,213,219,.22);
   cursor:pointer;
   transition:background-color .4s var(--ease);
@@ -906,14 +910,21 @@ video::-webkit-media-controls{ display:none !important; }
   .gar-flecha:hover{ border-color:var(--chrome); color:var(--chrome); }
 }
 
-@media (max-width:767px){
-  .gar-escena{ aspect-ratio:4/3; }
-  .gar-texto{ min-height:11rem; }
+/* En pantalla angosta el escenario se hace más alto y el auto del
+   medio más grande: si se mantuviera la proporción de escritorio, con
+   400 px de ancho el auto quedaría del tamaño de una estampilla. Los
+   vecinos se corren más afuera por la misma razón. */
+@media (max-width:820px){
+  .gar-escena{ aspect-ratio:13/9; }
+  .gar-auto{ width:76%; }
+  .gar-auto.es-previo   { transform:translate(-50%,-50%) translateX(-78%) scale(.6); }
+  .gar-auto.es-siguiente{ transform:translate(-50%,-50%) translateX( 78%) scale(.6); }
+  .gar-flecha{ width:2.2rem; height:2.2rem; }
+  .gar-texto{ min-height:10.5rem; }
 }
 
-/* Quien pidió no ver movimiento ve el cambio sin viaje ni desenfoque. */
 @media (prefers-reduced-motion:reduce){
-  .gar-auto.viaja{ transition:none; }
+  .gar-auto{ transition:none; }
   .gar-texto{ transition:none; }
 }
 
@@ -2793,174 +2804,151 @@ body.is-dark.is-scrolled #topbar{
   </div>
 </section>
 
-<!-- BLOQUE 2, SEGUNDA MITAD — EL GARAGE EN CINTA.
+<!-- BLOQUE 2, SEGUNDA MITAD — EL GARAGE.
 
-     Un auto por vez, los tres pasando de costado. Cada auto es una
-     línea del catálogo; el texto de abajo cambia con él. -->
+     Cuatro grupos, uno por auto. El del grupo elegido va al centro y
+     los dos vecinos asoman a los costados, achicados y apagados: se ve
+     de dónde venís y a dónde vas sin tener que tocar nada.
+
+     LAS FOTOS NO ESTÁN RECORTADAS Y ESO ES A PROPÓSITO. Medido, su
+     fondo da percentil 99 de 1 o 2 sobre 255 —negro puro— y la página
+     también es negro puro, así que se funden sin borde. Recortarlas
+     además las rompía: estos autos tienen el lado en sombra tan negro
+     como el fondo, y el recorte automático se comía las llantas, los
+     pasarruedas y medio BMW. Conservarlas enteras mantiene el reflejo
+     del piso, que es lo que les da peso. -->
 <section id="garage">
   <div class="gar-caja">
 
-    <div class="gar-escena" aria-live="off">
-      <div class="gar-auto presente">
-        <img src="assets/lineas/linea-1.webp" alt="Mercedes-Benz GLC Coupé de perfil"
-             loading="lazy" decoding="async" width="1000" height="563">
-      </div>
-      <div class="gar-auto">
-        <img src="assets/lineas/linea-2.webp" alt="BMW Serie 2 de perfil"
-             loading="lazy" decoding="async" width="1000" height="563">
-      </div>
-      <div class="gar-auto">
-        <img src="assets/lineas/linea-3.webp" alt="Chevrolet Camaro SS de perfil"
-             loading="lazy" decoding="async" width="1000" height="563">
-      </div>
-    </div>
-
-    <div class="gar-texto">
-      <span class="gar-num">01</span>
-      <h3>Colección Selected</h3>
-      <p>Mercedes-Benz, BMW, MINI y Volkswagen. Unidades preservadas,
-         revisadas y listas para entregar.</p>
-      <span class="gar-estado">Disponible</span>
-    </div>
-
-    <div class="gar-mandos">
-      <div class="gar-rayas" role="tablist" aria-label="Líneas del garage">
-        <button class="gar-raya" role="tab" aria-current="true"  aria-label="Colección Selected"></button>
-        <button class="gar-raya" role="tab" aria-current="false" aria-label="Línea Evolution"></button>
-        <button class="gar-raya" role="tab" aria-current="false" aria-label="Históricos y Carreras"></button>
-      </div>
-
-      <button class="gar-flecha" data-paso="-1" type="button" aria-label="Línea anterior">
+    <div class="gar-marco">
+      <button class="gar-flecha" data-paso="-1" type="button" aria-label="Grupo anterior">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg>
       </button>
-      <button class="gar-flecha" data-paso="1" type="button" aria-label="Línea siguiente">
+
+      <div class="gar-escena" aria-live="off">
+        <div class="gar-auto">
+          <img src="assets/grupos/alta-gama.webp" alt="Mercedes-AMG GLE 63 Coupé blanco"
+               loading="lazy" decoding="async" width="1100" height="752">
+        </div>
+        <div class="gar-auto">
+          <img src="assets/grupos/deportivos.webp" alt="BMW M240i violeta"
+               loading="lazy" decoding="async" width="1100" height="752">
+        </div>
+        <div class="gar-auto">
+          <img src="assets/grupos/evolution.webp" alt="Ford Mustang Mach-E verde"
+               loading="lazy" decoding="async" width="1100" height="752">
+        </div>
+        <div class="gar-auto">
+          <img src="assets/grupos/urbanos.webp" alt="MINI Cooper S rojo"
+               loading="lazy" decoding="async" width="1100" height="752">
+        </div>
+      </div>
+
+      <button class="gar-flecha" data-paso="1" type="button" aria-label="Grupo siguiente">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
       </button>
+    </div>
+
+    <!-- El texto va centrado y debajo del auto, no al costado: con los
+         vecinos asomando a izquierda y derecha, cualquier cosa puesta a
+         un lado compite con ellos. -->
+    <div class="gar-texto">
+      <span class="gar-num">01</span>
+      <h3>Alta Gama</h3>
+      <p>Las unidades más exclusivas del salón. Mercedes-Benz y
+         equivalentes, preservadas y listas para entregar.</p>
+    </div>
+
+    <div class="gar-rayas" role="tablist" aria-label="Grupos del garage">
+      <button class="gar-raya" role="tab" aria-current="true"  aria-label="Alta Gama"></button>
+      <button class="gar-raya" role="tab" aria-current="false" aria-label="Deportivos"></button>
+      <button class="gar-raya" role="tab" aria-current="false" aria-label="Línea Evolution"></button>
+      <button class="gar-raya" role="tab" aria-current="false" aria-label="Urbanos"></button>
     </div>
 
   </div>
 </section>
 
 <script>
-/* LA CINTA.
+/* EL GARAGE.
 
-   Reconstrucción del mecanismo que tenía el escenario original, sin la
-   biblioteca de animación que usaba entonces: acá alcanza con dos
-   transiciones de CSS bien coordinadas.
+   Cuatro grupos. El elegido al centro, los dos vecinos asomando. Todo
+   el movimiento lo hace el CSS: acá sólo se reparten tres clases
+   —es-actual, es-previo, es-siguiente— y el resto queda sin ninguna,
+   que en el CSS significa apagado y fuera de escena.
 
-   LAS DOS REGLAS QUE LO HACEN LEER COMO UNA CINTA:
-
-   1. Los dos autos se mueven JUNTOS. Misma distancia, misma dirección,
-      misma curva. Por eso comparten la clase .viaja y no hay ningún
-      retardo entre uno y otro. Si cada uno tuviera su tiempo se leería
-      como dos animaciones que casualmente coinciden.
-
-   2. La cinta corre AL REVÉS de la flecha que se toca. Con "siguiente"
-      la cinta empuja hacia la izquierda y el auto nuevo entra por la
-      derecha, igual que al pasar la página de un libro. Al revés se
-      lee como retroceder aunque aparezca el auto que sigue.
-
-   Y la velocidad la da el desenfoque, no bajar el brillo. */
+   Repartir clases en vez de calcular transforms a mano tiene una
+   ventaja concreta: el auto que estaba a la izquierda y pasa al centro
+   ANIMA de una posición a la otra, porque es el mismo elemento
+   cambiando de clase. Si se recolocaran nodos, saltaría. */
 (function(){
   var sec = document.getElementById('garage');
   if (!sec) return;
 
-  var autos  = [].slice.call(sec.querySelectorAll('.gar-auto'));
-  var rayas  = [].slice.call(sec.querySelectorAll('.gar-raya'));
-  var texto  = sec.querySelector('.gar-texto');
+  var autos = [].slice.call(sec.querySelectorAll('.gar-auto'));
+  var rayas = [].slice.call(sec.querySelectorAll('.gar-raya'));
+  var texto = sec.querySelector('.gar-texto');
   var escena = sec.querySelector('.gar-escena');
   if (autos.length < 2) return;
 
-  var LINEAS = [
-    { num:'01', titulo:'Colección Selected',
-      texto:'Mercedes-Benz, BMW, MINI y Volkswagen. Unidades preservadas, revisadas y listas para entregar.',
-      estado:'Disponible' },
-    { num:'02', titulo:'Línea Evolution',
-      texto:'Eléctricos e híbridos. La misma exigencia de selección aplicada a la generación que viene.',
-      estado:'Disponible' },
-    { num:'03', titulo:'Históricos y Carreras',
-      texto:'Clásicos, competición y piezas de colección. Si buscás una en particular, la encontramos en el mercado global.',
-      estado:'Búsqueda a pedido' }
+  var GRUPOS = [
+    { num:'01', titulo:'Alta Gama',
+      texto:'Las unidades más exclusivas del salón. Mercedes-Benz y equivalentes, preservadas y listas para entregar.' },
+    { num:'02', titulo:'Deportivos',
+      texto:'Prestaciones y chasis afinado. BMW M, AMG y afines, con el historial de mantenimiento completo.' },
+    { num:'03', titulo:'Línea Evolution',
+      texto:'Eléctricos e híbridos. La misma exigencia de selección aplicada a la generación que viene.' },
+    { num:'04', titulo:'Urbanos',
+      texto:'Para la ciudad, sin resignar carácter. MINI y compactos premium, listos para el día a día.' }
   ];
 
-  var VIAJE = 115;      /* % del ancho: lo que hay que correr para salir limpio */
-  var DURA  = 950;      /* ms, igual que la transición del CSS */
-  var PAUSA = 4200;     /* cuánto queda quieto cada auto */
-
-  var actual = 0, ocupado = false, reloj = null;
+  var N = autos.length;
+  var PAUSA = 4600;
+  var actual = 0, reloj = null;
   var quieto = window.matchMedia &&
                matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  function pintar(i){
-    var l = LINEAS[i];
-    texto.querySelector('.gar-num').textContent    = l.num;
-    texto.querySelector('h3').textContent          = l.titulo;
-    texto.querySelector('p').textContent           = l.texto;
-    texto.querySelector('.gar-estado').textContent = l.estado;
+  function pintar(){
+    var g = GRUPOS[actual] || GRUPOS[0];
+    texto.querySelector('.gar-num').textContent = g.num;
+    texto.querySelector('h3').textContent       = g.titulo;
+    texto.querySelector('p').textContent        = g.texto;
     rayas.forEach(function(r, k){
-      r.setAttribute('aria-current', String(k === i));
+      r.setAttribute('aria-current', String(k === actual));
     });
   }
 
-  function ir(destino, dir){
-    if (ocupado || destino === actual) return;
-
-    var sale  = autos[actual];
-    var entra = autos[destino];
-
-    if (quieto){
-      sale.classList.remove('presente');
-      entra.classList.add('presente');
-      entra.style.transform = 'translateX(0)';
-      actual = destino; pintar(actual);
-      return;
-    }
-
-    ocupado = true;
-
-    /* Hacia dónde CORRE la cinta: al revés del sentido pedido. */
-    var M = -dir;
-
-    /* 1 · el que entra se para del lado contrario, sin transición y
-           todavía desenfocado, como esperando en la penumbra. */
-    entra.classList.remove('viaja');
-    entra.style.transform = 'translateX(' + (-VIAJE * M) + '%) scale(1.035)';
-    entra.style.filter    = 'blur(11px)';
-    entra.classList.add('presente');
-
-    /* 2 · se fuerza el cálculo del estilo para que el paso 3 sea un
-           cambio y no quede fundido con el anterior. */
-    void entra.offsetWidth;
-
-    /* 3 · los dos arrancan en el mismo instante. */
-    sale.classList.add('viaja');
-    entra.classList.add('viaja');
-    sale.style.transform  = 'translateX(' + (VIAJE * M) + '%)';
-    sale.style.filter     = 'blur(11px)';
-    entra.style.transform = 'translateX(0) scale(1)';
-    entra.style.filter    = 'blur(0px)';
-
-    /* El texto se va y vuelve con el auto nuevo ya en camino. */
-    texto.classList.add('cambiando');
-    setTimeout(function(){
-      pintar(destino);
-      texto.classList.remove('cambiando');
-    }, DURA * 0.45);
-
-    setTimeout(function(){
-      sale.classList.remove('presente', 'viaja');
-      sale.style.transform = 'translateX(' + VIAJE + '%)';
-      sale.style.filter    = '';
-      entra.classList.remove('viaja');
-      actual = destino;
-      ocupado = false;
-      programar();
-    }, DURA);
+  function colocar(){
+    var previo    = (actual - 1 + N) % N;
+    var siguiente = (actual + 1) % N;
+    autos.forEach(function(a, i){
+      a.classList.remove('es-actual', 'es-previo', 'es-siguiente');
+      /* Con sólo tres autos el previo y el siguiente serían el mismo
+         elemento y uno de los dos costados quedaría vacío. Con cuatro
+         no pasa, pero la guarda se deja porque el día que se agregue o
+         se saque un grupo esto tiene que seguir funcionando. */
+      if (i === actual) a.classList.add('es-actual');
+      else if (i === previo && previo !== siguiente) a.classList.add('es-previo');
+      else if (i === siguiente) a.classList.add('es-siguiente');
+    });
   }
 
-  function paso(d){ ir((actual + d + autos.length) % autos.length, d); }
+  function ir(destino){
+    destino = (destino % N + N) % N;
+    if (destino === actual) return;
+    actual = destino;
+    colocar();
+    texto.classList.add('cambiando');
+    setTimeout(function(){
+      pintar();
+      texto.classList.remove('cambiando');
+    }, 220);
+    programar();
+  }
+
+  function paso(d){ ir(actual + d); }
 
   function programar(){
     clearTimeout(reloj);
@@ -2977,18 +2965,17 @@ body.is-dark.is-scrolled #topbar{
   });
 
   rayas.forEach(function(r, i){
-    r.addEventListener('click', function(){
-      frenar();
-      if (i !== actual) ir(i, i > actual ? 1 : -1);
-    });
+    r.addEventListener('click', function(){ frenar(); ir(i); });
   });
 
-  /* Con el cursor encima no pasa solo: si alguien está mirando una
-     línea, cambiársela es pelearle. */
+  /* Con el cursor encima no pasa solo: si alguien está mirando un
+     grupo, cambiárselo es pelearle. */
   escena.addEventListener('mouseenter', frenar);
   escena.addEventListener('mouseleave', programar);
 
   /* Y no trabaja de fondo, como el resto del sitio. */
+  colocar();
+  pintar();
   if ('IntersectionObserver' in window){
     new IntersectionObserver(function(e){
       e.forEach(function(x){ x.isIntersecting ? programar() : frenar(); });
