@@ -70,6 +70,12 @@
   --chrome:#F2F4F8;
   --steel:#7E8593;
 
+  /* El gris de estudio de la portada. No es un gris elegido a ojo: es
+     el tono dominante del propio archivo de video, sacado midiendo su
+     paleta. Por eso la franja del final empalma con la primera pantalla
+     sin que se note que son dos piezas distintas. */
+  --plata:#AFAFB0;
+
   --beam:214,232,255;        /* el blanco frío del rig, en RGB */
 
   --display:"Archivo",-apple-system,system-ui,sans-serif;
@@ -295,6 +301,121 @@ video::-webkit-media-controls{ display:none !important; }
 @media (prefers-reduced-motion:reduce){
   .band-copy .w{ transition:none; color:var(--chrome); }
   .band-copy p + p .w{ color:var(--steel); }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   EL PUENTE — cómo se sale del negro sin que se note el empalme
+
+   La página arranca en el gris de estudio de la portada, se va a negro
+   y al final vuelve al gris. Ese último empalme es el más difícil: un
+   corte seco entre negro puro y gris plata se lee como un error de
+   maquetado, y un degradado hecho de cualquier manera se lee peor
+   todavía. Dos cosas lo arruinan, y las dos están resueltas acá.
+
+   1) LA CURVA. Un degradado lineal entre negro y gris medio se abre
+      demasiado rápido: a mitad de camino el ojo ya ve gris claro y el
+      negro se siente cortado. Las paradas de acá abajo siguen una
+      smootherstep (6t⁵−15t⁴+10t³), la curva de siempre para fundidos de
+      luminancia: el negro se sostiene, después abre, y aterriza en el
+      plata frenando. No son valores puestos a ojo, están calculados.
+
+   2) EL BANDEADO. Un degradado gris largo en una pantalla de 8 bits
+      muestra escalones — franjas horizontales visibles, sobre todo en
+      la zona oscura donde los saltos de valor son enormes en términos
+      relativos. Se rompen con grano: una capa de ruido finísimo que
+      desordena el borde entre un escalón y el siguiente y lo vuelve
+      invisible. Es lo mismo que hace una imprenta al tramar.
+   ══════════════════════════════════════════════════════════════════ */
+#puente{
+  position:relative;
+  height:60svh;
+  background:linear-gradient(to bottom,
+      rgb(0 0 0) 0%,
+      rgb(1 1 1) 8.333%,
+      rgb(6 6 6) 16.67%,
+      rgb(18 18 18) 25%,
+      rgb(37 37 37) 33.33%,
+      rgb(61 61 61) 41.67%,
+      rgb(88 88 88) 50%,
+      rgb(114 114 115) 58.33%,
+      rgb(138 138 139) 66.67%,
+      rgb(157 157 158) 75%,
+      rgb(169 169 170) 83.33%,
+      rgb(174 174 175) 91.67%,
+      rgb(175 175 176) 100%);
+}
+
+/* El grano. Se genera con SVG en vez de traer una imagen: son 200 bytes
+   contra los varios KB de un PNG de ruido, y no es un pedido más.
+
+   overlay es la mezcla correcta: sobre negro puro no hace nada —donde
+   no hay bandeado, no hay grano— y va apareciendo a medida que el fondo
+   se aclara, que es justo donde los escalones se notan. */
+#puente::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  opacity:.055;
+  mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='r'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23r)'/%3E%3C/svg%3E");
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   EL CIERRE — la franja plateada del final
+
+   Misma idea que la franja de arriba: una pausa escrita, no una
+   sección. Media pantalla, no una entera. Debajo va a seguir habiendo
+   contenido, así que esto es una bisagra y no un final.
+
+   El fondo es --plata, el tono sacado del propio video de portada. Con
+   eso la página cierra el círculo donde empezó. */
+#cierre{
+  position:relative;
+  height:50svh;
+  background:var(--plata);
+  display:grid;
+  place-items:center;
+  padding:clamp(1.5rem,4vh,3rem) var(--gut);
+  text-align:center;
+}
+
+.cierre-copy{ max-width:52rem; }
+
+/* Misma tipografía que la franja de arriba —son hermanas— pero la tinta
+   va al revés: allá el fondo es negro y las palabras se encienden en
+   blanco; acá el fondo es claro y se encienden en negro. */
+.cierre-copy p{
+  font-size:clamp(1.6rem,3.6vw,3.1rem);
+  font-variation-settings:"wdth" 92,"wght" 500;
+  letter-spacing:-.02em;
+  line-height:1.24;
+  color:rgba(16,18,22,.17);
+}
+
+.cierre-copy p + p{
+  margin-top:clamp(.5rem,1.4vh,.9rem);
+  font-size:clamp(1.2rem,2.6vw,2.15rem);
+  font-variation-settings:"wdth" 92,"wght" 400;
+}
+
+.cierre-copy .w{
+  transition:color .45s var(--ease);
+  color:inherit;
+}
+.cierre-copy .w.on{ color:var(--ink); }
+.cierre-copy p + p .w.on{ color:var(--ink-2); }
+
+@media (max-width:767px){
+  /* En el teléfono la rampa se acorta: la pantalla es más angosta, el
+     degradado recorre menos píxeles y no necesita tanto alto para
+     verse limpio. Estirarla sólo agregaría scroll vacío. */
+  #puente{ height:44svh; }
+}
+
+@media (prefers-reduced-motion:reduce){
+  .cierre-copy .w{ transition:none; color:var(--ink); }
+  .cierre-copy p + p .w{ color:var(--ink-2); }
 }
 
 /* ── el texto de la portada ────────────────────────────────────────
@@ -1336,6 +1457,18 @@ body.is-dark.is-scrolled #topbar{
     var franja = null, texto = null, palabras = null, encendidas = -1;
     var collage = null;
 
+    /* La franja del final: mismas tres variables que la de arriba. Se
+       buscan tarde por el mismo motivo —este script vive dentro de
+       #cover y corre antes de que exista el resto de la página. */
+    var cierre = null, cierreTexto = null, cierrePalabras = null, cierreEncendidas = -1;
+
+    /* Las secciones de fondo claro. En vez de que el header adivine por
+       la posición del scroll —que era lo que hacía antes y sólo servía
+       mientras hubiera una sola pantalla clara—, cada sección clara se
+       marca con data-claro en el HTML y acá se pregunta cuál tiene
+       debajo. Agregar otra sección clara más abajo no pide tocar nada. */
+    var claras = null;
+
     /* LA FLOTACIÓN. El scroll no escribe --y directamente: fija un
        objetivo y un bucle lo persigue al 9% por cuadro.
 
@@ -1450,11 +1583,75 @@ body.is-dark.is-scrolled #topbar{
         if (!flotando){ flotando = true; requestAnimationFrame(flotar); }
       }
 
-      /* Se reusa la misma `portada` de arriba. Declararla de nuevo acá
+      /* LA FRANJA DEL FINAL SE ESCRIBE SOLA, IGUAL QUE LA DE ARRIBA.
+
+         Con una diferencia: aquella tiene un bloque pegado y varias
+         pantallas de recorrido para repartir las palabras. Ésta mide
+         media pantalla y no se pega, así que el recorrido es su
+         entrada: arranca cuando el borde de arriba toca el pie de la
+         ventana y termina de escribirse cuando está bien a la vista.
+         Para cuando se la lee, ya está entera. */
+      if (!cierre){
+        cierre = document.getElementById('cierre');
+        cierreTexto = cierre && cierre.querySelector('.cierre-copy');
+        if (cierreTexto){
+          Array.prototype.forEach.call(cierreTexto.querySelectorAll('p'), function(linea){
+            linea.innerHTML = linea.textContent.trim().split(/\s+/)
+              .map(function(w){ return '<span class="w">' + w + '</span>'; })
+              .join(' ');
+          });
+          cierrePalabras = cierreTexto.querySelectorAll('.w');
+        }
+      }
+      if (cierrePalabras && cierrePalabras.length){
+        var rz = cierre.getBoundingClientRect();
+        var alto = window.innerHeight;
+        /* 0.42 y no un número más generoso porque hoy esto es lo último
+           de la página: el scroll se termina con la franja a media
+           altura y nunca llega a subir más. Con un recorrido largo la
+           última palabra no se encendía nunca — quedaba en 13 de 14.
+           Con éste termina de escribirse antes de que el scroll se
+           acabe, y cuando abajo haya más contenido va a seguir estando
+           completa mucho antes de irse. */
+        var qz = (alto - rz.top) / (alto * 0.42);
+        qz = qz < 0 ? 0 : (qz > 1 ? 1 : qz);
+        var cz = Math.round(qz * cierrePalabras.length);
+        if (cz !== cierreEncendidas){
+          for (var m = 0; m < cierrePalabras.length; m++){
+            cierrePalabras[m].classList.toggle('on', m < cz);
+          }
+          cierreEncendidas = cz;
+        }
+      }
+
+      /* EL COLOR DEL HEADER.
+
+         Antes esto era sólo "¿pasé la portada?". Alcanzaba mientras la
+         única pantalla clara fuera la primera; con la franja plateada
+         del final, el header quedaba blanco sobre gris claro.
+
+         Ahora además se pregunta si hay una sección clara justo debajo
+         de la barra. El puente declara desde qué altura suya ya se lo
+         considera claro, así el header cambia mientras el degradado
+         todavía está subiendo y no de golpe al llegar abajo.
+
+         Se reusa la misma `portada` de arriba. Declararla de nuevo acá
          con var la elevaba al inicio de la función y la dejaba en
          undefined justo donde se calcula el apagado. */
+      if (!claras) claras = document.querySelectorAll('[data-claro]');
+
+      /* La altura de la barra: es hasta acá que el header pisa el
+         fondo, y por lo tanto lo único que hay que consultar. */
+      var LINEA = 72;
+      var sobreClaro = false;
+      for (var n = 0; n < claras.length; n++){
+        var rl = claras[n].getBoundingClientRect();
+        var desde = rl.top + rl.height * (parseFloat(claras[n].dataset.claroDesde) || 0);
+        if (desde <= LINEA && rl.bottom > LINEA){ sobreClaro = true; break; }
+      }
+
       var corte = portada ? portada.offsetHeight * 0.72 : window.innerHeight * 0.72;
-      var osc = window.scrollY > corte;
+      var osc = window.scrollY > corte && !sobreClaro;
       if (osc !== oscuro){
         oscuro = osc;
         document.body.classList.toggle('is-dark', osc);
@@ -1889,6 +2086,21 @@ body.is-dark.is-scrolled #topbar{
         <img src="assets/collage/ciudad.webp" alt="La ciudad de noche" loading="lazy" decoding="async">
       </picture>
     </div>
+  </div>
+</section>
+
+<!-- La salida del negro. Está vacío a propósito: es la rampa de color y
+     nada más. El data-claro-desde le avisa al header a partir de qué
+     altura el fondo ya es claro, para que se pinte en negro antes de
+     quedar blanco sobre gris. -->
+<div id="puente" data-claro data-claro-desde=".55" aria-hidden="true"></div>
+
+<!-- El cierre. Hermana de la franja de arriba: mismo tratamiento, otra
+     tinta, otro texto. Debajo de esto va a seguir habiendo contenido. -->
+<section id="cierre" data-claro>
+  <div class="cierre-copy">
+   <p>Ahora sí, hablemos del tuyo.</p>
+   <p>Stock disponible, taller propio y una charla sin apuro.</p>
   </div>
 </section>
 
