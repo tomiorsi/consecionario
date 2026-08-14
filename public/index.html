@@ -1723,71 +1723,6 @@ body.cargando{ overflow:hidden; }
   background:var(--void);
 }
 
-/* LAS NOTAS DEL REEL.
-
-   Mientras el auto gira aparecen frases cortas abajo, alternando lados.
-   Hablan del auto como objeto: proporción, línea, volumen. No son datos
-   ni argumentos de venta — el reel ya es puro mirar, y el texto tiene
-   que acompañar eso, no interrumpirlo.
-
-   Van ABAJO y a los costados por dos motivos: ahí no tapan la
-   carrocería, que ocupa el centro, y el ojo las encuentra sin dejar de
-   mirar el auto.
-
-   Cada una tiene su tramo del giro (data-desde / data-hasta). Entran y
-   salen con el scroll, así que si se sube, se deshacen: es el mismo
-   idioma que el resto del sitio. */
-.reel-nota{
-  position:absolute;
-  bottom:clamp(2.5rem,9vh,5.5rem);
-  z-index:4;
-  max-width:min(20rem,42vw);
-  opacity:0;
-  transform:translateY(14px);
-  transition:opacity .7s var(--ease), transform .7s var(--ease);
-  pointer-events:none;
-}
-.reel-nota.on{ opacity:1; transform:none; }
-
-.reel-nota--izq{ left:var(--gut); text-align:left; }
-.reel-nota--der{ right:var(--gut); text-align:right; }
-
-.reel-nota p{
-  color:var(--chrome);
-  font-size:clamp(1rem,1.75vw,1.45rem);
-  font-weight:480;
-  letter-spacing:-.012em;
-  line-height:1.3;
-}
-.reel-nota small{
-  display:block;
-  margin-top:.7rem;
-  font-family:var(--mono);
-  font-size:.58rem;
-  font-weight:300;
-  letter-spacing:.26em;
-  text-transform:uppercase;
-  color:var(--steel);
-}
-
-@media (max-width:767px){
-  /* En vertical no hay lugar para dos columnas de texto: las notas se
-     centran abajo y se achican. Siguen alternando en el tiempo, que es
-     lo que las hace aparecer de a una. */
-  .reel-nota{
-    left:var(--gut); right:var(--gut);
-    max-width:none;
-    text-align:center;
-    bottom:clamp(2rem,7vh,4rem);
-  }
-  .reel-nota--izq, .reel-nota--der{ text-align:center; }
-  .reel-nota p{ font-size:clamp(.95rem,4.2vw,1.2rem); }
-}
-
-@media (prefers-reduced-motion:reduce){
-  .reel-nota{ transition:opacity .01ms; transform:none; }
-}
-
 #reelVid{
   display:block;
   width:100%;
@@ -2368,28 +2303,7 @@ body.is-dark.is-scrolled #topbar{
          Cada nota entra cuando se ve la parte que le toca: la chapa con
          el auto de atrás, el historial mientras gira, la mecánica de
          perfil y los papeles al quedar de frente. -->
-    <!-- La revisación se mudó al Estándar Manna, que es el bloque que
-         el documento reserva para la confianza. Acá vuelve el registro
-         del documento: no se describe un trámite, se mira el auto. -->
-    <div class="reel-nota reel-nota--izq" data-desde=".08" data-hasta=".30">
-      <p>Cada volumen estaba resuelto antes de existir.</p>
-      <small>Diseño</small>
-    </div>
 
-    <div class="reel-nota reel-nota--der" data-desde=".34" data-hasta=".56">
-      <p>Una sola línea recorre el auto entero.</p>
-      <small>Perfil</small>
-    </div>
-
-    <div class="reel-nota reel-nota--izq" data-desde=".60" data-hasta=".82">
-      <p>No se dibuja. Se esculpe.</p>
-      <small>Carrocería</small>
-    </div>
-
-    <div class="reel-nota reel-nota--der" data-desde=".86" data-hasta="1.01">
-      <p>Detenido, sigue diciendo algo.</p>
-      <small>Presencia</small>
-    </div>
   </div>
 </section>
 
@@ -2483,24 +2397,6 @@ body.is-dark.is-scrolled #topbar{
      Por rápido que se scrollee, el giro se ve despacio — que es
      exactamente lo que se pidió. */
   var PERSECUCION = (pantalla <= 767) ? 0.055 : 0.12;
-
-  /* Las notas que aparecen a los costados mientras el auto gira. Cada
-     una trae su tramo del giro en el HTML (data-desde / data-hasta),
-     así el texto y su momento viven juntos y se cambian en un lugar. */
-  var notas = [].map.call(sec.querySelectorAll('.reel-nota'), function(n){
-    return { el:n, desde:parseFloat(n.dataset.desde), hasta:parseFloat(n.dataset.hasta), puesta:null };
-  });
-
-  function notasEn(p){
-    for (var i = 0; i < notas.length; i++){
-      var n = notas[i];
-      var dentro = p >= n.desde && p < n.hasta;
-      if (dentro !== n.puesta){
-        n.puesta = dentro;
-        n.el.classList.toggle('on', dentro);
-      }
-    }
-  }
 
   /* EL APAGADO DEL FINAL: de 0 en el 86% del recorrido a 1 al llegar
      abajo. Es el 14% de una sección que mide varias pantallas, o sea
@@ -2618,7 +2514,6 @@ body.is-dark.is-scrolled #topbar{
     if (!v.paused){ try { v.pause(); } catch(e){} }
 
     var p = avance();
-    notasEn(p);
 
     apagar();
 
