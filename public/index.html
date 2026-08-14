@@ -850,20 +850,22 @@ video::-webkit-media-controls{ display:none !important; }
 
    El bloque respira contra el borde con el mismo --gut que todo lo
    demás, y se aparta del centro para no taparle los autos. */
-/* AL CENTRO, NO A LA DERECHA.
+/* A LA DERECHA, NO AL CENTRO.
 
-   Estaba a la derecha porque el sedán ocupaba la mitad izquierda del
-   cuadro. El documento pide el texto centrado, y centrado funciona
-   igual: la frase es corta y va sobre la zona clara del ciclorama, no
-   sobre el auto. */
+   El documento pide el texto centrado, pero centrado no funciona con
+   ESTA portada: el sedán ocupa el centro y la mitad izquierda del
+   cuadro, y la frase le caía justo encima — ilegible sobre la chapa.
+
+   La derecha es el único lado despejado del ciclorama. La intención
+   del documento —una sola frase minimalista sobre el video— se cumple
+   igual; lo que no se puede es ignorar dónde está el auto. */
 .cover-copy{
   position:absolute;
-  left:50%;
-  bottom:calc(var(--gut) + clamp(3rem,7vh,5rem));
-  transform:translateX(-50%);
+  right:var(--gut);
+  bottom:calc(var(--gut) + clamp(2.2rem,5vh,3.6rem));
   z-index:4;
-  width:min(46rem,86vw);
-  text-align:center;
+  width:min(26rem,66vw);
+  text-align:right;
   color:var(--ink);
 }
 
@@ -871,15 +873,15 @@ video::-webkit-media-controls{ display:none !important; }
 
    Es una letra muy ancha: como cartel de una sola frase funciona, y es
    exactamente lo que pide el documento para los títulos principales.
-   Por eso el cuerpo es chico en relación al ancho — con el tamaño que
-   tenía antes esta misma frase ocupaba media pantalla. */
+   Por eso el cuerpo es chico en relación al ancho — puesto al tamaño
+   de un titular normal, esta misma frase ocupaba media pantalla. */
 .cover-title{
   font-family:var(--display);
-  font-size:clamp(.95rem,2.15vw,1.65rem);
+  font-size:clamp(.8rem,1.55vw,1.25rem);
   font-weight:700;
   text-transform:uppercase;
-  letter-spacing:.1em;
-  line-height:1.75;
+  letter-spacing:.09em;
+  line-height:1.8;
   margin:0;
 }
 
