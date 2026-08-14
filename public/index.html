@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Manna Motors Selected — Autos seleccionados y revisados</title>
-<meta name="description" content="Cada auto entra al taller antes que a la vidriera: chapa, mecánica, historial y papeles verificados antes de estar a la venta.">
+<title>Manna Motors Selected — El arte de la ingeniería, preservado</title>
+<meta name="description" content="Colección de unidades seleccionadas en Buenos Aires. No elegimos autos por su año: los elegimos por su historia. Inspección certificada y documentación lista para transferir.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Chivo+Mono:wght@300..600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&family=Montserrat:wght@300..800&display=swap" rel="stylesheet">
 <style>
 /* ══════════════════════════════════════════════════════════════════
    MERIDIANO — showroom
@@ -54,32 +54,48 @@
      una pantalla y la otra caiga entre dos grises iguales y no se vea,
      sin necesidad de difuminar nada. */
 
-  /* Los grises secundarios van más oscuros de lo que pedía el ojo sobre
-     negro: acá el fondo es CLARO, y un gris medio sobre gris claro no
-     llega al contraste mínimo para texto chico. */
-  --ink:#101216;             /* tipografía principal */
-  --ink-2:#3D4249;           /* secundaria */
-  --ink-3:#666C74;           /* terciaria: unidades, notas */
+  /* ── LA PALETA DE LA MARCA ───────────────────────────────────────
+     Los cinco códigos vienen dados por el documento de identidad; no se
+     eligieron acá y no se tocan. Todo lo demás del sitio se deriva de
+     estos cinco.
 
-  /* Único acento de toda la página, y sale de los assets: es el rojo de
-     la óptica trasera del BMW, que aparece en el video y en las fotos.
-     Se usa a escala de hilo — una línea de 2px, nunca un bloque. */
-  --ember:#C8102E;
+     Antes la página usaba una paleta sacada midiendo el video de la
+     portada (#000000, #F2F4F8, #AFAFB0). Se veía bien, pero era una
+     paleta propia y no la de la marca. */
+  --void:#0B0C10;            /* Negro Profundo — fondo principal */
+  --grafito:#1F2833;         /* Gris Grafito — fondos secundarios, tarjetas */
+  --chrome:#FFFFFF;          /* Blanco Puro — títulos y botones */
+  --hueso:#F4F1EA;           /* Blanco Hueso — el bloque claro de confianza */
+  --gris:#D1D5DB;            /* Gris Claro — líneas y texto secundario */
 
-  --void:#000000;
-  --chrome:#F2F4F8;
-  --steel:#7E8593;
+  /* Los papeles que cumple cada uno. Se mantienen los nombres viejos
+     para no reescribir doscientas reglas, pero ahora apuntan a la
+     paleta de la marca. */
+  --steel:var(--gris);       /* texto secundario sobre fondo oscuro */
+  --plata:var(--hueso);      /* el fondo del bloque claro */
 
-  /* El gris de estudio de la portada. No es un gris elegido a ojo: es
-     el tono dominante del propio archivo de video, sacado midiendo su
-     paleta. Por eso la franja del final empalma con la primera pantalla
-     sin que se note que son dos piezas distintas. */
-  --plata:#AFAFB0;
+  --ink:var(--void);         /* texto principal sobre fondo claro */
+  --ink-2:var(--grafito);    /* secundario sobre fondo claro */
+  /* El único valor que el documento no da: hace falta un tercer nivel
+     sobre fondo claro, y sale de mezclar los dos que sí da. */
+  --ink-3:#5A6673;
 
   --beam:214,232,255;        /* el blanco frío del rig, en RGB */
 
-  --display:"Archivo",-apple-system,system-ui,sans-serif;
-  --mono:"Chivo Mono",ui-monospace,Menlo,monospace;
+  /* ── LAS DOS TIPOGRAFÍAS ─────────────────────────────────────────
+     SYNCOPATE sólo para títulos cortos EN MAYÚSCULAS. Es una letra muy
+     ancha: funciona como un cartel y se vuelve ilegible en cuanto la
+     frase pasa de unas pocas palabras. Nunca para leer.
+
+     MONTSERRAT para todo lo demás. Es la que sostiene el texto largo,
+     los datos y los renglones chicos.
+
+     Antes el body entero iba en la tipografía de títulos. Con Syncopate
+     eso sería ilegible, así que ahora el body va en Montserrat y
+     Syncopate se pide a mano donde corresponde. */
+  --display:"Syncopate",ui-sans-serif,system-ui,sans-serif;
+  --texto:"Montserrat",ui-sans-serif,system-ui,sans-serif;
+  --mono:var(--texto);
 
   /* Alto del escenario. Da aire arriba y abajo del auto en vez de
      dejarlo apretado contra los bordes de la ventana. */
@@ -135,9 +151,9 @@ body{
   /* El fondo de la página es el estudio, no el vacío negro: si el body
      queda negro, cualquier rebote del scroll o un instante antes de que
      pinte el video muestra un flash oscuro entre dos pantallas claras. */
-  background:#000;
+  background:var(--void);
   color:var(--chrome);
-  font-family:var(--display);
+  font-family:var(--texto);
   /* Antes era overflow:hidden — la página era una sola pantalla fija.
      Ahora hay dos: la portada en video y, debajo, el escenario del auto.
      Se permite el scroll vertical y se corta el horizontal, que nunca
@@ -221,7 +237,7 @@ video::-webkit-media-controls{ display:none !important; }
   inset:0;
   z-index:5;
   pointer-events:none;
-  background:#000;
+  background:var(--void);
   opacity:var(--fade,0);
 }
 
@@ -239,7 +255,7 @@ video::-webkit-media-controls{ display:none !important; }
    posiciones en cada píxel. */
 #band{
   position:relative;
-  background:#000;
+  background:var(--void);
   /* Alto de SCROLL: sección (100svh) menos el bloque pegado (50svh)
      dan 50svh de recorrido para que se escriba la frase. */
   height:100svh;
@@ -278,16 +294,21 @@ video::-webkit-media-controls{ display:none !important; }
 
 .band-copy p{
   font-size:clamp(1.6rem,3.6vw,3.1rem);
-  font-variation-settings:"wdth" 92,"wght" 500;
+  font-weight:500;
   letter-spacing:-.02em;
   line-height:1.24;
   color:rgba(255,255,255,.13);
 }
 
-.band-copy p + p{
-  margin-top:clamp(.5rem,1.4vh,.9rem);
-  font-size:clamp(1.2rem,2.6vw,2.15rem);
-  font-variation-settings:"wdth" 92,"wght" 400;
+/* El manifiesto son tres renglones: los dos primeros son el par que
+   define el negocio y van igual de grandes; el tercero es la bienvenida
+   y baja de tamaño para no competir con ellos. */
+.band-copy p + p{ margin-top:clamp(.4rem,1.1vh,.7rem); }
+
+.band-copy p:last-child{
+  margin-top:clamp(.9rem,2.4vh,1.6rem);
+  font-size:clamp(1.05rem,2.2vw,1.75rem);
+  font-weight:400;
 }
 
 .band-copy .w{
@@ -295,12 +316,13 @@ video::-webkit-media-controls{ display:none !important; }
   color:inherit;
 }
 .band-copy .w.on{ color:var(--chrome); }
-/* la segunda línea enciende más apagada: es el eco, no el titular */
-.band-copy p + p .w.on{ color:var(--steel); }
+/* Sólo la bienvenida enciende apagada: es el eco, no el titular.
+   Los dos primeros renglones son el par que define el negocio. */
+.band-copy p:last-child .w.on{ color:var(--steel); }
 
 @media (prefers-reduced-motion:reduce){
   .band-copy .w{ transition:none; color:var(--chrome); }
-  .band-copy p + p .w{ color:var(--steel); }
+  .band-copy p:last-child .w{ color:var(--steel); }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -341,17 +363,17 @@ video::-webkit-media-controls{ display:none !important; }
   position:relative;
   height:16svh;
   background:linear-gradient(to bottom,
-      rgb(0 0 0) 0%,
-      rgb(5 5 5) 10%,
-      rgb(18 18 18) 20%,
-      rgb(38 38 38) 30%,
-      rgb(62 62 62) 40%,
-      rgb(88 88 88) 50%,
-      rgb(113 113 114) 60%,
-      rgb(137 137 138) 70%,
-      rgb(157 157 158) 80%,
-      rgb(170 170 171) 90%,
-      rgb(175 175 176) 100%);
+      rgb(11 12 16) 0%,
+      rgb(18 18 22) 10%,
+      rgb(35 36 39) 20%,
+      rgb(61 61 63) 30%,
+      rgb(93 93 93) 40%,
+      rgb(128 126 125) 50%,
+      rgb(162 160 157) 60%,
+      rgb(194 192 187) 70%,
+      rgb(220 217 211) 80%,
+      rgb(237 235 228) 90%,
+      rgb(244 241 234) 100%);
 }
 
 /* El grano. Se genera con SVG en vez de traer una imagen: son 200 bytes
@@ -371,60 +393,346 @@ video::-webkit-media-controls{ display:none !important; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   EL CIERRE — la franja plateada del final
+   BLOQUE 6 — EL PIE
 
-   Misma idea que la franja de arriba: una pausa escrita, no una
-   sección. Media pantalla, no una entera. Debajo va a seguir habiendo
-   contenido, así que esto es una bisagra y no un final.
+   Lo que el documento pide de cierre: la invitación al Garage Virtual,
+   los datos institucionales y el isotipo de la doble M como sello de
+   fondo.
 
-   El fondo es --plata, el tono sacado del propio video de portada. Con
-   eso la página cierra el círculo donde empezó. */
-#cierre{
+   El sello no es una imagen: es el mismo trazado del logo del header,
+   reusado con <use>. Repetirlo habría sumado 8 KB al archivo.
+   ══════════════════════════════════════════════════════════════════ */
+#pie{
   position:relative;
-  height:50svh;
-  background:var(--plata);
-  display:grid;
-  place-items:center;
-  padding:clamp(1.5rem,4vh,3rem) var(--gut);
+  overflow:hidden;
+  background:var(--void);
+  padding:clamp(4.5rem,12vh,8rem) var(--gut) clamp(2.5rem,6vh,4rem);
+}
+
+/* El sello. Enorme, casi invisible y cortado por el borde de abajo:
+   está para dar peso, no para leerse. */
+.pie-sello{
+  position:absolute;
+  left:50%;
+  bottom:-32%;
+  width:min(46rem,116vw);
+  height:auto;
+  transform:translateX(-50%);
+  color:var(--chrome);
+  opacity:.035;
+  pointer-events:none;
+}
+
+.pie-caja{
+  position:relative;
+  z-index:1;
+  max-width:64rem;
+  margin:0 auto;
   text-align:center;
 }
 
-.cierre-copy{ max-width:52rem; }
-
-/* Misma tipografía que la franja de arriba —son hermanas— pero la tinta
-   va al revés: allá el fondo es negro y las palabras se encienden en
-   blanco; acá el fondo es claro y se encienden en negro. */
-.cierre-copy p{
-  font-size:clamp(1.6rem,3.6vw,3.1rem);
-  font-variation-settings:"wdth" 92,"wght" 500;
-  letter-spacing:-.02em;
-  line-height:1.24;
-  color:rgba(16,18,22,.17);
+.pie-titulo{
+  font-family:var(--display);
+  font-size:clamp(1.05rem,2.5vw,1.8rem);
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.09em;
+  line-height:1.5;
+  margin:0;
+  color:var(--chrome);
 }
 
-.cierre-copy p + p{
-  margin-top:clamp(.5rem,1.4vh,.9rem);
-  font-size:clamp(1.2rem,2.6vw,2.15rem);
-  font-variation-settings:"wdth" 92,"wght" 400;
+.pie-bajada{
+  margin:clamp(.9rem,2vh,1.3rem) auto 0;
+  max-width:34rem;
+  font-size:clamp(.9rem,1.2vw,1rem);
+  line-height:1.65;
+  color:var(--steel);
 }
 
-.cierre-copy .w{
-  transition:color .45s var(--ease);
-  color:inherit;
+/* El botón del Garage todavía no lleva a ningún lado: hace falta que
+   exista el registro de usuarios. Se muestra apagado y con la etiqueta
+   puesta, que es lo honesto — un botón que no hace nada es peor que no
+   tenerlo. */
+.pie-boton{
+  display:inline-flex;
+  align-items:center;
+  gap:.7rem;
+  margin-top:clamp(1.6rem,3.5vh,2.4rem);
+  padding:.95em 1.9em;
+  border:1px solid var(--gris);
+  border-radius:2px;
+  background:transparent;
+  font-family:var(--display);
+  font-size:.66rem;
+  font-weight:700;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--chrome);
+  opacity:.55;
+  cursor:not-allowed;
 }
-.cierre-copy .w.on{ color:var(--ink); }
-.cierre-copy p + p .w.on{ color:var(--ink-2); }
+
+.pie-boton em{
+  font-style:normal;
+  font-family:var(--texto);
+  font-size:.6rem;
+  font-weight:600;
+  letter-spacing:.12em;
+  color:var(--steel);
+}
+
+.pie-datos{
+  margin-top:clamp(3rem,7vh,4.5rem);
+  padding-top:clamp(1.6rem,3.5vh,2.4rem);
+  border-top:1px solid rgba(209,213,219,.16);
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:center;
+  gap:.6rem clamp(1.4rem,3vw,2.6rem);
+  font-size:.72rem;
+  letter-spacing:.06em;
+  color:var(--ink-3);
+}
+
+.pie-datos a{
+  color:var(--steel);
+  text-decoration:none;
+  border-bottom:1px solid transparent;
+  transition:color .3s var(--ease), border-color .3s var(--ease);
+}
+@media (hover:hover){
+  .pie-datos a:hover{ color:var(--chrome); border-bottom-color:var(--gris); }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   BLOQUE 2 — LAS TRES LÍNEAS
+
+   Van justo debajo del manifiesto, que es donde el documento las pide:
+   tres tarjetas grandes que reparten el catálogo de hoy y el de mañana.
+
+   El fondo de la tarjeta es el Gris Grafito, que es el color que la
+   paleta reserva textualmente para "fondos secundarios o tarjetas de
+   autos". No se eligió acá.
+
+   Todavía no llevan a ningún lado: el catálogo no existe. Son las
+   categorías, no los autos.
+   ══════════════════════════════════════════════════════════════════ */
+#lineas{
+  position:relative;
+  background:var(--void);
+  padding:clamp(1rem,3vh,2rem) var(--gut) clamp(5rem,12vh,9rem);
+}
+
+.lineas-grilla{
+  max-width:82rem;
+  margin:0 auto;
+  display:grid;
+  gap:clamp(1rem,1.8vw,1.6rem);
+  grid-template-columns:repeat(3,1fr);
+}
+
+.linea{
+  position:relative;
+  background:var(--grafito);
+  border-radius:14px;
+  overflow:hidden;
+  padding:clamp(1.4rem,2.4vw,2rem);
+  display:flex;
+  flex-direction:column;
+  transition:background-color .5s var(--ease);
+}
+
+.linea-foto{
+  aspect-ratio:16/9;
+  margin:0 0 clamp(1rem,2vh,1.5rem);
+  overflow:hidden;
+}
+
+/* LAS FOTOS SON RECORTES SOBRE NEGRO, SIN TRANSPARENCIA.
+
+   Sobre el grafito de la tarjeta se vería el rectángulo negro de la
+   foto. Con mezcla `screen` el negro se vuelve exactamente el color que
+   tiene debajo y desaparece: el auto queda flotando sobre la tarjeta
+   sin haber tenido que recortar nada a mano.
+
+   El auto aclara apenas, pero el grafito es tan oscuro que no se nota. */
+.linea-foto img{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  mix-blend-mode:screen;
+  transition:transform .7s var(--ease);
+}
+
+/* La micro-interacción que pide el documento: zoom suave al pasar el
+   cursor. Sólo donde hay cursor de verdad. */
+@media (hover:hover){
+  .linea:hover{ background:#26313D; }
+  .linea:hover .linea-foto img{ transform:scale(1.06); }
+}
+
+.linea-num{
+  font-family:var(--display);
+  font-size:.62rem;
+  font-weight:700;
+  letter-spacing:.18em;
+  color:var(--steel);
+}
+
+.linea h3{
+  font-family:var(--display);
+  font-size:clamp(.8rem,1.15vw,.95rem);
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.1em;
+  line-height:1.5;
+  margin:clamp(.6rem,1.4vh,.9rem) 0 0;
+  color:var(--chrome);
+}
+
+.linea p{
+  margin:clamp(.55rem,1.2vh,.8rem) 0 0;
+  font-size:clamp(.85rem,1.1vw,.95rem);
+  line-height:1.6;
+  color:var(--steel);
+}
+
+.linea-nota{
+  margin-top:auto;
+  padding-top:clamp(.9rem,2vh,1.3rem);
+  font-size:.6rem;
+  font-weight:600;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--ink-3);
+}
+
+@media (max-width:900px){
+  .lineas-grilla{ grid-template-columns:1fr; }
+  .linea-foto{ aspect-ratio:2/1; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   BLOQUE 4 — EL ESTÁNDAR MANNA
+
+   El único bloque claro de la página, y es a propósito: el documento lo
+   define como el momento en que se rompe la oscuridad para hablar de
+   confianza. Fondo Blanco Hueso, tinta negra.
+
+   Ya no es una franja con una frase: es la sección donde se explica qué
+   se le hace a cada auto antes de publicarlo.
+   ══════════════════════════════════════════════════════════════════ */
+#estandar{
+  position:relative;
+  background:var(--hueso);
+  color:var(--ink);
+  padding:clamp(4rem,11vh,8rem) var(--gut);
+}
+
+.estandar-caja{
+  max-width:64rem;
+  margin:0 auto;
+  text-align:center;
+}
+
+.estandar-eyebrow{
+  display:block;
+  font-size:.66rem;
+  font-weight:600;
+  letter-spacing:.3em;
+  text-transform:uppercase;
+  color:var(--ink-3);
+}
+
+/* Syncopate: es un título corto, que es exactamente para lo que sirve. */
+.estandar-titulo{
+  font-family:var(--display);
+  font-size:clamp(1.25rem,3.1vw,2.3rem);
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  line-height:1.3;
+  margin:clamp(.9rem,2.2vh,1.4rem) 0 0;
+}
+
+.estandar-bajada{
+  margin:clamp(.7rem,1.6vh,1rem) auto 0;
+  max-width:34rem;
+  font-size:clamp(.95rem,1.3vw,1.1rem);
+  line-height:1.6;
+  color:var(--ink-2);
+}
+
+.estandar-lista{
+  list-style:none;
+  margin:clamp(2.6rem,6vh,4.2rem) 0 0;
+  padding:0;
+  display:grid;
+  gap:clamp(2rem,4vw,3.2rem);
+  grid-template-columns:repeat(3,1fr);
+  text-align:left;
+}
+
+/* La línea de arriba separa los tres puntos sin encerrarlos en cajas:
+   el documento pide íconos limpios y nada de recuadros. */
+.estandar-lista li{
+  padding-top:clamp(1rem,2.4vh,1.5rem);
+  border-top:1px solid var(--gris);
+}
+
+.estandar-num{
+  display:block;
+  font-family:var(--display);
+  font-size:.7rem;
+  font-weight:700;
+  letter-spacing:.16em;
+  color:var(--ink-3);
+}
+
+.estandar-lista h3{
+  margin:clamp(.7rem,1.6vh,1rem) 0 0;
+  font-size:clamp(1rem,1.45vw,1.2rem);
+  font-weight:600;
+  letter-spacing:-.01em;
+  line-height:1.3;
+}
+
+/* La marca de lo que todavía no está. Chiquita y al lado del título,
+   para que se lea como un estado y no como una promesa cumplida. */
+.estandar-lista h3 em{
+  display:inline-block;
+  margin-left:.5rem;
+  padding:.2em .55em;
+  border:1px solid var(--gris);
+  border-radius:2px;
+  font-style:normal;
+  font-size:.58rem;
+  font-weight:600;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--ink-3);
+  vertical-align:middle;
+}
+
+.estandar-lista li p{
+  margin:clamp(.5rem,1.2vh,.75rem) 0 0;
+  font-size:clamp(.88rem,1.15vw,.98rem);
+  line-height:1.6;
+  color:var(--ink-2);
+}
+
+@media (max-width:900px){
+  .estandar-lista{ grid-template-columns:1fr; gap:clamp(1.6rem,4vh,2.2rem); }
+}
 
 @media (max-width:767px){
-  /* En el teléfono, todavía más corta. La pantalla es más chica y un
-     envión de dedo se come la rampa entera de una: si acá mide lo mismo
-     que en computadora, el salto se siente más largo, no más suave. */
+  /* En el teléfono, la rampa todavía más corta. La pantalla es más
+     chica y un envión de dedo se come la rampa entera de una: si acá
+     mide lo mismo que en computadora, el salto se siente más largo, no
+     más suave. */
   #puente{ height:13svh; }
-}
-
-@media (prefers-reduced-motion:reduce){
-  .cierre-copy .w{ transition:none; color:var(--ink); }
-  .cierre-copy p + p .w{ color:var(--ink-2); }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -505,7 +813,7 @@ video::-webkit-media-controls{ display:none !important; }
 .ruta-copy p{
   margin:0;
   font-size:clamp(1.5rem,3vw,2.6rem);
-  font-variation-settings:"wdth" 92,"wght" 500;
+  font-weight:500;
   letter-spacing:-.02em;
   line-height:1.2;
   color:var(--chrome);
@@ -536,36 +844,37 @@ video::-webkit-media-controls{ display:none !important; }
 
    El bloque respira contra el borde con el mismo --gut que todo lo
    demás, y se aparta del centro para no taparle los autos. */
+/* AL CENTRO, NO A LA DERECHA.
+
+   Estaba a la derecha porque el sedán ocupaba la mitad izquierda del
+   cuadro. El documento pide el texto centrado, y centrado funciona
+   igual: la frase es corta y va sobre la zona clara del ciclorama, no
+   sobre el auto. */
 .cover-copy{
   position:absolute;
-  /* A la derecha: es el lado despejado del cuadro. El sedán ocupa toda
-     la mitad izquierda y el texto le caía encima. */
-  right:var(--gut);
-  bottom:calc(var(--gut) + clamp(2.2rem,5vh,3.6rem));
+  left:50%;
+  bottom:calc(var(--gut) + clamp(3rem,7vh,5rem));
+  transform:translateX(-50%);
   z-index:4;
-  max-width:min(30rem,74vw);
-  text-align:right;
+  width:min(46rem,86vw);
+  text-align:center;
   color:var(--ink);
 }
 
+/* SYNCOPATE, Y ACÁ ES DONDE CORRESPONDE.
 
+   Es una letra muy ancha: como cartel de una sola frase funciona, y es
+   exactamente lo que pide el documento para los títulos principales.
+   Por eso el cuerpo es chico en relación al ancho — con el tamaño que
+   tenía antes esta misma frase ocupaba media pantalla. */
 .cover-title{
-  font-size:clamp(2.1rem,5.1vw,3.9rem);
-  font-variation-settings:"wdth" 88,"wght" 560;
-  letter-spacing:-.028em;
-  line-height:1.02;
-  margin-bottom:clamp(.8rem,1.8vh,1.2rem);
-}
-
-.cover-sub{
-  font-family:var(--mono);
-  font-size:clamp(.68rem,1.05vw,.8rem);
-  font-weight:300;
-  letter-spacing:.04em;
-  line-height:1.6;
-  color:var(--ink-2);
-  max-width:26rem;
-  margin-left:auto;
+  font-family:var(--display);
+  font-size:clamp(.95rem,2.15vw,1.65rem);
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.1em;
+  line-height:1.75;
+  margin:0;
 }
 
 /* Señal de que abajo sigue habiendo página. Sin esto la portada se lee
@@ -684,7 +993,7 @@ body.is-scrolled .hud--tr{ top:var(--hud-y-min); }
 .mark__type b{
   display:block;
   font-size:clamp(.88rem,1.28vw,1.12rem);
-  font-variation-settings:"wdth" 112,"wght" 500;
+  font-weight:500;
   letter-spacing:.3em;
   line-height:1;
 }
@@ -876,7 +1185,7 @@ body.is-scrolled .hud--tr{ top:var(--hud-y-min); }
   position:fixed;
   inset:0;
   z-index:200;
-  background:#000;
+  background:var(--void);
   display:grid;
   place-items:center;
   gap:0;
@@ -911,7 +1220,7 @@ body.cargando{ overflow:hidden; }
 }
 .loader-marca b{
   font-size:clamp(1rem,1.5vw,1.3rem);
-  font-variation-settings:"wdth" 112,"wght" 500;
+  font-weight:500;
   letter-spacing:.3em;
   line-height:1;
 }
@@ -1055,7 +1364,7 @@ body.cargando{ overflow:hidden; }
 .donde-caja h2{
   margin:0;
   font-size:clamp(1.5rem,3vw,2.4rem);
-  font-variation-settings:"wdth" 92,"wght" 500;
+  font-weight:500;
   letter-spacing:-.02em;
   line-height:1.15;
   color:var(--chrome);
@@ -1172,7 +1481,7 @@ body.cargando{ overflow:hidden; }
 
 #collage{
   position:relative;
-  background:#000;
+  background:var(--void);
   padding:clamp(6rem,16vh,11rem) 0 clamp(7rem,18vh,13rem);
   overflow:hidden;
 }
@@ -1388,7 +1697,7 @@ body.cargando{ overflow:hidden; }
   /* Cuánto scroll ocupa la vuelta completa. Más alto = giro más lento
      y más control; más bajo = más rápido. Es la perilla del ritmo. */
   height:var(--reel-h);
-  background:#000;
+  background:var(--void);
 }
 
 /* EN EL TELÉFONO, MÁS LARGO.
@@ -1410,7 +1719,7 @@ body.cargando{ overflow:hidden; }
   top:0;
   height:100svh;
   overflow:hidden;
-  background:#000;
+  background:var(--void);
 }
 
 /* LAS NOTAS DEL REEL.
@@ -1445,7 +1754,7 @@ body.cargando{ overflow:hidden; }
 .reel-nota p{
   color:var(--chrome);
   font-size:clamp(1rem,1.75vw,1.45rem);
-  font-variation-settings:"wdth" 94,"wght" 480;
+  font-weight:480;
   letter-spacing:-.012em;
   line-height:1.3;
 }
@@ -1505,7 +1814,7 @@ body.cargando{ overflow:hidden; }
   position:absolute;
   inset:0;
   z-index:2;
-  background:#000;
+  background:var(--void);
   opacity:var(--apagado,0);
   pointer-events:none;
 }
@@ -1579,7 +1888,7 @@ body.is-dark.is-scrolled #topbar{
       <!-- Emblema vectorizado del logo original. El resto de la marca
            va como texto: son letras, no hace falta trazarlas. -->
       <svg class="mark__emblem" viewBox="0 0 100 100" fill="currentColor"
-           fill-rule="evenodd" aria-hidden="true"><path d="M52.76,99.88C56.14,99.67 59.98,99.09 61.91,98.47C62.28,98.35 62.78,98.23 63.07,98.15C63.64,98.06 66.65,97.03 68.22,96.46C75.06,93.82 84.09,87.14 87.84,81.90C88.09,81.62 88.33,81.33 88.38,81.29C88.66,81.12 88.54,80.63 88.25,80.50C88.05,80.46 87.72,80.26 87.43,80.05C87.14,79.88 86.81,79.68 86.60,79.64C86.44,79.55 86.07,79.39 85.78,79.18C84.91,78.65 84.83,78.69 82.73,80.87C80.83,82.93 78.90,84.67 77.16,85.99C76.63,86.36 76.17,86.73 76.13,86.77C76.01,86.93 74.57,87.84 74.07,88.09C73.83,88.21 73.41,88.46 73.21,88.62C72.38,89.24 68.05,91.47 66.61,91.96C65.83,92.25 64.63,92.70 64.01,92.91C63.36,93.16 62.61,93.40 62.37,93.49C62.12,93.53 61.54,93.65 61.13,93.78C55.23,95.30 46.83,95.63 42.46,94.56C42.13,94.48 41.10,94.27 40.23,94.06C37.72,93.57 37.88,93.61 33.72,92.13C32.19,91.59 31.53,91.26 29.51,90.19C24.44,87.51 20.12,84.17 16.69,80.34C15.25,78.69 15.13,78.61 14.63,78.98C14.47,79.14 13.93,79.43 13.48,79.64C11.79,80.54 11.50,80.71 11.50,81.04C11.50,81.20 11.58,81.33 11.62,81.33C11.67,81.33 12.04,81.70 12.41,82.19C15.70,86.27 21.19,90.93 25.76,93.49C29.31,95.51 34.91,97.82 37.06,98.19C37.39,98.23 37.72,98.31 37.84,98.39C38.13,98.52 41.30,99.18 42.37,99.34C42.83,99.38 43.57,99.51 44.02,99.59C44.77,99.71 47.61,99.92 49.59,100.00C50.00,100.00 51.44,99.96 52.76,99.88Z M53.01,79.31C54.78,79.18 54.62,81.04 54.58,63.03C54.53,54.33 54.58,47.24 54.62,47.24C54.70,47.24 54.86,47.44 55.03,47.69C55.19,47.94 55.98,49.05 56.72,50.12C57.46,51.20 58.37,52.47 58.70,52.97C59.03,53.42 59.85,54.62 60.51,55.56C61.21,56.55 62.08,57.79 62.45,58.33C62.82,58.86 63.56,59.89 64.10,60.63C64.63,61.38 65.17,62.16 65.33,62.37C65.62,62.86 70.73,63.36 71.15,62.90C71.19,62.86 71.60,62.24 72.14,61.50C72.63,60.76 73.25,59.89 73.45,59.56C74.24,58.57 75.97,56.14 77.37,54.12C79.47,50.99 80.67,49.26 82.61,46.62C83.55,45.26 84.83,43.49 85.41,42.66C87.06,40.27 87.35,39.94 87.47,40.23C87.72,40.93 88.13,43.20 88.66,46.62C88.83,47.69 88.83,53.01 88.66,54.25C88.62,54.78 88.50,55.69 88.42,56.27C88.33,56.84 88.21,57.54 88.13,57.83C88.09,58.12 87.92,58.74 87.80,59.23C87.06,62.49 86.64,63.69 84.75,67.52C84.01,69.04 83.97,68.96 85.99,70.07C86.77,70.49 88.58,71.48 90.02,72.30C92.79,73.91 92.99,73.99 93.32,73.58C93.69,73.17 95.67,68.92 95.88,68.14C95.96,67.81 96.13,67.52 96.17,67.48C96.25,67.44 96.33,67.27 96.33,67.11C96.33,66.94 96.37,66.74 96.41,66.65C96.62,66.49 97.77,62.74 97.94,61.75C98.06,61.29 98.19,60.51 98.31,59.98C99.79,52.72 99.63,46.29 97.82,38.50C97.40,36.60 95.96,32.52 95.09,30.71C94.81,30.05 94.56,29.47 94.56,29.47C94.56,29.23 93.12,26.55 92.99,26.46C92.87,26.42 92.17,26.71 91.38,27.12C88.66,28.52 86.15,29.84 85.70,30.13C85.41,30.30 84.67,30.67 84.05,31.00C82.81,31.62 82.23,32.15 81.66,33.18C81.45,33.55 81.04,34.09 80.79,34.42C80.50,34.75 79.84,35.70 79.35,36.48C77.86,38.66 76.67,40.40 75.93,41.47C75.56,41.96 74.86,42.95 74.40,43.65C73.95,44.31 73.08,45.55 72.51,46.41C71.93,47.24 71.35,48.06 71.31,48.19C70.98,48.68 69.95,50.16 69.79,50.33C69.70,50.37 69.37,50.87 69.04,51.36C68.34,52.47 68.18,52.43 67.15,50.70C66.90,50.25 64.84,47.28 64.34,46.62C64.10,46.33 63.85,46.00 63.81,45.88C63.77,45.75 63.31,45.09 62.78,44.39C62.24,43.65 61.54,42.66 61.17,42.13C60.80,41.59 60.14,40.60 59.65,39.94C58.45,38.29 57.71,37.26 56.97,36.15C56.60,35.61 55.81,34.46 55.15,33.55C54.49,32.69 53.83,31.74 53.67,31.49C53.38,31.04 53.38,31.04 50.00,31.04C45.92,31.04 46.95,30.34 43.32,35.49C42.70,36.36 41.67,37.84 41.01,38.79C38.42,42.58 37.76,43.53 37.59,43.69C37.35,43.98 34.42,48.15 33.14,50.04C31.45,52.47 31.45,52.47 30.87,51.48C30.67,51.20 30.05,50.21 29.43,49.34C28.81,48.43 27.62,46.66 26.71,45.34C25.85,44.02 24.77,42.46 24.32,41.84C23.91,41.22 22.96,39.86 22.26,38.79C21.52,37.72 20.73,36.56 20.49,36.27C20.07,35.70 20.03,35.66 18.34,33.18C17.27,31.62 17.27,31.62 15.95,30.96C13.81,29.88 10.22,27.99 10.10,27.86C9.56,27.49 7.21,26.38 7.09,26.42C6.72,26.59 4.58,31.24 3.59,34.01C2.56,36.89 2.39,37.30 1.98,39.08C0.21,46.37 0.21,54.08 1.98,61.71C2.14,62.32 2.31,63.03 2.39,63.27C2.80,64.63 3.38,66.28 3.46,66.49C3.54,66.61 3.59,66.82 3.59,66.86C3.59,67.15 4.62,69.54 5.40,71.19C5.85,72.14 6.18,72.92 6.18,72.96C6.18,74.11 7.05,74.03 9.40,72.67C10.35,72.09 11.17,71.64 11.21,71.64C11.21,71.64 11.95,71.23 12.78,70.73C13.60,70.24 14.59,69.70 14.96,69.50C15.75,69.13 15.87,68.88 15.54,68.30C15.00,67.39 14.51,66.41 14.51,66.28C14.51,66.24 14.30,65.70 14.01,65.13C13.07,63.07 11.67,58.20 11.46,55.98C11.42,55.56 11.29,54.86 11.25,54.45C11.05,53.46 11.05,47.61 11.25,46.29C11.34,45.71 11.46,44.89 11.50,44.39C11.62,43.53 11.71,43.08 12.12,41.38C12.24,40.97 12.32,40.52 12.37,40.35C12.45,39.74 12.61,39.90 16.74,45.71C17.23,46.46 17.77,47.20 17.89,47.40C18.34,48.02 20.53,51.11 21.27,52.14C21.68,52.72 22.18,53.50 22.42,53.92C22.67,54.33 23.00,54.82 23.12,55.03C23.29,55.19 23.95,56.14 24.61,57.05C25.27,58.00 26.09,59.11 26.38,59.56C26.71,60.02 27.00,60.43 27.04,60.51C27.08,60.59 27.37,61.01 27.66,61.42C27.99,61.83 28.32,62.32 28.44,62.53C29.10,63.56 34.83,62.94 34.83,61.87C34.83,61.79 35.04,61.42 35.33,61.05C35.61,60.72 36.15,59.98 36.52,59.44C36.85,58.90 37.43,58.12 37.76,57.67C38.09,57.21 38.79,56.27 39.24,55.56C39.74,54.86 40.48,53.79 40.93,53.17C41.38,52.56 42.09,51.57 42.54,50.91C44.27,48.39 45.26,47.11 45.34,47.20C45.42,47.24 45.42,54.41 45.42,63.11C45.42,71.85 45.42,79.02 45.51,79.10C45.75,79.35 50.54,79.47 53.01,79.31Z M16.69,20.20C17.97,18.76 20.49,16.32 21.56,15.50C21.93,15.25 22.51,14.80 22.84,14.47C23.37,14.01 26.01,12.20 26.17,12.20C26.17,12.20 26.59,11.95 27.00,11.67C27.45,11.38 28.28,10.92 28.81,10.63C29.39,10.39 30.01,10.06 30.21,9.93C31.24,9.40 33.88,8.29 35.49,7.75C37.18,7.21 37.84,7.01 39.61,6.51C40.35,6.35 43.36,5.85 46.13,5.52C47.94,5.28 52.06,5.28 53.79,5.52C54.49,5.61 56.06,5.81 57.25,5.94C59.48,6.22 59.65,6.27 61.42,6.76C70.45,9.32 77.70,13.81 83.64,20.49C84.67,21.64 84.62,21.64 86.23,20.86C88.62,19.66 88.71,19.50 87.84,18.47C83.88,13.73 79.93,10.18 76.05,7.91C72.18,5.65 70.32,4.70 66.94,3.42C64.80,2.60 62.90,2.02 62.12,1.90C61.75,1.85 61.34,1.73 61.13,1.69C56.84,0.08 46.21,-0.00 39.82,1.48C39.04,1.69 38.13,1.90 37.76,1.98C37.02,2.10 34.21,3.01 33.06,3.46C32.65,3.63 32.11,3.83 31.86,3.92C30.09,4.45 23.91,7.75 22.34,9.03C22.05,9.23 21.52,9.65 21.10,9.89C18.63,11.46 11.50,18.51 11.50,19.41C11.50,19.58 12.24,20.07 13.69,20.82C14.26,21.10 14.76,21.39 14.84,21.48C15.17,21.81 15.54,21.56 16.69,20.20Z"/></svg>
+           fill-rule="evenodd" aria-hidden="true"><path id="mm-emblema" d="M52.76,99.88C56.14,99.67 59.98,99.09 61.91,98.47C62.28,98.35 62.78,98.23 63.07,98.15C63.64,98.06 66.65,97.03 68.22,96.46C75.06,93.82 84.09,87.14 87.84,81.90C88.09,81.62 88.33,81.33 88.38,81.29C88.66,81.12 88.54,80.63 88.25,80.50C88.05,80.46 87.72,80.26 87.43,80.05C87.14,79.88 86.81,79.68 86.60,79.64C86.44,79.55 86.07,79.39 85.78,79.18C84.91,78.65 84.83,78.69 82.73,80.87C80.83,82.93 78.90,84.67 77.16,85.99C76.63,86.36 76.17,86.73 76.13,86.77C76.01,86.93 74.57,87.84 74.07,88.09C73.83,88.21 73.41,88.46 73.21,88.62C72.38,89.24 68.05,91.47 66.61,91.96C65.83,92.25 64.63,92.70 64.01,92.91C63.36,93.16 62.61,93.40 62.37,93.49C62.12,93.53 61.54,93.65 61.13,93.78C55.23,95.30 46.83,95.63 42.46,94.56C42.13,94.48 41.10,94.27 40.23,94.06C37.72,93.57 37.88,93.61 33.72,92.13C32.19,91.59 31.53,91.26 29.51,90.19C24.44,87.51 20.12,84.17 16.69,80.34C15.25,78.69 15.13,78.61 14.63,78.98C14.47,79.14 13.93,79.43 13.48,79.64C11.79,80.54 11.50,80.71 11.50,81.04C11.50,81.20 11.58,81.33 11.62,81.33C11.67,81.33 12.04,81.70 12.41,82.19C15.70,86.27 21.19,90.93 25.76,93.49C29.31,95.51 34.91,97.82 37.06,98.19C37.39,98.23 37.72,98.31 37.84,98.39C38.13,98.52 41.30,99.18 42.37,99.34C42.83,99.38 43.57,99.51 44.02,99.59C44.77,99.71 47.61,99.92 49.59,100.00C50.00,100.00 51.44,99.96 52.76,99.88Z M53.01,79.31C54.78,79.18 54.62,81.04 54.58,63.03C54.53,54.33 54.58,47.24 54.62,47.24C54.70,47.24 54.86,47.44 55.03,47.69C55.19,47.94 55.98,49.05 56.72,50.12C57.46,51.20 58.37,52.47 58.70,52.97C59.03,53.42 59.85,54.62 60.51,55.56C61.21,56.55 62.08,57.79 62.45,58.33C62.82,58.86 63.56,59.89 64.10,60.63C64.63,61.38 65.17,62.16 65.33,62.37C65.62,62.86 70.73,63.36 71.15,62.90C71.19,62.86 71.60,62.24 72.14,61.50C72.63,60.76 73.25,59.89 73.45,59.56C74.24,58.57 75.97,56.14 77.37,54.12C79.47,50.99 80.67,49.26 82.61,46.62C83.55,45.26 84.83,43.49 85.41,42.66C87.06,40.27 87.35,39.94 87.47,40.23C87.72,40.93 88.13,43.20 88.66,46.62C88.83,47.69 88.83,53.01 88.66,54.25C88.62,54.78 88.50,55.69 88.42,56.27C88.33,56.84 88.21,57.54 88.13,57.83C88.09,58.12 87.92,58.74 87.80,59.23C87.06,62.49 86.64,63.69 84.75,67.52C84.01,69.04 83.97,68.96 85.99,70.07C86.77,70.49 88.58,71.48 90.02,72.30C92.79,73.91 92.99,73.99 93.32,73.58C93.69,73.17 95.67,68.92 95.88,68.14C95.96,67.81 96.13,67.52 96.17,67.48C96.25,67.44 96.33,67.27 96.33,67.11C96.33,66.94 96.37,66.74 96.41,66.65C96.62,66.49 97.77,62.74 97.94,61.75C98.06,61.29 98.19,60.51 98.31,59.98C99.79,52.72 99.63,46.29 97.82,38.50C97.40,36.60 95.96,32.52 95.09,30.71C94.81,30.05 94.56,29.47 94.56,29.47C94.56,29.23 93.12,26.55 92.99,26.46C92.87,26.42 92.17,26.71 91.38,27.12C88.66,28.52 86.15,29.84 85.70,30.13C85.41,30.30 84.67,30.67 84.05,31.00C82.81,31.62 82.23,32.15 81.66,33.18C81.45,33.55 81.04,34.09 80.79,34.42C80.50,34.75 79.84,35.70 79.35,36.48C77.86,38.66 76.67,40.40 75.93,41.47C75.56,41.96 74.86,42.95 74.40,43.65C73.95,44.31 73.08,45.55 72.51,46.41C71.93,47.24 71.35,48.06 71.31,48.19C70.98,48.68 69.95,50.16 69.79,50.33C69.70,50.37 69.37,50.87 69.04,51.36C68.34,52.47 68.18,52.43 67.15,50.70C66.90,50.25 64.84,47.28 64.34,46.62C64.10,46.33 63.85,46.00 63.81,45.88C63.77,45.75 63.31,45.09 62.78,44.39C62.24,43.65 61.54,42.66 61.17,42.13C60.80,41.59 60.14,40.60 59.65,39.94C58.45,38.29 57.71,37.26 56.97,36.15C56.60,35.61 55.81,34.46 55.15,33.55C54.49,32.69 53.83,31.74 53.67,31.49C53.38,31.04 53.38,31.04 50.00,31.04C45.92,31.04 46.95,30.34 43.32,35.49C42.70,36.36 41.67,37.84 41.01,38.79C38.42,42.58 37.76,43.53 37.59,43.69C37.35,43.98 34.42,48.15 33.14,50.04C31.45,52.47 31.45,52.47 30.87,51.48C30.67,51.20 30.05,50.21 29.43,49.34C28.81,48.43 27.62,46.66 26.71,45.34C25.85,44.02 24.77,42.46 24.32,41.84C23.91,41.22 22.96,39.86 22.26,38.79C21.52,37.72 20.73,36.56 20.49,36.27C20.07,35.70 20.03,35.66 18.34,33.18C17.27,31.62 17.27,31.62 15.95,30.96C13.81,29.88 10.22,27.99 10.10,27.86C9.56,27.49 7.21,26.38 7.09,26.42C6.72,26.59 4.58,31.24 3.59,34.01C2.56,36.89 2.39,37.30 1.98,39.08C0.21,46.37 0.21,54.08 1.98,61.71C2.14,62.32 2.31,63.03 2.39,63.27C2.80,64.63 3.38,66.28 3.46,66.49C3.54,66.61 3.59,66.82 3.59,66.86C3.59,67.15 4.62,69.54 5.40,71.19C5.85,72.14 6.18,72.92 6.18,72.96C6.18,74.11 7.05,74.03 9.40,72.67C10.35,72.09 11.17,71.64 11.21,71.64C11.21,71.64 11.95,71.23 12.78,70.73C13.60,70.24 14.59,69.70 14.96,69.50C15.75,69.13 15.87,68.88 15.54,68.30C15.00,67.39 14.51,66.41 14.51,66.28C14.51,66.24 14.30,65.70 14.01,65.13C13.07,63.07 11.67,58.20 11.46,55.98C11.42,55.56 11.29,54.86 11.25,54.45C11.05,53.46 11.05,47.61 11.25,46.29C11.34,45.71 11.46,44.89 11.50,44.39C11.62,43.53 11.71,43.08 12.12,41.38C12.24,40.97 12.32,40.52 12.37,40.35C12.45,39.74 12.61,39.90 16.74,45.71C17.23,46.46 17.77,47.20 17.89,47.40C18.34,48.02 20.53,51.11 21.27,52.14C21.68,52.72 22.18,53.50 22.42,53.92C22.67,54.33 23.00,54.82 23.12,55.03C23.29,55.19 23.95,56.14 24.61,57.05C25.27,58.00 26.09,59.11 26.38,59.56C26.71,60.02 27.00,60.43 27.04,60.51C27.08,60.59 27.37,61.01 27.66,61.42C27.99,61.83 28.32,62.32 28.44,62.53C29.10,63.56 34.83,62.94 34.83,61.87C34.83,61.79 35.04,61.42 35.33,61.05C35.61,60.72 36.15,59.98 36.52,59.44C36.85,58.90 37.43,58.12 37.76,57.67C38.09,57.21 38.79,56.27 39.24,55.56C39.74,54.86 40.48,53.79 40.93,53.17C41.38,52.56 42.09,51.57 42.54,50.91C44.27,48.39 45.26,47.11 45.34,47.20C45.42,47.24 45.42,54.41 45.42,63.11C45.42,71.85 45.42,79.02 45.51,79.10C45.75,79.35 50.54,79.47 53.01,79.31Z M16.69,20.20C17.97,18.76 20.49,16.32 21.56,15.50C21.93,15.25 22.51,14.80 22.84,14.47C23.37,14.01 26.01,12.20 26.17,12.20C26.17,12.20 26.59,11.95 27.00,11.67C27.45,11.38 28.28,10.92 28.81,10.63C29.39,10.39 30.01,10.06 30.21,9.93C31.24,9.40 33.88,8.29 35.49,7.75C37.18,7.21 37.84,7.01 39.61,6.51C40.35,6.35 43.36,5.85 46.13,5.52C47.94,5.28 52.06,5.28 53.79,5.52C54.49,5.61 56.06,5.81 57.25,5.94C59.48,6.22 59.65,6.27 61.42,6.76C70.45,9.32 77.70,13.81 83.64,20.49C84.67,21.64 84.62,21.64 86.23,20.86C88.62,19.66 88.71,19.50 87.84,18.47C83.88,13.73 79.93,10.18 76.05,7.91C72.18,5.65 70.32,4.70 66.94,3.42C64.80,2.60 62.90,2.02 62.12,1.90C61.75,1.85 61.34,1.73 61.13,1.69C56.84,0.08 46.21,-0.00 39.82,1.48C39.04,1.69 38.13,1.90 37.76,1.98C37.02,2.10 34.21,3.01 33.06,3.46C32.65,3.63 32.11,3.83 31.86,3.92C30.09,4.45 23.91,7.75 22.34,9.03C22.05,9.23 21.52,9.65 21.10,9.89C18.63,11.46 11.50,18.51 11.50,19.41C11.50,19.58 12.24,20.07 13.69,20.82C14.26,21.10 14.76,21.39 14.84,21.48C15.17,21.81 15.54,21.56 16.69,20.20Z"/></svg>
       <span class="mark__type">
         <b>MANNA</b>
         <small>MOTORS <i>·</i> SELECTED</small>
@@ -1593,9 +1902,12 @@ body.is-dark.is-scrolled #topbar{
   </button>
 
   <nav id="menu" class="hud hud--tr menu">
-    <a href="#stock">Stock</a>
-    <a href="#taller">Taller</a>
-    <a href="#contacto">Contacto</a>
+    <!-- Apuntan a secciones que EXISTEN. Antes iban a #stock, #taller y
+         #contacto, que nunca se crearon: los tres links no hacían nada.
+         Cuando existan el catálogo y el contacto, vuelven. -->
+    <a href="#lineas">Colección</a>
+    <a href="#estandar">El Estándar</a>
+    <a href="#donde">Showroom</a>
   </nav>
 
 <!-- Portada en video. Primera pantalla del sitio; el escenario del auto
@@ -1799,11 +2111,6 @@ body.is-dark.is-scrolled #topbar{
     var franja = null, texto = null, palabras = null, encendidas = -1;
     var collage = null;
 
-    /* La franja del final: mismas tres variables que la de arriba. Se
-       buscan tarde por el mismo motivo —este script vive dentro de
-       #cover y corre antes de que exista el resto de la página. */
-    var cierre = null, cierreTexto = null, cierrePalabras = null, cierreEncendidas = -1;
-
     /* Las secciones de fondo claro. En vez de que el header adivine por
        la posición del scroll —que era lo que hacía antes y sólo servía
        mientras hubiera una sola pantalla clara—, cada sección clara se
@@ -1925,46 +2232,11 @@ body.is-dark.is-scrolled #topbar{
         if (!flotando){ flotando = true; requestAnimationFrame(flotar); }
       }
 
-      /* LA FRANJA DEL FINAL SE ESCRIBE SOLA, IGUAL QUE LA DE ARRIBA.
-
-         Con una diferencia: aquella tiene un bloque pegado y varias
-         pantallas de recorrido para repartir las palabras. Ésta mide
-         media pantalla y no se pega, así que el recorrido es su
-         entrada: arranca cuando el borde de arriba toca el pie de la
-         ventana y termina de escribirse cuando está bien a la vista.
-         Para cuando se la lee, ya está entera. */
-      if (!cierre){
-        cierre = document.getElementById('cierre');
-        cierreTexto = cierre && cierre.querySelector('.cierre-copy');
-        if (cierreTexto){
-          Array.prototype.forEach.call(cierreTexto.querySelectorAll('p'), function(linea){
-            linea.innerHTML = linea.textContent.trim().split(/\s+/)
-              .map(function(w){ return '<span class="w">' + w + '</span>'; })
-              .join(' ');
-          });
-          cierrePalabras = cierreTexto.querySelectorAll('.w');
-        }
-      }
-      if (cierrePalabras && cierrePalabras.length){
-        var rz = cierre.getBoundingClientRect();
-        var alto = window.innerHeight;
-        /* 0.42 y no un número más generoso porque hoy esto es lo último
-           de la página: el scroll se termina con la franja a media
-           altura y nunca llega a subir más. Con un recorrido largo la
-           última palabra no se encendía nunca — quedaba en 13 de 14.
-           Con éste termina de escribirse antes de que el scroll se
-           acabe, y cuando abajo haya más contenido va a seguir estando
-           completa mucho antes de irse. */
-        var qz = (alto - rz.top) / (alto * 0.42);
-        qz = qz < 0 ? 0 : (qz > 1 ? 1 : qz);
-        var cz = Math.round(qz * cierrePalabras.length);
-        if (cz !== cierreEncendidas){
-          for (var m = 0; m < cierrePalabras.length; m++){
-            cierrePalabras[m].classList.toggle('on', m < cz);
-          }
-          cierreEncendidas = cz;
-        }
-      }
+      /* El Estándar Manna no usa el encendido palabra por palabra.
+         Ese efecto sirve para una frase suelta que se lee de un saque;
+         acá hay un título, una bajada y tres puntos con su texto, y
+         encenderlos de a una palabra convertiría la sección de
+         confianza en un ejercicio de paciencia. */
 
       /* EL COLOR DEL HEADER.
 
@@ -2005,9 +2277,10 @@ body.is-dark.is-scrolled #topbar{
 
   </script>
 
+  <!-- La frase del Bloque 1, textual del documento. Nada más: el resto
+       de la pantalla es el video y la flecha. -->
   <div class="cover-copy">
-    <h1 class="cover-title">Autos que ya<br>pasaron el filtro.</h1>
-    <p class="cover-sub">Cada unidad revisada, con historial verificado.</p>
+    <h1 class="cover-title">El arte de la ingeniería, preservado.</h1>
   </div>
 
   <svg class="scroll-cue" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -2022,9 +2295,57 @@ body.is-dark.is-scrolled #topbar{
 <section id="band">
   <div class="band-stick">
    <div class="band-copy">
-    <p>No entra cualquiera.</p>
-    <p>Y el que entra, se revisa entero antes de estar a la venta.</p>
+    <p>No elegimos autos por su año.</p>
+    <p>Los elegimos por su historia.</p>
+    <p>Bienvenidos a nuestra colección de unidades seleccionadas.</p>
    </div>
+  </div>
+</section>
+
+<!-- BLOQUE 2, SEGUNDA MITAD — LAS TRES LÍNEAS.
+
+     El documento las pide justo debajo del manifiesto: reparten el
+     catálogo de hoy y dejan planteado el de mañana. Todavía no llevan a
+     ningún lado porque el catálogo no existe; son las categorías. -->
+<section id="lineas">
+  <div class="lineas-grilla">
+
+    <article class="linea">
+      <div class="linea-foto">
+        <img src="assets/lineas/linea-1.webp" alt="Mercedes-Benz GLC Coupé de perfil"
+             loading="lazy" decoding="async" width="900" height="506">
+      </div>
+      <span class="linea-num">01</span>
+      <h3>Colección Selected</h3>
+      <p>Mercedes-Benz, BMW, MINI y Volkswagen. Unidades preservadas,
+         revisadas y listas para entregar.</p>
+      <span class="linea-nota">Disponible</span>
+    </article>
+
+    <article class="linea">
+      <div class="linea-foto">
+        <img src="assets/lineas/linea-2.webp" alt="BMW Serie 2 de perfil"
+             loading="lazy" decoding="async" width="900" height="506">
+      </div>
+      <span class="linea-num">02</span>
+      <h3>Línea Evolution</h3>
+      <p>Eléctricos e híbridos. La misma exigencia de selección aplicada
+         a la generación que viene.</p>
+      <span class="linea-nota">Disponible</span>
+    </article>
+
+    <article class="linea">
+      <div class="linea-foto">
+        <img src="assets/lineas/linea-3.webp" alt="Chevrolet Camaro SS de perfil"
+             loading="lazy" decoding="async" width="900" height="506">
+      </div>
+      <span class="linea-num">03</span>
+      <h3>Históricos y Carreras</h3>
+      <p>Clásicos, competición y piezas de colección. Si buscás una en
+         particular, la encontramos en el mercado global.</p>
+      <span class="linea-nota">Búsqueda a pedido</span>
+    </article>
+
   </div>
 </section>
 
@@ -2046,24 +2367,27 @@ body.is-dark.is-scrolled #topbar{
          Cada nota entra cuando se ve la parte que le toca: la chapa con
          el auto de atrás, el historial mientras gira, la mecánica de
          perfil y los papeles al quedar de frente. -->
+    <!-- La revisación se mudó al Estándar Manna, que es el bloque que
+         el documento reserva para la confianza. Acá vuelve el registro
+         del documento: no se describe un trámite, se mira el auto. -->
     <div class="reel-nota reel-nota--izq" data-desde=".08" data-hasta=".30">
-      <p>Chapa y pintura, panel por panel.</p>
-      <small>Carrocería</small>
+      <p>Cada volumen estaba resuelto antes de existir.</p>
+      <small>Diseño</small>
     </div>
 
     <div class="reel-nota reel-nota--der" data-desde=".34" data-hasta=".56">
-      <p>Dueños, service y kilómetros. Todo por escrito.</p>
-      <small>Historial</small>
+      <p>Una sola línea recorre el auto entero.</p>
+      <small>Perfil</small>
     </div>
 
     <div class="reel-nota reel-nota--izq" data-desde=".60" data-hasta=".82">
-      <p>Entra al taller antes que a la vidriera.</p>
-      <small>Mecánica</small>
+      <p>No se dibuja. Se esculpe.</p>
+      <small>Carrocería</small>
     </div>
 
     <div class="reel-nota reel-nota--der" data-desde=".86" data-hasta="1.01">
-      <p>Se entrega con la transferencia resuelta.</p>
-      <small>Papeles</small>
+      <p>Detenido, sigue diciendo algo.</p>
+      <small>Presencia</small>
     </div>
   </div>
 </section>
@@ -2605,12 +2929,46 @@ body.is-dark.is-scrolled #topbar{
      quedar blanco sobre gris. -->
 <div id="puente" data-claro data-claro-desde=".55" aria-hidden="true"></div>
 
-<!-- El cierre. Hermana de la franja de arriba: mismo tratamiento, otra
-     tinta, otro texto. Debajo de esto va a seguir habiendo contenido. -->
-<section id="cierre" data-claro>
-  <div class="cierre-copy">
-   <p>Lo demás se habla en persona.</p>
-   <p>Vení a verlos sin apuro y sin nadie encima.</p>
+<!-- BLOQUE 4 — EL ESTÁNDAR MANNA.
+
+     Es el bloque de confianza del documento, y por eso es el único
+     claro de toda la página: rompe la oscuridad a propósito. Los tres
+     puntos y sus textos son los del documento.
+
+     Antes acá había una franja con una frase suelta. El contenido de
+     inspección estaba repartido en las notas del reel; ahora vive donde
+     corresponde, junto y con nombre. -->
+<section id="estandar" data-claro>
+  <div class="estandar-caja">
+    <small class="estandar-eyebrow">La garantía</small>
+    <h2 class="estandar-titulo">El Estándar Manna</h2>
+    <p class="estandar-bajada">
+      Ninguna unidad se publica antes de pasar por acá.
+    </p>
+
+    <ul class="estandar-lista">
+      <li>
+        <span class="estandar-num">01</span>
+        <h3>Inspección Selecta</h3>
+        <p>Certificación de estructura, pintura y motor por expertos.</p>
+      </li>
+      <li>
+        <span class="estandar-num">02</span>
+        <h3>Documentación Perfecta</h3>
+        <p>Unidades 100% listas para transferir sin sorpresas legales en
+           Buenos Aires.</p>
+      </li>
+      <li>
+        <!-- El único de los tres que todavía no existe: el depósito en
+             línea es la Prioridad 1 del documento y necesita pasarela de
+             pago. Se deja a la vista para que se entienda la promesa
+             completa, pero marcado, que es lo honesto hasta que funcione. -->
+        <span class="estandar-num">03</span>
+        <h3>Reserva Protegida <em>Próximamente</em></h3>
+        <p>Tu depósito de seguridad congelado bajo absoluta garantía de
+           reembolso.</p>
+      </li>
+    </ul>
   </div>
 </section>
 
@@ -2817,6 +3175,37 @@ body.is-dark.is-scrolled #topbar{
 })();
 </script>
 
+<!-- BLOQUE 6 — EL PIE.
+
+     La invitación al Garage Virtual, los datos institucionales y el
+     isotipo de fondo, que es lo que pide el documento para cerrar.
+
+     El botón del Garage está apagado a propósito: hace falta registro
+     de usuarios, que es Prioridad 5 y todavía no existe. Un botón que
+     no hace nada es peor que no tenerlo. -->
+<footer id="pie">
+  <svg class="pie-sello" viewBox="0 0 100 100" fill="currentColor"
+       fill-rule="evenodd" aria-hidden="true"><use href="#mm-emblema"/></svg>
+
+  <div class="pie-caja">
+    <h2 class="pie-titulo">Creá tu Garage Virtual</h2>
+    <p class="pie-bajada">
+      Guardá tus unidades favoritas y recibí aviso de cada ingreso antes
+      de que se publique en redes.
+    </p>
+
+    <span class="pie-boton" aria-disabled="true">
+      Crear mi Garage <em>Próximamente</em>
+    </span>
+
+    <div class="pie-datos">
+      <span>Manna Motors <span aria-hidden="true">·</span> Selected</span>
+      <a href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8" target="_blank" rel="noopener">
+        Pasaje Lanín 154, Barracas, Buenos Aires
+      </a>
+    </div>
+  </div>
+</footer>
 
 </body>
 </html>

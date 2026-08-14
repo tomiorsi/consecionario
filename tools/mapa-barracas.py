@@ -155,7 +155,7 @@ def main():
 
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {LADO} {LADO}" '
            f'width="{LADO}" height="{LADO}" fill="none">',
-           '<rect width="100%" height="100%" fill="#000000"/>']
+           '<rect width="100%" height="100%" fill="#0B0C10"/>']
 
     for tipos, ancho, color in CAPAS:
         trozos = [p for h, p in calles if h in tipos]
