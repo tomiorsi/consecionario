@@ -312,36 +312,45 @@ video::-webkit-media-controls{ display:none !important; }
    maquetado, y un degradado hecho de cualquier manera se lee peor
    todavía. Dos cosas lo arruinan, y las dos están resueltas acá.
 
-   1) LA CURVA. Un degradado lineal entre negro y gris medio se abre
-      demasiado rápido: a mitad de camino el ojo ya ve gris claro y el
-      negro se siente cortado. Las paradas de acá abajo siguen una
-      smootherstep (6t⁵−15t⁴+10t³), la curva de siempre para fundidos de
-      luminancia: el negro se sostiene, después abre, y aterriza en el
-      plata frenando. No son valores puestos a ojo, están calculados.
+   1) EL LARGO. Corto, 16svh. Una rampa de casi una pantalla entera es
+      una pantalla de nada: se termina el collage y hay que scrollear un
+      viaje mirando gris para llegar al texto. Apenas termina la sección
+      de arriba, esto ya tiene que estar resolviéndose.
 
-   2) EL BANDEADO. Un degradado gris largo en una pantalla de 8 bits
-      muestra escalones — franjas horizontales visibles, sobre todo en
-      la zona oscura donde los saltos de valor son enormes en términos
-      relativos. Se rompen con grano: una capa de ruido finísimo que
-      desordena el borde entre un escalón y el siguiente y lo vuelve
-      invisible. Es lo mismo que hace una imprenta al tramar.
+      Y no es sólo ritmo: la rampa corta además BANDEA MENOS. Lo que
+      produce escalones es estirar 175 niveles de gris sobre muchos
+      píxeles — a 60svh tocaban 2,95 píxeles por nivel y los saltos se
+      ven; a 16svh son 0,79 y no hay dónde verlos. Corto es mejor por
+      los dos lados.
+
+   2) LA CURVA. Un degradado lineal se abre de golpe y el negro se
+      siente cortado, así que las paradas siguen una smoothstep
+      (3t²−2t³) y están calculadas, no puestas a ojo.
+
+      Acá estaba la smootherstep (6t⁵−15t⁴+10t³), que aplana mucho las
+      dos puntas. Con 60svh de recorrido eso quedaba precioso; sobre 16
+      desperdiciaba media rampa aguantando el negro y concentraba todo
+      el salto en el centro, que es justo lo que se lee como un borde.
+      Menos distancia pide menos curva.
+
+   3) EL GRANO. Aunque a este largo el bandeado ya casi no aparece, la
+      capa de ruido se queda: cuesta 200 bytes y cubre las pantallas
+      que calibran distinto.
    ══════════════════════════════════════════════════════════════════ */
 #puente{
   position:relative;
-  height:60svh;
+  height:16svh;
   background:linear-gradient(to bottom,
       rgb(0 0 0) 0%,
-      rgb(1 1 1) 8.333%,
-      rgb(6 6 6) 16.67%,
-      rgb(18 18 18) 25%,
-      rgb(37 37 37) 33.33%,
-      rgb(61 61 61) 41.67%,
+      rgb(5 5 5) 10%,
+      rgb(18 18 18) 20%,
+      rgb(38 38 38) 30%,
+      rgb(62 62 62) 40%,
       rgb(88 88 88) 50%,
-      rgb(114 114 115) 58.33%,
-      rgb(138 138 139) 66.67%,
-      rgb(157 157 158) 75%,
-      rgb(169 169 170) 83.33%,
-      rgb(174 174 175) 91.67%,
+      rgb(113 113 114) 60%,
+      rgb(137 137 138) 70%,
+      rgb(157 157 158) 80%,
+      rgb(170 170 171) 90%,
       rgb(175 175 176) 100%);
 }
 
@@ -407,10 +416,10 @@ video::-webkit-media-controls{ display:none !important; }
 .cierre-copy p + p .w.on{ color:var(--ink-2); }
 
 @media (max-width:767px){
-  /* En el teléfono la rampa se acorta: la pantalla es más angosta, el
-     degradado recorre menos píxeles y no necesita tanto alto para
-     verse limpio. Estirarla sólo agregaría scroll vacío. */
-  #puente{ height:44svh; }
+  /* En el teléfono, todavía más corta. La pantalla es más chica y un
+     envión de dedo se come la rampa entera de una: si acá mide lo mismo
+     que en computadora, el salto se siente más largo, no más suave. */
+  #puente{ height:13svh; }
 }
 
 @media (prefers-reduced-motion:reduce){
