@@ -91,7 +91,7 @@ def main():
     out = []
     out.append(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {LADO} {LADO}" '
                f'width="{LADO}" height="{LADO}" fill="none">')
-    out.append('<rect width="100%" height="100%" fill="#101216"/>')
+    out.append('<rect width="100%" height="100%" fill="#000000"/>')
 
     for pts in agua:
         out.append(f'<path d="{d_de(pts, True)}" fill="#161B22"/>')
