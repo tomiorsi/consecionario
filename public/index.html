@@ -2607,7 +2607,19 @@ body.is-dark.is-scrolled #topbar{
       var d = y - ultimoY;
       ultimoY = y;
 
-      if (d !== 0){
+      /* BUG QUE HABÍA ACÁ: el acumulador seguía sumando aunque todavía
+         se estuviera DENTRO de la zona libre. Bajando de corrido desde
+         arriba, al llegar al borde de los 140 px "junta" ya traía esos
+         140 acumulados — más que el umbral de 64 — y el header se
+         escondía en el mismo instante en que cruzaba el borde, sin que
+         hiciera falta ningún gesto real más allá. Se veía como que el
+         logo desaparecía apenas se tocaba el scroll.
+
+         Reiniciarlo mientras y <= ZONA_LIBRE hace que, al salir de la
+         zona, el acumulador arranque en cero: recién ahí empieza a
+         contar el gesto de bajada, y hacen falta los 64 px de verdad. */
+      if (y <= ZONA_LIBRE) junta = 0;
+      else if (d !== 0){
         if ((d > 0) !== (junta > 0)) junta = 0;
         junta += d;
       }
