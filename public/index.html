@@ -904,6 +904,144 @@ video::-webkit-media-controls{ display:none !important; }
   .gar-auto.viaja{ transition:none; }
   .gar-texto{ transition:none; }
 }
+
+/* ══════════════════════════════════════════════════════════════════
+   BLOQUE 3 — DESTACADO DE LA SEMANA
+
+   "La pantalla se divide a la mitad de forma asimétrica": de un lado la
+   foto, del otro la ficha. La asimetría es 1.35fr contra 1fr —la foto
+   manda, el texto acompaña— y no 50/50, que se lee como un cuadro
+   comparativo y no como una pieza destacada.
+
+   El fondo es negro y no el grafito del documento: ver el comentario de
+   la sección en el HTML. La división ya la marca la foto contra el
+   texto, sin necesidad de un cambio de color.
+   ══════════════════════════════════════════════════════════════════ */
+#destacado{
+  position:relative;
+  background:var(--void);
+  padding:clamp(3.5rem,9vh,6.5rem) var(--gut);
+}
+
+.dest-caja{
+  max-width:76rem;
+  margin:0 auto;
+  display:grid;
+  grid-template-columns:1.35fr 1fr;
+  align-items:center;
+  gap:clamp(2rem,5vw,4.5rem);
+}
+
+.dest-foto{
+  margin:0;
+  /* El mismo encuadre que el escenario del garage: los autos de perfil
+     de la página viven todos en esta proporción, y repetirla es lo que
+     hace que se lean como una misma colección y no como fotos sueltas. */
+  aspect-ratio:16/9;
+}
+
+.dest-foto img{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+}
+
+.dest-eyebrow{
+  display:block;
+  font-size:.62rem;
+  font-weight:600;
+  letter-spacing:.3em;
+  text-transform:uppercase;
+  color:var(--steel);
+}
+
+/* Syncopate y ancho, como pide el documento para la ficha. */
+.dest-modelo{
+  font-family:var(--display);
+  font-size:clamp(1.1rem,2.3vw,1.75rem);
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  line-height:1.35;
+  color:var(--chrome);
+  margin:clamp(.7rem,1.8vh,1.1rem) 0 0;
+}
+
+/* LA FICHA. La etiqueta chica arriba, el valor grande debajo. Es el
+   orden en que se lee una ficha técnica de verdad —primero qué es,
+   después cuánto—, y deja los valores alineados entre sí, que es lo que
+   permite compararlos de un vistazo.
+
+   LA GRILLA CUENTA PARES, NO PIEZAS. Cada par viene envuelto en un div
+   desde el script; sin eso los dt y los dd se repartirían por su cuenta
+   y cada valor caería debajo de la etiqueta equivocada.
+
+   El minmax es de 7.5rem porque el dato más largo que se espera acá es
+   un kilometraje de seis cifras: con menos, en pantalla angosta el
+   número se parte al medio. */
+.dest-datos{
+  margin:clamp(1.6rem,3.5vh,2.4rem) 0 0;
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap:clamp(1rem,2.5vw,1.8rem);
+  border-top:1px solid rgba(209,213,219,.16);
+  padding-top:clamp(1.2rem,2.6vh,1.7rem);
+}
+
+.dest-datos dt{
+  font-size:.58rem;
+  font-weight:600;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--ink-3);
+}
+
+.dest-datos dd{
+  margin:.45rem 0 0;
+  font-family:var(--display);
+  font-size:clamp(.82rem,1.25vw,1rem);
+  font-weight:700;
+  letter-spacing:.04em;
+  color:var(--chrome);
+}
+
+/* El botón en Blanco Puro, textual del documento. Es el único relleno
+   sólido claro de toda la parte oscura: por eso no necesita más nada
+   para destacarse. */
+.dest-boton{
+  display:inline-block;
+  margin-top:clamp(1.8rem,4vh,2.6rem);
+  padding:.95rem 1.6rem;
+  background:var(--chrome);
+  color:var(--void);
+  font-size:.63rem;
+  font-weight:700;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  text-decoration:none;
+  border-radius:2px;
+  transition:opacity .3s var(--ease), transform .3s var(--ease);
+}
+@media (hover:hover){
+  .dest-boton:hover{ opacity:.86; transform:translateY(-1px); }
+}
+
+/* En pantalla angosta la asimetría no entra: dos columnas de menos de
+   180 px no son una división, son dos cosas apretadas. Se apilan, con la
+   foto primero, que es el orden con el que se mira igual. */
+@media (max-width:820px){
+  .dest-caja{
+    grid-template-columns:1fr;
+    gap:clamp(1.4rem,4vh,2.2rem);
+  }
+  .dest-foto{ aspect-ratio:16/8; }
+}
+
+@media (prefers-reduced-motion:reduce){
+  .dest-boton{ transition:none; }
+}
+
 /* ══════════════════════════════════════════════════════════════════
    BLOQUE 4 — EL ESTÁNDAR MANNA
 
@@ -3384,6 +3522,128 @@ body.is-dark.is-scrolled #topbar{
     </div>
   </div>
 </section>
+
+<!-- BLOQUE 3 — DESTACADO DE LA SEMANA.
+
+     El documento lo pide dividido a la mitad de forma asimétrica: de un
+     lado la foto de perfil del auto más exclusivo que haya en stock esa
+     semana, del otro una ficha técnica limpia en Syncopate, y un botón
+     en Blanco Puro.
+
+     DOS DECISIONES QUE VALE LA PENA DEJAR ESCRITAS.
+
+     1. El fondo NO es el gris grafito que pide el documento. Toda la
+        página pasó a negro pleno porque ese azulado chocaba contra el
+        resto; ver el comentario de la paleta. La división asimétrica ya
+        la marca la foto contra el texto: no hacía falta un color.
+
+     2. Es una sección que por definición CAMBIA TODAS LAS SEMANAS. Por
+        eso no está escrita en el HTML: vive en el objeto UNIDAD del
+        script de abajo. Cambiar el destacado es cambiar seis renglones,
+        no tocar la estructura.
+
+     Y mientras UNIDAD no tenga datos reales, la sección NO SE MUESTRA.
+     Preferimos que falte a que salga al aire un "Año: —": esto es una
+     ficha técnica de un auto que alguien va a comprar, y un dato de
+     relleno acá no es un detalle de diseño. -->
+<section id="destacado" hidden>
+  <div class="dest-caja">
+
+    <figure class="dest-foto">
+      <img alt="" decoding="async" loading="lazy">
+    </figure>
+
+    <div class="dest-ficha">
+      <small class="dest-eyebrow">Destacado de la semana</small>
+      <h2 class="dest-modelo"></h2>
+
+      <dl class="dest-datos"></dl>
+
+      <a class="dest-boton" href="#concierge">
+        Explorar unidad e iniciar reserva privada
+      </a>
+      <!-- Apunta al concierge y no a una ficha de producto porque el
+           catálogo y la reserva con depósito todavía no existen: son la
+           Prioridad 1 del documento y necesitan pasarela de pago. Que el
+           botón lleve a hablar con alguien es la promesa más cercana que
+           hoy se puede cumplir de verdad. -->
+    </div>
+
+  </div>
+</section>
+
+<script>
+/* EL DESTACADO DE LA SEMANA — acá se cambia.
+
+   ─────────────────────────────────────────────────────────────────
+   PARA ACTUALIZARLO: llená este objeto con la unidad de la semana y
+   listo. Para sacar el destacado sin borrar nada, poné UNIDAD = null.
+   ─────────────────────────────────────────────────────────────────
+
+   La foto tiene que ser de perfil y sobre fondo oscuro o recortada,
+   como las del garage. Los datos son los tres que pide el documento;
+   se pueden agregar o sacar filas libremente, la ficha se arma sola
+   con las que haya. */
+var UNIDAD = null;
+
+/*  Ejemplo de cómo se completa —descomentar y reemplazar por la unidad real—:
+
+    var UNIDAD = {
+      foto:   'assets/destacado/unidad.webp',
+      alto:   'Mercedes-AMG C 63 S de perfil',   // texto alternativo
+      modelo: 'Mercedes-AMG C 63 S',
+      datos: [
+        ['Año',         '2021'],
+        ['Motor',       'V8 biturbo 4.0'],
+        ['Kilometraje', '18.400 km']
+      ]
+    };
+*/
+
+(function(){
+  var sec = document.getElementById('destacado');
+  if (!sec) return;
+
+  /* Sin datos, la sección se queda oculta y no se toca nada más. El
+     `hidden` ya está puesto en el HTML: si este script no llegara a
+     correr, tampoco aparece una sección vacía. */
+  if (!UNIDAD || !UNIDAD.modelo || !UNIDAD.foto) return;
+
+  var img = sec.querySelector('.dest-foto img');
+  img.src = UNIDAD.foto;
+  img.alt = UNIDAD.alto || UNIDAD.modelo;
+
+  sec.querySelector('.dest-modelo').textContent = UNIDAD.modelo;
+
+  /* La ficha se arma con las filas que haya. Un <dl> y no una tabla:
+     esto es una lista de pares término/definición, que es exactamente
+     lo que un lector de pantalla necesita entender acá.
+
+     CADA PAR VA ENVUELTO EN UN DIV, y no es decorativo. Sin el envoltorio
+     los dt y los dd entran a la grilla como piezas sueltas, y con tres
+     columnas la ficha salía así:
+
+         AÑO        2022          MOTOR
+         2.0 turbo  KILOMETRAJE   24.900 km
+
+     o sea, cada valor debajo de la etiqueta equivocada. El <dl> admite
+     divs entre medio justamente para esto: agrupan el par sin agregarle
+     ningún significado. */
+  var dl = sec.querySelector('.dest-datos');
+  (UNIDAD.datos || []).forEach(function(par){
+    var caja = document.createElement('div');
+    var dt = document.createElement('dt');
+    var dd = document.createElement('dd');
+    dt.textContent = par[0];
+    dd.textContent = par[1];
+    caja.appendChild(dt);
+    caja.appendChild(dd);
+    dl.appendChild(caja);
+  });
+
+  sec.hidden = false;
+})();
+</script>
 
 <!-- La salida del negro. Está vacío a propósito: es la rampa de color y
      nada más. El data-claro-desde le avisa al header a partir de qué
