@@ -945,6 +945,184 @@ body.cargando{ overflow:hidden; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
+   DÓNDE ESTAMOS — el mapa
+
+   POR QUÉ EL MAPA ESTÁ DIBUJADO Y NO ES UN GOOGLE MAPS EMBEBIDO.
+   Se pidió que tocar el mapa abra Google Maps, y un iframe se traga
+   los clics: adentro de un iframe, el clic es del iframe. Con eso solo
+   ya quedaba descartado. Además no se puede pintar oscuro sin la API
+   con clave y facturación, y son cientos de KB más una conexión a
+   Google en cada visita.
+
+   Dibujado con datos de OpenStreetMap son 18 KB del color exacto del
+   sitio, sin clave, sin pedido a nadie y sin nada que se trague el
+   clic: la sección entera es un enlace.
+
+   Y hace algo que un mapa comprado no puede: el Pasaje Lanín va en
+   blanco y el resto del barrio en gris. La calle de la que habla el
+   texto es la única que se ve.
+   ══════════════════════════════════════════════════════════════════ */
+#donde{
+  position:relative;
+  display:block;
+  height:50svh;
+  overflow:hidden;
+  background:var(--void);
+  text-decoration:none;
+  color:inherit;
+}
+
+#donde img{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:center;
+  transition:transform 1.2s var(--ease), opacity .5s var(--ease);
+  opacity:.9;
+}
+
+@media (hover:hover){
+  #donde:hover img{ transform:scale(1.04); opacity:1; }
+}
+
+/* El velo. En computadora va de izquierda a derecha —el texto ocupa la
+   izquierda y el mapa respira a la derecha— y en teléfono de arriba
+   abajo, que es como se apilan ahí. */
+#donde::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:linear-gradient(to right,
+    rgba(10,11,13,.94) 0%,
+    rgba(10,11,13,.86) 26%,
+    rgba(10,11,13,.42) 58%,
+    rgba(10,11,13,.28) 100%);
+}
+
+.donde-caja{
+  position:absolute;
+  z-index:2;
+  left:var(--gut);
+  right:var(--gut);
+  top:50%;
+  transform:translateY(-50%);
+  max-width:30rem;
+}
+
+.donde-caja small{
+  display:block;
+  font-family:var(--mono);
+  font-size:.66rem;
+  letter-spacing:.28em;
+  text-transform:uppercase;
+  color:var(--steel);
+  margin-bottom:clamp(.7rem,1.6vh,1.1rem);
+}
+
+.donde-caja h2{
+  margin:0;
+  font-size:clamp(1.5rem,3vw,2.4rem);
+  font-variation-settings:"wdth" 92,"wght" 500;
+  letter-spacing:-.02em;
+  line-height:1.15;
+  color:var(--chrome);
+}
+
+.donde-caja p{
+  margin:clamp(.6rem,1.4vh,1rem) 0 0;
+  font-size:clamp(.9rem,1.15vw,1.02rem);
+  line-height:1.5;
+  color:var(--steel);
+}
+
+/* El renglón de abajo dice qué pasa si tocás. Sin esto, un mapa quieto
+   no se lee como algo en lo que se pueda hacer clic. */
+.donde-ir{
+  display:inline-flex;
+  align-items:center;
+  gap:.5rem;
+  margin-top:clamp(.9rem,2vh,1.4rem);
+  font-family:var(--mono);
+  font-size:.68rem;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+  color:var(--chrome);
+}
+.donde-ir svg{ width:.8em; height:.8em; transition:transform .3s var(--ease); }
+@media (hover:hover){
+  #donde:hover .donde-ir svg{ transform:translate(2px,-2px); }
+}
+
+/* LA CHINCHE. Va justo en el centro porque el mapa está centrado en el
+   pasaje: con object-fit:cover el centro sigue siendo el centro en
+   cualquier proporción de pantalla. */
+.donde-pin{
+  position:absolute;
+  z-index:2;
+  left:50%;
+  top:50%;
+  width:12px;
+  height:12px;
+  margin:-6px 0 0 -6px;
+  border-radius:50%;
+  background:var(--chrome);
+  box-shadow:0 0 0 1px rgba(242,244,248,.55);
+}
+
+/* El halo. Una sola onda lenta: es una señal de "acá", no un aviso. */
+.donde-pin::after{
+  content:"";
+  position:absolute;
+  inset:-6px;
+  border-radius:50%;
+  border:1px solid rgba(242,244,248,.5);
+  animation:onda 3.4s ease-out infinite;
+}
+
+@keyframes onda{
+  0%   { transform:scale(.6); opacity:.85 }
+  70%  { transform:scale(2.6); opacity:0 }
+  100% { transform:scale(2.6); opacity:0 }
+}
+
+@media (max-width:767px){
+  #donde::after{
+    background:linear-gradient(to bottom,
+      rgba(10,11,13,.34) 0%,
+      rgba(10,11,13,.14) 30%,
+      rgba(10,11,13,.88) 70%,
+      rgba(10,11,13,.97) 100%);
+  }
+  .donde-caja{
+    top:auto;
+    bottom:clamp(1.6rem,4vh,2.6rem);
+    transform:none;
+    max-width:none;
+  }
+
+  /* SUBE EL MAPA, NO SÓLO LA CHINCHE.
+
+     En el teléfono el texto ocupa la mitad de abajo, así que el pasaje
+     tiene que quedar en la mitad de arriba. Mover sólo la chinche la
+     dejaba señalando una calle cualquiera.
+
+     No alcanza con object-position: el recorte de cover acá sobra a lo
+     ancho y no a lo alto, así que verticalmente no tiene nada que
+     correr. Se agranda la imagen y se la sube: alto 130% arrancando en
+     −30% deja su centro —y por lo tanto el pasaje— en el 35%. */
+  #donde img{ height:130%; top:-30%; }
+  .donde-pin{ top:35%; }
+}
+
+@media (prefers-reduced-motion:reduce){
+  .donde-pin::after{ animation:none; opacity:.5 }
+  #donde img{ transition:none }
+}
+
+/* ══════════════════════════════════════════════════════════════════
    EL COLLAGE — tres piezas que se acomodan con el scroll
    ══════════════════════════════════════════════════════════════════
 
@@ -2183,6 +2361,43 @@ body.is-dark.is-scrolled #topbar{
   pintar();
 })();
 </script>
+
+<!-- DÓNDE ESTAMOS.
+
+     Toda la sección es un enlace: se pidió que tocar el mapa abra
+     Google Maps, así que el <a> envuelve todo en vez de haber un botón
+     chiquito en una esquina.
+
+     El mapa es un dibujo con datos de OpenStreetMap, no un iframe de
+     Google. Los motivos, en el CSS de #donde. -->
+<a id="donde"
+   href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8"
+   target="_blank" rel="noopener"
+   aria-label="Pasaje Lanín 154, Barracas — abrir en Google Maps">
+
+  <img src="assets/mapa/barracas.svg"
+       alt="Mapa de Barracas con el Pasaje Lanín señalado"
+       loading="lazy" decoding="async" width="1000" height="1000">
+
+  <span class="donde-pin" aria-hidden="true"></span>
+
+  <div class="donde-caja">
+    <small>Dónde estamos</small>
+    <h2>Pasaje Lanín 154, Barracas.</h2>
+    <p>La calle de las casas pintadas: unas cuarenta fachadas
+       intervenidas por Marino Santa María en pintura y mosaico
+       veneciano, declarada Sitio de Interés Cultural por la
+       Legislatura porteña.</p>
+    <span class="donde-ir">
+      Abrir en Google Maps
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+           aria-hidden="true">
+        <path d="M7 17 17 7M8 7h9v9"/>
+      </svg>
+    </span>
+  </div>
+</a>
 
 <!-- El collage: un video y dos fotos que se acomodan con el scroll. -->
 <section id="collage">
