@@ -770,69 +770,28 @@ video::-webkit-media-controls{ display:none !important; }
   object-position:center;
 }
 
-/* LOS DOS VELOS.
+/* UN SOLO VELO, ARRIBA.
 
-   Arriba, para que el header se lea. No se usa el sistema de
-   data-claro acá porque el fondo cambia tres veces: el cielo es claro
-   en dos planos y el techo del auto es casi negro en el otro, así que
-   no hay un color al que ajustarse. Un velo fijo arriba resuelve los
-   tres y de paso encuadra la imagen.
+   Está para que el header se lea. No se usa el sistema de data-claro
+   acá porque el fondo cambia tres veces: el cielo es claro en dos
+   planos y el techo del auto es casi negro en el otro, así que no hay
+   un color al que ajustarse. Un velo fijo arriba resuelve los tres y de
+   paso encuadra la imagen.
 
-   Abajo, para el texto, por lo mismo: cae sobre asfalto en dos planos
-   y sobre chapa roja en el tercero. */
-#ruta::before,
-#ruta::after{
+   Abajo había otro, pero existía sólo para que se leyera el texto que
+   iba encima del video. Sin ese texto, oscurecer el pie de la toma no
+   aporta nada: le come el asfalto y la ruta, que es lo que da la
+   sensación de velocidad. */
+#ruta::before{
   content:"";
   position:absolute;
   left:0;
   right:0;
-  pointer-events:none;
-  z-index:2;
-}
-#ruta::before{
   top:0;
   height:24%;
+  pointer-events:none;
+  z-index:2;
   background:linear-gradient(to bottom, rgba(0,0,0,.55), rgba(0,0,0,0));
-}
-#ruta::after{
-  bottom:0;
-  height:42%;
-  background:linear-gradient(to top, rgba(0,0,0,.62), rgba(0,0,0,0));
-}
-
-.ruta-copy{
-  position:absolute;
-  z-index:3;
-  left:var(--gut);
-  right:var(--gut);
-  bottom:clamp(2.6rem,9vh,6rem);
-  max-width:34rem;
-}
-
-.ruta-copy p{
-  margin:0;
-  font-size:clamp(1.5rem,3vw,2.6rem);
-  font-weight:500;
-  letter-spacing:-.02em;
-  line-height:1.2;
-  color:var(--chrome);
-}
-
-.ruta-copy small{
-  display:block;
-  margin-top:clamp(.5rem,1.2vh,.9rem);
-  font-family:var(--mono);
-  font-size:.7rem;
-  letter-spacing:.24em;
-  text-transform:uppercase;
-  color:var(--steel);
-}
-
-@media (max-width:767px){
-  /* La pieza vertical todavía no existe: por ahora el recorte de la
-     horizontal se banca porque object-fit:cover centra en el auto. Se
-     reemplaza igual que las demás cuando llegue la vertical. */
-  .ruta-copy{ bottom:clamp(2.2rem,7vh,4rem); }
 }
 
 /* ── el texto de la portada ────────────────────────────────────────
@@ -2805,10 +2764,6 @@ body.is-dark.is-scrolled #topbar{
   <video id="rutaVid" muted loop playsinline preload="none"
          aria-label="Golf GTI rojo en un camino de montaña"></video>
 
-  <div class="ruta-copy">
-    <p>Todo lo anterior es para que este momento no tenga sorpresas.</p>
-    <small>En ruta</small>
-  </div>
 </section>
 
 <script>
