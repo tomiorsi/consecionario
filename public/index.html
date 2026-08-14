@@ -2241,10 +2241,20 @@ body.is-dark.is-scrolled #topbar{
   var v   = document.getElementById('rutaVid');
   if (!sec || !v) return;
 
-  /* Todavía no hay pieza vertical: por ahora el teléfono recibe la
-     horizontal y object-fit:cover la centra en el auto. Cuando llegue,
-     se elige acá igual que en la portada y el reel. */
-  var base = 'assets/ruta/ruta-desktop';
+  /* Dos piezas distintas, no dos recortes de la misma: la de
+     computadora es horizontal y la de teléfono vertical, filmadas
+     aparte. Recortar la horizontal se bancaba, pero perdía justo lo que
+     hace a estas tomas —la ruta que se va hacia el fondo y la montaña
+     arriba— porque el recorte se come el alto.
+
+     Se mira el MENOR entre pantalla y ventana, igual que en el collage,
+     para que una ventana de escritorio angosta reciba la vertical, que
+     es la que le va a entrar bien. */
+  var pantalla = Math.min(
+    (window.screen && screen.width) || 9999,
+    window.innerWidth || 9999
+  );
+  var base = 'assets/ruta/ruta-' + (pantalla <= 767 ? 'mobile' : 'desktop');
   v.poster = base + '-poster.jpg';
 
   var pedido = false;
