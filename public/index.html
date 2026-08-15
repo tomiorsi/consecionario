@@ -871,7 +871,12 @@ video::-webkit-media-controls{ display:none !important; }
   transform:translateX(-50%);
   white-space:nowrap;
   font-family:var(--display);
-  font-size:clamp(1.5rem,5.8vw,5.2rem);
+  /* EL TOPE NO ES ESTETICO, ES GEOMETRICO. Medido, esta tipografia
+     ocupa 12.7 px de ancho por cada px de cuerpo, y el nombre mas largo
+     —"Línea Evolution"— tiene que entrar en los 1216 px del escenario.
+     De ahi salen los 5.6rem: 89.6 x 12.7 = 1138 px, con 78 de aire. Un
+     punto mas y la palabra se corta contra los bordes. */
+  font-size:clamp(1.7rem,6.2vw,5.6rem);
   font-weight:700;
   letter-spacing:.03em;
   line-height:1;
@@ -884,26 +889,70 @@ video::-webkit-media-controls{ display:none !important; }
 }
 .gar-marca.cambiando{ opacity:0; }
 
-/* EL AUTO.
+/* EL AUTO Y SUS CUATRO PUESTOS SOBRE LA CARRETERA.
 
-   Se ancla por ABAJO y se escala desde la línea donde apoyan las
-   ruedas (91.5% del alto del archivo, medido). Las dos cosas juntas son
-   lo que hace que los tres autos pisen el MISMO piso: al achicar un
-   vecino, su punto de apoyo no se mueve. Escalando desde el centro,
-   como estaba antes, los de los costados quedaban flotando más arriba
-   que el del medio. */
+   La calle se aleja hacia arriba a la izquierda y viene hacia vos abajo
+   a la derecha. Todo se ordena sobre ese eje: un auto lejos esta chico,
+   arriba y a la izquierda; a medida que se acerca se agranda y baja
+   hacia la derecha; y sale de cuadro pasando al lado de la camara.
+
+     lejos       →  entrando   →  actual   →  saliendo
+     (invisible)    (izquierda)   (centro)   (pasa de largo)
+
+   El movimiento SIEMPRE va en ese sentido. Antes el auto nuevo entraba
+   por la derecha y todo se corria hacia la izquierda, que sobre una
+   calle que baja hacia la derecha se leia como marcha atras.
+
+   Se escala desde la linea de apoyo (transform-origin 50% 92%), asi el
+   auto crece y se achica sin despegarse del piso.
+
+   `bottom` entra en la transicion junto con `left`: es lo que hace que
+   el viaje sea en diagonal —siguiendo la calle— y no en horizontal. */
 .gar-auto{
   position:absolute;
-  left:50%;
-  bottom:9%;
+  left:-6%;
+  bottom:24%;
   width:68%;
   z-index:2;
   opacity:0;
   transform-origin:50% 92%;
-  transform:translateX(-50%) scale(.5);
-  transition:left .72s var(--ease), transform .72s var(--ease), opacity .72s var(--ease);
-  will-change:left, transform, opacity;
+  transform:translateX(-50%) scale(.14);
+  transition:left 1.15s var(--ease), bottom 1.15s var(--ease),
+             transform 1.15s var(--ease), opacity 1.15s var(--ease);
+  will-change:left, bottom, transform, opacity;
   pointer-events:none;
+}
+
+/* El que espera su turno, alla lejos en la calle. */
+.gar-auto.es-entrando{
+  left:10.9%;
+  bottom:16.8%;
+  opacity:.42;
+  transform:translateX(-50%) scale(.31);
+  z-index:2;
+}
+
+/* El del medio manda. */
+.gar-auto.es-actual{
+  left:50%;
+  bottom:9%;
+  opacity:1;
+  transform:translateX(-50%) scale(1);
+  z-index:3;
+}
+
+/* El que se va: sigue la calle, crece porque pasa cerca, y sale de
+   cuadro. La opacidad tiene su propio tiempo y arranca tarde —recien a
+   los .45s— para que no se desvanezca en el medio de la pantalla: se
+   tiene que ir por el costado, no evaporarse. */
+.gar-auto.es-saliendo{
+  left:128%;
+  bottom:-12%;
+  opacity:0;
+  transform:translateX(-50%) scale(1.45);
+  z-index:1;
+  transition:left 1.15s var(--ease), bottom 1.15s var(--ease),
+             transform 1.15s var(--ease), opacity .38s var(--ease) .74s;
 }
 
 /* LA CALLE — UNA TIRA DE LUZ, NO UNA RAYA.
@@ -985,34 +1034,6 @@ video::-webkit-media-controls{ display:none !important; }
   height:auto;
 }
 
-/* El del medio manda: tamaño y brillo plenos. */
-.gar-auto.es-actual{
-  left:50%;
-  opacity:1;
-  transform:translateX(-50%) scale(1);
-  z-index:3;
-}
-
-/* Los vecinos. Los porcentajes salen de una cuenta, no de probar: el
-   auto ocupa de 0.071 a 0.928 del ancho de su archivo (medido sobre los
-   cuatro), y con esos números el borde de adentro del vecino queda tres
-   puntos antes de donde empieza el auto central. No se tocan nunca. */
-/* LOS VECINOS NO ESTAN A LA MISMA ALTURA: siguen la calle.
-
-   La cuenta: la pendiente medida es de 5.05 grados (tangente .0883) y
-   entre el centro de un auto y el del vecino hay un 39.1% del ancho del
-   escenario. Eso da 3.45% del ancho de caida, que con la proporcion 2.25
-   del escenario son 7.8 puntos de su alto. El de la izquierda sube esos
-   7.8, el de la derecha baja los mismos: los tres apoyan sobre una sola
-   recta. */
-.gar-auto.es-previo,
-.gar-auto.es-siguiente{
-  opacity:.42;
-  z-index:2;
-  transform:translateX(-50%) scale(.31);
-}
-.gar-auto.es-previo   { left:10.9%; bottom:16.8%; }
-.gar-auto.es-siguiente{ left:89.1%; bottom:1.2%;  }
 
 /* ── el texto del grupo ───────────────────────────────────────────
    Ahora el nombre vive en la escena, así que acá abajo queda sólo la
@@ -1111,13 +1132,14 @@ video::-webkit-media-controls{ display:none !important; }
    324 px de ancho tres autos que no se tocan no entran de otra forma. */
 @media (max-width:820px){
   .gar-escena{ aspect-ratio:1.85; }
-  .gar-marca{ top:22%; font-size:clamp(1.25rem,6.4vw,2.4rem); }
-  .gar-auto{ width:70%; bottom:8%; }
-  .gar-auto.es-previo,
-  .gar-auto.es-siguiente{ transform:translateX(-50%) scale(.30); }
+  /* Misma cuenta para el telefono: con 324 px de escenario, 6.3vw deja
+     el nombre mas largo en 299 px. A 7.4vw se pasaba 28 px. */
+  .gar-marca{ top:20%; font-size:clamp(1.3rem,6.3vw,2.4rem); }
+  .gar-auto{ width:70%; bottom:20%; }
+  .gar-auto.es-actual  { bottom:8%; }
   /* Misma cuenta con la proporcion 1.85: 39.4% x .0883 x 1.85 = 6.4 */
-  .gar-auto.es-previo   { left:10.6%; bottom:14.4%; }
-  .gar-auto.es-siguiente{ left:89.4%; bottom:1.6%;  }
+  .gar-auto.es-entrando{ left:10.6%; bottom:14.4%; transform:translateX(-50%) scale(.30); }
+  .gar-auto.es-saliendo{ left:130%;  bottom:-14%;  transform:translateX(-50%) scale(1.4); }
   .gar-flecha{ width:2.2rem; height:2.2rem; }
   .gar-texto{ min-height:4.6rem; }
 }
@@ -2976,7 +2998,7 @@ body.is-dark.is-scrolled #topbar{
 
    Cuatro grupos. El elegido al centro, los dos vecinos asomando. Todo
    el movimiento lo hace el CSS: acá sólo se reparten tres clases
-   —es-actual, es-previo, es-siguiente— y el resto queda sin ninguna,
+   —es-actual, es-entrando, es-saliendo— y el resto queda sin ninguna,
    que en el CSS significa apagado y fuera de escena.
 
    Repartir clases en vez de calcular transforms a mano tiene una
@@ -3007,7 +3029,7 @@ body.is-dark.is-scrolled #topbar{
   ];
 
   var N = autos.length;
-  var PAUSA = 4600;
+  var PAUSA = 7200;   /* quieto entre pase y pase */
   var actual = 0, reloj = null;
   var quieto = window.matchMedia &&
                matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -3024,18 +3046,24 @@ body.is-dark.is-scrolled #topbar{
     });
   }
 
+  /* TRES PAPELES SOBRE LA CALLE. El que espera va a la IZQUIERDA y es
+     el SIGUIENTE, no el anterior: los autos viajan de la izquierda al
+     centro y del centro hacia afuera por la derecha, siempre en ese
+     sentido.
+
+     El que ya se fue queda en `es-saliendo` una vuelta mas. No es un
+     detalle: si se le sacara la clase de una, el navegador lo animaria
+     de vuelta desde afuera de la pantalla hasta el fondo de la calle, o
+     sea cruzando el cuadro al reves. Como en los dos estados es
+     invisible, dejarlo ahi no cuesta nada. */
   function colocar(){
-    var previo    = (actual - 1 + N) % N;
-    var siguiente = (actual + 1) % N;
+    var entrando = (actual + 1) % N;
+    var saliendo = (actual - 1 + N) % N;
     autos.forEach(function(a, i){
-      a.classList.remove('es-actual', 'es-previo', 'es-siguiente');
-      /* Con sólo tres autos el previo y el siguiente serían el mismo
-         elemento y uno de los dos costados quedaría vacío. Con cuatro
-         no pasa, pero la guarda se deja porque el día que se agregue o
-         se saque un grupo esto tiene que seguir funcionando. */
+      a.classList.remove('es-actual', 'es-entrando', 'es-saliendo');
       if (i === actual) a.classList.add('es-actual');
-      else if (i === previo && previo !== siguiente) a.classList.add('es-previo');
-      else if (i === siguiente) a.classList.add('es-siguiente');
+      else if (i === entrando) a.classList.add('es-entrando');
+      else if (i === saliendo && saliendo !== entrando) a.classList.add('es-saliendo');
     });
   }
 
@@ -3050,7 +3078,7 @@ body.is-dark.is-scrolled #topbar{
       pintar();
       texto.classList.remove('cambiando');
       if (marca) marca.classList.remove('cambiando');
-    }, 220);
+    }, 300);
     programar();
   }
 
