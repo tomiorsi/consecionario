@@ -790,31 +790,24 @@ video::-webkit-media-controls{ display:none !important; }
 /* ══════════════════════════════════════════════════════════════════
    BLOQUE 2 — EL GARAGE
 
-   Cuatro grupos, uno por auto. El elegido va al centro y los dos
-   vecinos asoman a los costados, achicados y apagados. No es adorno:
-   es lo que le dice al ojo que hay más de un grupo y hacia dónde
-   siguen, sin obligar a tocar nada para descubrirlo.
+   La idea: una TARIMA DE SALÓN. El auto no flota sobre un vacío, está
+   parado sobre un disco iluminado, con el nombre del grupo pintado en
+   la pared del fondo. Es la puesta que tiene cualquier stand de salón
+   del automóvil, y resuelve de una sola vez las tres cosas que faltaban
+   —que apoye en algo, que haya luz, y que el nombre esté puesto en la
+   escena en vez de colgado como epígrafe—.
 
-   EL TRUCO QUE HACE QUE ESTO FUNCIONE SIN RECORTAR LAS FOTOS.
+   LO QUE HIZO POSIBLE TODO ESTO FUE EL RECORTE. Hasta acá los autos
+   eran rectángulos opacos mezclados con mix-blend-mode:screen para que
+   no se taparan entre sí. Pero screen SUMA: cualquier cosa puesta
+   detrás —un nombre, una luz, un piso— se veía A TRAVÉS de la
+   carrocería. Con transparencia real el auto tapa lo que tiene atrás, y
+   recién ahí "atrás" quiere decir algo.
 
-   Las cuatro fotos son rectángulos OPACOS con el auto sobre negro. Al
-   solaparse, el rectángulo del vecino taparía al del medio con una
-   mancha negra — que es exactamente lo que se ve en cualquier carrusel
-   mal hecho.
-
-   mix-blend-mode:screen lo resuelve de raíz. La fórmula del modo es
-   1-(1-a)(1-b): donde el pixel de arriba es negro, el resultado es
-   EXACTAMENTE el de abajo, intacto. O sea que sobre un fondo negro el
-   negro se comporta como transparente, sin canal alfa y sin recortar
-   nada. Y donde hay chapa, gana el más claro, que es lo que uno espera
-   de dos autos superpuestos en penumbra.
-
-   Esto sólo es válido porque el fondo es NEGRO PURO. Cuando la página
-   era #0B0C10 este mismo modo lavaba los oscuros y los autos se veían
-   desteñidos; se probó y se descartó por eso. Ahora es correcto.
-
-   El isolation:isolate acota la mezcla al escenario: sin él, screen
-   seguiría buscando hacia abajo fuera de la sección.
+   Las tres capas, de atrás hacia adelante:
+     0 · la luz cenital y el nombre del grupo
+     1 · el disco de luz del piso (uno por auto, escala con él)
+     2 · el auto
    ══════════════════════════════════════════════════════════════════ */
 #garage{
   position:relative;
@@ -827,85 +820,129 @@ video::-webkit-media-controls{ display:none !important; }
   margin:0 auto;
 }
 
-/* LA PROPORCIÓN DEL ESCENARIO SIGUE A LA DE LA FOTO, NO AL REVÉS.
-
-   Las fotos miden 1100×562 (1.96). Como la <img> va a ancho 100% y alto
-   automático, la altura del auto en pantalla queda determinada por el
-   ancho del elemento — el escenario sólo tiene que ser lo bastante alto
-   para contenerlo, y ni un pixel más. Cualquier exceso es banda negra
-   entre el auto y el texto de abajo.
-
-   La cuenta: las fotos miden 1100×459 (2.40), y el auto central ocupa
-   el 54% del ancho del escenario, así que su alto es 0.54/2.40 = 0.225
-   de ese ancho. Con un respiro arriba y abajo, el escenario necesita
-   ~0.29 → proporción ~3.4. */
 .gar-escena{
   position:relative;
   overflow:hidden;
-  isolation:isolate;
-  aspect-ratio:3.4;
+  aspect-ratio:2.4;
   background:var(--void);
 }
 
-/* LOS VECINOS NO PUEDEN TOCAR AL AUTO CENTRAL. NUNCA.
+/* LA LUZ CENITAL. Una sola fuente, arriba y al centro, como el softbox
+   de un stand. Muy tenue a propósito: lo que tiene que iluminar es la
+   pared del fondo para que el nombre se despegue, no la escena entera. */
+.gar-escena::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  background:radial-gradient(105% 62% at 50% 2%,
+             rgba(255,255,255,.058), rgba(255,255,255,.018) 42%, transparent 68%);
+}
 
-   Antes se superponían, y con mix-blend-mode:screen eso no se ve como
-   "uno tapa al otro" sino como TRANSPARENCIA: se veía la rueda del MINI
-   a través de la carrocería del Mercedes. El modo screen suma los dos
-   píxeles, así que dos autos encimados se ven los dos a la vez. En una
-   página que vende autos de lujo eso se lee como un error de armado.
+/* El grano, misma técnica que en el puente: sobre negro puro no hace
+   nada, y aparece donde el degradado se aclara, que es exactamente
+   donde un degradado de 8 bits empieza a mostrar escalones. */
+.gar-escena::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:1;
+  pointer-events:none;
+  opacity:.05;
+  mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='r'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23r)'/%3E%3C/svg%3E");
+}
 
-   La solución no es tocar el screen —que sigue haciendo falta para que
-   el rectángulo negro del vecino no tape nada— sino que los autos
-   simplemente NO SE PISEN. Y para eso hay que saber dónde termina cada
-   auto dentro de su foto, que no es el borde del archivo: medido sobre
-   las cuatro, el auto ocupa de 0.062 a 0.936 del ancho del lienzo.
+/* EL NOMBRE, PINTADO EN LA PARED DEL FONDO.
 
-   De ahí sale todo lo demás. Con el auto central al 54% del escenario,
-   su borde izquierdo cae en 50 − (0.5−0.062)×54 = 26.3%. El vecino, al
-   44% de escala, sobresale 0.436×54×0.44 = 10.4% a la derecha de su
-   propio centro. Poniéndolo en left:12.9% su trompa llega a 23.3%, o
-   sea 3 puntos antes de que empiece el auto del medio. Y su cola queda
-   en 2.5%, adentro del escenario: entero y sin chocar.
+   Va alto y grande, y el techo del auto le come el borde de abajo: ese
+   solapamiento es todo el efecto de profundidad. No se mete más abajo
+   porque entonces el auto —que es ancho— se comería el centro de la
+   palabra y quedaría ilegible; asomando por arriba se lee entera y
+   igual se entiende que está detrás.
 
-   LOS PORCENTAJES VAN EN `left` Y NO EN `translateX()`. El porcentaje
-   de `left` se resuelve contra el ancho del CONTENEDOR; el de
-   translateX, contra el ancho PROPIO del elemento — así que tocar el
-   scale movía el resultado sin que nadie cambiara el número. */
+   La máscara la desvanece hacia abajo, como si la luz cenital no
+   llegara al zócalo de la pared. */
+/* El 27% no es a ojo: medido, el techo de los cuatro autos cae entre el
+   34% y el 36% del alto del escenario, y la palabra mide un 13%. Desde
+   el 27% su base llega al 40%, así que el auto le cruza el tercio de
+   abajo — suficiente para que se lea detrás, poco para que se pierda. */
+.gar-marca{
+  position:absolute;
+  left:50%;
+  top:27%;
+  z-index:0;
+  transform:translateX(-50%);
+  white-space:nowrap;
+  font-family:var(--display);
+  font-size:clamp(1.35rem,4.9vw,4.2rem);
+  font-weight:700;
+  letter-spacing:.03em;
+  line-height:1;
+  text-transform:uppercase;
+  color:rgba(255,255,255,.14);
+  pointer-events:none;
+  transition:opacity .3s var(--ease);
+  -webkit-mask-image:linear-gradient(180deg,#000 46%,rgba(0,0,0,.35) 78%,transparent 100%);
+          mask-image:linear-gradient(180deg,#000 46%,rgba(0,0,0,.35) 78%,transparent 100%);
+}
+.gar-marca.cambiando{ opacity:0; }
+
+/* EL AUTO.
+
+   Se ancla por ABAJO y se escala desde la línea donde apoyan las
+   ruedas (91.5% del alto del archivo, medido). Las dos cosas juntas son
+   lo que hace que los tres autos pisen el MISMO piso: al achicar un
+   vecino, su punto de apoyo no se mueve. Escalando desde el centro,
+   como estaba antes, los de los costados quedaban flotando más arriba
+   que el del medio. */
 .gar-auto{
   position:absolute;
-  top:50%;
   left:50%;
+  bottom:16%;
   width:54%;
-  mix-blend-mode:screen;
+  z-index:2;
   opacity:0;
-  transform:translate(-50%,-50%) scale(.5);
+  transform-origin:50% 91.5%;
+  transform:translateX(-50%) scale(.5);
   transition:left .72s var(--ease), transform .72s var(--ease), opacity .72s var(--ease);
   will-change:left, transform, opacity;
   pointer-events:none;
 }
 
-/* El del medio. Es el único a tamaño y brillo plenos, y prevalece. */
-.gar-auto.es-actual{
-  left:50%;
-  opacity:1;
-  transform:translate(-50%,-50%) scale(1);
-  z-index:3;
+/* EL DISCO DE LUZ. Va DENTRO del auto, así que hereda su escala: el
+   vecino achicado trae su propio disco achicado, sin una sola línea de
+   más. Centrado en la línea de apoyo, no en el borde de la imagen.
+
+   Se desborda a los costados (los -7%) porque un disco que termina
+   justo donde termina el auto se lee como una alfombra recortada; uno
+   que lo excede se lee como piso. */
+.gar-auto::before{
+  content:"";
+  position:absolute;
+  left:-7%;
+  right:-7%;
+  bottom:8.5%;
+  height:15%;
+  transform:translateY(50%);
+  border-radius:50%;
+  background:radial-gradient(50% 50% at 50% 50%,
+             rgba(255,255,255,.21), rgba(255,255,255,.06) 46%, transparent 71%);
+  z-index:0;
 }
 
-.gar-auto.es-previo,
-.gar-auto.es-siguiente{
-  opacity:.34;
-  z-index:2;
-  transform:translate(-50%,-50%) scale(.44);
+.gar-auto picture{
+  display:block;
+  position:relative;
+  z-index:1;
+  /* El reflejo. Es lo que termina de sentar el auto sobre el disco: sin
+     él, apoya; con él, el piso tiene material. Sólo lo hacen los motores
+     WebKit/Blink —o sea Safari y Chrome, que es casi todo el tráfico de
+     este sitio— y donde no está simplemente no aparece: nada se rompe. */
+  -webkit-box-reflect:below -1px
+    linear-gradient(180deg, rgba(0,0,0,.30) 0%, rgba(0,0,0,.05) 22%, transparent 44%);
 }
-.gar-auto.es-previo   { left:12.9%; }
-.gar-auto.es-siguiente{ left:87.1%; }
-
-/* El <picture> es inline por defecto y dejaría una línea base debajo de
-   la foto, o sea unos píxeles de aire fantasma justo donde estamos
-   tratando de sacar aire. */
-.gar-auto picture{ display:block; }
 
 .gar-auto img{
   display:block;
@@ -913,58 +950,56 @@ video::-webkit-media-controls{ display:none !important; }
   height:auto;
 }
 
-/* ── el texto del grupo ───────────────────────────────────────────
-   Centrado y debajo del auto, pegado — la distancia es la mínima que
-   deja leer el título sin que roce el paragolpes. Con los vecinos
-   asomando a izquierda y derecha, cualquier cosa puesta a un costado
-   compite con ellos.
+/* El del medio manda: tamaño y brillo plenos. */
+.gar-auto.es-actual{
+  left:50%;
+  opacity:1;
+  transform:translateX(-50%) scale(1);
+  z-index:3;
+}
 
-   Se desvanece y vuelve al cambiar, para que se lea como información
-   nueva y no como un renglón que se movió. */
+/* Los vecinos. Los porcentajes salen de una cuenta, no de probar: el
+   auto ocupa de 0.071 a 0.928 del ancho de su archivo (medido sobre los
+   cuatro), y con esos números el borde de adentro del vecino queda tres
+   puntos antes de donde empieza el auto central. No se tocan nunca. */
+.gar-auto.es-previo,
+.gar-auto.es-siguiente{
+  opacity:.42;
+  z-index:2;
+  transform:translateX(-50%) scale(.44);
+}
+.gar-auto.es-previo   { left:12.9%; }
+.gar-auto.es-siguiente{ left:87.1%; }
+
+/* ── el texto del grupo ───────────────────────────────────────────
+   Ahora el nombre vive en la escena, así que acá abajo queda sólo la
+   descripción: una línea de apoyo, sin jerarquía que compita. */
 .gar-texto{
-  margin:clamp(.5rem,1.2vh,.8rem) auto 0;
-  max-width:34rem;
+  margin:clamp(1rem,2.4vh,1.6rem) auto 0;
+  max-width:32rem;
   text-align:center;
-  min-height:7.5rem;
+  min-height:4.5rem;
   transition:opacity .3s var(--ease);
 }
 .gar-texto.cambiando{ opacity:0; }
 
-.gar-texto h3{
-  margin:0;
-  font-family:var(--display);
-  font-size:clamp(.95rem,1.7vw,1.35rem);
-  font-weight:700;
-  text-transform:uppercase;
-  letter-spacing:.1em;
-  line-height:1.45;
-  color:var(--chrome);
-}
-
 .gar-texto p{
-  margin:clamp(.5rem,1.1vh,.7rem) 0 0;
-  font-size:clamp(.9rem,1.15vw,1rem);
-  line-height:1.65;
+  margin:0;
+  font-size:clamp(.88rem,1.1vw,.98rem);
+  line-height:1.7;
   color:var(--steel);
 }
 
-/* ── los mandos ───────────────────────────────────────────────────
-   Flecha · rayitas · flecha, en una sola fila DEBAJO del escenario.
-   Antes las flechas iban a los costados de la escena, empujándola
-   hacia adentro: sacarlas de ahí es lo que le deja a los vecinos todo
-   el ancho para entrar enteros. */
+/* ── los mandos ─────────────────────────────────────────────────── */
 .gar-mandos{
   display:flex;
   align-items:center;
   justify-content:center;
   gap:clamp(1rem,2.4vw,1.6rem);
-  margin-top:clamp(1rem,2.2vh,1.5rem);
+  margin-top:clamp(1.2rem,2.6vh,1.8rem);
 }
 
-.gar-rayas{
-  display:flex;
-  gap:.5rem;
-}
+.gar-rayas{ display:flex; gap:.5rem; }
 
 .gar-raya{
   appearance:none;
@@ -997,35 +1032,25 @@ video::-webkit-media-controls{ display:none !important; }
   .gar-flecha:hover{ border-color:var(--chrome); color:var(--chrome); }
 }
 
-/* En pantalla angosta el escenario se hace más alto y el auto del
-   medio más grande: si se mantuviera la proporción de escritorio, con
-   400 px de ancho el auto quedaría del tamaño de una estampilla.
-
-   El margen de los vecinos se recalcula para el nuevo ancho (76%) y la
-   nueva escala (.58): 2% + 76%×0.58÷2 ≈ 24%, o sea left 24%/76%. Misma
-   cuenta que en escritorio, otros números porque el auto central ocupa
-   más proporción de la escena acá. */
-/* En pantalla angosta la misma cuenta da otros números. Con 324 px de
-   escenario, tres autos que no se tocan obligan a que cada uno sea más
-   chico —es aritmética, no una decisión de diseño: el ancho del auto
-   central por (1 + 2×escala) tiene que entrar en el ancho disponible—.
-   Se le da al del medio un poco más de escenario (62%) y a los vecinos
-   bastante menos (37%), que es el reparto que deja el hueco más grande
-   sin que los de los costados se vuelvan una mancha. */
+/* En pantalla angosta el escenario se hace más alto y el auto del medio
+   ocupa más proporción; el nombre baja de tamaño y sube un poco para
+   que el techo lo siga cruzando. Los vecinos van más chicos porque con
+   324 px de ancho tres autos que no se tocan no entran de otra forma. */
 @media (max-width:820px){
-  .gar-escena{ aspect-ratio:3.2; }
-  .gar-auto{ width:62%; }
+  .gar-escena{ aspect-ratio:1.85; }
+  .gar-marca{ top:34%; font-size:clamp(1.1rem,5.4vw,2rem); }
+  .gar-auto{ width:62%; bottom:15%; }
   .gar-auto.es-previo,
-  .gar-auto.es-siguiente{ transform:translate(-50%,-50%) scale(.37); }
+  .gar-auto.es-siguiente{ transform:translateX(-50%) scale(.37); }
   .gar-auto.es-previo   { left:11.4%; }
   .gar-auto.es-siguiente{ left:88.6%; }
   .gar-flecha{ width:2.2rem; height:2.2rem; }
-  .gar-texto{ min-height:9.5rem; }
+  .gar-texto{ min-height:5.5rem; }
 }
 
 @media (prefers-reduced-motion:reduce){
   .gar-auto{ transition:none; }
-  .gar-texto{ transition:none; }
+  .gar-texto, .gar-marca{ transition:none; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -2798,32 +2823,38 @@ body.is-dark.is-scrolled #topbar{
   <div class="gar-caja">
 
     <div class="gar-escena" aria-live="off">
+      <!-- El nombre del grupo, pintado en la pared del fondo. Va
+           aria-hidden porque no es contenido nuevo: es el mismo
+           nombre que ya anuncian las rayitas de abajo, puesto en
+           escena. Repetirlo para un lector de pantalla seria ruido. -->
+      <div class="gar-marca" aria-hidden="true">Alta Gama</div>
+
       <div class="gar-auto">
         <picture>
           <source media="(max-width:767px)" srcset="assets/grupos/alta-gama@sm.webp">
           <img src="assets/grupos/alta-gama.webp" alt="Mercedes-AMG GLE 63 Coupé blanco"
-               loading="lazy" decoding="async" width="1100" height="458">
+               loading="lazy" decoding="async" width="1100" height="468">
         </picture>
       </div>
       <div class="gar-auto">
         <picture>
           <source media="(max-width:767px)" srcset="assets/grupos/deportivos@sm.webp">
           <img src="assets/grupos/deportivos.webp" alt="BMW M240i violeta"
-               loading="lazy" decoding="async" width="1100" height="458">
+               loading="lazy" decoding="async" width="1100" height="468">
         </picture>
       </div>
       <div class="gar-auto">
         <picture>
           <source media="(max-width:767px)" srcset="assets/grupos/evolution@sm.webp">
           <img src="assets/grupos/evolution.webp" alt="Ford Mustang Mach-E azul"
-               loading="lazy" decoding="async" width="1100" height="458">
+               loading="lazy" decoding="async" width="1100" height="468">
         </picture>
       </div>
       <div class="gar-auto">
         <picture>
           <source media="(max-width:767px)" srcset="assets/grupos/urbanos@sm.webp">
           <img src="assets/grupos/urbanos.webp" alt="MINI Cooper S rojo"
-               loading="lazy" decoding="async" width="1100" height="458">
+               loading="lazy" decoding="async" width="1100" height="468">
         </picture>
       </div>
     </div>
@@ -2832,7 +2863,6 @@ body.is-dark.is-scrolled #topbar{
          vecinos asomando a izquierda y derecha, cualquier cosa puesta a
          un lado compite con ellos. -->
     <div class="gar-texto">
-      <h3>Alta Gama</h3>
       <p>Las unidades más exclusivas del salón. Mercedes-Benz y
          equivalentes, preservadas y listas para entregar.</p>
     </div>
@@ -2882,6 +2912,7 @@ body.is-dark.is-scrolled #topbar{
   var rayas = [].slice.call(sec.querySelectorAll('.gar-raya'));
   var texto = sec.querySelector('.gar-texto');
   var escena = sec.querySelector('.gar-escena');
+  var marca  = sec.querySelector('.gar-marca');
   if (autos.length < 2) return;
 
   var GRUPOS = [
@@ -2903,8 +2934,8 @@ body.is-dark.is-scrolled #topbar{
 
   function pintar(){
     var g = GRUPOS[actual] || GRUPOS[0];
-    texto.querySelector('h3').textContent = g.titulo;
-    texto.querySelector('p').textContent  = g.texto;
+    if (marca) marca.textContent = g.titulo;
+    texto.querySelector('p').textContent = g.texto;
     rayas.forEach(function(r, k){
       r.setAttribute('aria-current', String(k === actual));
     });
@@ -2931,9 +2962,11 @@ body.is-dark.is-scrolled #topbar{
     actual = destino;
     colocar();
     texto.classList.add('cambiando');
+    if (marca) marca.classList.add('cambiando');
     setTimeout(function(){
       pintar();
       texto.classList.remove('cambiando');
+      if (marca) marca.classList.remove('cambiando');
     }, 220);
     programar();
   }
