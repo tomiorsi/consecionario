@@ -1222,27 +1222,48 @@ video::-webkit-media-controls{ display:none !important; }
 
      En el telefono el garage medía 0.44 pantallas y su contenido quedaba
      pegado arriba, con el arranque en negro del reel ocupando todo lo de
-     abajo: se leia como si sobrara espacio. Ahora la seccion mide 72svh
-     y el contenido se centra en ella.
+     abajo: se leia como si sobrara espacio. Ahora ocupa media pantalla
+     justa y el contenido se centra, asi la seccion del texto de arriba y
+     la del video de abajo quedan pegadas.
 
-     Los 28svh que gana se le RESTAN al reel, asi que la pagina no crece
-     ni un pixel. El reel pasa de 1152 a 1124svh: el giro del auto se
-     acelera un 2%, que no se percibe. */
+     Los svh que gana se le RESTAN al reel, asi que la pagina no crece ni
+     un pixel. */
   #garage{
-    min-height:72svh;
+    min-height:50svh;
     display:flex;
     flex-direction:column;
     justify-content:center;
     padding-top:clamp(1rem,3vh,2rem);
     padding-bottom:clamp(1rem,3vh,2rem);
   }
-  .gar-escena{ aspect-ratio:1.85; }
-  .gar-marca{ top:26%; font-size:clamp(1.3rem,6.3vw,2.4rem); }
-  .gar-auto{ width:70%; bottom:20%; }
-  .gar-auto.es-actual  { bottom:8%; }
-  /* Misma cuenta con la proporcion 1.85: 39.4% x .0883 x 1.85 = 6.4 */
-  .gar-auto.es-entrando{ left:10.6%; bottom:14.4%; transform:translateX(-50%) scale(.30); }
-  .gar-auto.es-saliendo{ left:130%;  bottom:-14%;  transform:translateX(-50%) scale(1.4); }
+  .gar-escena{ aspect-ratio:1.62; }
+  .gar-marca{ top:22%; font-size:clamp(1.3rem,6.3vw,2.4rem); }
+
+  /* EL AUTO, LO MAS GRANDE QUE PERMITE LA ARITMETICA.
+
+     El auto ocupa 0.816 del ancho de su archivo, asi que al 102% del
+     escenario se extiende del 8.5% al 91.6%: ocupa el 83% de la escena,
+     contra el 57% de antes. Lo que lo limita es el que entra, no el
+     borde: con escala .19 y left -1.5% su trompa llega al 6.4%, dos
+     puntos antes de que empiece el central.
+
+     Su cola queda fuera de cuadro y esta bien: es el auto que viene de
+     lejos por la calle, no un vecino alineado.
+
+     `es-actual` repite el bottom porque `.gar-auto.es-actual` pesa mas
+     que `.gar-auto` y si no, se queda con el valor de escritorio. */
+  .gar-auto{ width:102%; bottom:5%; }
+  .gar-auto.es-actual  { bottom:5%; }
+  /* EL QUE ENTRA PASA POR DETRAS DEL CENTRAL, no al lado.
+
+     Al 0.19 de escala quedaba en 21 px de ancho: una mancha, no un
+     auto. Ahora va al 0.32 y su trompa se mete bajo el auto del medio.
+     Se ve la misma cantidad de pixeles, pero son el flanco de un auto
+     grande en vez de un auto entero diminuto — y el central lo tapa
+     limpio porque las fotos tienen transparencia real y el z-index los
+     ordena. Es ademas lo que corresponde: viene atras. */
+  .gar-auto.es-entrando{ left:0; bottom:11%; transform:translateX(-50%) scale(.32); }
+  .gar-auto.es-saliendo{ left:165%;  bottom:-20%; transform:translateX(-50%) scale(1.3); }
 }
 
 /* En el telefono los mandos se achican: con el auto ocupando el 75% del
@@ -2491,9 +2512,9 @@ body.cargando{ overflow:hidden; }
    hace que el video persiga al scroll más despacio. Estirar solo no
    alcanzaba: un envión rápido seguía siendo un envión rápido. */
 @media (max-width:767px){
-  /* Los 28svh de menos son los que se le dieron al garage para que
-     su contenido se centre; la pagina mide lo mismo que antes. */
-  #reel{ height:calc(var(--reel-h) * 1.6 - 28svh); }
+  /* Los svh de menos son los que se le dieron al garage para llegar a
+     media pantalla; la pagina mide lo mismo que antes. */
+  #reel{ height:calc(var(--reel-h) * 1.6 - 6svh); }
 }
 
 .reel-stick{
