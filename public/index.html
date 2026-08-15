@@ -866,12 +866,12 @@ video::-webkit-media-controls{ display:none !important; }
 .gar-marca{
   position:absolute;
   left:50%;
-  top:17%;
+  top:13%;
   z-index:0;
   transform:translateX(-50%);
   white-space:nowrap;
   font-family:var(--display);
-  font-size:clamp(1.35rem,4.9vw,4.2rem);
+  font-size:clamp(1.5rem,5.8vw,5.2rem);
   font-weight:700;
   letter-spacing:.03em;
   line-height:1;
@@ -895,7 +895,7 @@ video::-webkit-media-controls{ display:none !important; }
 .gar-auto{
   position:absolute;
   left:50%;
-  bottom:16%;
+  bottom:9%;
   width:68%;
   z-index:2;
   opacity:0;
@@ -970,10 +970,10 @@ video::-webkit-media-controls{ display:none !important; }
    Ahora el nombre vive en la escena, así que acá abajo queda sólo la
    descripción: una línea de apoyo, sin jerarquía que compita. */
 .gar-texto{
-  margin:clamp(1rem,2.4vh,1.6rem) auto 0;
+  margin:clamp(.2rem,.8vh,.6rem) auto 0;
   max-width:32rem;
   text-align:center;
-  min-height:4.5rem;
+  min-height:3.6rem;
   transition:opacity .3s var(--ease);
 }
 .gar-texto.cambiando{ opacity:0; }
@@ -983,6 +983,36 @@ video::-webkit-media-controls{ display:none !important; }
   font-size:clamp(.88rem,1.1vw,.98rem);
   line-height:1.7;
   color:var(--steel);
+}
+
+/* EL BOTON DE LA LINEA. Cada grupo va a tener su propia seccion; hasta
+   que existan, el boton lleva al concierge, que es el lugar real donde
+   hoy se puede preguntar por una linea. Se prefiere eso a un enlace
+   muerto o a un boton apagado: el destino cambia el dia que la seccion
+   exista, y es un renglon por grupo en GRUPOS. */
+.gar-boton{
+  display:inline-block;
+  margin-top:clamp(.9rem,2vh,1.3rem);
+  padding:.85em 1.8em;
+  border:1px solid rgba(209,213,219,.28);
+  border-radius:2px;
+  background:transparent;
+  font-family:var(--display);
+  font-size:.58rem;
+  font-weight:700;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  text-decoration:none;
+  color:var(--gris);
+  transition:border-color .35s var(--ease), color .35s var(--ease),
+             background-color .35s var(--ease);
+}
+@media (hover:hover){
+  .gar-boton:hover{
+    border-color:var(--chrome);
+    background:var(--chrome);
+    color:var(--void);
+  }
 }
 
 /* ── los mandos ─────────────────────────────────────────────────── */
@@ -1033,14 +1063,14 @@ video::-webkit-media-controls{ display:none !important; }
    324 px de ancho tres autos que no se tocan no entran de otra forma. */
 @media (max-width:820px){
   .gar-escena{ aspect-ratio:1.85; }
-  .gar-marca{ top:24%; font-size:clamp(1.1rem,5.4vw,2rem); }
-  .gar-auto{ width:70%; bottom:13%; }
+  .gar-marca{ top:22%; font-size:clamp(1.25rem,6.4vw,2.4rem); }
+  .gar-auto{ width:70%; bottom:8%; }
   .gar-auto.es-previo,
   .gar-auto.es-siguiente{ transform:translateX(-50%) scale(.30); }
   .gar-auto.es-previo   { left:10.6%; }
   .gar-auto.es-siguiente{ left:89.4%; }
   .gar-flecha{ width:2.2rem; height:2.2rem; }
-  .gar-texto{ min-height:5.5rem; }
+  .gar-texto{ min-height:4.6rem; }
 }
 
 @media (prefers-reduced-motion:reduce){
@@ -2860,6 +2890,7 @@ body.is-dark.is-scrolled #topbar{
     <div class="gar-texto">
       <p>Las unidades más exclusivas del salón. Mercedes-Benz y
          equivalentes, preservadas y listas para entregar.</p>
+      <a class="gar-boton" href="#concierge">Ver esta línea</a>
     </div>
 
     <!-- Los mandos van DEBAJO del escenario y no a los costados: liberar
@@ -2908,16 +2939,17 @@ body.is-dark.is-scrolled #topbar{
   var texto = sec.querySelector('.gar-texto');
   var escena = sec.querySelector('.gar-escena');
   var marca  = sec.querySelector('.gar-marca');
+  var boton  = sec.querySelector('.gar-boton');
   if (autos.length < 2) return;
 
   var GRUPOS = [
-    { titulo:'Alta Gama',
+    { titulo:'Alta Gama', seccion:'',
       texto:'Las unidades más exclusivas del salón. Mercedes-Benz y equivalentes, preservadas y listas para entregar.' },
-    { titulo:'Deportivos',
+    { titulo:'Deportivos', seccion:'',
       texto:'Prestaciones y chasis afinado. BMW M, AMG y afines, con el historial de mantenimiento completo.' },
-    { titulo:'Línea Evolution',
+    { titulo:'Línea Evolution', seccion:'',
       texto:'Eléctricos e híbridos. La misma exigencia de selección aplicada a la generación que viene.' },
-    { titulo:'Urbanos',
+    { titulo:'Urbanos', seccion:'',
       texto:'Para la ciudad, sin resignar carácter. MINI y compactos premium, listos para el día a día.' }
   ];
 
@@ -2931,6 +2963,9 @@ body.is-dark.is-scrolled #topbar{
     var g = GRUPOS[actual] || GRUPOS[0];
     if (marca) marca.textContent = g.titulo;
     texto.querySelector('p').textContent = g.texto;
+    /* Cuando cada linea tenga su seccion, alcanza con poner su ancla en
+       `seccion` y el boton la sigue. */
+    if (boton) boton.setAttribute('href', g.seccion || '#concierge');
     rayas.forEach(function(r, k){
       r.setAttribute('aria-current', String(k === actual));
     });
