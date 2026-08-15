@@ -866,16 +866,14 @@ video::-webkit-media-controls{ display:none !important; }
 .gar-marca{
   position:absolute;
   left:50%;
-  top:13%;
+  top:19%;
   z-index:0;
   transform:translateX(-50%);
   white-space:nowrap;
   font-family:var(--display);
-  /* EL TOPE NO ES ESTETICO, ES GEOMETRICO. Medido, esta tipografia
-     ocupa 12.7 px de ancho por cada px de cuerpo, y el nombre mas largo
-     —"Línea Evolution"— tiene que entrar en los 1216 px del escenario.
-     De ahi salen los 5.6rem: 89.6 x 12.7 = 1138 px, con 78 de aire. Un
-     punto mas y la palabra se corta contra los bordes. */
+  /* El cuerpo lo pone el script, uno por nombre: ver ajustarMarca().
+     Este valor es solo el punto de partida y lo que se ve si el script
+     no llegara a correr. */
   font-size:clamp(1.7rem,6.2vw,5.6rem);
   font-weight:700;
   letter-spacing:.03em;
@@ -1016,6 +1014,48 @@ video::-webkit-media-controls{ display:none !important; }
   filter:blur(5px);
 }
 
+/* EL DESTELLO. La tira se enciende cuando el auto LLEGA, no cuando
+   arranca: de ahí el retardo de 1s contra los 1.15s que dura el viaje.
+   El pico cae casi sobre el momento en que el auto se planta, y se lee
+   como que la luz prende al pisarla.
+
+   Sube rapido y baja despacio —el pico esta al 14% del recorrido— que
+   es como se comporta una lampara de verdad y no un parpadeo digital.
+
+   El rotate se repite en cada fotograma porque animar `transform` pisa
+   el giro que ya tenia la tira; sin eso, durante el destello la linea
+   se pondria horizontal de golpe.
+
+   La animacion se dispara sola cada vez que un auto recibe .es-actual,
+   que es exactamente una vez por llegada. */
+@keyframes gar-destello-nucleo{
+  0%   { transform:rotate(var(--ang)) scaleY(1);   opacity:.45; }
+  14%  { transform:rotate(var(--ang)) scaleY(3.4); opacity:1;   }
+  46%  { transform:rotate(var(--ang)) scaleY(1.5); opacity:1;   }
+  100% { transform:rotate(var(--ang)) scaleY(1);   opacity:1;   }
+}
+
+@keyframes gar-destello-halo{
+  0%   { transform:rotate(var(--ang)) scaleY(.7); opacity:.3; }
+  14%  { transform:rotate(var(--ang)) scaleY(2.1); opacity:1;  }
+  52%  { transform:rotate(var(--ang)) scaleY(1.2); opacity:1;  }
+  100% { transform:rotate(var(--ang)) scaleY(1);   opacity:1;  }
+}
+
+.gar-auto.es-actual::before{
+  animation:gar-destello-nucleo .85s var(--ease) 1s both;
+}
+.gar-auto.es-actual::after{
+  animation:gar-destello-halo .95s var(--ease) 1s both;
+}
+
+/* Quien pidió no ver movimiento no ve el destello: la tira aparece
+   encendida y quieta. */
+@media (prefers-reduced-motion:reduce){
+  .gar-auto.es-actual::before,
+  .gar-auto.es-actual::after{ animation:none; }
+}
+
 .gar-auto picture{
   display:block;
   position:relative;
@@ -1042,17 +1082,10 @@ video::-webkit-media-controls{ display:none !important; }
   margin:clamp(.2rem,.8vh,.6rem) auto 0;
   max-width:32rem;
   text-align:center;
-  min-height:3.6rem;
+  min-height:0;
   transition:opacity .3s var(--ease);
 }
 .gar-texto.cambiando{ opacity:0; }
-
-.gar-texto p{
-  margin:0;
-  font-size:clamp(.88rem,1.1vw,.98rem);
-  line-height:1.7;
-  color:var(--steel);
-}
 
 /* EL BOTON DE LA LINEA. Cada grupo va a tener su propia seccion; hasta
    que existan, el boton lleva al concierge, que es el lugar real donde
@@ -1087,9 +1120,7 @@ video::-webkit-media-controls{ display:none !important; }
 /* ── los mandos ─────────────────────────────────────────────────── */
 .gar-mandos{
   display:flex;
-  align-items:center;
   justify-content:center;
-  gap:clamp(1rem,2.4vw,1.6rem);
   margin-top:clamp(1.2rem,2.6vh,1.8rem);
 }
 
@@ -1107,23 +1138,43 @@ video::-webkit-media-controls{ display:none !important; }
 }
 .gar-raya[aria-current="true"]{ background:var(--chrome); }
 
+/* LA FLECHA. Una sola, hacia adelante, parada al lado del auto.
+
+   Sin contorno ni fondo: con el recuadro se leia como un boton de
+   formulario pegado a la escena. Asi es un signo, no un control.
+
+   El auto central llega hasta el 78% del ancho del escenario —el
+   elemento ocupa del 16 al 84 y el auto vive del .09 al .91 de ese
+   elemento— asi que desde el 6% del borde derecho queda a su lado sin
+   pisarlo. */
 .gar-flecha{
+  position:absolute;
+  right:clamp(.6rem,2.4vw,2rem);
+  top:50%;
+  z-index:4;
   appearance:none;
-  width:2.6rem;
-  height:2.6rem;
-  flex:none;
-  display:grid;
-  place-items:center;
-  border:1px solid rgba(209,213,219,.24);
-  border-radius:2px;
+  border:0;
+  padding:.7rem;
   background:transparent;
-  color:var(--steel);
+  color:rgba(209,213,219,.55);
   cursor:pointer;
-  transition:border-color .35s var(--ease), color .35s var(--ease);
+  pointer-events:auto;
+  transform:translateY(-50%);
+  transition:color .3s var(--ease), transform .3s var(--ease);
 }
-.gar-flecha svg{ width:1rem; height:1rem; }
+.gar-flecha svg{
+  display:block;
+  width:clamp(1.2rem,2vw,1.75rem);
+  height:auto;
+}
 @media (hover:hover){
-  .gar-flecha:hover{ border-color:var(--chrome); color:var(--chrome); }
+  .gar-flecha:hover{
+    color:var(--chrome);
+    transform:translateY(-50%) translateX(5px);
+  }
+}
+@media (prefers-reduced-motion:reduce){
+  .gar-flecha, .gar-flecha:hover{ transition:none; transform:translateY(-50%); }
 }
 
 /* En pantalla angosta el escenario se hace más alto y el auto del medio
@@ -1132,16 +1183,12 @@ video::-webkit-media-controls{ display:none !important; }
    324 px de ancho tres autos que no se tocan no entran de otra forma. */
 @media (max-width:820px){
   .gar-escena{ aspect-ratio:1.85; }
-  /* Misma cuenta para el telefono: con 324 px de escenario, 6.3vw deja
-     el nombre mas largo en 299 px. A 7.4vw se pasaba 28 px. */
-  .gar-marca{ top:20%; font-size:clamp(1.3rem,6.3vw,2.4rem); }
+  .gar-marca{ top:26%; font-size:clamp(1.3rem,6.3vw,2.4rem); }
   .gar-auto{ width:70%; bottom:20%; }
   .gar-auto.es-actual  { bottom:8%; }
   /* Misma cuenta con la proporcion 1.85: 39.4% x .0883 x 1.85 = 6.4 */
   .gar-auto.es-entrando{ left:10.6%; bottom:14.4%; transform:translateX(-50%) scale(.30); }
   .gar-auto.es-saliendo{ left:130%;  bottom:-14%;  transform:translateX(-50%) scale(1.4); }
-  .gar-flecha{ width:2.2rem; height:2.2rem; }
-  .gar-texto{ min-height:4.6rem; }
 }
 
 @media (prefers-reduced-motion:reduce){
@@ -2957,14 +3004,21 @@ body.is-dark.is-scrolled #topbar{
                loading="lazy" decoding="async" width="1100" height="468">
         </picture>
       </div>
+
+      <!-- Una sola flecha, y va hacia adelante. Vive DENTRO del escenario
+           para poder pararse al lado del auto: sacarla de la fila de
+           abajo es lo que la convierte en parte de la escena en vez de
+           en un control suelto. -->
+      <button class="gar-flecha" data-paso="1" type="button" aria-label="Grupo siguiente">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
+      </button>
     </div>
 
     <!-- El texto va centrado y debajo del auto, no al costado: con los
          vecinos asomando a izquierda y derecha, cualquier cosa puesta a
          un lado compite con ellos. -->
     <div class="gar-texto">
-      <p>Las unidades más exclusivas del salón. Mercedes-Benz y
-         equivalentes, preservadas y listas para entregar.</p>
       <a class="gar-boton" href="#concierge">Ver esta línea</a>
     </div>
 
@@ -2972,11 +3026,6 @@ body.is-dark.is-scrolled #topbar{
          los costados es lo que le da a la escena todo el ancho para que
          los vecinos entren enteros, sin que el botón les robe espacio. -->
     <div class="gar-mandos">
-      <button class="gar-flecha" data-paso="-1" type="button" aria-label="Grupo anterior">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg>
-      </button>
-
       <div class="gar-rayas" role="tablist" aria-label="Grupos del garage">
         <button class="gar-raya" role="tab" aria-current="true"  aria-label="Alta Gama"></button>
         <button class="gar-raya" role="tab" aria-current="false" aria-label="Deportivos"></button>
@@ -2984,10 +3033,6 @@ body.is-dark.is-scrolled #topbar{
         <button class="gar-raya" role="tab" aria-current="false" aria-label="Urbanos"></button>
       </div>
 
-      <button class="gar-flecha" data-paso="1" type="button" aria-label="Grupo siguiente">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
-      </button>
     </div>
 
   </div>
@@ -3018,14 +3063,10 @@ body.is-dark.is-scrolled #topbar{
   if (autos.length < 2) return;
 
   var GRUPOS = [
-    { titulo:'Alta Gama', seccion:'',
-      texto:'Las unidades más exclusivas del salón. Mercedes-Benz y equivalentes, preservadas y listas para entregar.' },
-    { titulo:'Deportivos', seccion:'',
-      texto:'Prestaciones y chasis afinado. BMW M, AMG y afines, con el historial de mantenimiento completo.' },
-    { titulo:'Línea Evolution', seccion:'',
-      texto:'Eléctricos e híbridos. La misma exigencia de selección aplicada a la generación que viene.' },
-    { titulo:'Urbanos', seccion:'',
-      texto:'Para la ciudad, sin resignar carácter. MINI y compactos premium, listos para el día a día.' }
+    { titulo:'Alta Gama', seccion:'' },
+    { titulo:'Deportivos', seccion:'' },
+    { titulo:'Línea Evolution', seccion:'' },
+    { titulo:'Urbanos', seccion:'' }
   ];
 
   var N = autos.length;
@@ -3034,13 +3075,36 @@ body.is-dark.is-scrolled #topbar{
   var quieto = window.matchMedia &&
                matchMedia('(prefers-reduced-motion: reduce)').matches;
 
+  /* EL NOMBRE, LO MAS GRANDE QUE ENTRE.
+
+     Los cuatro nombres tienen anchos muy distintos: "Urbanos" ocupa 6.9
+     px por cada px de cuerpo y "Línea Evolution" 12.7, casi el doble.
+     Con un cuerpo fijo, o el largo se corta contra los bordes o los
+     cortos quedan chicos para el lugar que tienen.
+
+     Asi que se mide el nombre ya escrito y se lo lleva al 94% del ancho
+     del escenario, con un techo del 9% de ese ancho para que no se coma
+     la escena. En la practica los tres nombres cortos llegan al techo y
+     el largo se acomoda solo. */
+  function ajustarMarca(){
+    if (!marca || !escena) return;
+    var ancho = escena.clientWidth;
+    if (!ancho) return;
+    marca.style.fontSize = '';
+    var base = parseFloat(getComputedStyle(marca).fontSize);
+    var mide = marca.scrollWidth;
+    if (!base || !mide) return;
+    var cuerpo = Math.min(base * (ancho * 0.94) / mide, ancho * 0.09);
+    marca.style.fontSize = cuerpo.toFixed(1) + 'px';
+  }
+
   function pintar(){
     var g = GRUPOS[actual] || GRUPOS[0];
     if (marca) marca.textContent = g.titulo;
-    texto.querySelector('p').textContent = g.texto;
     /* Cuando cada linea tenga su seccion, alcanza con poner su ancla en
        `seccion` y el boton la sigue. */
     if (boton) boton.setAttribute('href', g.seccion || '#concierge');
+    ajustarMarca();
     rayas.forEach(function(r, k){
       r.setAttribute('aria-current', String(k === actual));
     });
@@ -3110,6 +3174,7 @@ body.is-dark.is-scrolled #topbar{
   /* Y no trabaja de fondo, como el resto del sitio. */
   colocar();
   pintar();
+  addEventListener('resize', ajustarMarca);
   if ('IntersectionObserver' in window){
     new IntersectionObserver(function(e){
       e.forEach(function(x){ x.isIntersecting ? programar() : frenar(); });
@@ -3494,6 +3559,29 @@ body.is-dark.is-scrolled #topbar{
   var pesos = { fuentes:.25, portada:.75 };
   var estado = { fuentes:0, portada:0 };
   var terminado = false;
+
+  /* EL NOMBRE, LO MAS GRANDE QUE ENTRE.
+
+     Los cuatro nombres tienen anchos muy distintos: "Urbanos" ocupa 6.9
+     px por cada px de cuerpo y "Línea Evolution" 12.7, casi el doble.
+     Con un cuerpo fijo, o el largo se corta contra los bordes o los
+     cortos quedan chicos para el lugar que tienen.
+
+     Asi que se mide el nombre ya escrito y se lo lleva al 94% del ancho
+     del escenario, con un techo del 9% de ese ancho para que no se coma
+     la escena. En la practica los tres nombres cortos llegan al techo y
+     el largo se acomoda solo. */
+  function ajustarMarca(){
+    if (!marca || !escena) return;
+    var ancho = escena.clientWidth;
+    if (!ancho) return;
+    marca.style.fontSize = '';
+    var base = parseFloat(getComputedStyle(marca).fontSize);
+    var mide = marca.scrollWidth;
+    if (!base || !mide) return;
+    var cuerpo = Math.min(base * (ancho * 0.94) / mide, ancho * 0.09);
+    marca.style.fontSize = cuerpo.toFixed(1) + 'px';
+  }
 
   function pintar(){
     var p = estado.fuentes*pesos.fuentes + estado.portada*pesos.portada;
