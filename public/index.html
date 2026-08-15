@@ -906,31 +906,65 @@ video::-webkit-media-controls{ display:none !important; }
   pointer-events:none;
 }
 
-/* LA CALLE. Una linea blanca que va de la goma trasera a la delantera,
-   siguiendo la inclinacion real de esa foto.
+/* LA CALLE — UNA TIRA DE LUZ, NO UNA RAYA.
 
-   Los cuatro numeros salen de medir el alfa de cada archivo: donde apoya
-   cada rueda, en fraccion del lienzo. Van como propiedades en el HTML
-   porque son distintos para cada auto —la MINI tiene la distancia entre
-   ejes mas corta y su linea es un 14% mas corta que la del Mercedes—.
+   Va de la goma trasera a la delantera siguiendo la inclinacion real de
+   cada foto. Los cuatro numeros salen de medir el alfa de cada archivo
+   —donde apoya cada rueda, en fraccion del lienzo— y viajan como
+   propiedades en el HTML porque son distintos por auto: la MINI tiene la
+   distancia entre ejes mas corta y su linea es un 14% mas corta que la
+   del Mercedes.
 
-   El angulo se aplica con rotate y no dibujando una diagonal, asi la
-   linea mide un pixel de alto siempre. Y como vive DENTRO del auto,
-   hereda su escala: el vecino achicado trae su calle achicada, que es
-   exactamente lo que hace que se lea como la misma calle yendose al
-   fondo. */
-.gar-auto::before{
+   SON DOS CAPAS, y esa es la diferencia entre una raya y una luz:
+
+   ::before es el nucleo, dos pixeles encendidos. Se apaga hacia las
+   puntas con un degradado en vez de terminar de golpe — una linea que
+   arranca y corta en seco se lee como un objeto apoyado; una que se
+   desvanece se lee como luz que se termina.
+
+   ::after es el resplandor: una banda ancha y difusa centrada en el
+   mismo eje. Es lo que hace que la luz parezca salir de algun lado en
+   vez de estar pegada encima.
+
+   Las dos giran el mismo angulo y viven DENTRO del auto, asi que heredan
+   su escala: el vecino achicado trae su tira achicada, que es lo que la
+   hace leer como la misma calle yendose al fondo.
+
+   Las dos van detras de la foto (z-index 0 contra 1), asi la tira pasa
+   POR DEBAJO de las gomas y se ve solo entre medio — que es donde
+   estaria de verdad. */
+.gar-auto::before,
+.gar-auto::after{
   content:"";
   position:absolute;
   left:calc(var(--x1) * 100%);
   top:calc(var(--y1) * 100%);
   width:calc(var(--largo) * 100%);
-  height:2.5px;
-  margin-top:-1.25px;
-  background:var(--chrome);
   transform-origin:0 50%;
   transform:rotate(var(--ang));
   z-index:0;
+  pointer-events:none;
+}
+
+/* el nucleo */
+.gar-auto::before{
+  height:2px;
+  margin-top:-1px;
+  background:linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,255,255,.55) 10%,
+    #fff 46%,
+    rgba(255,255,255,.9) 72%,
+    transparent 100%);
+}
+
+/* el resplandor */
+.gar-auto::after{
+  height:26px;
+  margin-top:-13px;
+  background:radial-gradient(52% 50% at 48% 50%,
+    rgba(255,255,255,.26), rgba(255,255,255,.07) 45%, transparent 74%);
+  filter:blur(5px);
 }
 
 .gar-auto picture{
