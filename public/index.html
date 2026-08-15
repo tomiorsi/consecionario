@@ -209,12 +209,42 @@ body{
   z-index:2;
 }
 
+/* EL VIDEO ARRANCA INVISIBLE Y APARECE CUANDO CONFIRMA QUE REPRODUCE.
+
+   Es la unica forma confiable de que nunca se vea el boton de play de
+   iOS. Las reglas de abajo que apagan ::-webkit-media-controls existen
+   desde hace rato y aun asi el boton seguia apareciendo en telefonos
+   reales — son pseudo-elementos de proveedor y Safari no garantiza que
+   respondan.
+
+   Con opacity 0 no hay nada que discutir: el elemento entero, controles
+   incluidos, se compone con opacidad cero. Lo que se ve mientras tanto
+   es el poster, puesto como fondo de la seccion, que es EL MISMO primer
+   cuadro del video. Por eso el cruce no se nota cuando el video arranca:
+   son la misma imagen.
+
+   Y si el autoplay estuviera bloqueado —bajo consumo, datos reducidos,
+   navegador embebido— la portada se ve como una foto a pantalla completa
+   en vez de como un reproductor roto. */
+#cover{
+  background-size:cover;
+  background-position:center;
+  background-repeat:no-repeat;
+}
+
 #cover video{
   display:block;
   width:100%;
   height:100%;
   object-fit:cover;
   object-position:center;
+  opacity:0;
+  transition:opacity .6s var(--ease);
+}
+#cover.video-corriendo video{ opacity:1; }
+
+@media (prefers-reduced-motion:reduce){
+  #cover video{ transition:none; }
 }
 
 /* EL BOTÓN DE PLAY DE iOS.
@@ -816,6 +846,7 @@ video::-webkit-media-controls{ display:none !important; }
 }
 
 .gar-caja{
+  width:100%;
   max-width:76rem;
   margin:0 auto;
 }
@@ -1212,6 +1243,21 @@ video::-webkit-media-controls{ display:none !important; }
   /* Misma cuenta con la proporcion 1.85: 39.4% x .0883 x 1.85 = 6.4 */
   .gar-auto.es-entrando{ left:10.6%; bottom:14.4%; transform:translateX(-50%) scale(.30); }
   .gar-auto.es-saliendo{ left:130%;  bottom:-14%;  transform:translateX(-50%) scale(1.4); }
+}
+
+/* En el telefono los mandos se achican: con el auto ocupando el 75% del
+   escenario, unas rayitas de 3.2rem y un boton de cuerpo .58 le ganaban
+   en peso visual a lo unico que importa mirar. */
+@media (max-width:820px){
+  .gar-raya{ width:1.7rem; }
+  .gar-rayas{ gap:.35rem; }
+  .gar-boton{
+    margin-top:clamp(.7rem,1.6vh,1rem);
+    padding:.72em 1.35em;
+    font-size:.5rem;
+    letter-spacing:.15em;
+  }
+  .gar-mandos{ margin-top:clamp(.8rem,1.8vh,1.2rem); }
 }
 
 @media (prefers-reduced-motion:reduce){
@@ -2632,7 +2678,19 @@ body.is-dark.is-scrolled #topbar{
     var pantalla = (window.screen && screen.width) || window.innerWidth || 1920;
     var base = 'assets/video/portada-' + (pantalla <= 767 ? 'mobile' : 'desktop');
 
-    v.poster = base + '-poster.jpg';
+    /* El poster va DE FONDO DE LA SECCION, no solo como atributo del
+       video: el atributo se deja de ver en cuanto el video tiene datos,
+       y lo que se necesita es una imagen debajo que aguante todo el
+       tiempo que haga falta. */
+    /* ?sinauto=1 simula el autoplay bloqueado —se le quita al elemento
+       hasta el atributo— para poder ver en el simulador como queda la
+       portada cuando iOS lo rechaza. Sin el parametro no cambia nada. */
+    if (location.search.indexOf('sinauto=1') !== -1) v.removeAttribute('autoplay');
+
+    var poster = base + '-poster.jpg';
+    v.poster = poster;
+    var sec = document.getElementById('cover');
+    if (sec) sec.style.backgroundImage = 'url("' + poster + '")';
 
     var AV1  = ['-av1.mp4',  'video/mp4; codecs="av01.0.08M.08"'];
     var HEVC = ['-hevc.mp4', 'video/mp4; codecs="hvc1.1.6.L120.B0"'];
@@ -2725,7 +2783,21 @@ body.is-dark.is-scrolled #topbar{
       });
     }
 
+    /* Recien cuando el video EMPIEZA A CORRER DE VERDAD se lo muestra.
+       No alcanza con que play() no haya sido rechazado: entre esa
+       promesa y el primer cuadro pintado hay un rato, y en ese rato el
+       elemento estaria visible y vacio. `playing` es el unico evento que
+       significa "hay imagen en movimiento". */
+    v.addEventListener('playing', function(){
+      var sec = document.getElementById('cover');
+      if (sec) sec.classList.add('video-corriendo');
+    });
+
     function arrancar(){
+      /* ?sinauto=1 fuerza el camino del autoplay bloqueado, para poder
+         verificar en el simulador como se ve la portada cuando iOS lo
+         rechaza. Sin el parametro no cambia nada. */
+      if (location.search.indexOf('sinauto=1') !== -1) return;
       var pr;
       try { pr = v.play(); } catch(e){ reintentarConGesto(); return; }
       if (pr && pr.catch) pr.catch(reintentarConGesto);
@@ -3605,29 +3677,6 @@ body.is-dark.is-scrolled #topbar{
   var estado = { fuentes:0, portada:0 };
   var terminado = false;
 
-  /* EL NOMBRE, LO MAS GRANDE QUE ENTRE.
-
-     Los cuatro nombres tienen anchos muy distintos: "Urbanos" ocupa 6.9
-     px por cada px de cuerpo y "Línea Evolution" 12.7, casi el doble.
-     Con un cuerpo fijo, o el largo se corta contra los bordes o los
-     cortos quedan chicos para el lugar que tienen.
-
-     Asi que se mide el nombre ya escrito y se lo lleva al 94% del ancho
-     del escenario, con un techo del 9% de ese ancho para que no se coma
-     la escena. En la practica los tres nombres cortos llegan al techo y
-     el largo se acomoda solo. */
-  function ajustarMarca(){
-    if (!marca || !escena) return;
-    var ancho = escena.clientWidth;
-    if (!ancho) return;
-    marca.style.fontSize = '';
-    var base = parseFloat(getComputedStyle(marca).fontSize);
-    var mide = marca.scrollWidth;
-    if (!base || !mide) return;
-    var cuerpo = Math.min(base * (ancho * 0.94) / mide, ancho * 0.09);
-    marca.style.fontSize = cuerpo.toFixed(1) + 'px';
-  }
-
   function pintar(){
     var p = estado.fuentes*pesos.fuentes + estado.portada*pesos.portada;
     if (linea) linea.style.setProperty('--carga', Math.min(1, p).toFixed(3));
@@ -3652,38 +3701,37 @@ body.is-dark.is-scrolled #topbar{
     document.fonts.ready.then(function(){ estado.fuentes = 1; pintar(); });
   } else { estado.fuentes = 1; }
 
-  /* Un video: se sigue cuánto lleva bufereado contra su duración. */
-  function seguir(id, clave, umbral){
-    var v = document.getElementById(id);
-    if (!v){ estado[clave] = 1; pintar(); return; }
+  /* LA ESPERA SE ATA AL POSTER, NO AL VIDEO.
 
-    function medir(){
-      if (!v.duration || !isFinite(v.duration)) return;
-      var fin = 0;
-      for (var i = 0; i < v.buffered.length; i++) fin = Math.max(fin, v.buffered.end(i));
-      estado[clave] = Math.min(1, (fin / v.duration) / umbral);
-      pintar();
-    }
+     Esto era el bug que dejaba la pagina clavada en la pantalla de
+     carga. Antes se esperaba a que el video estuviera bufereado, y en
+     iOS eso NO PASA: Safari no descarga datos de un video hasta que se
+     intenta reproducirlo, y si el autoplay esta bloqueado —bajo
+     consumo, datos reducidos, navegador embebido— no se intenta nunca.
+     Verificado en el simulador: con el autoplay anulado, a los 3
+     segundos la pagina seguia en el cargador y solo entraba por el
+     techo de seguridad.
 
-    ['progress','loadeddata','canplay','canplaythrough','timeupdate'].forEach(function(e){
-      v.addEventListener(e, medir);
-    });
-    v.addEventListener('error', function(){ estado[clave] = 1; pintar(); });
-    medir();
-  }
+     El poster, en cambio, es una imagen comun: siempre carga, y es
+     EXACTAMENTE lo que se ve al entrar —esta puesto de fondo de la
+     portada—. Esperar eso es esperar lo que el visitante realmente
+     necesita para ver la primera pantalla completa. El video sigue su
+     camino aparte y aparece cuando puede. */
+  (function(){
+    var v = document.getElementById('coverVid');
+    var url = v && v.poster;
+    if (!url){ estado.portada = 1; pintar(); return; }
+    var img = new Image();
+    function listoPoster(){ estado.portada = 1; pintar(); }
+    img.onload = listoPoster;
+    img.onerror = listoPoster;
+    img.src = url;
+    if (img.complete) listoPoster();
+  })();
 
-  /* La portada se reproduce apenas se entra, así que necesita estar
-     bien bajada (85%). El reel, en cambio, recién se ve después de la
-     portada y de la franja: alcanza con que haya arrancado (12%), y
-     sigue bajando mientras el visitante lee.
-
-     Antes los dos esperaban el 85% y eso era lo que hacía eterna la
-     carga: se quedaba esperando 10 MB de un video que todavía faltaba
-     mucho para ver. */
-  seguir('coverVid', 'portada', .85);
-
-  /* Red de seguridad: pase lo que pase, a los 15 segundos se entra. */
-  setTimeout(listo, 15000);
+  /* Red de seguridad. Baja de 15 a 4 segundos: lo unico que se espera
+     ahora es una imagen, asi que no hay razon para hacer esperar mas. */
+  setTimeout(listo, 4000);
   pintar();
 })();
 </script>
