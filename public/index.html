@@ -2648,6 +2648,85 @@ body.is-dark.is-scrolled #topbar{
     <a href="#donde">Showroom</a>
   </nav>
 
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   EL TURNERO DE VIDEOS — se baja uno por vez, y en orden.
+
+   EL PROBLEMA QUE RESUELVE. La página tiene cuatro videos. Cada uno
+   sabía por su cuenta cuándo pedirse, y ninguno sabía de los otros, así
+   que en un teléfono terminaban los cuatro bajando a la vez sobre el
+   mismo caño. Repartido en cuatro, ninguno junta datos suficientes para
+   empezar: el visitante scrollea, llega a una sección y encuentra el
+   póster fijo. Es exactamente el síntoma reportado —la primera, la
+   tercera y la cuarta sin arrancar— y no es un bug de ninguno de los
+   cuatro por separado. Es la suma.
+
+   Bajados en fila la cuenta total es la misma, pero el PRIMERO termina
+   cuatro veces antes. Y como cada uno se necesita en un momento
+   distinto —a medida que se scrollea— el orden es justamente lo que
+   hace falta.
+
+   QUÉ SE PUEDE Y QUÉ NO. Esto decide CUÁNDO ARRANCA cada descarga, no
+   la corta a mitad de camino: una vez que el navegador empezó a bajar
+   un archivo, sigue. Por eso el turnero solo no alcanzaba, y el otro
+   lado del arreglo es que los archivos pesen lo que tienen que pesar.
+
+   EL TURNO SE SUELTA AL PODER REPRODUCIR, no al terminar de bajar. Un
+   video que ya tiene con qué arrancar no necesita el caño para él solo,
+   y esperar a que termine dejaría al siguiente parado al pedo.
+
+   LO QUE SE ESTÁ MIRANDO PASA PRIMERO. Si alguien entra por un enlace
+   al pie, el video de ahí abajo no tiene por qué esperar a los tres de
+   arriba que nadie va a ver.
+   ══════════════════════════════════════════════════════════════════ */
+window.TURNO = (function(){
+  var espera = [], activo = null;
+
+  /* Techo por pedido. Si un video no avisa que puede reproducirse
+     —falló, o es iOS callado— el turno se suelta igual y la fila
+     sigue. Sin esto, un solo archivo roto deja la página sin videos. */
+  var LIMITE = 5000;
+
+  function prioridad(p){
+    return (p.visible() ? 0 : 1000) + p.orden;
+  }
+
+  function siguiente(){
+    if (activo || !espera.length) return;
+
+    espera.sort(function(a, b){ return prioridad(a) - prioridad(b); });
+    var p = espera.shift();
+    activo = p;
+
+    var suelto = false;
+    var reloj = setTimeout(soltar, LIMITE);
+    function soltar(){
+      if (suelto) return;
+      suelto = true;
+      clearTimeout(reloj);
+      activo = null;
+      /* En otra vuelta del bucle de eventos: `soltar` suele llamarse
+         desde adentro de un evento del video, y arrancar la siguiente
+         descarga ahí mismo la mete en el mismo cuadro. */
+      setTimeout(siguiente, 0);
+    }
+
+    p.arrancar(soltar);
+  }
+
+  return {
+    /* orden   — posición en la página, para la fila
+       visible — si la sección está a la vista AHORA
+       arrancar(listo) — pide el archivo; llama a listo() cuando ya
+                         puede reproducirse */
+    pedir: function(orden, visible, arrancar){
+      espera.push({ orden:orden, visible:visible, arrancar:arrancar });
+      siguiente();
+    }
+  };
+})();
+</script>
+
 <!-- Portada en video. Primera pantalla del sitio; el escenario del auto
      quedó debajo. El video no tiene audio: muted + playsinline son lo que
      habilita el autoplay en iOS y Chrome, no una cuestión de sonido.
@@ -2813,6 +2892,26 @@ body.is-dark.is-scrolled #topbar{
       var sec = document.getElementById('cover');
       if (sec) sec.classList.add('video-corriendo');
     });
+
+    /* LA PORTADA TIENE EL PRIMER TURNO, Y NO ES UNA PREFERENCIA: es el
+       único video que ya está bajando cuando este script corre. Va con
+       preload y autoplay puestos en el HTML, o sea que arranca durante
+       el parseo, antes de que exista una línea de JavaScript.
+
+       Por eso acá no se pide nada — se pide el TURNO, para que los
+       otros tres esperen a que ésta pueda reproducirse antes de salir a
+       competir por el mismo caño. Es el video de la primera pantalla:
+       si alguno tiene que llegar entero, es éste. */
+    if (window.TURNO) window.TURNO.pedir(0, function(){ return true; },
+      function(listo){
+        if (v.readyState >= 3) { listo(); return; }
+        v.addEventListener('canplay',  listo, { once:true });
+        v.addEventListener('playing',  listo, { once:true });
+        /* Si el archivo no existe o el codec falla, el turno se suelta
+           igual: los de abajo no tienen la culpa. */
+        v.addEventListener('error',    listo, { once:true });
+        v.addEventListener('stalled',  listo, { once:true });
+      });
 
     function arrancar(){
       /* ?sinauto=1 fuerza el camino del autoplay bloqueado, para poder
@@ -3367,7 +3466,26 @@ body.is-dark.is-scrolled #topbar{
     window.innerWidth || 9999
   );
   var base = 'assets/video/reel-' + (pantalla <= 767 ? 'mobile' : 'desktop');
-  v.poster = base + '-poster.jpg';
+
+  /* EL PÓSTER TAMPOCO SE PIDE AL ENTRAR, Y ESTO SE MIDIÓ.
+
+     Asignar v.poster dispara la descarga de la imagen en el acto, aunque
+     el video tenga preload="none" y la sección esté ocho pantallas más
+     abajo.
+
+     Medido con el sitio servido a 3 Mbit/s: los tres pósteres de abajo
+     —reel, collage y ruta, 225 KB entre los tres— se pedían todos en el
+     mismo segundo en que arrancaba el video de la portada, y seguían
+     bajando medio segundo después de que la portada terminara. Es ancho
+     de banda gastado en tres imágenes que nadie está mirando mientras
+     se carga la única pantalla que sí se está mirando.
+
+     Ahora la asignación espera a que la sección esté a una pantalla de
+     distancia. Verificado: al entrar al sitio no se pide ningún póster
+     más que el de la portada. */
+  function ponerPoster(){
+    if (!v.poster) v.poster = base + '-poster.jpg';
+  }
 
   /* EL ARCHIVO NO SE PIDE HASTA ACERCARSE.
 
@@ -3419,6 +3537,7 @@ body.is-dark.is-scrolled #topbar{
     });
 
     v.load();
+    despertar();
   }
 
   var dur = 0, objetivo = 0, actual = 0, vivo = false;
@@ -3606,28 +3725,107 @@ body.is-dark.is-scrolled #topbar{
      que nadie scrolleara.
 
      Si a esa altura no bajó un byte, es iOS ignorando preload, y ahí sí
-     el único camino es arrancarlo y pausarlo. */
+     el único camino es arrancarlo y pausarlo.
+
+     EL SEGUNDO Y MEDIO SE CUENTA DESDE load(), Y ANTES NO ERA ASÍ.
+
+     Esta función se llamaba únicamente desde `loadedmetadata`, y ahí el
+     rescate quedaba colgado de lo mismo que venía a rescatar:
+
+       loadedmetadata necesita que hayan bajado datos
+         → los datos no bajan porque iOS ignora preload
+           → el empujón que los haría bajar espera a loadedmetadata
+
+     O sea que en el único escenario para el que existe esta función,
+     no podía llegar a ejecutarse.
+
+     NO SE PUDO REPRODUCIR EN EL SIMULADOR, y conviene dejarlo escrito
+     para que nadie pierda la tarde buscándolo ahí: el Simulador de iOS
+     usa el motor multimedia del Mac, que sí respeta preload, así que el
+     reel baja igual con el arreglo puesto o sacado. Se probaron las dos
+     variantes con el servidor estrangulado y las dos bajaron el
+     archivo. La conducta de ignorar preload es del iPhone de verdad.
+
+     El arreglo queda igual porque el defecto es de lógica y se ve a ojo
+     en el código, no porque se lo haya visto fallar. Ahora se llama
+     derecho después de load(), que es cuando el reloj de preload
+     realmente arranca — que es además lo que el comentario de arriba
+     venía diciendo que hacía. */
+  /* Sin valor inicial a propósito. `traer()` puede llamar a despertar()
+     antes de que la ejecución llegue a esta línea —las declaraciones de
+     función suben, las asignaciones no— y un `= false` acá abajo
+     borraría la marca que traer() ya había puesto. Sin inicializador,
+     la variable arranca en undefined, que también es falso, y nadie la
+     pisa después. */
+  var despierto;
   function despertar(){
+    if (despierto) return;
+    despierto = true;
     setTimeout(function(){
       if (!v.buffered || v.buffered.length === 0) empujon();
     }, 1500);
   }
 
+  /* PEDIR ES ANOTARSE EN LA FILA, NO BAJAR.
+
+     Antes acá se llamaba a traer() derecho, y el reel salía a bajar en
+     el mismo momento que la portada seguía cargando. Ahora se anota en
+     el turnero y baja cuando le toca. Ver el comentario del turnero,
+     arriba de la portada. */
+  var anotado = false;
+  /* Ojo con el nombre: en este mismo script ya vive un cerca() sin
+     argumentos, el del bucle de scroll. Dos funciones con el mismo
+     nombre en el mismo alcance no chocan al declararse —la segunda
+     simplemente pisa a la primera— y el bucle habría empezado a
+     comparar contra undefined, o sea a no correr nunca. */
+  function aDistancia(px){
+    var alto = window.innerHeight;
+    if (!alto) return false;          /* sin maqueta no se mide nada */
+    var r = sec.getBoundingClientRect();
+    return r.top < alto + px && r.bottom > -px;
+  }
+  function anotar(){
+    if (anotado) return;
+    anotado = true;
+    ponerPoster();
+    window.TURNO.pedir(1, function(){ return aDistancia(0); }, function(listo){
+      traer();
+      if (v.readyState >= 3) { listo(); return; }
+      v.addEventListener('canplay',   listo, { once:true });
+      v.addEventListener('loadeddata',listo, { once:true });
+      v.addEventListener('error',     listo, { once:true });
+    });
+  }
+
   if ('IntersectionObserver' in window){
     var obs = new IntersectionObserver(function(e){
-      if (e.some(function(x){ return x.isIntersecting; })){ traer(); obs.disconnect(); }
-    }, { rootMargin:'700px 0px' });
+      if (e.some(function(x){ return x.isIntersecting; })){ anotar(); obs.disconnect(); }
+    }, { rootMargin:'900px 0px' });
     obs.observe(sec);
   }
   /* Mismo respaldo que en el collage: si el aviso no llegara, el reel
      se quedaría sin video para siempre. */
   function porScroll(){
-    if (pedido){ removeEventListener('scroll', porScroll); return; }
-    var r = sec.getBoundingClientRect();
-    if (r.top < window.innerHeight + 700){ traer(); removeEventListener('scroll', porScroll); }
+    if (anotado){ removeEventListener('scroll', porScroll); return; }
+    if (aDistancia(900)){ anotar(); removeEventListener('scroll', porScroll); }
   }
   addEventListener('scroll', porScroll, { passive:true });
-  porScroll();
+  /* EL RESPALDO NO PUEDE CORRER ANTES DE QUE HAYA MAQUETA.
+
+     Este chequeo se llamaba derecho, en la misma línea, y estos scripts
+     corren MIENTRAS SE PARSEA la página. En ese instante el navegador
+     puede no tener todavía ni la altura de la ventana: medido en el
+     panel de vista previa, innerHeight daba 0 y el rectángulo de la
+     sección daba top 99. Con eso la cuenta "¿está a menos de una
+     pantalla y media?" da que SÍ para una sección que está a ocho
+     pantallas, y los videos de abajo se anotaban todos al entrar — que
+     es exactamente lo contrario de lo que este archivo intenta hacer.
+
+     Ahora hay dos candados: no se mide si la ventana todavía no tiene
+     altura, y la primera pasada espera al primer cuadro pintado. El
+     IntersectionObserver, que es el camino principal, nunca tuvo este
+     problema: mide contra la maqueta real y recién cuando existe. */
+  requestAnimationFrame(porScroll);
 
   /* Arranca el bucle si hace falta. Se llama al cargar el video y en
      cada scroll: como el bucle se duerme al alejarse, hay que tener
@@ -4066,11 +4264,34 @@ var UNIDAD = null;
     window.innerWidth || 9999
   );
   var base = 'assets/ruta/ruta-' + (pantalla <= 767 ? 'mobile' : 'desktop');
-  v.poster = base + '-poster.jpg';
 
-  var pedido = false;
+  /* EL PÓSTER TAMPOCO SE PIDE AL ENTRAR, Y ESTO SE MIDIÓ.
 
-  function encender(){
+     Asignar v.poster dispara la descarga de la imagen en el acto, aunque
+     el video tenga preload="none" y la sección esté ocho pantallas más
+     abajo.
+
+     Medido con el sitio servido a 3 Mbit/s: los tres pósteres de abajo
+     —reel, collage y ruta, 225 KB entre los tres— se pedían todos en el
+     mismo segundo en que arrancaba el video de la portada, y seguían
+     bajando medio segundo después de que la portada terminara. Es ancho
+     de banda gastado en tres imágenes que nadie está mirando mientras
+     se carga la única pantalla que sí se está mirando.
+
+     Ahora la asignación espera a que la sección esté a una pantalla de
+     distancia. Verificado: al entrar al sitio no se pide ningún póster
+     más que el de la portada. */
+  function ponerPoster(){
+    if (!v.poster) v.poster = base + '-poster.jpg';
+  }
+
+  var anotado = false, pedido = false, aLaVista = false;
+
+  /* Bajar y reproducir van separados por el mismo motivo que en el
+     collage: juntas, los reintentos por `canplay` hacían arrancar el
+     video fuera de pantalla y le robaban el decodificador al de
+     arriba. El comentario largo está allá. */
+  function bajar(){
     if (!pedido){
       pedido = true;
       /* Con preload="none", asignar la fuente no descarga nada: hay que
@@ -4092,37 +4313,83 @@ var UNIDAD = null;
       /* El primer play() sale con el video todavía vacío y puede
          rechazarse. Si ese rechazo se traga en silencio, la sección
          queda con el póster puesto para siempre. */
-      v.addEventListener('loadeddata', encender);
-      v.addEventListener('canplay', encender);
+      v.addEventListener('loadeddata', tocar);
+      v.addEventListener('canplay', tocar);
     }
+  }
+
+  function tocar(){
+    if (!aLaVista) return;
     var pr;
     try { pr = v.play(); } catch(e){ return; }
     if (pr && pr.catch) pr.catch(function(){});
   }
 
+  /* Último de la fila: es el cuarto video de la página. Ver el turnero,
+     arriba de la portada. */
+  function anotar(){
+    if (anotado) return;
+    anotado = true;
+    ponerPoster();
+    window.TURNO.pedir(3, function(){ return aLaVista; }, function(listo){
+      bajar();
+      tocar();
+      if (v.readyState >= 3){ listo(); return; }
+      v.addEventListener('canplay', listo, { once:true });
+      v.addEventListener('playing', listo, { once:true });
+      v.addEventListener('error',   listo, { once:true });
+    });
+  }
+
   if ('IntersectionObserver' in window){
+    /* Dos observadores por el mismo motivo que en el collage: anotarse
+       conviene temprano, reproducir conviene tarde. */
+    var lejos = new IntersectionObserver(function(e){
+      if (e.some(function(x){ return x.isIntersecting; })){ anotar(); lejos.disconnect(); }
+    }, { rootMargin:'900px 0px' });
+    lejos.observe(sec);
+
     new IntersectionObserver(function(e){
       e.forEach(function(x){
-        if (x.isIntersecting) encender();
+        aLaVista = x.isIntersecting;
+        if (aLaVista){ anotar(); tocar(); }
         else if (pedido && !v.paused){ try { v.pause(); } catch(err){} }
       });
     }, { rootMargin:'300px 0px' }).observe(sec);
   } else {
-    encender();
+    aLaVista = true;
+    anotar();
   }
 
   /* Respaldo por scroll: si el aviso no llegara, la sección se quedaría
      con el póster y nada más. */
   function porScroll(){
-    if (pedido){ removeEventListener('scroll', porScroll); return; }
+    if (anotado){ removeEventListener('scroll', porScroll); return; }
+    var alto = window.innerHeight;
+    if (!alto) return;                /* sin maqueta no se mide nada */
     var r = sec.getBoundingClientRect();
-    if (r.top < window.innerHeight + 300 && r.bottom > -300){
-      encender();
+    if (r.top < alto + 900 && r.bottom > -900){
+      anotar();
       removeEventListener('scroll', porScroll);
     }
   }
   addEventListener('scroll', porScroll, { passive:true });
-  porScroll();
+  /* EL RESPALDO NO PUEDE CORRER ANTES DE QUE HAYA MAQUETA.
+
+     Este chequeo se llamaba derecho, en la misma línea, y estos scripts
+     corren MIENTRAS SE PARSEA la página. En ese instante el navegador
+     puede no tener todavía ni la altura de la ventana: medido en el
+     panel de vista previa, innerHeight daba 0 y el rectángulo de la
+     sección daba top 99. Con eso la cuenta "¿está a menos de una
+     pantalla y media?" da que SÍ para una sección que está a ocho
+     pantallas, y los videos de abajo se anotaban todos al entrar — que
+     es exactamente lo contrario de lo que este archivo intenta hacer.
+
+     Ahora hay dos candados: no se mide si la ventana todavía no tiene
+     altura, y la primera pasada espera al primer cuadro pintado. El
+     IntersectionObserver, que es el camino principal, nunca tuvo este
+     problema: mide contra la maqueta real y recién cuando existe. */
+  requestAnimationFrame(porScroll);
 })();
 </script>
 
@@ -4142,7 +4409,26 @@ var UNIDAD = null;
     window.innerWidth || 9999
   );
   var base = 'assets/collage/drive' + (pantalla <= 767 ? '-mobile' : '');
-  v.poster = base + '-poster.jpg';
+
+  /* EL PÓSTER TAMPOCO SE PIDE AL ENTRAR, Y ESTO SE MIDIÓ.
+
+     Asignar v.poster dispara la descarga de la imagen en el acto, aunque
+     el video tenga preload="none" y la sección esté ocho pantallas más
+     abajo.
+
+     Medido con el sitio servido a 3 Mbit/s: los tres pósteres de abajo
+     —reel, collage y ruta, 225 KB entre los tres— se pedían todos en el
+     mismo segundo en que arrancaba el video de la portada, y seguían
+     bajando medio segundo después de que la portada terminara. Es ancho
+     de banda gastado en tres imágenes que nadie está mirando mientras
+     se carga la única pantalla que sí se está mirando.
+
+     Ahora la asignación espera a que la sección esté a una pantalla de
+     distancia. Verificado: al entrar al sitio no se pide ningún póster
+     más que el de la portada. */
+  function ponerPoster(){
+    if (!v.poster) v.poster = base + '-poster.jpg';
+  }
 
   /* NI src NI autoplay HASTA QUE HAGA FALTA.
 
@@ -4158,9 +4444,23 @@ var UNIDAD = null;
      Ahora el archivo ni se pide hasta que el collage se acerca a
      pantalla, y se pausa al salir. Mientras tanto se ve el póster, que
      pesa 100 KB. */
-  var pedido = false;
+  var seccion = document.getElementById('collage');
+  var anotado = false, pedido = false, aLaVista = false;
 
-  function encender(){
+  /* SE SEPARÓ BAJAR DE REPRODUCIR, y no es prolijidad: era un bug.
+
+     Antes las dos cosas vivían en una sola función, encender(), que se
+     enganchaba a `loadeddata` y `canplay` para reintentar el play si el
+     primero salía con el video vacío. El problema es que esos eventos
+     siguen llegando después, y encender() no miraba si la sección se
+     estaba viendo: un video que ya se había pausado al salir de
+     pantalla volvía a arrancar solo, abajo de todo, sin nadie mirando.
+
+     En una computadora eso sería desperdicio y nada más. En iPhone es
+     el bug: iOS entrega los decodificadores de a uno, así que ese video
+     fantasma corriendo fuera de pantalla le niega el turno al que sí se
+     está mirando, y la sección visible se queda como una foto fija. */
+  function bajar(){
     if (!pedido){
       pedido = true;
       v.preload = 'auto';
@@ -4190,21 +4490,60 @@ var UNIDAD = null;
       /* Cuando llegan los datos se vuelve a intentar: el primer play()
          sale con el video todavía vacío y puede rechazarse. Antes ese
          rechazo se tragaba en silencio y el video quedaba como una foto. */
-      v.addEventListener('loadeddata', encender);
-      v.addEventListener('canplay', encender);
+      v.addEventListener('loadeddata', tocar);
+      v.addEventListener('canplay', tocar);
     }
+  }
+
+  function tocar(){
+    if (!aLaVista) return;
     var pr;
     try { pr = v.play(); } catch(e){ return; }
     if (pr && pr.catch) pr.catch(function(){});
   }
 
-  var seccion = document.getElementById('collage');
+  /* No se baja al acercarse: se ANOTA en la fila y se baja cuando toca.
+     Ver el turnero, arriba de la portada. */
+  function anotar(){
+    if (anotado) return;
+    anotado = true;
+    ponerPoster();
+    window.TURNO.pedir(2, function(){ return aLaVista; }, function(listo){
+      bajar();
+      tocar();
+      if (v.readyState >= 3){ listo(); return; }
+      v.addEventListener('canplay', listo, { once:true });
+      v.addEventListener('playing', listo, { once:true });
+      v.addEventListener('error',   listo, { once:true });
+    });
+  }
 
-  if (!('IntersectionObserver' in window)){ encender(); return; }
+  if (!('IntersectionObserver' in window)){ aLaVista = true; anotar(); return; }
+
+  /* DOS OBSERVADORES, Y NO ES DE MÁS.
+
+     Miran cosas distintas y por eso tienen márgenes distintos:
+
+       ANOTARSE  a 900 px — pedir el póster y entrar en la fila. Cuanto
+                 antes, mejor: anotarse no baja nada, y el turnero
+                 necesita saber quién está esperando para repartir bien.
+       REPRODUCIR a 200-300 px — arrancar el video, y pausarlo al salir.
+                 Acá el margen tiene que ser CHICO: en iPhone hay un
+                 decodificador por vez, y un video corriendo con la
+                 sección todavía fuera de pantalla se lo quita al que sí
+                 se está mirando.
+
+     Con un solo observador había que elegir un margen, y los dos usos
+     quieren lo contrario. */
+  var lejos = new IntersectionObserver(function(e){
+    if (e.some(function(x){ return x.isIntersecting; })){ anotar(); lejos.disconnect(); }
+  }, { rootMargin:'900px 0px' });
+  lejos.observe(seccion);
 
   var obs = new IntersectionObserver(function(entradas){
     entradas.forEach(function(e){
-      if (e.isIntersecting) encender();
+      aLaVista = e.isIntersecting;
+      if (aLaVista){ anotar(); tocar(); }
       else if (pedido && !v.paused) v.pause();
     });
   }, { rootMargin: '200px 0px' });   /* arranca un poco antes de entrar */
@@ -4216,15 +4555,32 @@ var UNIDAD = null;
      póster fijo para siempre. Este respaldo mira la distancia a mano y
      se desconecta apenas cumplió. */
   function porScroll(){
-    if (pedido){ removeEventListener('scroll', porScroll); return; }
+    if (anotado){ removeEventListener('scroll', porScroll); return; }
+    var alto = window.innerHeight;
+    if (!alto) return;                /* sin maqueta no se mide nada */
     var r = seccion.getBoundingClientRect();
-    if (r.top < window.innerHeight + 200 && r.bottom > -200){
-      encender();
+    if (r.top < alto + 900 && r.bottom > -900){
+      anotar();
       removeEventListener('scroll', porScroll);
     }
   }
   addEventListener('scroll', porScroll, { passive:true });
-  porScroll();
+  /* EL RESPALDO NO PUEDE CORRER ANTES DE QUE HAYA MAQUETA.
+
+     Este chequeo se llamaba derecho, en la misma línea, y estos scripts
+     corren MIENTRAS SE PARSEA la página. En ese instante el navegador
+     puede no tener todavía ni la altura de la ventana: medido en el
+     panel de vista previa, innerHeight daba 0 y el rectángulo de la
+     sección daba top 99. Con eso la cuenta "¿está a menos de una
+     pantalla y media?" da que SÍ para una sección que está a ocho
+     pantallas, y los videos de abajo se anotaban todos al entrar — que
+     es exactamente lo contrario de lo que este archivo intenta hacer.
+
+     Ahora hay dos candados: no se mide si la ventana todavía no tiene
+     altura, y la primera pasada espera al primer cuadro pintado. El
+     IntersectionObserver, que es el camino principal, nunca tuvo este
+     problema: mide contra la maqueta real y recién cuando existe. */
+  requestAnimationFrame(porScroll);
 })();
 </script>
 

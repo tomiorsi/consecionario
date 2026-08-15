@@ -36,3 +36,50 @@
 
 /assets/mark.svg
   Cache-Control: public, max-age=604800
+
+# ── LO PESADO: VIDEOS, PÓSTERES, FOTOS Y MAPAS ────────────────────
+#
+# Sin regla propia, Cloudflare les pone "max-age=0, must-revalidate", y
+# eso significa que el navegador tiene la copia guardada pero NO PUEDE
+# USARLA sin preguntar antes. Comprobado sobre el sitio publicado: los
+# videos, las fotos de los grupos y los mapas volvían todos con ese
+# valor. Son ocho archivos: ocho idas y vueltas al servidor antes de
+# poder reusar un solo byte de lo que ya está en el teléfono. En una red
+# de celular, donde lo que se paga es la latencia, esa es toda la
+# diferencia entre entrar por segunda vez y que aparezca al toque o que
+# aparezca después de pensarlo.
+#
+# UN DÍA, Y NO UN AÑO, PORQUE ESTOS NOMBRES NO LLEVAN HUELLA. Los de
+# cars/ sí la llevan (?v=…) y por eso están arriba como immutable: si
+# cambia el archivo, cambia la dirección. Estos otros no: publicar un
+# video nuevo deja la misma dirección con otro contenido. Con un año de
+# caché, quien ya entró seguiría viendo el video viejo hasta 2027.
+#
+# Un día es la respuesta honesta a las dos preguntas: alcanza de sobra
+# para que volver a entrar el mismo día no cueste nada, y garantiza que
+# cualquier cambio llegue a todo el mundo al día siguiente.
+#
+# Ojo con solapar: las reglas de acá abajo no pueden pisarse entre sí ni
+# con las de arriba, por eso van carpeta por carpeta y no un /assets/*
+# que se comería también a cars/ y a mark.svg.
+
+/assets/video/*
+  Cache-Control: public, max-age=86400
+
+/assets/collage/*
+  Cache-Control: public, max-age=86400
+
+/assets/ruta/*
+  Cache-Control: public, max-age=86400
+
+/assets/grupos/*
+  Cache-Control: public, max-age=86400
+
+/assets/mapa/*
+  Cache-Control: public, max-age=86400
+
+/assets/social/*
+  Cache-Control: public, max-age=86400
+
+/assets/lineas/*
+  Cache-Control: public, max-age=86400
