@@ -993,43 +993,60 @@ video::-webkit-media-controls{ display:none !important; }
    la distancia entre ejes mas corta y su linea es un 14% mas corta que
    la del Mercedes.
 
-   ES UN ELEMENTO PROPIO Y NO UN PSEUDO DEL AUTO. Antes la geometria
-   vivia en .gar-auto::before, y eso obligaba a repetir el rotate dentro
-   de cada fotograma de la animacion —animar `transform` pisa el giro— y
-   dejaba una sola capa para todo. Con un elemento propio, el giro se
-   declara UNA vez acá y los hijos son barras horizontales: cada capa
-   hace lo suyo sin pelearse con la rotacion.
+   UNA SOLA CALLE, QUIETA, Y PASA POR DEBAJO DE LOS DOS AUTOS.
 
-     .gar-calle          la geometria y el halo
-     .gar-calle::before  el nucleo encendido
-     .gar-calle::after   el barrido que la recorre al llegar
+   Antes cada auto traía su propio pedazo de calle adentro, así que la
+   calle viajaba, se escalaba y se iba de cuadro con él. Ahora hay una
+   sola, hermana de los autos y no hija: lo único que cambia es el auto.
 
-   Vive detras de la foto, asi la tira pasa POR DEBAJO de las gomas y se
-   ve solo entre medio, que es donde estaria de verdad. Y hereda la
-   escala del auto: el vecino achicado trae su calle achicada, que es lo
-   que la hace leer como la misma calle yendose al fondo. */
+   SE PUDO UNIFICAR PORQUE LOS CUATRO YA ESTABAN SOBRE LA MISMA RECTA, y
+   eso se comprobó antes de tocar nada. Se midió, para los cuatro autos y
+   en los dos puestos, dónde cae su línea de apoyo en coordenadas del
+   escenario. Una sola recta desde la goma trasera del que entra hasta la
+   goma delantera del que está en el medio pasa por los cuatro apoyos con
+   0,07 puntos de diferencia en escritorio. O sea: la calle ya existía,
+   estaba dibujada cuatro veces.
+
+     escritorio   de (3,58%, 76,57%) a (49,70%, 85,78%)   5,07°
+     celular      de (-11,34%, 81,78%) a (49,56%, 89,36%)  4,39°
+
+   Los ángulos difieren porque el escenario cambia de proporción entre
+   una pantalla y otra (2,25 contra 1,62) y el giro se aplica en píxeles,
+   no en porcentajes. En celular la punta izquierda queda fuera de
+   cuadro, que es justo lo que se quiere: la calle se va al fondo.
+
+   Vive DETRÁS de las fotos, así pasa por debajo de las gomas y se ve
+   sólo entre medio, que es donde estaría de verdad.
+
+     .gar-calle          la geometría y el halo
+     .gar-calle::before  el núcleo, encendido siempre
+     .gar-luz            la luz que se prende siguiendo al auto
+     .gar-calle::after   el golpe de luz al llegar al medio */
 .gar-calle{
   position:absolute;
-  left:calc(var(--x1) * 100%);
-  top:calc(var(--y1) * 100%);
-  width:calc(var(--largo) * 100%);
+  /* Los cuatro números salen de medir, no de tantear. Ver arriba. */
+  left:3.58%;
+  top:76.57%;
+  width:46.30%;
   height:30px;
   margin-top:-15px;
   transform-origin:0 50%;
-  transform:rotate(var(--ang));
+  transform:rotate(5.07deg);
   z-index:0;
   pointer-events:none;
-  /* el halo. Sin blur: el degradado ya es suave, y un filtro acá
-     desenfocaria tambien al nucleo y al barrido, que son hijos. */
-  background:radial-gradient(50% 46% at 48% 50%,
-    rgba(255,255,255,.20), rgba(255,255,255,.055) 46%, transparent 76%);
-  opacity:.72;
-  transition:opacity .5s var(--ease);
+  /* El halo. Más presente hacia la derecha, que es la punta que está
+     cerca: en perspectiva, lo que viene hacia vos tiene más luz. */
+  background:radial-gradient(58% 46% at 62% 50%,
+    rgba(255,255,255,.19), rgba(255,255,255,.05) 48%, transparent 78%);
 }
 
-/* el nucleo, encendido siempre. Se apaga hacia las puntas en vez de
-   terminar de golpe: una linea que corta en seco se lee como un objeto
-   apoyado; una que se desvanece, como luz que se termina. */
+/* EL NÚCLEO, ENCENDIDO SIEMPRE. Es la calle en reposo: lo que queda
+   cuando no está pasando nada.
+
+   El degradado no es simétrico. Se apaga del todo en la punta
+   izquierda —la que se va al fondo— y llega más viva a la derecha. Una
+   línea pareja se lee como un objeto apoyado; una que se debilita con
+   la distancia se lee como una calle. */
 .gar-calle::before{
   content:"";
   position:absolute;
@@ -1038,58 +1055,133 @@ video::-webkit-media-controls{ display:none !important; }
   margin-top:-1px;
   background:linear-gradient(90deg,
     transparent 0%,
-    rgba(255,255,255,.5) 11%,
-    #fff 47%,
-    rgba(255,255,255,.88) 74%,
-    transparent 100%);
+    rgba(255,255,255,.16) 14%,
+    rgba(255,255,255,.34) 52%,
+    rgba(255,255,255,.46) 88%,
+    rgba(255,255,255,.20) 100%);
 }
 
-/* EL BARRIDO. Un reflejo angosto que recorre la tira de punta a punta
-   cuando el auto llega, en el mismo sentido en que venia. No es un
-   parpadeo: la tira nunca se apaga, lo que pasa es que algo la recorre.
-   Esa es la diferencia entre que parezca una lampara fallando y que
-   parezca una regleta encendiendose. */
+/* LA LUZ QUE SIGUE AL AUTO.
+
+   No es un barrido que pasa y se va: es la calle PRENDIÉNDOSE por
+   detrás del auto mientras avanza. Por eso lo que se anima es el ANCHO
+   y no la posición — el borde derecho es la cabeza, y va justo donde va
+   el auto; lo que queda atrás es la calle ya encendida.
+
+   Arranca en 16% porque ahí es donde está parado el auto que entra: la
+   goma delantera del vecino cae en el 15,7% del largo de la calle en
+   escritorio y en el 18,4% en celular. O sea que la luz no nace en la
+   nada, nace debajo del auto que arranca a moverse. */
+.gar-luz{
+  position:absolute;
+  left:0; top:50%;
+  width:16%;
+  height:3px;
+  margin-top:-1.5px;
+  opacity:0;
+  background:linear-gradient(90deg,
+    rgba(255,255,255,0) 0%,
+    rgba(255,255,255,.18) 38%,
+    rgba(255,255,255,.62) 82%,
+    #fff 97%,
+    rgba(255,255,255,.75) 100%);
+  filter:blur(.6px);
+}
+
+/* EL GOLPE DE LUZ AL LLEGAR.
+
+   PRIMERO SE PROBO COMO UN ESTALLIDO CHICO EN LA PUNTA DERECHA, justo
+   donde queda la goma delantera, que era lo obvio. No se veia. La calle
+   vive DETRAS de las fotos —tiene que pasar por debajo de las gomas— asi
+   que un resplandor concentrado ahi queda tapado por la carroceria.
+   Medido: el brillo de ese rincon subia hasta los 850 ms, que es el
+   barrido llegando, y de ahi para abajo. El golpe no aportaba nada.
+
+   Asi que el golpe es de TODA la calle, no de un punto: en el instante
+   en que el auto se planta, la tira entera se ensancha y se enciende de
+   golpe, y se apaga sola. Eso si se ve, porque la calle asoma por todos
+   lados —entre los dos autos, entre las ruedas, delante de la trompa—
+   y porque una calle que late completa se lee como el golpe de luz de
+   un estudio, que es lo que se buscaba.
+
+   Se enciende mas hacia la derecha, que es donde acaba de llegar. */
 .gar-calle::after{
   content:"";
   position:absolute;
-  left:0; top:50%;
-  width:30%;
-  height:3px;
-  margin-top:-1.5px;
+  left:0; right:0; top:50%;
+  height:4px;
+  margin-top:-2px;
+  border-radius:2px;
   background:linear-gradient(90deg,
-    transparent 0%, rgba(255,255,255,.55) 38%, #fff 52%,
-    rgba(255,255,255,.45) 66%, transparent 100%);
-  filter:blur(1.5px);
+    transparent 0%,
+    rgba(255,255,255,.30) 22%,
+    rgba(255,255,255,.85) 66%,
+    #fff 90%,
+    rgba(255,255,255,.45) 100%);
+  filter:blur(2px);
   opacity:0;
+  transform-origin:50% 50%;
 }
 
-/* Arranca a los .92s contra los 1.15s que dura el viaje: el barrido
-   corre mientras el auto termina de plantarse, no despues. */
-@keyframes gar-barrido{
-  0%   { opacity:0;  transform:translateX(-45%); }
-  14%  { opacity:1;  }
-  84%  { opacity:.9; }
-  100% { opacity:0;  transform:translateX(345%); }
+/* SON DOS ANIMACIONES Y NO UNA, Y ESA ES LA PARTE QUE IMPORTA.
+
+   El ancho —o sea, dónde está la cabeza de luz— tiene que ir EXACTAMENTE
+   donde va el auto. Y el auto viaja con `transition: 1.15s var(--ease)`.
+   Así que la luz usa la misma duración y la misma curva, de una punta a
+   la otra y sin escalas: las dos recorren 0→1 con la misma función, o
+   sea que la cabeza queda clavada bajo la goma delantera todo el viaje.
+
+   Al principio esto vivía en una sola animación de 2 s con el ancho y la
+   opacidad juntos, y un fotograma intermedio al 7% para el encendido.
+   Ese fotograma partía la curva en dos tramos y cada tramo volvía a
+   aplicar el ease: la luz salía atrasada respecto del auto y después lo
+   pasaba. Medido: con el auto al 88% de su viaje, la luz iba al 79%, y
+   llegaba al final 300 ms antes que él.
+
+   La opacidad sí puede ir por su lado —encender rápido, apagarse
+   despacio después del golpe— y por eso es su propia animación, más
+   larga, en tiempo lineal. */
+@keyframes gar-avanza{
+  from { width:16%; }
+  to   { width:100%; }
 }
 
-@keyframes gar-encender{
-  0%   { opacity:.3; }
-  30%  { opacity:1;  }
-  100% { opacity:.72; }
+/* Termina en 0 a propósito: así el próximo pase arranca desde donde
+   terminó el anterior y no hay parpadeo al reiniciar. Lo que queda
+   encendido entre pase y pase es el núcleo. */
+@keyframes gar-prende{
+  0%   { opacity:0; }
+  6%   { opacity:1; }
+  46%  { opacity:1; }
+  62%  { opacity:.45; }
+  100% { opacity:0; }
 }
 
-.gar-auto.es-actual .gar-calle{
-  animation:gar-encender 1.5s var(--ease) .85s both;
-}
-.gar-auto.es-actual .gar-calle::after{
-  animation:gar-barrido 1.15s cubic-bezier(.18,.72,.3,1) .92s both;
+/* Se ensancha en vertical, no en largo: la calle ya mide lo que mide, y
+   lo que hace la luz al golpear es engordar, no estirarse. */
+@keyframes gar-golpe{
+  0%   { opacity:0; transform:scaleY(.6); }
+  16%  { opacity:1; transform:scaleY(3.4); }
+  55%  { opacity:.5; transform:scaleY(1.6); }
+  100% { opacity:0; transform:scaleY(1); }
 }
 
-/* Quien pidió no ver movimiento ve la tira encendida y quieta. */
+.gar-calle.anda .gar-luz{
+  animation:gar-avanza 1.15s var(--ease) both,
+            gar-prende 1.9s linear both;
+}
+/* El golpe sale a los .68 s y no al final del 1,15 s del viaje. No es
+   un desfasaje: con esta curva —un ease-out fuerte— el auto ya recorrió
+   casi todo a esa altura y lo que le queda es asentarse. El golpe tiene
+   que caer cuando el auto SE VE llegar, no cuando la transición
+   termina de contar. */
+.gar-calle.anda::after{ animation:gar-golpe .9s var(--ease) .68s both; }
+
+/* Quien pidió no ver movimiento ve la calle encendida y quieta. */
 @media (prefers-reduced-motion:reduce){
-  .gar-auto.es-actual .gar-calle,
-  .gar-auto.es-actual .gar-calle::after{ animation:none; }
-  .gar-calle{ opacity:.72; }
+  .gar-calle.anda .gar-luz,
+  .gar-calle.anda::after{ animation:none; }
+  .gar-luz{ opacity:.45; width:100%; }
 }
 
 .gar-auto picture{
@@ -1238,6 +1330,21 @@ video::-webkit-media-controls{ display:none !important; }
   }
   .gar-escena{ aspect-ratio:1.62; }
   .gar-marca{ top:22%; font-size:clamp(1.3rem,6.3vw,2.4rem); }
+
+  /* LA CALLE, MEDIDA DE NUEVO PARA ESTA PROPORCION. No alcanza con
+     reusar la de escritorio: el escenario pasa de 2,25 a 1,62 de
+     proporcion, y como el giro se aplica en pixeles y no en
+     porcentajes, el mismo angulo dibujaria otra recta.
+
+     La punta izquierda cae en -11,34%, fuera de cuadro, y esta bien: el
+     auto que entra tambien entra desde afuera, y la calle tiene que
+     venir de donde viene el. */
+  .gar-calle{
+    left:-11.34%;
+    top:81.78%;
+    width:61.08%;
+    transform:rotate(4.39deg);
+  }
 
   /* EL AUTO, LO MAS GRANDE QUE PERMITE LA ARITMETICA.
 
@@ -3205,36 +3312,33 @@ window.TURNO = (function(){
            escena. Repetirlo para un lector de pantalla seria ruido. -->
       <div class="gar-marca" aria-hidden="true">Alta Gama</div>
 
-      <div class="gar-auto"
-           style="--x1:0.1555; --y1:0.8504; --largo:0.3521; --ang:4.74deg">
-        <span class="gar-calle" aria-hidden="true"></span>
+      <!-- LA CALLE. Una sola, quieta, y pasa por debajo de los dos
+           autos. Antes cada auto traía la suya y viajaba con él; ver el
+           comentario del CSS para por qué se pudo unificar. -->
+      <span class="gar-calle" aria-hidden="true"><span class="gar-luz"></span></span>
+
+      <div class="gar-auto">
         <picture>
           <source media="(max-width:767px)" srcset="assets/grupos/alta-gama@sm.webp">
           <img src="assets/grupos/alta-gama.webp" alt="Mercedes-AMG GLE 63 Coupé blanco"
                loading="lazy" decoding="async" width="1100" height="468">
         </picture>
       </div>
-      <div class="gar-auto"
-           style="--x1:0.1518; --y1:0.8462; --largo:0.3514; --ang:5.19deg">
-        <span class="gar-calle" aria-hidden="true"></span>
+      <div class="gar-auto">
         <picture>
           <source media="(max-width:767px)" srcset="assets/grupos/deportivos@sm.webp">
           <img src="assets/grupos/deportivos.webp" alt="BMW M240i violeta"
                loading="lazy" decoding="async" width="1100" height="468">
         </picture>
       </div>
-      <div class="gar-auto"
-           style="--x1:0.1573; --y1:0.8504; --largo:0.3503; --ang:4.76deg">
-        <span class="gar-calle" aria-hidden="true"></span>
+      <div class="gar-auto">
         <picture>
           <source media="(max-width:767px)" srcset="assets/grupos/evolution@sm.webp">
           <img src="assets/grupos/evolution.webp" alt="Ford Mustang Mach-E azul"
                loading="lazy" decoding="async" width="1100" height="468">
         </picture>
       </div>
-      <div class="gar-auto"
-           style="--x1:0.1455; --y1:0.8504; --largo:0.3241; --ang:5.31deg">
-        <span class="gar-calle" aria-hidden="true"></span>
+      <div class="gar-auto">
         <picture>
           <source media="(max-width:767px)" srcset="assets/grupos/urbanos@sm.webp">
           <img src="assets/grupos/urbanos.webp" alt="MINI Cooper S rojo"
@@ -3295,6 +3399,7 @@ window.TURNO = (function(){
   var rayas = [].slice.call(sec.querySelectorAll('.gar-raya'));
   var texto = sec.querySelector('.gar-texto');
   var escena = sec.querySelector('.gar-escena');
+  var calle  = sec.querySelector('.gar-calle');
   var marca  = sec.querySelector('.gar-marca');
   var boton  = sec.querySelector('.gar-boton');
   if (autos.length < 2) return;
@@ -3405,11 +3510,29 @@ window.TURNO = (function(){
     });
   }
 
+  /* LA CALLE SE VUELVE A ENCENDER EN CADA PASE.
+
+     Como la calle ya no es hija del auto, no hay clase de auto de la que
+     colgar la animación: la dispara el carrusel.
+
+     Y hay que reiniciarla a mano. Volver a poner una clase que ya está
+     puesta no reinicia nada —el navegador ve el mismo estado y no hace
+     nada— así que se saca, se lo obliga a recalcular con offsetWidth, y
+     recién ahí se vuelve a poner. Sin ese paso del medio, la luz sale
+     una sola vez en toda la sesión. */
+  function encenderCalle(){
+    if (!calle) return;
+    calle.classList.remove('anda');
+    void calle.offsetWidth;
+    calle.classList.add('anda');
+  }
+
   function ir(destino){
     destino = (destino % N + N) % N;
     if (destino === actual) return;
     actual = destino;
     colocar();
+    encenderCalle();
     texto.classList.add('cambiando');
     if (marca) marca.classList.add('cambiando');
     setTimeout(function(){
@@ -3451,9 +3574,13 @@ window.TURNO = (function(){
   addEventListener('resize', ajustarMarca);
   if ('IntersectionObserver' in window){
     new IntersectionObserver(function(e){
-      e.forEach(function(x){ x.isIntersecting ? programar() : frenar(); });
+      e.forEach(function(x){
+        if (x.isIntersecting){ encenderCalle(); programar(); }
+        else frenar();
+      });
     }, { threshold:0.25 }).observe(sec);
   } else {
+    encenderCalle();
     programar();
   }
 })();
