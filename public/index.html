@@ -823,22 +823,15 @@ video::-webkit-media-controls{ display:none !important; }
 .gar-escena{
   position:relative;
   overflow:hidden;
-  aspect-ratio:2.4;
+  aspect-ratio:2.25;
   background:var(--void);
 }
 
-/* LA LUZ CENITAL. Una sola fuente, arriba y al centro, como el softbox
-   de un stand. Muy tenue a propósito: lo que tiene que iluminar es la
-   pared del fondo para que el nombre se despegue, no la escena entera. */
-.gar-escena::before{
-  content:"";
-  position:absolute;
-  inset:0;
-  z-index:0;
-  pointer-events:none;
-  background:radial-gradient(105% 62% at 50% 2%,
-             rgba(255,255,255,.058), rgba(255,255,255,.018) 42%, transparent 68%);
-}
+/* NO HAY LUZ DE ARRIBA. Estuvo un momento y se saco: sobre un fondo que
+   tiene que ser negro pleno, un halo cenital se lee como una mancha
+   gris, no como iluminacion. La unica fuente es el piso — la luz viene
+   de abajo, que es ademas como se ilumina una tarima de salon de
+   verdad: el auto recortado contra la oscuridad y el disco encendido. */
 
 /* El grano, misma técnica que en el puente: sobre negro puro no hace
    nada, y aparece donde el degradado se aclara, que es exactamente
@@ -864,14 +857,16 @@ video::-webkit-media-controls{ display:none !important; }
 
    La máscara la desvanece hacia abajo, como si la luz cenital no
    llegara al zócalo de la pared. */
-/* El 27% no es a ojo: medido, el techo de los cuatro autos cae entre el
-   34% y el 36% del alto del escenario, y la palabra mide un 13%. Desde
-   el 27% su base llega al 40%, así que el auto le cruza el tercio de
-   abajo — suficiente para que se lea detrás, poco para que se pierda. */
+/* La altura no es a ojo: se recalcula cada vez que cambia el tamaño del
+   auto, porque de eso depende dónde queda el techo. Con el auto al 68%
+   del escenario su techo cae entre el 27% y el 30%, y la palabra mide un
+   13%: desde el 17% su base llega al 30%, así que el techo le cruza el
+   borde de abajo. Suficiente para que se lea detrás, poco para que se
+   pierda —el auto es ancho y más abajo se comería el centro—. */
 .gar-marca{
   position:absolute;
   left:50%;
-  top:27%;
+  top:17%;
   z-index:0;
   transform:translateX(-50%);
   white-space:nowrap;
@@ -901,10 +896,10 @@ video::-webkit-media-controls{ display:none !important; }
   position:absolute;
   left:50%;
   bottom:16%;
-  width:54%;
+  width:68%;
   z-index:2;
   opacity:0;
-  transform-origin:50% 91.5%;
+  transform-origin:50% 92%;
   transform:translateX(-50%) scale(.5);
   transition:left .72s var(--ease), transform .72s var(--ease), opacity .72s var(--ease);
   will-change:left, transform, opacity;
@@ -921,14 +916,14 @@ video::-webkit-media-controls{ display:none !important; }
 .gar-auto::before{
   content:"";
   position:absolute;
-  left:-7%;
-  right:-7%;
-  bottom:8.5%;
-  height:15%;
+  left:-11%;
+  right:-11%;
+  bottom:5.5%;
+  height:19%;
   transform:translateY(50%);
   border-radius:50%;
   background:radial-gradient(50% 50% at 50% 50%,
-             rgba(255,255,255,.21), rgba(255,255,255,.06) 46%, transparent 71%);
+             rgba(255,255,255,.30), rgba(255,255,255,.085) 44%, transparent 72%);
   z-index:0;
 }
 
@@ -966,10 +961,10 @@ video::-webkit-media-controls{ display:none !important; }
 .gar-auto.es-siguiente{
   opacity:.42;
   z-index:2;
-  transform:translateX(-50%) scale(.44);
+  transform:translateX(-50%) scale(.31);
 }
-.gar-auto.es-previo   { left:12.9%; }
-.gar-auto.es-siguiente{ left:87.1%; }
+.gar-auto.es-previo   { left:10.9%; }
+.gar-auto.es-siguiente{ left:89.1%; }
 
 /* ── el texto del grupo ───────────────────────────────────────────
    Ahora el nombre vive en la escena, así que acá abajo queda sólo la
@@ -1038,12 +1033,12 @@ video::-webkit-media-controls{ display:none !important; }
    324 px de ancho tres autos que no se tocan no entran de otra forma. */
 @media (max-width:820px){
   .gar-escena{ aspect-ratio:1.85; }
-  .gar-marca{ top:34%; font-size:clamp(1.1rem,5.4vw,2rem); }
-  .gar-auto{ width:62%; bottom:15%; }
+  .gar-marca{ top:24%; font-size:clamp(1.1rem,5.4vw,2rem); }
+  .gar-auto{ width:70%; bottom:13%; }
   .gar-auto.es-previo,
-  .gar-auto.es-siguiente{ transform:translateX(-50%) scale(.37); }
-  .gar-auto.es-previo   { left:11.4%; }
-  .gar-auto.es-siguiente{ left:88.6%; }
+  .gar-auto.es-siguiente{ transform:translateX(-50%) scale(.30); }
+  .gar-auto.es-previo   { left:10.6%; }
+  .gar-auto.es-siguiente{ left:89.4%; }
   .gar-flecha{ width:2.2rem; height:2.2rem; }
   .gar-texto{ min-height:5.5rem; }
 }
