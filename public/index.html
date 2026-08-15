@@ -974,9 +974,21 @@ video::-webkit-media-controls{ display:none !important; }
    cuadro. La opacidad tiene su propio tiempo y arranca tarde —recien a
    los .45s— para que no se desvanezca en el medio de la pantalla: se
    tiene que ir por el costado, no evaporarse. */
+/* EL QUE SE VA, SE VA POR LA CALLE.
+
+   El bottom no es un número elegido a ojo: es el que deja la goma
+   apoyada sobre la recta cuando el auto llega a left:128%. Se midió, y
+   con el -12% que tenía antes el apoyo caía 5,6 puntos POR DEBAJO de la
+   calle — o sea que el auto no se iba siguiendo el camino, se hundía.
+   Con la calle corta no se notaba porque no había calle ahí para
+   comparar; ahora que sigue de largo, sí.
+
+   Y alcanza con acomodar la punta: `left`, `bottom` y la escala
+   interpolan las tres en línea recta, así que si el principio y el final
+   están sobre la calle, todo el viaje está sobre la calle. */
 .gar-auto.es-saliendo{
   left:128%;
-  bottom:-12%;
+  bottom:-6.40%;
   opacity:0;
   transform:translateX(-50%) scale(1.45);
   z-index:1;
@@ -1007,13 +1019,25 @@ video::-webkit-media-controls{ display:none !important; }
    0,07 puntos de diferencia en escritorio. O sea: la calle ya existía,
    estaba dibujada cuatro veces.
 
-     escritorio   de (3,58%, 76,57%) a (49,70%, 85,78%)   5,07°
-     celular      de (-11,34%, 81,78%) a (49,56%, 89,36%)  4,39°
+   Y DESPUÉS SIGUE DE LARGO. El tramo medido llega hasta la goma
+   delantera del auto del medio, y ahí terminaba: la calle se cortaba
+   justo donde el auto todavía tiene que seguir viaje. Ahora el largo va
+   DUPLICADO sobre la misma recta —mismo origen, mismo ángulo, el doble
+   de tira— así que el tramo que va del medio hacia la derecha mide
+   exactamente lo mismo que el que viene de la izquierda.
+
+     escritorio   de (3,58%, 76,57%) a (95,82%, 94,99%)    5,07°
+     celular      de (-11,34%, 81,78%) a (110,46%, 96,94%)  4,39°
 
    Los ángulos difieren porque el escenario cambia de proporción entre
    una pantalla y otra (2,25 contra 1,62) y el giro se aplica en píxeles,
-   no en porcentajes. En celular la punta izquierda queda fuera de
-   cuadro, que es justo lo que se quiere: la calle se va al fondo.
+   no en porcentajes. Las dos puntas quedan fuera de cuadro en celular, y
+   está bien: la calle viene de más atrás y sigue más allá.
+
+   EL 50% DE LA TIRA ES LA GOMA DELANTERA DEL AUTO DEL MEDIO, en las dos
+   pantallas, y no por casualidad: la mitad de una recta que va de la
+   goma trasera del que entra al doble de esa distancia cae justo ahí.
+   Por eso la luz que persigue al auto se planta en 50% y no en 100%.
 
    Vive DETRÁS de las fotos, así pasa por debajo de las gomas y se ve
    sólo entre medio, que es donde estaría de verdad.
@@ -1024,20 +1048,28 @@ video::-webkit-media-controls{ display:none !important; }
      .gar-calle::after   el golpe de luz al llegar al medio */
 .gar-calle{
   position:absolute;
-  /* Los cuatro números salen de medir, no de tantear. Ver arriba. */
+  /* Los números salen de medir, no de tantear. Ver arriba. El ancho es
+     el DOBLE del tramo medido: la mitad de la tira cae en la goma
+     delantera del auto del medio y la otra mitad sigue hacia la
+     derecha. */
   left:3.58%;
   top:76.57%;
-  width:46.30%;
+  width:92.60%;
   height:30px;
   margin-top:-15px;
   transform-origin:0 50%;
   transform:rotate(5.07deg);
   z-index:0;
   pointer-events:none;
-  /* El halo. Más presente hacia la derecha, que es la punta que está
-     cerca: en perspectiva, lo que viene hacia vos tiene más luz. */
-  background:radial-gradient(58% 46% at 62% 50%,
-    rgba(255,255,255,.19), rgba(255,255,255,.05) 48%, transparent 78%);
+  /* Dónde arranca y dónde termina la luz que persigue al auto, en
+     fracción de la tira: de la goma delantera del que entra a la del que
+     queda en el medio. */
+  --luz-desde:7.84%;
+  --luz-hasta:50%;
+  /* El halo, centrado donde para el auto y no en el medio de la tira:
+     la tira sigue de largo, pero la luz de piso es del auto. */
+  background:radial-gradient(34% 46% at 42% 50%,
+    rgba(255,255,255,.19), rgba(255,255,255,.05) 52%, transparent 80%);
 }
 
 /* EL NÚCLEO, ENCENDIDO SIEMPRE. Es la calle en reposo: lo que queda
@@ -1053,12 +1085,19 @@ video::-webkit-media-controls{ display:none !important; }
   left:0; right:0; top:50%;
   height:2px;
   margin-top:-1px;
+  /* Los topes están puestos sobre la tira LARGA: el 50% es la goma
+     delantera del auto del medio, así que el punto más encendido va ahí
+     y se apaga hacia las dos puntas. Antes el máximo estaba en el 88%,
+     que sobre la tira vieja era el auto y sobre la nueva es campo
+     abierto a la derecha: el brillo se iba solo, lejos del auto. */
   background:linear-gradient(90deg,
     transparent 0%,
-    rgba(255,255,255,.16) 14%,
-    rgba(255,255,255,.34) 52%,
-    rgba(255,255,255,.46) 88%,
-    rgba(255,255,255,.20) 100%);
+    rgba(255,255,255,.13) 9%,
+    rgba(255,255,255,.30) 30%,
+    rgba(255,255,255,.46) 49%,
+    rgba(255,255,255,.32) 64%,
+    rgba(255,255,255,.11) 88%,
+    transparent 100%);
 }
 
 /* LA LUZ QUE SIGUE AL AUTO.
@@ -1075,7 +1114,7 @@ video::-webkit-media-controls{ display:none !important; }
 .gar-luz{
   position:absolute;
   left:0; top:50%;
-  width:16%;
+  width:var(--luz-desde);
   height:3px;
   margin-top:-1.5px;
   opacity:0;
@@ -1112,12 +1151,16 @@ video::-webkit-media-controls{ display:none !important; }
   height:4px;
   margin-top:-2px;
   border-radius:2px;
+  /* Pica en el 50%, que es donde queda la goma delantera del auto del
+     medio, y se apaga hacia las dos puntas. */
   background:linear-gradient(90deg,
     transparent 0%,
-    rgba(255,255,255,.30) 22%,
-    rgba(255,255,255,.85) 66%,
-    #fff 90%,
-    rgba(255,255,255,.45) 100%);
+    rgba(255,255,255,.22) 16%,
+    rgba(255,255,255,.80) 40%,
+    #fff 50%,
+    rgba(255,255,255,.62) 62%,
+    rgba(255,255,255,.16) 84%,
+    transparent 100%);
   filter:blur(2px);
   opacity:0;
   transform-origin:50% 50%;
@@ -1142,8 +1185,8 @@ video::-webkit-media-controls{ display:none !important; }
    despacio después del golpe— y por eso es su propia animación, más
    larga, en tiempo lineal. */
 @keyframes gar-avanza{
-  from { width:16%; }
-  to   { width:100%; }
+  from { width:var(--luz-desde); }
+  to   { width:var(--luz-hasta); }
 }
 
 /* Termina en 0 a propósito: así el próximo pase arranca desde donde
@@ -1342,8 +1385,11 @@ video::-webkit-media-controls{ display:none !important; }
   .gar-calle{
     left:-11.34%;
     top:81.78%;
-    width:61.08%;
+    width:122.16%;
     transform:rotate(4.39deg);
+    /* La goma delantera del que entra cae un poco más adelante que en
+       escritorio porque el vecino entra más metido. */
+    --luz-desde:9.20%;
   }
 
   /* EL AUTO, LO MAS GRANDE QUE PERMITE LA ARITMETICA.
@@ -1370,7 +1416,9 @@ video::-webkit-media-controls{ display:none !important; }
      limpio porque las fotos tienen transparencia real y el z-index los
      ordena. Es ademas lo que corresponde: viene atras. */
   .gar-auto.es-entrando{ left:0; bottom:11%; transform:translateX(-50%) scale(.32); }
-  .gar-auto.es-saliendo{ left:165%;  bottom:-20%; transform:translateX(-50%) scale(1.3); }
+  /* Mismo criterio que en escritorio: el bottom sale de medir dónde
+     pisa. Con -20% se hundía 10 puntos por debajo de la calle. */
+  .gar-auto.es-saliendo{ left:165%;  bottom:-10.02%; transform:translateX(-50%) scale(1.3); }
 }
 
 /* En el telefono los mandos se achican: con el auto ocupando el 75% del
