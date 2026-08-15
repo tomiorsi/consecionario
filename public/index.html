@@ -906,24 +906,30 @@ video::-webkit-media-controls{ display:none !important; }
   pointer-events:none;
 }
 
-/* EL DISCO DE LUZ. Va DENTRO del auto, así que hereda su escala: el
-   vecino achicado trae su propio disco achicado, sin una sola línea de
-   más. Centrado en la línea de apoyo, no en el borde de la imagen.
+/* LA CALLE. Una linea blanca que va de la goma trasera a la delantera,
+   siguiendo la inclinacion real de esa foto.
 
-   Se desborda a los costados (los -7%) porque un disco que termina
-   justo donde termina el auto se lee como una alfombra recortada; uno
-   que lo excede se lee como piso. */
+   Los cuatro numeros salen de medir el alfa de cada archivo: donde apoya
+   cada rueda, en fraccion del lienzo. Van como propiedades en el HTML
+   porque son distintos para cada auto —la MINI tiene la distancia entre
+   ejes mas corta y su linea es un 14% mas corta que la del Mercedes—.
+
+   El angulo se aplica con rotate y no dibujando una diagonal, asi la
+   linea mide un pixel de alto siempre. Y como vive DENTRO del auto,
+   hereda su escala: el vecino achicado trae su calle achicada, que es
+   exactamente lo que hace que se lea como la misma calle yendose al
+   fondo. */
 .gar-auto::before{
   content:"";
   position:absolute;
-  left:-11%;
-  right:-11%;
-  bottom:5.5%;
-  height:19%;
-  transform:translateY(50%);
-  border-radius:50%;
-  background:radial-gradient(50% 50% at 50% 50%,
-             rgba(255,255,255,.30), rgba(255,255,255,.085) 44%, transparent 72%);
+  left:calc(var(--x1) * 100%);
+  top:calc(var(--y1) * 100%);
+  width:calc(var(--largo) * 100%);
+  height:2.5px;
+  margin-top:-1.25px;
+  background:var(--chrome);
+  transform-origin:0 50%;
+  transform:rotate(var(--ang));
   z-index:0;
 }
 
@@ -957,14 +963,22 @@ video::-webkit-media-controls{ display:none !important; }
    auto ocupa de 0.071 a 0.928 del ancho de su archivo (medido sobre los
    cuatro), y con esos números el borde de adentro del vecino queda tres
    puntos antes de donde empieza el auto central. No se tocan nunca. */
+/* LOS VECINOS NO ESTAN A LA MISMA ALTURA: siguen la calle.
+
+   La cuenta: la pendiente medida es de 5.05 grados (tangente .0883) y
+   entre el centro de un auto y el del vecino hay un 39.1% del ancho del
+   escenario. Eso da 3.45% del ancho de caida, que con la proporcion 2.25
+   del escenario son 7.8 puntos de su alto. El de la izquierda sube esos
+   7.8, el de la derecha baja los mismos: los tres apoyan sobre una sola
+   recta. */
 .gar-auto.es-previo,
 .gar-auto.es-siguiente{
   opacity:.42;
   z-index:2;
   transform:translateX(-50%) scale(.31);
 }
-.gar-auto.es-previo   { left:10.9%; }
-.gar-auto.es-siguiente{ left:89.1%; }
+.gar-auto.es-previo   { left:10.9%; bottom:16.8%; }
+.gar-auto.es-siguiente{ left:89.1%; bottom:1.2%;  }
 
 /* ── el texto del grupo ───────────────────────────────────────────
    Ahora el nombre vive en la escena, así que acá abajo queda sólo la
@@ -1067,8 +1081,9 @@ video::-webkit-media-controls{ display:none !important; }
   .gar-auto{ width:70%; bottom:8%; }
   .gar-auto.es-previo,
   .gar-auto.es-siguiente{ transform:translateX(-50%) scale(.30); }
-  .gar-auto.es-previo   { left:10.6%; }
-  .gar-auto.es-siguiente{ left:89.4%; }
+  /* Misma cuenta con la proporcion 1.85: 39.4% x .0883 x 1.85 = 6.4 */
+  .gar-auto.es-previo   { left:10.6%; bottom:14.4%; }
+  .gar-auto.es-siguiente{ left:89.4%; bottom:1.6%;  }
   .gar-flecha{ width:2.2rem; height:2.2rem; }
   .gar-texto{ min-height:4.6rem; }
 }
@@ -2854,28 +2869,32 @@ body.is-dark.is-scrolled #topbar{
            escena. Repetirlo para un lector de pantalla seria ruido. -->
       <div class="gar-marca" aria-hidden="true">Alta Gama</div>
 
-      <div class="gar-auto">
+      <div class="gar-auto"
+           style="--x1:0.1555; --y1:0.8504; --largo:0.3521; --ang:4.74deg">
         <picture>
           <source media="(max-width:767px)" srcset="assets/grupos/alta-gama@sm.webp">
           <img src="assets/grupos/alta-gama.webp" alt="Mercedes-AMG GLE 63 Coupé blanco"
                loading="lazy" decoding="async" width="1100" height="468">
         </picture>
       </div>
-      <div class="gar-auto">
+      <div class="gar-auto"
+           style="--x1:0.1518; --y1:0.8462; --largo:0.3514; --ang:5.19deg">
         <picture>
           <source media="(max-width:767px)" srcset="assets/grupos/deportivos@sm.webp">
           <img src="assets/grupos/deportivos.webp" alt="BMW M240i violeta"
                loading="lazy" decoding="async" width="1100" height="468">
         </picture>
       </div>
-      <div class="gar-auto">
+      <div class="gar-auto"
+           style="--x1:0.1573; --y1:0.8504; --largo:0.3503; --ang:4.76deg">
         <picture>
           <source media="(max-width:767px)" srcset="assets/grupos/evolution@sm.webp">
           <img src="assets/grupos/evolution.webp" alt="Ford Mustang Mach-E azul"
                loading="lazy" decoding="async" width="1100" height="468">
         </picture>
       </div>
-      <div class="gar-auto">
+      <div class="gar-auto"
+           style="--x1:0.1645; --y1:0.8526; --largo:0.3041; --ang:5.49deg">
         <picture>
           <source media="(max-width:767px)" srcset="assets/grupos/urbanos@sm.webp">
           <img src="assets/grupos/urbanos.webp" alt="MINI Cooper S rojo"
