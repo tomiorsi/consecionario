@@ -3352,19 +3352,56 @@ window.TURNO = (function(){
      centro y del centro hacia afuera por la derecha, siempre en ese
      sentido.
 
-     El que ya se fue queda en `es-saliendo` una vuelta mas. No es un
-     detalle: si se le sacara la clase de una, el navegador lo animaria
-     de vuelta desde afuera de la pantalla hasta el fondo de la calle, o
-     sea cruzando el cuadro al reves. Como en los dos estados es
-     invisible, dejarlo ahi no cuesta nada. */
+     EL QUE VUELVE AL FONDO DE LA CALLE, VUELVE DE UN SALTO.
+
+     Acá estaba el bug de "aprieto la flecha y gira para la izquierda".
+
+     Cuando a un auto se le termina el turno de irse, deja de tener papel
+     y su posición vuelve a la de arranque, que está en el extremo
+     IZQUIERDO de la calle. Y como `.gar-auto` anima `left` en 1,15 s,
+     ese regreso se animaba: el auto cruzaba la pantalla entera de
+     derecha a izquierda.
+
+     El código anterior lo dejaba un turno de más en `es-saliendo` y daba
+     por hecho que para cuando volviera ya sería invisible. No lo es. La
+     opacidad del que se va tarda en apagarse —arranca recién a los .45 s
+     y dura .38— así que si llega otro pase antes de que termine, el auto
+     todavía se ve. Y llega: pasa siempre que se aprieta la flecha, y
+     también cuando el pase automático cae cerca del toque.
+
+     Medido en el navegador, siguiendo el centro de cada auto cuadro a
+     cuadro con dos clics separados por 400 ms: un auto recorría de 151%
+     a 2% del escenario CON OPACIDAD VISIBLE. Ciento cuarenta y nueve
+     puntos de pantalla hacia la izquierda, a la vista.
+
+     El arreglo es sacarle la transición al auto justo para ese salto y
+     devolvérsela enseguida. El `offsetWidth` no es adorno: obliga al
+     navegador a calcular la posición nueva ahí mismo, con las
+     transiciones apagadas, y es lo que convierte el viaje en un salto. */
   function colocar(){
     var entrando = (actual + 1) % N;
     var saliendo = (actual - 1 + N) % N;
+
     autos.forEach(function(a, i){
+      var papel = (i === actual)   ? 'es-actual'
+                : (i === entrando) ? 'es-entrando'
+                : (i === saliendo && saliendo !== entrando) ? 'es-saliendo'
+                : '';
+
+      var tenia = a.classList.contains('es-actual') ||
+                  a.classList.contains('es-entrando') ||
+                  a.classList.contains('es-saliendo');
+
+      if (!papel && tenia){
+        a.style.transition = 'none';
+        a.classList.remove('es-actual', 'es-entrando', 'es-saliendo');
+        void a.offsetWidth;
+        a.style.transition = '';
+        return;
+      }
+
       a.classList.remove('es-actual', 'es-entrando', 'es-saliendo');
-      if (i === actual) a.classList.add('es-actual');
-      else if (i === entrando) a.classList.add('es-entrando');
-      else if (i === saliendo && saliendo !== entrando) a.classList.add('es-saliendo');
+      if (papel) a.classList.add(papel);
     });
   }
 
