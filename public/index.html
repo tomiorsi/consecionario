@@ -1187,6 +1187,24 @@ video::-webkit-media-controls{ display:none !important; }
    que el techo lo siga cruzando. Los vecinos van más chicos porque con
    324 px de ancho tres autos que no se tocan no entran de otra forma. */
 @media (max-width:820px){
+  /* EL BLOQUE BAJA AL CENTRO DE SU SECCION.
+
+     En el telefono el garage medía 0.44 pantallas y su contenido quedaba
+     pegado arriba, con el arranque en negro del reel ocupando todo lo de
+     abajo: se leia como si sobrara espacio. Ahora la seccion mide 72svh
+     y el contenido se centra en ella.
+
+     Los 28svh que gana se le RESTAN al reel, asi que la pagina no crece
+     ni un pixel. El reel pasa de 1152 a 1124svh: el giro del auto se
+     acelera un 2%, que no se percibe. */
+  #garage{
+    min-height:72svh;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    padding-top:clamp(1rem,3vh,2rem);
+    padding-bottom:clamp(1rem,3vh,2rem);
+  }
   .gar-escena{ aspect-ratio:1.85; }
   .gar-marca{ top:26%; font-size:clamp(1.3rem,6.3vw,2.4rem); }
   .gar-auto{ width:70%; bottom:20%; }
@@ -2427,7 +2445,9 @@ body.cargando{ overflow:hidden; }
    hace que el video persiga al scroll más despacio. Estirar solo no
    alcanzaba: un envión rápido seguía siendo un envión rápido. */
 @media (max-width:767px){
-  #reel{ height:calc(var(--reel-h) * 1.6); }
+  /* Los 28svh de menos son los que se le dieron al garage para que
+     su contenido se centre; la pagina mide lo mismo que antes. */
+  #reel{ height:calc(var(--reel-h) * 1.6 - 28svh); }
 }
 
 .reel-stick{
@@ -2679,13 +2699,29 @@ body.is-dark.is-scrolled #topbar{
     function reintentarConGesto(){
       if (armado) return;
       armado = true;
-      var eventos = ['pointerdown','touchstart','scroll','keydown'];
-      function unaVez(){
-        eventos.forEach(function(n){ removeEventListener(n, unaVez); });
-        try { v.play(); } catch(e){}
+
+      /* SÓLO SE DESENGANCHA CUANDO EL PLAY SALIÓ BIEN, y esto era un
+         bug: antes se quitaban los escuchas en el primer evento, fuera
+         cual fuera. Pero `scroll` NO cuenta como gesto de usuario para
+         Safari —sólo tocar la pantalla lo es— así que lo más probable
+         era que el visitante scrolleara primero, eso consumiera el
+         único reintento con un play que iba a fallar igual, y el toque
+         posterior ya no encontrara a nadie escuchando.
+
+         Ahora cada evento vuelve a intentar y los escuchas siguen
+         puestos hasta que el video efectivamente arranca. */
+      var eventos = ['pointerdown','touchstart','touchend','click','keydown','scroll'];
+      function soltar(){
+        eventos.forEach(function(n){ removeEventListener(n, intentar); });
+      }
+      function intentar(){
+        var pr;
+        try { pr = v.play(); } catch(e){ return; }
+        if (pr && pr.then) pr.then(soltar).catch(function(){});
+        else soltar();
       }
       eventos.forEach(function(n){
-        addEventListener(n, unaVez, { passive:true });
+        addEventListener(n, intentar, { passive:true });
       });
     }
 
