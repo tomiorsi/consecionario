@@ -953,107 +953,112 @@ video::-webkit-media-controls{ display:none !important; }
              transform 1.15s var(--ease), opacity .38s var(--ease) .74s;
 }
 
-/* LA CALLE — UNA TIRA DE LUZ, NO UNA RAYA.
+/* LA CALLE.
 
    Va de la goma trasera a la delantera siguiendo la inclinacion real de
    cada foto. Los cuatro numeros salen de medir el alfa de cada archivo
    —donde apoya cada rueda, en fraccion del lienzo— y viajan como
-   propiedades en el HTML porque son distintos por auto: la MINI tiene la
-   distancia entre ejes mas corta y su linea es un 14% mas corta que la
-   del Mercedes.
+   propiedades en el HTML, porque son distintos por auto: la MINI tiene
+   la distancia entre ejes mas corta y su linea es un 14% mas corta que
+   la del Mercedes.
 
-   SON DOS CAPAS, y esa es la diferencia entre una raya y una luz:
+   ES UN ELEMENTO PROPIO Y NO UN PSEUDO DEL AUTO. Antes la geometria
+   vivia en .gar-auto::before, y eso obligaba a repetir el rotate dentro
+   de cada fotograma de la animacion —animar `transform` pisa el giro— y
+   dejaba una sola capa para todo. Con un elemento propio, el giro se
+   declara UNA vez acá y los hijos son barras horizontales: cada capa
+   hace lo suyo sin pelearse con la rotacion.
 
-   ::before es el nucleo, dos pixeles encendidos. Se apaga hacia las
-   puntas con un degradado en vez de terminar de golpe — una linea que
-   arranca y corta en seco se lee como un objeto apoyado; una que se
-   desvanece se lee como luz que se termina.
+     .gar-calle          la geometria y el halo
+     .gar-calle::before  el nucleo encendido
+     .gar-calle::after   el barrido que la recorre al llegar
 
-   ::after es el resplandor: una banda ancha y difusa centrada en el
-   mismo eje. Es lo que hace que la luz parezca salir de algun lado en
-   vez de estar pegada encima.
-
-   Las dos giran el mismo angulo y viven DENTRO del auto, asi que heredan
-   su escala: el vecino achicado trae su tira achicada, que es lo que la
-   hace leer como la misma calle yendose al fondo.
-
-   Las dos van detras de la foto (z-index 0 contra 1), asi la tira pasa
-   POR DEBAJO de las gomas y se ve solo entre medio — que es donde
-   estaria de verdad. */
-.gar-auto::before,
-.gar-auto::after{
-  content:"";
+   Vive detras de la foto, asi la tira pasa POR DEBAJO de las gomas y se
+   ve solo entre medio, que es donde estaria de verdad. Y hereda la
+   escala del auto: el vecino achicado trae su calle achicada, que es lo
+   que la hace leer como la misma calle yendose al fondo. */
+.gar-calle{
   position:absolute;
   left:calc(var(--x1) * 100%);
   top:calc(var(--y1) * 100%);
   width:calc(var(--largo) * 100%);
+  height:30px;
+  margin-top:-15px;
   transform-origin:0 50%;
   transform:rotate(var(--ang));
   z-index:0;
   pointer-events:none;
+  /* el halo. Sin blur: el degradado ya es suave, y un filtro acá
+     desenfocaria tambien al nucleo y al barrido, que son hijos. */
+  background:radial-gradient(50% 46% at 48% 50%,
+    rgba(255,255,255,.20), rgba(255,255,255,.055) 46%, transparent 76%);
+  opacity:.72;
+  transition:opacity .5s var(--ease);
 }
 
-/* el nucleo */
-.gar-auto::before{
+/* el nucleo, encendido siempre. Se apaga hacia las puntas en vez de
+   terminar de golpe: una linea que corta en seco se lee como un objeto
+   apoyado; una que se desvanece, como luz que se termina. */
+.gar-calle::before{
+  content:"";
+  position:absolute;
+  left:0; right:0; top:50%;
   height:2px;
   margin-top:-1px;
   background:linear-gradient(90deg,
     transparent 0%,
-    rgba(255,255,255,.55) 10%,
-    #fff 46%,
-    rgba(255,255,255,.9) 72%,
+    rgba(255,255,255,.5) 11%,
+    #fff 47%,
+    rgba(255,255,255,.88) 74%,
     transparent 100%);
 }
 
-/* el resplandor */
-.gar-auto::after{
-  height:26px;
-  margin-top:-13px;
-  background:radial-gradient(52% 50% at 48% 50%,
-    rgba(255,255,255,.26), rgba(255,255,255,.07) 45%, transparent 74%);
-  filter:blur(5px);
+/* EL BARRIDO. Un reflejo angosto que recorre la tira de punta a punta
+   cuando el auto llega, en el mismo sentido en que venia. No es un
+   parpadeo: la tira nunca se apaga, lo que pasa es que algo la recorre.
+   Esa es la diferencia entre que parezca una lampara fallando y que
+   parezca una regleta encendiendose. */
+.gar-calle::after{
+  content:"";
+  position:absolute;
+  left:0; top:50%;
+  width:30%;
+  height:3px;
+  margin-top:-1.5px;
+  background:linear-gradient(90deg,
+    transparent 0%, rgba(255,255,255,.55) 38%, #fff 52%,
+    rgba(255,255,255,.45) 66%, transparent 100%);
+  filter:blur(1.5px);
+  opacity:0;
 }
 
-/* EL DESTELLO. La tira se enciende cuando el auto LLEGA, no cuando
-   arranca: de ahí el retardo de 1s contra los 1.15s que dura el viaje.
-   El pico cae casi sobre el momento en que el auto se planta, y se lee
-   como que la luz prende al pisarla.
-
-   Sube rapido y baja despacio —el pico esta al 14% del recorrido— que
-   es como se comporta una lampara de verdad y no un parpadeo digital.
-
-   El rotate se repite en cada fotograma porque animar `transform` pisa
-   el giro que ya tenia la tira; sin eso, durante el destello la linea
-   se pondria horizontal de golpe.
-
-   La animacion se dispara sola cada vez que un auto recibe .es-actual,
-   que es exactamente una vez por llegada. */
-@keyframes gar-destello-nucleo{
-  0%   { transform:rotate(var(--ang)) scaleY(1);   opacity:.45; }
-  14%  { transform:rotate(var(--ang)) scaleY(3.4); opacity:1;   }
-  46%  { transform:rotate(var(--ang)) scaleY(1.5); opacity:1;   }
-  100% { transform:rotate(var(--ang)) scaleY(1);   opacity:1;   }
+/* Arranca a los .92s contra los 1.15s que dura el viaje: el barrido
+   corre mientras el auto termina de plantarse, no despues. */
+@keyframes gar-barrido{
+  0%   { opacity:0;  transform:translateX(-45%); }
+  14%  { opacity:1;  }
+  84%  { opacity:.9; }
+  100% { opacity:0;  transform:translateX(345%); }
 }
 
-@keyframes gar-destello-halo{
-  0%   { transform:rotate(var(--ang)) scaleY(.7); opacity:.3; }
-  14%  { transform:rotate(var(--ang)) scaleY(2.1); opacity:1;  }
-  52%  { transform:rotate(var(--ang)) scaleY(1.2); opacity:1;  }
-  100% { transform:rotate(var(--ang)) scaleY(1);   opacity:1;  }
+@keyframes gar-encender{
+  0%   { opacity:.3; }
+  30%  { opacity:1;  }
+  100% { opacity:.72; }
 }
 
-.gar-auto.es-actual::before{
-  animation:gar-destello-nucleo .85s var(--ease) 1s both;
+.gar-auto.es-actual .gar-calle{
+  animation:gar-encender 1.5s var(--ease) .85s both;
 }
-.gar-auto.es-actual::after{
-  animation:gar-destello-halo .95s var(--ease) 1s both;
+.gar-auto.es-actual .gar-calle::after{
+  animation:gar-barrido 1.15s cubic-bezier(.18,.72,.3,1) .92s both;
 }
 
-/* Quien pidió no ver movimiento no ve el destello: la tira aparece
-   encendida y quieta. */
+/* Quien pidió no ver movimiento ve la tira encendida y quieta. */
 @media (prefers-reduced-motion:reduce){
-  .gar-auto.es-actual::before,
-  .gar-auto.es-actual::after{ animation:none; }
+  .gar-auto.es-actual .gar-calle,
+  .gar-auto.es-actual .gar-calle::after{ animation:none; }
+  .gar-calle{ opacity:.72; }
 }
 
 .gar-auto picture{
@@ -2974,6 +2979,7 @@ body.is-dark.is-scrolled #topbar{
 
       <div class="gar-auto"
            style="--x1:0.1555; --y1:0.8504; --largo:0.3521; --ang:4.74deg">
+        <span class="gar-calle" aria-hidden="true"></span>
         <picture>
           <source media="(max-width:767px)" srcset="assets/grupos/alta-gama@sm.webp">
           <img src="assets/grupos/alta-gama.webp" alt="Mercedes-AMG GLE 63 Coupé blanco"
@@ -2982,6 +2988,7 @@ body.is-dark.is-scrolled #topbar{
       </div>
       <div class="gar-auto"
            style="--x1:0.1518; --y1:0.8462; --largo:0.3514; --ang:5.19deg">
+        <span class="gar-calle" aria-hidden="true"></span>
         <picture>
           <source media="(max-width:767px)" srcset="assets/grupos/deportivos@sm.webp">
           <img src="assets/grupos/deportivos.webp" alt="BMW M240i violeta"
@@ -2990,6 +2997,7 @@ body.is-dark.is-scrolled #topbar{
       </div>
       <div class="gar-auto"
            style="--x1:0.1573; --y1:0.8504; --largo:0.3503; --ang:4.76deg">
+        <span class="gar-calle" aria-hidden="true"></span>
         <picture>
           <source media="(max-width:767px)" srcset="assets/grupos/evolution@sm.webp">
           <img src="assets/grupos/evolution.webp" alt="Ford Mustang Mach-E azul"
@@ -2997,7 +3005,8 @@ body.is-dark.is-scrolled #topbar{
         </picture>
       </div>
       <div class="gar-auto"
-           style="--x1:0.1645; --y1:0.8526; --largo:0.3041; --ang:5.49deg">
+           style="--x1:0.1455; --y1:0.8504; --largo:0.3241; --ang:5.31deg">
+        <span class="gar-calle" aria-hidden="true"></span>
         <picture>
           <source media="(max-width:767px)" srcset="assets/grupos/urbanos@sm.webp">
           <img src="assets/grupos/urbanos.webp" alt="MINI Cooper S rojo"
