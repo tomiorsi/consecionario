@@ -987,13 +987,31 @@ video::-webkit-media-controls{ display:none !important; }
    interpolan las tres en línea recta, así que si el principio y el final
    están sobre la calle, todo el viaje está sobre la calle. */
 .gar-auto.es-saliendo{
-  left:128%;
-  bottom:-6.40%;
+  /* EL VIAJE TERMINA CUANDO EL AUTO SALIÓ DE VERDAD, y antes no era así.
+
+     Con left:128% el auto frenaba con un quinto del escenario todavía
+     ocupado y ahí se desvanecía. Medido: su caja iba de 78,7% a 177,3%,
+     o sea 21,3 puntos adentro; la chapa arrancaba en el 87,8%. Se veía
+     como un auto estacionado en el borde que se borra solo.
+
+     El número no es a ojo. Al 1,45 de escala el auto mide 98,6% del
+     escenario de ancho, con el centro en `left`, así que su borde
+     trasero cae en left − 40,2 puntos. Para que ese borde pase del 100%
+     hace falta left ≥ 140,2%; 150% deja diez puntos de sobra.
+
+     Y el bottom se recalcula, porque mover el auto más lejos por la
+     calle también lo baja: la calle sigue bajando. */
+  left:150%;
+  bottom:-10.82%;
   opacity:0;
   transform:translateX(-50%) scale(1.45);
   z-index:1;
+  /* La opacidad se apaga TARDE y rápido, y para entonces el auto ya está
+     fuera de cuadro: el que lo hace desaparecer es el recorte del
+     escenario, no el fundido. El fundido queda sólo como red de
+     seguridad para proporciones raras de ventana. */
   transition:left 1.15s var(--ease), bottom 1.15s var(--ease),
-             transform 1.15s var(--ease), opacity .38s var(--ease) .74s;
+             transform 1.15s var(--ease), opacity .22s linear .93s;
 }
 
 /* LA CALLE.
