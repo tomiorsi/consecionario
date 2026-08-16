@@ -1084,6 +1084,11 @@ video::-webkit-media-controls{ display:none !important; }
      queda en el medio. */
   --luz-desde:7.84%;
   --luz-hasta:50%;
+  /* La cabeza y el charco se miden en vw y no en % del elemento porque
+     el elemento CRECE: un tamaño relativo a él se agrandaría durante el
+     viaje, que es justo lo que no tiene que pasar. */
+  --cabeza:clamp(42px, 5.8vw, 84px);
+  --charco:clamp(44px, 6.2vw, 88px);
   /* El halo, centrado donde para el auto y no en el medio de la tira:
      la tira sigue de largo, pero la luz de piso es del auto. */
   background:radial-gradient(34% 46% at 42% 50%,
@@ -1118,131 +1123,151 @@ video::-webkit-media-controls{ display:none !important; }
     transparent 100%);
 }
 
-/* LA LUZ QUE SIGUE AL AUTO.
+/* ══════════════════════════════════════════════════════════════════
+   UNA SOLA LUZ, QUE VIAJA Y ATERRIZA.
 
-   No es un barrido que pasa y se va: es la calle PRENDIÉNDOSE por
-   detrás del auto mientras avanza. Por eso lo que se anima es el ANCHO
-   y no la posición — el borde derecho es la cabeza, y va justo donde va
-   el auto; lo que queda atrás es la calle ya encendida.
+   Antes eran dos efectos distintos corriendo encima: una barra que
+   crecía siguiendo al auto, y aparte toda la tira ensanchándose de golpe
+   al final. Los dos eran blancos, los dos brillaban, y se pisaban en el
+   mismo instante — así que no se leían como una luz haciendo algo, se
+   leían como dos cosas pasando a la vez.
 
-   Arranca en 16% porque ahí es donde está parado el auto que entra: la
-   goma delantera del vecino cae en el 15,7% del largo de la calle en
-   escritorio y en el 18,4% en celular. O sea que la luz no nace en la
-   nada, nace debajo del auto que arranca a moverse. */
+   Ahora hay UNA luz con tres partes que son la misma cosa:
+
+     .gar-luz          la ESTELA: la calle ya encendida detrás
+     .gar-luz::after   la CABEZA: el punto caliente, donde está el auto
+     .gar-calle::after el CHARCO: la luz derramada en el piso al llegar
+
+   Y la clave de que se lea como una sola: LA CABEZA VA PEGADA A LA PUNTA
+   DE LA ESTELA. No tiene animación de posición propia — está anclada con
+   `right:0` al elemento que crece, así que la arrastra la estela sola.
+   Es el mismo objeto, no dos que hay que sincronizar a mano.
+   ══════════════════════════════════════════════════════════════════ */
+
+/* LA ESTELA. No es una barra que se enciende pareja: es un cometa. El
+   degradado va de transparente a blanco de izquierda a derecha y, como
+   está en porcentajes del propio elemento, se estira con él — la cola
+   siempre se desvanece hacia atrás por más que crezca. Eso es lo que
+   convierte "una barra que se alarga" en "una luz que avanza". */
 .gar-luz{
   position:absolute;
   left:0; top:50%;
   width:var(--luz-desde);
-  height:3px;
-  margin-top:-1.5px;
+  height:2px;
+  /* Centrada con translate y no con margen negativo porque el alto se
+     anima: con margen fijo, engordar la haría crecer sólo hacia abajo y
+     la luz se despegaría de la calle. */
+  transform:translateY(-50%);
   opacity:0;
   background:linear-gradient(90deg,
     rgba(255,255,255,0) 0%,
-    rgba(255,255,255,.18) 38%,
-    rgba(255,255,255,.62) 82%,
-    #fff 97%,
-    rgba(255,255,255,.75) 100%);
-  filter:blur(.6px);
+    rgba(255,255,255,.07) 26%,
+    rgba(255,255,255,.26) 58%,
+    rgba(255,255,255,.60) 84%,
+    rgba(255,255,255,.95) 96%,
+    #fff 100%);
+  filter:blur(.5px);
 }
 
-/* EL GOLPE DE LUZ AL LLEGAR.
+/* LA CABEZA. El punto caliente que va debajo de la goma delantera del
+   auto todo el viaje. Durante el recorrido es un resplandor discreto
+   —basta para que la luz tenga un origen y no sea una barra— y al llegar
+   se abre de golpe. El golpe no es otro efecto: es esta misma cabeza. */
+.gar-luz::after{
+  content:"";
+  position:absolute;
+  right:0; top:50%;
+  width:var(--cabeza);
+  height:var(--cabeza);
+  margin-top:calc(var(--cabeza) / -2);
+  margin-right:calc(var(--cabeza) / -2);
+  border-radius:50%;
+  background:radial-gradient(50% 50% at 50% 50%,
+    #fff, rgba(255,255,255,.62) 16%, rgba(255,255,255,.20) 40%, transparent 72%);
+  opacity:0;
+}
 
-   PRIMERO SE PROBO COMO UN ESTALLIDO CHICO EN LA PUNTA DERECHA, justo
-   donde queda la goma delantera, que era lo obvio. No se veia. La calle
-   vive DETRAS de las fotos —tiene que pasar por debajo de las gomas— asi
-   que un resplandor concentrado ahi queda tapado por la carroceria.
-   Medido: el brillo de ese rincon subia hasta los 850 ms, que es el
-   barrido llegando, y de ahi para abajo. El golpe no aportaba nada.
+/* EL CHARCO. Luz derramada en el piso donde el auto se planta.
 
-   Asi que el golpe es de TODA la calle, no de un punto: en el instante
-   en que el auto se planta, la tira entera se ensancha y se enciende de
-   golpe, y se apaga sola. Eso si se ve, porque la calle asoma por todos
-   lados —entre los dos autos, entre las ruedas, delante de la trompa—
-   y porque una calle que late completa se lee como el golpe de luz de
-   un estudio, que es lo que se buscaba.
+   ES ANCHO Y BAJO A PROPÓSITO, y eso viene de un intento fallido: la
+   primera versión del golpe era un estallido chico justo en la goma
+   delantera y no se veía, porque la calle vive DETRÁS de las fotos y un
+   resplandor de ese tamaño queda tapado por la carrocería. Un charco
+   ancho, en cambio, asoma por donde la calle asoma — entre los dos
+   autos, entre las ruedas, delante de la trompa.
 
-   Se enciende mas hacia la derecha, que es donde acaba de llegar. */
+   Va centrado en el 50% de la tira, que es la goma delantera del auto
+   del medio. No compite con la cabeza: la cabeza es el punto y el charco
+   es lo que ese punto derrama. Pican juntos, y por eso se leen como un
+   solo golpe. */
 .gar-calle::after{
   content:"";
   position:absolute;
-  left:0; right:0; top:50%;
-  height:4px;
-  margin-top:-2px;
-  border-radius:2px;
-  /* Pica en el 50%, que es donde queda la goma delantera del auto del
-     medio, y se apaga hacia las dos puntas. */
-  background:linear-gradient(90deg,
-    transparent 0%,
-    rgba(255,255,255,.22) 16%,
-    rgba(255,255,255,.80) 40%,
-    #fff 50%,
-    rgba(255,255,255,.62) 62%,
-    rgba(255,255,255,.16) 84%,
-    transparent 100%);
-  filter:blur(2px);
+  left:6%; right:32%;
+  top:50%;
+  height:var(--charco);
+  margin-top:calc(var(--charco) / -2);
+  border-radius:50%;
+  background:radial-gradient(50% 50% at 72% 50%,
+    rgba(255,255,255,.62), rgba(255,255,255,.24) 34%,
+    rgba(255,255,255,.06) 58%, transparent 78%);
   opacity:0;
-  transform-origin:50% 50%;
 }
 
-/* SON DOS ANIMACIONES Y NO UNA, Y ESA ES LA PARTE QUE IMPORTA.
-
-   El ancho —o sea, dónde está la cabeza de luz— tiene que ir EXACTAMENTE
-   donde va el auto. Y el auto viaja con `transition: 1.15s var(--ease)`.
-   Así que la luz usa la misma duración y la misma curva, de una punta a
-   la otra y sin escalas: las dos recorren 0→1 con la misma función, o
-   sea que la cabeza queda clavada bajo la goma delantera todo el viaje.
-
-   Al principio esto vivía en una sola animación de 2 s con el ancho y la
-   opacidad juntos, y un fotograma intermedio al 7% para el encendido.
-   Ese fotograma partía la curva en dos tramos y cada tramo volvía a
-   aplicar el ease: la luz salía atrasada respecto del auto y después lo
-   pasaba. Medido: con el auto al 88% de su viaje, la luz iba al 79%, y
-   llegaba al final 300 ms antes que él.
-
-   La opacidad sí puede ir por su lado —encender rápido, apagarse
-   despacio después del golpe— y por eso es su propia animación, más
-   larga, en tiempo lineal. */
 @keyframes gar-avanza{
   from { width:var(--luz-desde); }
   to   { width:var(--luz-hasta); }
 }
 
-/* Termina en 0 a propósito: así el próximo pase arranca desde donde
-   terminó el anterior y no hay parpadeo al reiniciar. Lo que queda
-   encendido entre pase y pase es el núcleo. */
-@keyframes gar-prende{
-  0%   { opacity:0; }
-  6%   { opacity:1; }
-  46%  { opacity:1; }
-  62%  { opacity:.45; }
-  100% { opacity:0; }
+/* LOS TIEMPOS SE APOYAN EN UNA MEDICIÓN: la luz termina de recorrer la
+   calle a los 815 ms —no a los 1150 que dura la transición, porque la
+   curva es un ease-out fuerte y el auto llega mucho antes de terminar de
+   asentarse—. Sobre una animación de 1,9 s eso cae en el 43%, y ahí
+   están puestos los tres picos. */
+/* La estela ENGORDA en el impacto. Es el mismo cuerpo de luz, no una
+   capa nueva: dos píxeles mientras viaja, siete en el golpe, y vuelve.
+   Eso es lo que hace que el golpe se sienta de la luz y no de algo que
+   apareció encima. */
+@keyframes gar-estela{
+  0%   { opacity:0;   height:2px; }
+  6%   { opacity:1;   height:2px; }
+  38%  { opacity:1;   height:3px; }
+  43%  { opacity:1;   height:7px; }
+  52%  { opacity:.9;  height:3px; }
+  64%  { opacity:.32; height:2px; }
+  100% { opacity:0;   height:2px; }
 }
 
-/* Se ensancha en vertical, no en largo: la calle ya mide lo que mide, y
-   lo que hace la luz al golpear es engordar, no estirarse. */
-@keyframes gar-golpe{
-  0%   { opacity:0; transform:scaleY(.6); }
-  16%  { opacity:1; transform:scaleY(3.4); }
-  55%  { opacity:.5; transform:scaleY(1.6); }
-  100% { opacity:0; transform:scaleY(1); }
+@keyframes gar-cabeza{
+  0%   { opacity:0;   transform:scale(.3); }
+  8%   { opacity:.6;  transform:scale(.46); }
+  34%  { opacity:.72; transform:scale(.58); }
+  43%  { opacity:1;   transform:scale(2.3); }
+  56%  { opacity:.45; transform:scale(1.45); }
+  100% { opacity:0;   transform:scale(1.05); }
+}
+
+@keyframes gar-charco{
+  0%   { opacity:0;   transform:scale(.55,.35); }
+  30%  { opacity:.12; transform:scale(.7,.5); }
+  43%  { opacity:1;   transform:scale(1,1); }
+  60%  { opacity:.38; transform:scale(.95,.85); }
+  100% { opacity:0;   transform:scale(.9,.7); }
 }
 
 .gar-calle.anda .gar-luz{
   animation:gar-avanza 1.15s var(--ease) both,
-            gar-prende 1.9s linear both;
+            gar-estela 1.9s linear both;
 }
-/* El golpe sale a los .68 s y no al final del 1,15 s del viaje. No es
-   un desfasaje: con esta curva —un ease-out fuerte— el auto ya recorrió
-   casi todo a esa altura y lo que le queda es asentarse. El golpe tiene
-   que caer cuando el auto SE VE llegar, no cuando la transición
-   termina de contar. */
-.gar-calle.anda::after{ animation:gar-golpe .9s var(--ease) .68s both; }
+.gar-calle.anda .gar-luz::after{ animation:gar-cabeza 1.9s linear both; }
+.gar-calle.anda::after         { animation:gar-charco 1.9s linear both; }
 
 /* Quien pidió no ver movimiento ve la calle encendida y quieta. */
 @media (prefers-reduced-motion:reduce){
   .gar-calle.anda .gar-luz,
+  .gar-calle.anda .gar-luz::after,
   .gar-calle.anda::after{ animation:none; }
-  .gar-luz{ opacity:.45; width:100%; }
+  .gar-luz{ opacity:.45; width:var(--luz-hasta); }
 }
 
 .gar-auto picture{
@@ -1408,6 +1433,8 @@ video::-webkit-media-controls{ display:none !important; }
     /* La goma delantera del que entra cae un poco más adelante que en
        escritorio porque el vecino entra más metido. */
     --luz-desde:9.20%;
+    --cabeza:7.6vw;
+    --charco:8.4vw;
   }
 
   /* EL AUTO, LO MAS GRANDE QUE PERMITE LA ARITMETICA.
