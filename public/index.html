@@ -432,38 +432,44 @@ video::-webkit-media-controls{ display:none !important; }
       rgb(244 241 234) 100%);
 }
 
-/* EL PUENTE DE VUELTA. El mismo degradado al revés: del hueso al negro.
+/* ══════════════════════════════════════════════════════════════════
+   LA CAÍDA A NEGRO DEL ESTÁNDAR.
 
-   La entrada a la sección clara ya estaba resuelta; la SALIDA era un
-   corte seco. Abajo del Estándar arranca el video de la ruta, así que
-   se pasaba de un blanco pleno a una imagen oscura en una línea, y el
-   ojo lo acusa: la pantalla queda partida en dos mitades que no tienen
-   nada que ver.
+   El Estándar es blanco y abajo arranca el video de la ruta. Antes eso
+   era un corte seco en una línea.
 
-   Con la vuelta, el blanco se apaga mientras se scrollea y para cuando
-   entra el video ya hay negro contra el que recortarlo. Es la misma
-   idea que el apagado de la portada — dos secciones no se empalman
-   buscándoles un color en común, se empalman llegando las dos al negro.
+   PRIMERO SE PROBÓ CON UNA FRANJA EN EL DOCUMENTO —un degradado del
+   hueso al negro entre las dos secciones— y estaba mal: metía color
+   ajeno en el medio y el blanco dejaba de llegar hasta el video. Lo que
+   hace falta es lo contrario, que el blanco llegue entero y que lo que
+   cambie sea LA PANTALLA.
 
-   Termina en negro pleno y no en el 11,12,16 con el que arranca el
-   puente de ida: ése es un resto de cuando el fondo del sitio era el
-   "Negro Profundo" del documento. El de ida habría que emparejarlo
-   también. */
-#puente-vuelta{
-  position:relative;
-  height:16svh;
+   Así que es un velo fijo pegado arriba de la ventana que se va
+   encendiendo con el scroll. Mientras se lee el Estándar no está; a
+   medida que se baja y el video se acerca, la parte de arriba se pone
+   negra. La sección de abajo no se mueve ni gana altura: lo único que
+   pasa es que la pantalla se oscurece de arriba hacia abajo.
+
+   z-index 50 lo deja debajo de la barra (55) y del HUD (60), así el
+   logo y el menú nunca quedan tapados. */
+#velo-alto{
+  position:fixed;
+  top:0; left:0; right:0;
+  height:56vh;
+  z-index:50;
+  pointer-events:none;
+  opacity:var(--velo,0);
   background:linear-gradient(to bottom,
-      rgb(244 241 234) 0%,
-      rgb(237 235 228) 10%,
-      rgb(220 217 211) 20%,
-      rgb(194 192 187) 30%,
-      rgb(162 160 157) 40%,
-      rgb(128 126 125) 50%,
-      rgb(93 93 93) 60%,
-      rgb(61 61 63) 70%,
-      rgb(35 36 39) 80%,
-      rgb(14 14 16) 90%,
-      rgb(0 0 0) 100%);
+    #000 0%,
+    rgba(0,0,0,.97) 26%,
+    rgba(0,0,0,.82) 48%,
+    rgba(0,0,0,.5) 68%,
+    rgba(0,0,0,.2) 85%,
+    rgba(0,0,0,0) 100%);
+}
+@media (prefers-reduced-motion:reduce){
+  /* Sigue existiendo: no es decoración, es lo que evita el corte. */
+  #velo-alto{ transition:none; }
 }
 
 /* El grano. Se genera con SVG en vez de traer una imagen: son 200 bytes
@@ -472,8 +478,7 @@ video::-webkit-media-controls{ display:none !important; }
    overlay es la mezcla correcta: sobre negro puro no hace nada —donde
    no hay bandeado, no hay grano— y va apareciendo a medida que el fondo
    se aclara, que es justo donde los escalones se notan. */
-#puente::after,
-#puente-vuelta::after{
+#puente::after{
   content:"";
   position:absolute;
   inset:0;
@@ -3558,6 +3563,8 @@ window.TURNO = (function(){
        marca con data-claro en el HTML y acá se pregunta cuál tiene
        debajo. Agregar otra sección clara más abajo no pide tocar nada. */
     var claras = null;
+    /* El velo del Estándar y su último valor escrito. */
+    var velo = null, estandar = null, veloPuesto = -1;
 
     /* LA FLOTACIÓN. El scroll no escribe --y directamente: fija un
        objetivo y un bucle lo persigue al 9% por cuadro.
@@ -3721,18 +3728,37 @@ window.TURNO = (function(){
       for (var n = 0; n < claras.length; n++){
         var rl = claras[n].getBoundingClientRect();
         var desde = rl.top + rl.height * (parseFloat(claras[n].dataset.claroDesde) || 0);
-        /* Y hasta dónde. Por omisión es el final del elemento, que es lo
-           que hacía antes; el puente de vuelta lo usa para dejar de
-           contar como claro en la mitad de su degradado, cuando el fondo
-           ya se puso oscuro y el header tiene que volver a blanco. */
-        var hasta = rl.top + rl.height * (
-          claras[n].dataset.claroHasta === undefined
-            ? 1 : parseFloat(claras[n].dataset.claroHasta));
-        if (desde <= LINEA && hasta > LINEA){ sobreClaro = true; break; }
+        if (desde <= LINEA && rl.bottom > LINEA){ sobreClaro = true; break; }
+      }
+
+      /* EL VELO. Se enciende con lo que le falta al Estándar para
+         terminar de salir: 0 mientras su pie está en el borde de abajo
+         de la ventana o más allá, 1 cuando ya subió hasta el 32% de la
+         pantalla, que es cuando el video ocupa los dos tercios de
+         abajo. Para entonces la mitad de arriba ya está negra y no hay
+         corte que ver. */
+      if (!velo){ velo = document.getElementById('velo-alto');
+                  estandar = document.getElementById('estandar'); }
+      if (velo && estandar){
+        var re = estandar.getBoundingClientRect();
+        var alto = window.innerHeight || 1;
+        var v = (alto - re.bottom) / (alto * 0.68);
+        v = v < 0 ? 0 : (v > 1 ? 1 : v);
+        /* Se escribe redondeado y sólo si cambió: son centésimas, más de
+           las que el ojo distingue, y así la mayoría de los cuadros no
+           tocan el DOM. */
+        var vp = Math.round(v * 100);
+        if (vp !== veloPuesto){
+          veloPuesto = vp;
+          velo.style.setProperty('--velo', (vp / 100).toFixed(2));
+        }
       }
 
       var corte = portada ? portada.offsetHeight * 0.72 : window.innerHeight * 0.72;
-      var osc = window.scrollY > corte && !sobreClaro;
+      /* Con el velo encendido la barra queda sobre negro aunque el
+         Estándar siga contando como claro: si no, el logo se pintaría en
+         tinta oscura sobre el velo y desaparecería. */
+      var osc = window.scrollY > corte && (!sobreClaro || veloPuesto > 45);
       if (osc !== oscuro){
         oscuro = osc;
         document.body.classList.toggle('is-dark', osc);
@@ -4994,12 +5020,10 @@ var UNIDAD = null;
 
      El orden no es casual: viene de frente, pasa al lado, se va. Leído
      así los tres se sienten UN SOLO manejo y no tres clips distintos. -->
-<!-- El puente de vuelta: apaga el blanco antes de que entre el video.
-     El data-claro-hasta le dice al header hasta qué altura suya el fondo
-     todavía se considera claro; de ahí para abajo vuelve a pintarse en
-     blanco. Sin eso el logo quedaría negro sobre negro en la mitad de
-     abajo del degradado. -->
-<div id="puente-vuelta" data-claro data-claro-hasta=".45" aria-hidden="true"></div>
+<!-- El velo que oscurece la pantalla al salir del Estándar. Va suelto,
+     fuera de las secciones, porque es de la VENTANA y no de ninguna de
+     las dos. -->
+<div id="velo-alto" aria-hidden="true"></div>
 
 <section id="ruta">
   <video id="rutaVid" muted loop playsinline preload="none"
