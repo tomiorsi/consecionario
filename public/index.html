@@ -469,10 +469,160 @@ video::-webkit-media-controls{ display:none !important; }
   padding:clamp(5rem,13vh,9rem) var(--gut);
 }
 
+/* LAS DOS COLUMNAS DEL FINAL. Editorial a la izquierda, concierge a la
+   derecha. Se parten en una sola columna antes de que cada una quede
+   demasiado angosta: con menos de 15rem por lado ni la foto ni el
+   formulario se leen, y dos columnas apretadas son peores que una. */
+.conc-dos{
+  max-width:76rem;
+  margin:0 auto;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:clamp(2.5rem,5vw,4.5rem);
+  align-items:start;
+}
+@media (max-width:940px){
+  .conc-dos{
+    grid-template-columns:1fr;
+    gap:clamp(3.5rem,8vh,5.5rem);
+    max-width:46rem;
+  }
+}
+
 .conc-caja{
   max-width:46rem;
   margin:0 auto;
   text-align:center;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   EDITORIAL
+   ══════════════════════════════════════════════════════════════════ */
+
+.edit{ text-align:center; }
+
+/* Mismo rótulo con línea que el concierge: son hermanos, tienen que
+   arrancar igual para que la fila se lea como una fila. */
+.edit-eyebrow{
+  display:block;
+  font-size:.6rem;
+  font-weight:600;
+  letter-spacing:.38em;
+  text-indent:.38em;
+  text-transform:uppercase;
+  color:var(--ink-3);
+}
+.edit-eyebrow::after{
+  content:"";
+  display:block;
+  width:2.2rem;
+  height:1px;
+  margin:clamp(.9rem,2vh,1.3rem) auto 0;
+  background:rgba(209,213,219,.28);
+}
+
+.edit-bajada{
+  margin:clamp(1.1rem,2.6vh,1.7rem) auto 0;
+  max-width:26rem;
+  font-size:clamp(.92rem,1.2vw,1rem);
+  line-height:1.7;
+  color:var(--steel);
+}
+
+.edit-nota{
+  margin-top:clamp(1.6rem,3.4vh,2.4rem);
+  text-align:left;
+}
+
+.edit-foto{
+  position:relative;
+  margin:0;
+  overflow:hidden;
+  border-radius:2px;
+  aspect-ratio:3/2;
+  background:#0a0a0a;
+}
+.edit-foto img{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+/* El degradado del pie: sin él, las dos etiquetas caen sobre lo que haya
+   en la foto y a veces no se leen. */
+.edit-foto::after{
+  content:"";
+  position:absolute;
+  inset:auto 0 0 0;
+  height:46%;
+  background:linear-gradient(to top, rgba(0,0,0,.78), transparent);
+  pointer-events:none;
+}
+
+.edit-marcas{
+  position:absolute;
+  left:0; right:0; bottom:0;
+  z-index:1;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  padding:clamp(.9rem,2vw,1.2rem);
+  font-size:.56rem;
+  font-weight:600;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+}
+.edit-tema{
+  padding:.5em 1em;
+  border:1px solid rgba(255,255,255,.28);
+  border-radius:100px;
+  color:var(--chrome);
+}
+.edit-rato{ color:rgba(255,255,255,.62); }
+
+.edit-titular{
+  font-family:var(--display);
+  font-size:clamp(.92rem,1.5vw,1.15rem);
+  font-weight:700;
+  line-height:1.5;
+  letter-spacing:.02em;
+  margin:clamp(1.1rem,2.4vh,1.5rem) 0 0;
+  color:var(--chrome);
+}
+
+.edit-copete{
+  margin:clamp(.7rem,1.6vh,1rem) 0 0;
+  font-size:clamp(.88rem,1.1vw,.95rem);
+  line-height:1.7;
+  color:var(--steel);
+}
+
+/* Mismo botón que el resto del sitio: contorno fino, sin relleno. */
+.edit-boton{
+  display:inline-block;
+  margin-top:clamp(1.2rem,2.6vh,1.7rem);
+  padding:.95em 1.9em;
+  border:1px solid rgba(255,255,255,.3);
+  border-radius:2px;
+  font-size:.58rem;
+  font-weight:600;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+  color:var(--chrome);
+  text-decoration:none;
+  cursor:pointer;
+  transition:border-color .4s var(--ease), background .4s var(--ease);
+}
+.edit-boton:hover{
+  border-color:rgba(255,255,255,.6);
+  background:rgba(255,255,255,.05);
+}
+/* Mientras no haya nota a la que ir, se ve pero no promete nada. */
+.edit-boton[aria-disabled="true"]{
+  opacity:.42;
+  cursor:default;
+  pointer-events:none;
 }
 
 /* El rótulo, con una línea corta debajo. Es el único adorno de toda la
@@ -5110,6 +5260,48 @@ var UNIDAD = null;
      que puedan ofrecer su auto. Son las dos puntas del mismo negocio,
      así que van en un solo formulario con un selector arriba. -->
 <section id="concierge">
+  <div class="conc-dos">
+
+  <!-- ══════════════════════════════════════════════════════════════
+       EDITORIAL. Va a la IZQUIERDA del concierge, no debajo: son las dos
+       cosas que se le pueden pedir al visitante al final de la página
+       —que lea o que escriba— y ponerlas lado a lado las presenta como
+       dos caminos en vez de como una cola.
+
+       LA FOTO ES PRESTADA POR AHORA. Es la de la ciudad del collage,
+       puesta para que se vea la maqueta; hay que reemplazarla por la de
+       la nota. Igual que la ficha del destacado, esto está hecho para
+       que cambiar la nota sea cambiar el objeto NOTA del script y nada
+       más.
+       ══════════════════════════════════════════════════════════════ -->
+  <section class="edit" aria-labelledby="edit-titulo">
+    <small class="edit-eyebrow">Editorial</small>
+    <p class="edit-bajada">Historias, análisis y cultura automotriz.</p>
+
+    <article class="edit-nota">
+      <figure class="edit-foto">
+        <img src="assets/collage/ciudad.webp" alt=""
+             loading="lazy" decoding="async" width="1200" height="800">
+        <figcaption class="edit-marcas">
+          <span class="edit-tema">Cultura</span>
+          <span class="edit-rato">5 min</span>
+        </figcaption>
+      </figure>
+
+      <h2 class="edit-titular" id="edit-titulo">El futuro del diseño: naturaleza y rendimiento</h2>
+      <p class="edit-copete">
+        Exploramos cómo la ingeniería y el diseño sustentable están
+        redefiniendo la próxima generación de vehículos.
+      </p>
+
+      <!-- SIN DESTINO TODAVÍA. Va con aria-disabled y sin href, igual
+           que el WhatsApp y el Instagram mientras no hay a dónde
+           mandar: un botón que no lleva a ningún lado se siente peor
+           que uno que avisa que todavía no. -->
+      <a class="edit-boton" role="link" aria-disabled="true">Leer la nota</a>
+    </article>
+  </section>
+
   <div class="conc-caja">
     <small class="conc-eyebrow">El Concierge</small>
     <h2 class="conc-titulo">¿Buscás una pieza específica?<br>La encontramos.</h2>
@@ -5141,6 +5333,8 @@ var UNIDAD = null;
         Se abre WhatsApp con el mensaje ya escrito. No guardamos nada acá.
       </p>
     </form>
+  </div>
+
   </div>
 </section>
 
