@@ -1,99 +1,64 @@
 #!/usr/bin/env python3
-"""Arma el logo completo en vectores: emblema + letras, en dos formatos.
+"""Arma el logo en vectores, en dos formatos, desde el archivo original.
 
-POR QUE NO SE TRAZA LA IMAGEN. Vectorizar de verdad no es calcar el PNG
-—eso deja bordes temblorosos y cientos de nodos de mas— sino rehacer el
-dibujo con las piezas que ya son vectores:
+POR QUE SE TRAZA Y NO SE REHACE CON UNA FUENTE.
 
-  · el emblema MM ya estaba trazado y vive en assets/mark.svg, un solo
-    path de 100x100;
-  · las letras se sacan de la fuente y se convierten a curvas.
+El primer intento fue rehacer las letras con Montserrat, que es la
+tipografia del sitio. Estaba mal, y se vio comparando: la A del logo NO
+LLEVA TRAVESANO —es un triangulo limpio— y la N tiene otra
+construccion. Medido pixel a pixel contra el original, Montserrat daba
+36% de coincidencia; el trazado da 98,5%.
 
-El resultado es un archivo que escala a cualquier tamano sin perder un
-pelo, y que no necesita que la fuente este instalada en ningun lado.
+Es una tipografia de display que no tengo, y de un JPEG no se puede
+identificar con certeza cual es. Asi que se traza la del archivo: queda
+exactamente la misma letra, que es lo que se pidio.
 
-LA LETRA ES LA DE LA PAGINA. El encabezado del sitio escribe MANNA en
-Montserrat, asi que el logo usa esa misma: si fuera otra, el logo y la
-pagina se verian como de dos marcas distintas. Montserrat es SIL OFL, o
-sea que convertirla a curvas y usarla en una marca esta permitido.
+EL EMBLEMA NO SE TRAZA. Ya estaba vectorizado en assets/mark.svg, y un
+vector limpio siempre le gana a un calcado del mismo dibujo.
 
-SIN "MOTORS". Queda el emblema, MANNA y SELECTED.
+LOS DOS ARMADOS
 
-Los .ttf de Montserrat no se guardan en el repo; se bajan cuando hagan
-falta con:
+  apilado     igual al original: emblema, MANNA, MOTORS entre rayas y
+              SELECTED entre guiones. Las posiciones son las del archivo,
+              medidas, no reinterpretadas.
+  horizontal  emblema a la izquierda, MANNA y SELECTED apilados a su
+              derecha. SIN "MOTORS", que es lo que se pidio para este.
 
-  curl -s -A Mozilla "https://fonts.googleapis.com/css2?family=Montserrat\
-:wght@300;400;500;600;700" | grep -oE "https://[^)]+\.ttf"
+LOS COLORES TAMBIEN SALEN DE MEDIR. No son blanco pleno: cada pieza
+tiene su degradado, muestreado del original cada 11% de su alto.
 
-y se guardan como mont-300.ttf, mont-400.ttf, etc. en la carpeta que se
-le pasa como primer argumento.
-
-Uso:  logo.py <carpeta-con-los-ttf> <carpeta-de-salida>
+Uso:  logo.py <ref.png> <carpeta-de-salida>
 """
 import pathlib, re, sys
+import cv2
 
-from fontTools.ttLib import TTFont
-from fontTools.pens.svgPathPen import SVGPathPen
-from fontTools.pens.transformPen import TransformPen
-from fontTools.misc.transform import Transform
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from trazar import trazar
 
-# ── LAS PROPORCIONES ────────────────────────────────────────────────
-# Todo se mide contra el emblema, que vale 100 de lado. Los numeros
-# salen de medir el logo original: MANNA ocupa 2,8 anchos de emblema y
-# SELECTED 3,28, con alturas de mayuscula de 0,32 y 0,24.
-EMBLEMA   = 100.0
-MANNA_ALT = 32.0     # altura de mayuscula
-MANNA_AN  = 280.0    # ancho final, del que sale el espaciado
-SEL_ALT   = 24.0
-SEL_AN    = 328.0
+# ── DONDE ESTA CADA COSA EN EL ARCHIVO ORIGINAL (1280x853) ──────────
+# Salen de segmentar la imagen por bandas de tinta y medir cada una.
+CAJAS = {
+    "manna":    (424, 507,  302,  992),
+    "motors":   (539, 564,  302,  992),   # lleva las dos rayas al lado
+    "selected": (599, 654,  224, 1068),   # lleva los dos guiones
+}
+EMBLEMA = (150, 394, 519, 761)            # solo para saber su tamano
 
-PESO_MANNA = 500     # el mismo que usa el encabezado del sitio
-PESO_SEL   = 600     # SELECTED va mas firme, como en el original
+# El emblema del archivo mide 242x244; el vector limpio es un cuadrado
+# de 100, asi que se escala a ese alto.
+EMB_LADO = 244.0
 
-RAYA = "–"      # el guion corto que flanquea a SELECTED
-
-
-def cargar(carpeta, peso):
-    f = TTFont(pathlib.Path(carpeta) / f"mont-{peso}.ttf")
-    return {
-        "glifos": f.getGlyphSet(),
-        "cmap":   f.getBestCmap(),
-        "upem":   f["head"].unitsPerEm,
-        "cap":    getattr(f["OS/2"], "sCapHeight", None) or f["head"].unitsPerEm * 0.7,
-    }
-
-
-def escribir(fuente, texto, alto_may, ancho_final):
-    """Devuelve (path, ancho, alto) del texto ya convertido a curvas.
-
-    El espaciado entre letras NO se elige a ojo: se despeja para que el
-    conjunto mida exactamente `ancho_final`. Asi las dos lineas del logo
-    quedan alineadas por los costados sin tener que tantear.
-    """
-    esc = alto_may / fuente["cap"]          # de unidades de fuente a las nuestras
-    avances, nombres = [], []
-    for ch in texto:
-        n = fuente["cmap"][ord(ch)]
-        nombres.append(n)
-        avances.append(fuente["glifos"][n].width * esc)
-
-    natural = sum(avances)
-    huecos  = len(texto) - 1
-    entre   = (ancho_final - natural) / huecos if huecos else 0
-
-    partes, x = [], 0.0
-    for n, av in zip(nombres, avances):
-        pluma = SVGPathPen(fuente["glifos"])
-        # La fuente tiene la Y para arriba y el SVG para abajo: el -esc
-        # da vuelta el eje. El +alto_may deja la linea de base abajo.
-        t = Transform(esc, 0, 0, -esc, x, alto_may)
-        fuente["glifos"][n].draw(TransformPen(pluma, t))
-        d = pluma.getCommands()
-        if d:
-            partes.append(d)
-        x += av + entre
-
-    return " ".join(partes), ancho_final, alto_may
+# ── LOS DEGRADADOS, MUESTREADOS DEL ORIGINAL ───────────────────────
+# De arriba hacia abajo. El de SELECTED es el unico realmente metalico:
+# oscuro arriba, brillo al 44%, y vuelve a oscurecer.
+DEGRADES = {
+    "emblema":  [(0.00, "#FCFCFC"), (0.33, "#F9F9F9"), (0.66, "#E3E3E3"),
+                 (1.00, "#C4C4C4")],
+    "manna":    [(0.00, "#FCFCFC"), (1.00, "#FAFAFA")],
+    "motors":   [(0.00, "#FCFCFC"), (1.00, "#F9F9F9")],
+    "selected": [(0.00, "#A6A6A6"), (0.22, "#E1E1E1"), (0.44, "#FAFAFA"),
+                 (0.65, "#C4C4C4"), (1.00, "#8A8A8A")],
+}
 
 
 def emblema_path():
@@ -102,75 +67,79 @@ def emblema_path():
     return re.search(r'\sd="([^"]+)"', svg).group(1)
 
 
-def armar(fmt, mm, manna, selected):
-    """Compone el SVG. `fmt` es 'apilado' u 'horizontal'.
+def defs(usados):
+    """Un degradado por pieza. objectBoundingBox para que cada uno se
+    estire sobre su propia caja y no sobre el lienzo entero."""
+    out = []
+    for n in usados:
+        topes = "".join(
+            f'<stop offset="{p:.2f}" stop-color="{c}"/>' for p, c in DEGRADES[n])
+        out.append(f'<linearGradient id="g-{n}" x1="0" y1="0" x2="0" y2="1">'
+                   f'{topes}</linearGradient>')
+    return "<defs>" + "".join(out) + "</defs>"
 
-    DOS REGLAS DE RELLENO DISTINTAS, Y NO ES UN DETALLE. El emblema esta
-    dibujado para `evenodd` —asi vino trazado, y con esa regla los
-    huecos del monograma quedan calados—, pero los glifos de una fuente
-    TrueType se rellenan con `nonzero`. Poniendole evenodd a las letras,
-    los contornos que se superponen se cancelan y las letras salen
-    huecas, como de contorno. Por eso cada grupo lleva la suya.
-    """
-    _, m_an, m_alt = manna
-    _, s_an, s_alt = selected
 
-    if fmt == "apilado":
-        # El emblema arriba, centrado sobre el bloque de texto.
-        ancho = max(m_an, s_an)
-        hueco1, hueco2 = 26.0, 30.0
-        alto = EMBLEMA + hueco1 + m_alt + hueco2 + s_alt
-        piezas = [
-            (mm,         (ancho - EMBLEMA) / 2, 0.0,                              "evenodd"),
-            (manna[0],   (ancho - m_an) / 2,    EMBLEMA + hueco1,                 "nonzero"),
-            (selected[0],(ancho - s_an) / 2,    EMBLEMA + hueco1 + m_alt + hueco2,"nonzero"),
-        ]
-    else:
-        # El emblema a la izquierda; MANNA y SELECTED apilados a su
-        # derecha, y el conjunto centrado contra el alto del emblema.
-        sep = 34.0
-        hueco = 14.0
-        bloque = m_alt + hueco + s_alt
-        alto = max(EMBLEMA, bloque)
-        ancho = EMBLEMA + sep + max(m_an, s_an)
-        y0 = (alto - bloque) / 2
-        # LAS DOS LINEAS SE CENTRAN ENTRE SI, no se alinean a la
-        # izquierda. SELECTED es mas ancho que MANNA, asi que alineados
-        # por el borde izquierdo sobresalia solo hacia la derecha y el
-        # bloque quedaba torcido. Centrados, lo que sobra se reparte a
-        # los dos lados y se lee como una sola pieza.
-        texto_an = max(m_an, s_an)
-        piezas = [
-            (mm,          0.0, (alto - EMBLEMA) / 2, "evenodd"),
-            (manna[0],    EMBLEMA + sep + (texto_an - m_an) / 2, y0,                 "nonzero"),
-            (selected[0], EMBLEMA + sep + (texto_an - s_an) / 2, y0 + m_alt + hueco, "nonzero"),
-        ]
-
-    cuerpo = []
-    for d, dx, dy, regla in piezas:
-        cuerpo.append(f'<path transform="translate({dx:.2f},{dy:.2f})" '
-                      f'fill-rule="{regla}" d="{d}"/>')
-
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" '
-            f'viewBox="0 0 {ancho:.2f} {alto:.2f}" '
-            f'fill="currentColor" '
-            f'role="img" aria-label="Manna Selected">'
-            + "".join(cuerpo) + "</svg>")
+def pieza(d, dx, dy, esc, relleno, regla="evenodd"):
+    t = f"translate({dx:.2f},{dy:.2f})"
+    if esc != 1.0:
+        t += f" scale({esc:.5f})"
+    return (f'<path transform="{t}" fill="url(#g-{relleno})" '
+            f'fill-rule="{regla}" d="{d}"/>')
 
 
 if __name__ == "__main__":
-    fuentes, salida = sys.argv[1], pathlib.Path(sys.argv[2])
+    ref, salida = sys.argv[1], pathlib.Path(sys.argv[2])
     salida.mkdir(parents=True, exist_ok=True)
+    img = cv2.imread(ref, cv2.IMREAD_GRAYSCALE)
 
-    f_manna = cargar(fuentes, PESO_MANNA)
-    f_sel   = cargar(fuentes, PESO_SEL)
+    trazos = {}
+    for n, (y0, y1, x0, x1) in CAJAS.items():
+        d, w, h = trazar(img[y0:y1, x0:x1])
+        trazos[n] = (d, float(w), float(h))
+        print(f"   {n:<9} trazado  {w}x{h}")
 
     mm = emblema_path()
-    manna = escribir(f_manna, "MANNA", MANNA_ALT, MANNA_AN)
-    sel   = escribir(f_sel, f"{RAYA} SELECTED {RAYA}", SEL_ALT, SEL_AN)
+    esc_emb = EMB_LADO / 100.0
 
-    for fmt, nombre in (("apilado", "logo-apilado.svg"),
-                        ("horizontal", "logo-horizontal.svg")):
-        svg = armar(fmt, mm, manna, sel)
-        (salida / nombre).write_text(svg, encoding="utf-8")
-        print(f"   {nombre:<24} {len(svg)/1024:5.1f} KB")
+    # ── APILADO: las posiciones del original, tal cual ──────────────
+    ey0, ey1, ex0, ex1 = EMBLEMA
+    izq = min(ex0, *[CAJAS[n][2] for n in CAJAS])
+    der = max(ex1, *[CAJAS[n][3] for n in CAJAS])
+    arr, aba = ey0, max(CAJAS[n][1] for n in CAJAS)
+    an, al = der - izq, aba - arr
+
+    cuerpo = [pieza(mm, ex0 - izq, ey0 - arr, esc_emb, "emblema")]
+    for n in ("manna", "motors", "selected"):
+        y0, y1, x0, x1 = CAJAS[n]
+        cuerpo.append(pieza(trazos[n][0], x0 - izq, y0 - arr, 1.0, n))
+    (salida / "logo-apilado.svg").write_text(
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {an} {al}" '
+        f'role="img" aria-label="Manna Motors Selected">'
+        + defs(("emblema", "manna", "motors", "selected"))
+        + "".join(cuerpo) + "</svg>", encoding="utf-8")
+
+    # ── HORIZONTAL: sin MOTORS ──────────────────────────────────────
+    m_d, m_an, m_al = trazos["manna"]
+    s_d, s_an, s_al = trazos["selected"]
+    SEP, HUECO = 62.0, 34.0
+    bloque_an = max(m_an, s_an)
+    bloque_al = m_al + HUECO + s_al
+    an2 = EMB_LADO + SEP + bloque_an
+    al2 = max(EMB_LADO, bloque_al)
+    y0b = (al2 - bloque_al) / 2
+    x0b = EMB_LADO + SEP
+    cuerpo2 = [
+        pieza(mm, 0.0, (al2 - EMB_LADO) / 2, esc_emb, "emblema"),
+        # Las dos lineas se centran ENTRE SI: SELECTED es mas ancho que
+        # MANNA, y alineadas a la izquierda el bloque queda torcido.
+        pieza(m_d, x0b + (bloque_an - m_an) / 2, y0b, 1.0, "manna"),
+        pieza(s_d, x0b + (bloque_an - s_an) / 2, y0b + m_al + HUECO, 1.0, "selected"),
+    ]
+    (salida / "logo-horizontal.svg").write_text(
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {an2:.0f} {al2:.0f}" '
+        f'role="img" aria-label="Manna Selected">'
+        + defs(("emblema", "manna", "selected"))
+        + "".join(cuerpo2) + "</svg>", encoding="utf-8")
+
+    for f in ("logo-apilado.svg", "logo-horizontal.svg"):
+        print(f"   {f:<24} {(salida / f).stat().st_size/1024:5.1f} KB")
