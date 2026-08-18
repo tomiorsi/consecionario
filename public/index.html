@@ -455,16 +455,18 @@ video::-webkit-media-controls{ display:none !important; }
 #velo-alto{
   position:fixed;
   top:0; left:0; right:0;
-  height:56vh;
+  /* 42vh y no 56: con más alto el velo se comía media pantalla y se
+     leía como una barra enorme en vez de como una transición. */
+  height:42vh;
   z-index:50;
   pointer-events:none;
   opacity:var(--velo,0);
   background:linear-gradient(to bottom,
-    #000 0%,
-    rgba(0,0,0,.97) 26%,
-    rgba(0,0,0,.82) 48%,
-    rgba(0,0,0,.5) 68%,
-    rgba(0,0,0,.2) 85%,
+    rgba(0,0,0,.96) 0%,
+    rgba(0,0,0,.88) 30%,
+    rgba(0,0,0,.62) 55%,
+    rgba(0,0,0,.3) 76%,
+    rgba(0,0,0,.09) 90%,
     rgba(0,0,0,0) 100%);
 }
 @media (prefers-reduced-motion:reduce){
@@ -3742,7 +3744,23 @@ window.TURNO = (function(){
       if (velo && estandar){
         var re = estandar.getBoundingClientRect();
         var alto = window.innerHeight || 1;
-        var v = (alto - re.bottom) / (alto * 0.68);
+        var b = re.bottom;
+        var v;
+        /* ES UNA TRANSICIÓN, ASÍ QUE TIENE QUE APAGARSE. Antes esto era
+           una sola cuenta creciente, y una vez pasado el Estándar el
+           valor quedaba clavado en 1 para el resto de la página: el
+           editorial y el formulario del final aparecían con media
+           pantalla tapada de negro. El velo sólo tiene sentido mientras
+           quede blanco a la vista.
+
+             pie por debajo de la ventana  → 0, todavía no empezó
+             subiendo hasta el 34%         → de 0 a 1, se va poniendo negro
+             del 34% hasta salir           → 1, tapando lo que queda de blanco
+             ya salió                      → de 1 a 0, se disuelve sobre el video */
+        if (b >= alto)            v = 0;
+        else if (b >= alto * .34) v = (alto - b) / (alto * .66);
+        else if (b >= 0)          v = 1;
+        else                      v = 1 + b / (alto * .35);
         v = v < 0 ? 0 : (v > 1 ? 1 : v);
         /* Se escribe redondeado y sólo si cambió: son centésimas, más de
            las que el ojo distingue, y así la mayoría de los cuadros no
