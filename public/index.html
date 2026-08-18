@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Manna Motors Selected — El arte de la ingeniería, preservado</title>
+<title>Manna Motors Selected — Las cosas bien hechas tienden a encontrarse</title>
 <meta name="description" content="Colección de unidades seleccionadas en Buenos Aires. No elegimos autos por su año: los elegimos por su historia. Inspección certificada y documentación lista para transferir.">
 <!-- EL ÍCONO DE LA PESTAÑA. Es la marca del sitio, negra sobre blanco:
      sobre el fondo claro de una pestaña, un logo blanco sobre negro se
@@ -2758,17 +2758,26 @@ body.cargando{ overflow:hidden; }
 .reel-mando{
   position:absolute;
   left:50%;
-  /* ARRIBA, Y DEBAJO DEL LOGO. El HUD es fijo y vive en --hud-y; si el
-     control arrancara más arriba se le montaría encima al meterse la
-     sección en pantalla. */
-  top:calc(var(--hud-y) + clamp(3.6rem,9vh,6rem));
+  /* ARRIBA, Y DEBAJO DEL LOGO.
+
+     EL SEPARADOR ES CONSTANTE Y NO EN vh, Y ESO SE APRENDIÓ MIDIENDO.
+     Estaba con un clamp en vh, y el problema es que el logo NO cambia de
+     alto con la ventana: mide 42 px en escritorio y 31 en celular, punto.
+     Así que en ventanas bajas el separador se achicaba, el logo no, y el
+     control se le montaba encima — medido, a 1440x620 el hueco daba −3
+     px.
+
+     3,1rem son 50 px: le pasan doce al logo más alto. Verificado en
+     1440x900, 1280x720, 1440x620, 390x844 y 390x667, con huecos de entre
+     14 y 27 px. */
+  top:calc(var(--hud-y) + 3.1rem);
   transform:translateX(-50%);
   z-index:3;
-  width:min(40rem,86vw);
+  width:min(33rem,80vw);
   display:flex;
   flex-direction:column;
   align-items:center;
-  gap:1.05rem;
+  gap:.8rem;
   /* pan-y ES LA CLAVE DE QUE EL SCROLL NO SE TRABE. Le dice al navegador
      que el gesto vertical es suyo —sigue scrolleando la página, incluso
      con el dedo apoyado justo acá— y que el horizontal es nuestro. Con
@@ -2784,7 +2793,7 @@ body.cargando{ overflow:hidden; }
   width:100%;
   /* Alto generoso aunque el riel sea fino: es el área que hay que poder
      agarrar con el dedo. */
-  height:3.4rem;
+  height:3rem;
   cursor:grab;
 }
 .reel-pista:active{ cursor:grabbing; }
@@ -2794,8 +2803,8 @@ body.cargando{ overflow:hidden; }
   content:"";
   position:absolute;
   left:0; right:0; top:50%;
-  height:2px;
-  margin-top:-1px;
+  height:1.5px;
+  margin-top:-.75px;
   border-radius:1px;
   background:linear-gradient(90deg,
     rgba(255,255,255,.12), rgba(255,255,255,.30) 50%, rgba(255,255,255,.12));
@@ -2806,8 +2815,8 @@ body.cargando{ overflow:hidden; }
 .reel-huella{
   position:absolute;
   left:0; top:50%;
-  height:2px;
-  margin-top:-1px;
+  height:1.5px;
+  margin-top:-.75px;
   border-radius:1px;
   width:calc(var(--p,0) * 100%);
   background:linear-gradient(90deg,
@@ -2818,12 +2827,12 @@ body.cargando{ overflow:hidden; }
   position:absolute;
   top:50%;
   left:calc(var(--p,0) * 100%);
-  width:18px; height:18px;
-  margin:-9px 0 0 -9px;
+  width:15px; height:15px;
+  margin:-7.5px 0 0 -7.5px;
   border-radius:50%;
   background:#fff;
-  box-shadow:0 0 0 7px rgba(255,255,255,.08),
-             0 0 26px 6px rgba(255,255,255,.34);
+  box-shadow:0 0 0 6px rgba(255,255,255,.08),
+             0 0 22px 5px rgba(255,255,255,.32);
   cursor:grab;
   touch-action:pan-y;
 }
@@ -2842,8 +2851,8 @@ body.cargando{ overflow:hidden; }
 
 .reel-pie{
   margin:0;
-  font-size:.7rem;
-  letter-spacing:.24em;
+  font-size:.62rem;
+  letter-spacing:.22em;
   text-transform:uppercase;
   color:rgba(255,255,255,.5);
   transition:opacity .5s var(--ease);
@@ -2881,8 +2890,8 @@ body.cargando{ overflow:hidden; }
    se arrastra y no como un adorno. Se corta al primer contacto. */
 @keyframes reel-invita{
   0%, 62%, 100% { transform:translateX(0); }
-  76%           { transform:translateX(15px); }
-  88%           { transform:translateX(4px); }
+  76%           { transform:translateX(13px); }
+  88%           { transform:translateX(3px); }
 }
 .reel-mando.invita .reel-tirador{
   animation:reel-invita 2.6s var(--ease) 2;
@@ -2977,8 +2986,8 @@ body.is-dark.is-scrolled #topbar{
     <!-- Apuntan a secciones que EXISTEN. Antes iban a #stock, #taller y
          #contacto, que nunca se crearon: los tres links no hacían nada.
          Cuando existan el catálogo y el contacto, vuelven. -->
-    <a href="#garage">El Garage</a>
-    <a href="#estandar">El Estándar</a>
+    <a href="#garage">Garage</a>
+    <a href="#estandar">Estándar</a>
     <a href="#donde">Showroom</a>
   </nav>
 
@@ -3491,10 +3500,18 @@ window.TURNO = (function(){
 
   </script>
 
-  <!-- La frase del Bloque 1, textual del documento. Nada más: el resto
-       de la pantalla es el video y la flecha. -->
+  <!-- La frase de la portada. Nada más: el resto de la pantalla es el
+       video y la flecha.
+
+       El corte de línea va escrito y no librado al ancho disponible: son
+       dos versos, y partirlos en otro lado —"las cosas bien / hechas
+       tienden"— arruina la frase.
+
+       EL ESPACIO ANTES DEL <br> NO SOBRA. Sin él el texto plano queda
+       "hechastienden": el <br> corta la línea pero no separa palabras, y
+       un lector de pantalla lee las dos pegadas. -->
   <div class="cover-copy">
-    <h1 class="cover-title">El arte de la ingeniería, preservado.</h1>
+    <h1 class="cover-title">Las cosas bien hechas <br>tienden a encontrarse.</h1>
   </div>
 
   <svg class="scroll-cue" viewBox="0 0 24 24" fill="none" stroke="currentColor"
