@@ -433,10 +433,11 @@ video::-webkit-media-controls{ display:none !important; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   LA CAÍDA A NEGRO DEL ESTÁNDAR.
+   LA CAÍDA A NEGRO — DEL ESTÁNDAR Y DEL REEL.
 
-   El Estándar es blanco y abajo arranca el video de la ruta. Antes eso
-   era un corte seco en una línea.
+   Dos secciones se van con luz encima: el Estándar, que es blanco, y el
+   reel, que es un video con el piso encendido. Las dos cortaban seco
+   contra lo que sigue.
 
    PRIMERO SE PROBÓ CON UNA FRANJA EN EL DOCUMENTO —un degradado del
    hueso al negro entre las dos secciones— y estaba mal: metía color
@@ -3566,7 +3567,7 @@ window.TURNO = (function(){
        debajo. Agregar otra sección clara más abajo no pide tocar nada. */
     var claras = null;
     /* El velo del Estándar y su último valor escrito. */
-    var velo = null, estandar = null, veloPuesto = -1;
+    var velo = null, claras2 = [], veloPuesto = -1;
 
     /* LA FLOTACIÓN. El scroll no escribe --y directamente: fija un
        objetivo y un bucle lo persigue al 9% por cuadro.
@@ -3739,28 +3740,42 @@ window.TURNO = (function(){
          pantalla, que es cuando el video ocupa los dos tercios de
          abajo. Para entonces la mitad de arriba ya está negra y no hay
          corte que ver. */
-      if (!velo){ velo = document.getElementById('velo-alto');
-                  estandar = document.getElementById('estandar'); }
-      if (velo && estandar){
-        var re = estandar.getBoundingClientRect();
+      if (!velo){
+        velo = document.getElementById('velo-alto');
+        /* LAS DOS SECCIONES QUE SE VAN CON LUZ. El Estándar es blanco y
+           el reel es un video con el piso encendido; las dos, al salir,
+           cortaban seco contra lo que sigue. La sección de abajo no se
+           toca en ninguno de los dos casos: lo que se oscurece es la
+           pantalla. */
+        claras2 = [document.getElementById('estandar'),
+                   document.getElementById('reel')].filter(Boolean);
+      }
+      if (velo && claras2.length){
         var alto = window.innerHeight || 1;
-        var b = re.bottom;
-        var v;
         /* ES UNA TRANSICIÓN, ASÍ QUE TIENE QUE APAGARSE. Antes esto era
-           una sola cuenta creciente, y una vez pasado el Estándar el
+           una sola cuenta creciente, y una vez pasada la sección el
            valor quedaba clavado en 1 para el resto de la página: el
            editorial y el formulario del final aparecían con media
            pantalla tapada de negro. El velo sólo tiene sentido mientras
-           quede blanco a la vista.
+           quede algo claro a la vista.
 
              pie por debajo de la ventana  → 0, todavía no empezó
              subiendo hasta el 34%         → de 0 a 1, se va poniendo negro
-             del 34% hasta salir           → 1, tapando lo que queda de blanco
-             ya salió                      → de 1 a 0, se disuelve sobre el video */
-        if (b >= alto)            v = 0;
-        else if (b >= alto * .34) v = (alto - b) / (alto * .66);
-        else if (b >= 0)          v = 1;
-        else                      v = 1 + b / (alto * .35);
+             del 34% hasta salir           → 1, tapando lo que queda
+             ya salió                      → de 1 a 0, se disuelve
+
+           Se toma el MAYOR de las dos secciones: nunca están saliendo
+           las dos a la vez, así que en la práctica manda la que esté en
+           transición, y con el máximo no hay que preguntarse cuál. */
+        var v = 0;
+        for (var q = 0; q < claras2.length; q++){
+          var b = claras2[q].getBoundingClientRect().bottom, vq;
+          if (b >= alto)            vq = 0;
+          else if (b >= alto * .34) vq = (alto - b) / (alto * .66);
+          else if (b >= 0)          vq = 1;
+          else                      vq = 1 + b / (alto * .35);
+          if (vq > v) v = vq;
+        }
         v = v < 0 ? 0 : (v > 1 ? 1 : v);
         /* Se escribe redondeado y sólo si cambió: son centésimas, más de
            las que el ojo distingue, y así la mayoría de los cuadros no
