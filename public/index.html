@@ -432,13 +432,48 @@ video::-webkit-media-controls{ display:none !important; }
       rgb(244 241 234) 100%);
 }
 
+/* EL PUENTE DE VUELTA. El mismo degradado al revés: del hueso al negro.
+
+   La entrada a la sección clara ya estaba resuelta; la SALIDA era un
+   corte seco. Abajo del Estándar arranca el video de la ruta, así que
+   se pasaba de un blanco pleno a una imagen oscura en una línea, y el
+   ojo lo acusa: la pantalla queda partida en dos mitades que no tienen
+   nada que ver.
+
+   Con la vuelta, el blanco se apaga mientras se scrollea y para cuando
+   entra el video ya hay negro contra el que recortarlo. Es la misma
+   idea que el apagado de la portada — dos secciones no se empalman
+   buscándoles un color en común, se empalman llegando las dos al negro.
+
+   Termina en negro pleno y no en el 11,12,16 con el que arranca el
+   puente de ida: ése es un resto de cuando el fondo del sitio era el
+   "Negro Profundo" del documento. El de ida habría que emparejarlo
+   también. */
+#puente-vuelta{
+  position:relative;
+  height:16svh;
+  background:linear-gradient(to bottom,
+      rgb(244 241 234) 0%,
+      rgb(237 235 228) 10%,
+      rgb(220 217 211) 20%,
+      rgb(194 192 187) 30%,
+      rgb(162 160 157) 40%,
+      rgb(128 126 125) 50%,
+      rgb(93 93 93) 60%,
+      rgb(61 61 63) 70%,
+      rgb(35 36 39) 80%,
+      rgb(14 14 16) 90%,
+      rgb(0 0 0) 100%);
+}
+
 /* El grano. Se genera con SVG en vez de traer una imagen: son 200 bytes
    contra los varios KB de un PNG de ruido, y no es un pedido más.
 
    overlay es la mezcla correcta: sobre negro puro no hace nada —donde
    no hay bandeado, no hay grano— y va apareciendo a medida que el fondo
    se aclara, que es justo donde los escalones se notan. */
-#puente::after{
+#puente::after,
+#puente-vuelta::after{
   content:"";
   position:absolute;
   inset:0;
@@ -3625,7 +3660,25 @@ window.TURNO = (function(){
          Se reusa la misma `portada` de arriba. Declararla de nuevo acá
          con var la elevaba al inicio de la función y la dejaba en
          undefined justo donde se calcula el apagado. */
-      if (!claras) claras = document.querySelectorAll('[data-claro]');
+      /* OJO CON EL `!claras` A SECAS: ESE ERA EL BUG.
+
+         Este script vive DENTRO de #cover, o sea que su primera pasada
+         corre mientras la página todavía se parsea y ninguna sección
+         clara existe. querySelectorAll devuelve entonces una lista
+         VACÍA — y una lista vacía es truthy, así que `if (!claras)` no
+         volvía a preguntar nunca y el header se quedaba con cero
+         secciones claras para siempre.
+
+         El síntoma no saltaba a la vista porque la barra tiene su propio
+         velo oscuro y el texto blanco se leía igual; pero sobre el
+         Estándar el header nunca cambiaba a tinta negra, que es lo que
+         este bloque entero existe para hacer. Comprobado contra el sitio
+         publicado: is-dark seguía en true con la barra sobre la sección
+         clara.
+
+         Preguntando por el largo, la lista se rearma hasta que haya algo
+         que encontrar. */
+      if (!claras || !claras.length) claras = document.querySelectorAll('[data-claro]');
 
       /* La altura de la barra: es hasta acá que el header pisa el
          fondo, y por lo tanto lo único que hay que consultar. */
@@ -3634,7 +3687,14 @@ window.TURNO = (function(){
       for (var n = 0; n < claras.length; n++){
         var rl = claras[n].getBoundingClientRect();
         var desde = rl.top + rl.height * (parseFloat(claras[n].dataset.claroDesde) || 0);
-        if (desde <= LINEA && rl.bottom > LINEA){ sobreClaro = true; break; }
+        /* Y hasta dónde. Por omisión es el final del elemento, que es lo
+           que hacía antes; el puente de vuelta lo usa para dejar de
+           contar como claro en la mitad de su degradado, cuando el fondo
+           ya se puso oscuro y el header tiene que volver a blanco. */
+        var hasta = rl.top + rl.height * (
+          claras[n].dataset.claroHasta === undefined
+            ? 1 : parseFloat(claras[n].dataset.claroHasta));
+        if (desde <= LINEA && hasta > LINEA){ sobreClaro = true; break; }
       }
 
       var corte = portada ? portada.offsetHeight * 0.72 : window.innerHeight * 0.72;
@@ -3989,6 +4049,12 @@ window.TURNO = (function(){
            aria-label="Vuelta completa alrededor del auto"></video>
 
     <div class="reel-mando" id="reelMando">
+      <!-- La instrucción va ANTES del riel, no después: se lee primero y
+           recién entonces se ve qué hay que agarrar. Va en el marcado y
+           no con un column-reverse porque ese es el orden real —primero
+           se dice, después se muestra— y así lo recorre también un
+           lector de pantalla. -->
+      <p class="reel-pie">Deslizá para girar</p>
       <div class="reel-pista" id="reelPista">
         <span class="reel-huella" aria-hidden="true"></span>
         <!-- Es un slider de verdad, no un div que se arrastra: así lo
@@ -4000,7 +4066,6 @@ window.TURNO = (function(){
               aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
               aria-valuetext="Trasera"></span>
       </div>
-      <p class="reel-pie">Deslizá para girar</p>
     </div>
 
     <svg class="reel-sigue" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -4901,6 +4966,13 @@ var UNIDAD = null;
 
      El orden no es casual: viene de frente, pasa al lado, se va. Leído
      así los tres se sienten UN SOLO manejo y no tres clips distintos. -->
+<!-- El puente de vuelta: apaga el blanco antes de que entre el video.
+     El data-claro-hasta le dice al header hasta qué altura suya el fondo
+     todavía se considera claro; de ahí para abajo vuelve a pintarse en
+     blanco. Sin eso el logo quedaría negro sobre negro en la mitad de
+     abajo del degradado. -->
+<div id="puente-vuelta" data-claro data-claro-hasta=".45" aria-hidden="true"></div>
+
 <section id="ruta">
   <video id="rutaVid" muted loop playsinline preload="none"
          aria-label="Golf GTI rojo en un camino de montaña"></video>
