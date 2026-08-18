@@ -117,13 +117,6 @@
   /* Alto del escenario. Da aire arriba y abajo del auto en vez de
      dejarlo apretado contra los bordes de la ventana. */
 
-  /* LA PERILLA DEL RITMO DEL REEL. Es cuánto scroll ocupa la vuelta
-     completa al auto: más alto = giro más lento y más control sobre
-     cada tramo. Los 15,9 segundos de video se reparten en este alto,
-     así que a 720svh cada pantalla de scroll son ~2,2 segundos.
-     Es el único número a tocar si el giro se siente rápido o lento. */
-  --reel-h:720svh;
-
   /* Relleno general. Se subió bastante: el sitio estaba pegado a los
      bordes y eso es lo que le sacaba aire premium. */
   --gut:clamp(1.6rem,4.4vw,4.5rem);
@@ -2665,61 +2658,62 @@ body.cargando{ overflow:hidden; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   EL REEL — la vuelta al auto, movida por el scroll
+   EL REEL — la vuelta al auto, movida a mano
    ══════════════════════════════════════════════════════════════════
 
    Son los dos videos del RS3 unidos en uno: de la cola al perfil y del
-   perfil al frente. No se reproducen solos — el scroll es el que mueve
-   el tiempo del video. Bajás y la cámara gira; parás y la cámara para.
+   perfil al frente. No se reproducen solos — los mueve el visitante,
+   arrastrando el control de abajo. Arrastrás y la cámara gira; soltás y
+   la cámara para donde la dejaste, y se puede volver a girar las veces
+   que uno quiera, para los dos lados.
 
-   CÓMO FUNCIONA. La sección mide varias pantallas de alto y adentro
-   hay un contenedor sticky de una pantalla. Mientras la sección pasa
-   por la ventana, el video queda clavado y lo único que cambia es su
-   currentTime, mapeado contra cuánto se avanzó de la sección.
+   ANTES LO MOVÍA EL SCROLL, y se cambió por tres motivos concretos:
+
+     · la sección medía once pantallas y el scroll quedaba tomado todo
+       ese rato, así que bajar por la página se volvía atravesar el
+       reel;
+     · la velocidad del giro la ponía el envión del dedo, no el diseño:
+       un manotazo se llevaba media vuelta y se veía a los tirones;
+     · para volver a mirar el giro había que scrollear para arriba.
+
+   Con un control que se arrastra, el scroll pasa de largo tranquilo, la
+   velocidad tiene un tope propio y se puede repetir a voluntad.
 
    POR QUÉ NO SE TRABA. Dos cosas, y las dos son necesarias:
 
-     1. El archivo está codificado ALL-INTRA: los 385 cuadros son
+     1. El archivo está codificado ALL-INTRA: todos los cuadros son
         keyframes. En un video normal los keyframes van cada 1-2
         segundos y el navegador, para mostrar un instante cualquiera,
         tiene que decodificar desde el keyframe anterior — eso es el
         tirón. Con todos los cuadros independientes, saltar a cualquier
         punto es inmediato. Cuesta tamaño y lo vale.
 
-     2. El JS no escribe el scroll directo en el video: interpola. El
-        tiempo real persigue al objetivo un 12% por cuadro, así que un
-        golpe de rueda se convierte en un movimiento que desacelera
-        solo. Sin eso el video se mueve a los saltos aunque el archivo
-        esté bien.
+     2. El arrastre tiene TOPE DE VELOCIDAD. No importa qué tan rápido
+        se tire del control: el video nunca avanza más de lo que la
+        pantalla puede mostrar. El detalle de por qué ese número es ése
+        está en el script, en VEL_MAX.
    ══════════════════════════════════════════════════════════════════ */
 
 #reel{
   position:relative;
-  /* Cuánto scroll ocupa la vuelta completa. Más alto = giro más lento
-     y más control; más bajo = más rápido. Es la perilla del ritmo. */
-  height:var(--reel-h);
+  /* UNA PANTALLA, Y ANTES ERAN ONCE.
+
+     La sección medía 720svh —y 1152 en celular— porque el giro del auto
+     lo movía el scroll: todo ese alto era la pista sobre la que se
+     scrolleaba. Ahora el giro lo mueve un control de arrastre, así que
+     ese alto no compra nada: serían once pantallas de scroll con el
+     video clavado y nada pasando.
+
+     Con una pantalla el scroll pasa de largo tranquilo, que es
+     justamente lo que se pidió, y la página se acorta diez pantallas. */
+  height:100svh;
   background:var(--void);
 }
 
-/* EN EL TELÉFONO, MÁS LARGO.
-
-   Un dedo recorre en un envión lo que un mouse tarda varias vueltas de
-   rueda: con el mismo alto, en el celular la vuelta al auto se pasaba
-   volando. Estirando la sección, el mismo envión avanza bastante menos
-   video y da tiempo a mirarlo.
-
-   Es la mitad del asunto; la otra mitad está en el script, que además
-   hace que el video persiga al scroll más despacio. Estirar solo no
-   alcanzaba: un envión rápido seguía siendo un envión rápido. */
-@media (max-width:767px){
-  /* Los svh de menos son los que se le dieron al garage para llegar a
-     media pantalla; la pagina mide lo mismo que antes. */
-  #reel{ height:calc(var(--reel-h) * 1.6 - 6svh); }
-}
-
 .reel-stick{
-  position:sticky;
-  top:0;
+  /* Ya no es sticky: la sección mide exactamente una pantalla, así que
+     no hay recorrido dentro del cual quedarse pegado. */
+  position:relative;
   height:100svh;
   overflow:hidden;
   background:var(--void);
@@ -2733,28 +2727,122 @@ body.cargando{ overflow:hidden; }
   object-position:center;
 }
 
-/* EL APAGADO DEL REEL.
+/* ══════════════════════════════════════════════════════════════════
+   EL CONTROL PARA GIRAR EL AUTO.
 
-   Antes el reel terminaba de golpe: el auto estaba ahí y a la línea
-   siguiente empezaba el mapa. Ahora, en el último tramo del giro, una
-   capa negra se va encendiendo sobre el video y el auto se disuelve.
-   Cuando arranca la sección de abajo ya no hay nada que cortar.
+   Va encima del video y abajo, como el mando de un reproductor. Es lo
+   único de la página que se arrastra, y por eso tiene que verse que se
+   arrastra: riel fino, recorrido encendido detrás, un punto que se
+   agarra, y una línea de texto que lo dice.
 
-   Es la misma idea que el apagado de la portada, y por el mismo motivo:
-   dos secciones no se empalman mejor buscándoles un color en común,
-   se empalman llegando las dos al negro.
+   SE APOYA SOBRE EL VIDEO EN VEZ DE IR DEBAJO porque la sección es una
+   pantalla completa y el video la llena: poniendo el control afuera
+   habría que robarle alto al video o estirar la sección otra vez.
+   ══════════════════════════════════════════════════════════════════ */
+.reel-mando{
+  position:absolute;
+  left:50%;
+  bottom:clamp(1.4rem,5vh,3rem);
+  transform:translateX(-50%);
+  z-index:3;
+  width:min(30rem,76vw);
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:.85rem;
+  /* pan-y ES LA CLAVE DE QUE EL SCROLL NO SE TRABE. Le dice al navegador
+     que el gesto vertical es suyo —sigue scrolleando la página, incluso
+     con el dedo apoyado justo acá— y que el horizontal es nuestro. Con
+     `none` el control se comería el scroll; sin nada, el navegador se
+     quedaría también con el horizontal y no se podría arrastrar. */
+  touch-action:pan-y;
+  -webkit-user-select:none;
+  user-select:none;
+}
 
-   z-index 2 la deja encima del video pero DEBAJO de las notas, que van
-   en 4. Así el auto se apaga y la última línea —la de los papeles—
-   queda sola sobre negro, que es un final mejor que el que tenía. */
-.reel-stick::after{
+.reel-pista{
+  position:relative;
+  width:100%;
+  /* Alto generoso aunque el riel sea de 1px: es el área que hay que
+     poder agarrar con el dedo. */
+  height:2.75rem;
+  cursor:grab;
+}
+.reel-pista:active{ cursor:grabbing; }
+
+/* El riel. */
+.reel-pista::before{
   content:"";
   position:absolute;
-  inset:0;
-  z-index:2;
-  background:var(--void);
-  opacity:var(--apagado,0);
-  pointer-events:none;
+  left:0; right:0; top:50%;
+  height:1px;
+  margin-top:-.5px;
+  background:linear-gradient(90deg,
+    rgba(255,255,255,.10), rgba(255,255,255,.26) 50%, rgba(255,255,255,.10));
+}
+
+/* Lo ya recorrido, encendido. Mismo lenguaje que la calle del garage:
+   la luz marca por dónde se pasó. */
+.reel-huella{
+  position:absolute;
+  left:0; top:50%;
+  height:1px;
+  margin-top:-.5px;
+  width:calc(var(--p,0) * 100%);
+  background:linear-gradient(90deg,
+    rgba(255,255,255,.35), rgba(255,255,255,.9));
+}
+
+.reel-tirador{
+  position:absolute;
+  top:50%;
+  left:calc(var(--p,0) * 100%);
+  width:13px; height:13px;
+  margin:-6.5px 0 0 -6.5px;
+  border-radius:50%;
+  background:#fff;
+  box-shadow:0 0 0 5px rgba(255,255,255,.07),
+             0 0 20px 4px rgba(255,255,255,.30);
+  cursor:grab;
+  touch-action:pan-y;
+}
+.reel-tirador:focus-visible{
+  outline:none;
+  box-shadow:0 0 0 3px rgba(255,255,255,.30),
+             0 0 0 7px rgba(255,255,255,.12),
+             0 0 22px 5px rgba(255,255,255,.34);
+}
+/* Área de agarre más grande que el punto, sin agrandar el punto. */
+.reel-tirador::before{
+  content:"";
+  position:absolute;
+  inset:-16px;
+}
+
+.reel-pie{
+  margin:0;
+  font-size:.58rem;
+  letter-spacing:.22em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,.5);
+  transition:opacity .5s var(--ease);
+}
+/* En cuanto alguien lo usa, la instrucción sobra. */
+.reel-mando.usado .reel-pie{ opacity:0; }
+
+/* EL EMPUJONCITO. Una sola vez, cuando la sección entra en pantalla:
+   el punto se corre y vuelve. Es lo que hace que se lea como algo que
+   se arrastra y no como un adorno. Se corta al primer contacto. */
+@keyframes reel-invita{
+  0%, 62%, 100% { transform:translateX(0); }
+  76%           { transform:translateX(11px); }
+  88%           { transform:translateX(3px); }
+}
+.reel-mando.invita .reel-tirador{
+  animation:reel-invita 2.6s var(--ease) 2;
+}
+@media (prefers-reduced-motion:reduce){
+  .reel-mando.invita .reel-tirador{ animation:none; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -3679,25 +3767,28 @@ window.TURNO = (function(){
 })();
 </script>
 
-<!-- El reel: la vuelta al auto. No se reproduce solo — lo mueve el
-     scroll. El contenedor mide varias pantallas y el video queda
-     pegado adentro mientras la sección pasa. -->
+<!-- El reel: la vuelta al auto. No se reproduce solo y ya no lo mueve
+     el scroll: lo mueve el control de abajo, arrastrándolo. La sección
+     mide una pantalla y el scroll pasa de largo sin trabarse. -->
 <section id="reel">
   <div class="reel-stick">
-    <video id="reelVid" muted playsinline preload="none"></video>
+    <video id="reelVid" muted playsinline preload="none"
+           aria-label="Vuelta completa alrededor del auto"></video>
 
-    <!-- LOS CUATRO PUNTOS DE LA REVISACIÓN.
-
-         El auto da media vuelta con el scroll, o sea que esto ES una
-         vuelta alrededor del auto: exactamente lo que hace alguien
-         antes de comprarlo. Antes acá había cuatro frases sobre lo
-         lindo que es el diseño; podían estar en la web de cualquiera y
-         no decían nada del negocio.
-
-         Cada nota entra cuando se ve la parte que le toca: la chapa con
-         el auto de atrás, el historial mientras gira, la mecánica de
-         perfil y los papeles al quedar de frente. -->
-
+    <div class="reel-mando" id="reelMando">
+      <div class="reel-pista" id="reelPista">
+        <span class="reel-huella" aria-hidden="true"></span>
+        <!-- Es un slider de verdad, no un div que se arrastra: así lo
+             anuncia un lector de pantalla y funciona con las flechas
+             del teclado sin código extra de accesibilidad. -->
+        <span class="reel-tirador" id="reelTirador"
+              role="slider" tabindex="0"
+              aria-label="Girar el auto"
+              aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"
+              aria-valuetext="Trasera"></span>
+      </div>
+      <p class="reel-pie">Deslizá para girar</p>
+    </div>
   </div>
 </section>
 
@@ -3705,10 +3796,6 @@ window.TURNO = (function(){
 (function(){
   var sec = document.getElementById('reel');
   var v   = document.getElementById('reelVid');
-  /* El bloque pegado. Se guarda acá porque el bucle le escribe el
-     apagado en cada cuadro y no conviene buscarlo sesenta veces por
-     segundo. */
-  var pegado = sec && sec.querySelector('.reel-stick');
 
   /* En celular todavia no hay pieza propia, asi que la seccion entera
      se oculta (ver el @media) y aca ni siquiera se pide el archivo: no
@@ -3797,155 +3884,22 @@ window.TURNO = (function(){
     despertar();
   }
 
-  var dur = 0, objetivo = 0, actual = 0, vivo = false;
+  var dur = 0;
 
-  /* CUÁNTO PERSIGUE EL VIDEO AL SCROLL, POR CUADRO.
+  /* ══════════════════════════════════════════════════════════════
+     ACÁ VIVÍA EL SCRUB POR SCROLL, Y SE FUE ENTERO.
 
-     El video no salta a donde está el scroll: se acerca un porcentaje
-     por cuadro. Ese retraso es lo que hace que frene solo en vez de
-     verse clavado al dedo.
+     El giro lo movía la posición de la página: una sección de once
+     pantallas, el video pegado adentro, y un bucle que traducía scroll
+     a currentTime. Traía tres problemas de arranque —el scroll quedaba
+     tomado durante once pantallas, la velocidad la ponía el envión del
+     dedo y no el diseño, y no había forma de volver a mirar el giro sin
+     scrollear para arriba— y todo eso lo resuelve un control que se
+     arrastra. El bucle nuevo está al final del script.
 
-     En el teléfono el número es más bajo a propósito. Un envión de dedo
-     manda el scroll lejos de golpe, y con la persecución lenta el auto
-     lo sigue con calma y termina de girar después de que el dedo paró.
-     Por rápido que se scrollee, el giro se ve despacio — que es
-     exactamente lo que se pidió. */
-  var PERSECUCION = (pantalla <= 767) ? 0.055 : 0.12;
-
-  /* EL APAGADO DEL FINAL: de 0 en el 86% del recorrido a 1 al llegar
-     abajo. Es el 14% de una sección que mide varias pantallas, o sea
-     casi una pantalla entera de scroll para que el auto se disuelva.
-     Corto se ve como un parpadeo; así se siente que la sección se está
-     terminando.
-
-     Vive afuera del bucle a propósito. Adentro dependía de dos cosas
-     que pueden no pasar —que el video haya cargado y que el bucle esté
-     despierto—, y si alguna fallaba el corte volvía a ser seco. Es una
-     cuenta directa sobre la posición del scroll: no necesita ni el
-     video ni suavizado, así que se calcula sola y también se llama
-     desde el scroll. */
-  var apagadoPuesto = -1;
-
-  function apagar(){
-    if (!pegado) return;
-
-    /* EL APAGADO VA EN DOS TRAMOS, Y HUBO QUE PROBAR LOS DOS EXTREMOS
-       PARA ENCONTRARLO.
-
-       Primero gastaba casi una pantalla entera del recorrido del reel
-       mirando apagarse un auto que ya había terminado de girar: se
-       sentía como una demora para poder salir de la sección.
-
-       Después pasó a apagarse sólo mientras la sección se iba. Eso no
-       costaba recorrido, pero no se veía: para cuando arrancaba, el
-       auto ya estaba deslizándose fuera de pantalla, así que lo que se
-       apagaba era una franja que de todos modos se estaba yendo.
-
-       Un fundido que se vea necesita que el auto esté a la vista
-       mientras ocurre. No hay forma de esquivarlo; lo que sí se puede
-       es que cueste poco:
-
-         TRAMO 1 — media pantalla antes de soltarse, todavía pegado y
-                   llenando la ventana, baja hasta el 60%. Ahí se ve.
-         TRAMO 2 — mientras la sección se va, del 60% al 100%, montado
-                   sobre scroll que uno hace igual.
-
-       O sea: media pantalla de costo en vez de una entera, y a cambio
-       la transición se nota. */
-    var alto = window.innerHeight || 1;
-    var r = sec.getBoundingClientRect();
-    var a;
-
-    if (r.bottom > alto){
-      var falta = (r.bottom - alto) / (alto * .5);   // 1 → 0
-      a = falta >= 1 ? 0 : (1 - falta) * .6;
-    } else {
-      a = .6 + (1 - r.bottom / alto) * .4;
-    }
-
-    if (a < 0) a = 0;
-    if (a > 1) a = 1;
-
-    /* SÓLO SE ESCRIBE SI CAMBIA, y redondeado a centésimas.
-
-       Escribirlo en cada cuadro dejaba el reel trabado: son sesenta
-       recálculos de estilo por segundo sobre el bloque pegado —el
-       video y las cuatro notas adentro— compitiendo con los seeks del
-       scrub, que es lo único que ahí tiene que llegar a tiempo.
-
-       Cien pasos de opacidad son más de los que el ojo distingue en un
-       fundido a negro, así que no se pierde nada: la mayoría de los
-       cuadros no escriben nada. Es la misma regla que ya seguían las
-       notas, que sólo tocan el DOM cuando se prenden o se apagan. */
-    var paso = Math.round(a * 100);
-    if (paso === apagadoPuesto) return;
-    apagadoPuesto = paso;
-    pegado.style.setProperty('--apagado', (paso / 100).toFixed(2));
-  }
-
-  /* Cuánto se avanzó de la sección, de 0 a 1. */
-  function avance(){
-    var r = sec.getBoundingClientRect();
-    var recorrido = sec.offsetHeight - window.innerHeight;
-    if (recorrido <= 0) return 0;
-    var p = -r.top / recorrido;
-    return p < 0 ? 0 : (p > 1 ? 1 : p);
-  }
-
-  /* El bucle. `actual` persigue a `objetivo` en vez de saltar a él: eso
-     es lo que convierte un golpe de rueda en un movimiento que frena
-     solo. Cuando la diferencia es despreciable se deja de escribir en
-     el video, para no pedirle un seek por cuadro estando quieto. */
-  /* ¿Está el reel cerca de la pantalla? Con margen, para que ya esté
-     funcionando cuando asome y no arranque con un tirón. */
-  function cerca(){
-    var r = sec.getBoundingClientRect();
-    return r.bottom > -400 && r.top < window.innerHeight + 400;
-  }
-
-  function cuadro(){
-    /* EL BUCLE SE DUERME CUANDO EL REEL NO SE VE.
-
-       Antes arrancaba con loadedmetadata y no paraba nunca: seguía
-       pidiendo un cuadro por cuadro, pausando el video y escribiéndole
-       el currentTime con el reel tres pantallas más arriba.
-
-       Eso hacía que el video del collage —abajo de todo— no arrancara
-       nunca y se viera como una foto fija: el reel tenía tomado el
-       decodificador, y iOS los reparte de a uno. Soltándolo cuando el
-       reel no está a la vista, el de abajo consigue el suyo.
-
-       De paso deja de gastar batería animando algo que nadie mira. */
-    if (!cerca()){
-      vivo = false;
-      try { v.pause(); } catch(e){}
-      return;
-    }
-
-    /* Red de seguridad: el reel NUNCA se reproduce solo. Si algo lo
-       puso en play —el empujón de iOS, un gesto del sistema— se pausa
-       en el mismo cuadro, así no llega a verse. */
-    if (!v.paused){ try { v.pause(); } catch(e){} }
-
-    var p = avance();
-
-    apagar();
-
-    /* El scroll recorre el video de punta a punta, sin rebote.
-
-       Acá hubo un intento de guardar sólo la primera mitad del archivo
-       y "rebotar" a la mitad del scroll, dando por hecho que el reel
-       era un vaivén. No lo es: son DOS clips distintos, uno que va de
-       la trasera al perfil y otro del perfil a la trompa. Rebotando, el
-       auto llegaba al perfil y se volvía, y nunca se veía la trompa. */
-    objetivo = p * dur;
-    var d = objetivo - actual;
-    if (Math.abs(d) > 0.0015){
-      actual += d * PERSECUCION;
-      try { v.currentTime = actual; } catch(e){}
-    }
-    requestAnimationFrame(cuadro);
-  }
+     Con él se fueron también el apagado en negro del final (dos
+     secciones negras seguidas no necesitan fundido) y el bloque pegado.
+     ══════════════════════════════════════════════════════════════ */
 
   /* iOS IGNORA preload. No descarga un video hasta que empieza a
      reproducirse, y este nunca se reproduce: sólo se le mueve el
@@ -4084,31 +4038,273 @@ window.TURNO = (function(){
      problema: mide contra la maqueta real y recién cuando existe. */
   requestAnimationFrame(porScroll);
 
-  /* Arranca el bucle si hace falta. Se llama al cargar el video y en
-     cada scroll: como el bucle se duerme al alejarse, hay que tener
-     quién lo vuelva a despertar cuando el reel se acerca de nuevo. */
-  function animar(){
-    if (vivo || !dur || !cerca()) return;
-    vivo = true;
+  /* ══════════════════════════════════════════════════════════════
+     EL CONTROL: ARRASTRAR PARA GIRAR.
+
+     La cuenta es una sola —una posición de 0 a 1 que se multiplica por
+     la duración— y toda la gracia está en CÓMO se llega a esa posición.
+
+     DOS POSICIONES, NO UNA. `meta` es dónde está el dedo; `pos` es dónde
+     está el video. Normalmente coinciden, pero no siempre, y esa
+     diferencia es el freno.
+
+     EL FRENO ES UN TOPE DE VELOCIDAD, NO UN SUAVIZADO. Por cuadro, `pos`
+     se acerca a `meta` todo lo que haga falta pero nunca más que
+     VEL_MAX. La consecuencia buena es que arrastrando a velocidad normal
+     NO HAY NINGÚN RETRASO: el hueco de cada cuadro es más chico que el
+     tope, así que el video va clavado al dedo. El tope sólo aparece
+     cuando alguien tira un manotazo de punta a punta, y ahí el giro
+     sigue solo, a velocidad pareja, hasta llegar.
+
+     Un suavizado exponencial —el clásico `pos += hueco * 0.1`— habría
+     dado retraso SIEMPRE, incluso arrastrando despacio, y eso se siente
+     como un control flojo.
+
+     DE DÓNDE SALE VEL_MAX, Y POR QUÉ NO ES MÁS BAJO. El tope tiene que
+     dejar pasar el arrastre deliberado y frenar sólo el manotazo. Si se
+     pone demasiado bajo, arrastrar normal ya choca contra él y el
+     control se siente desconectado: con 0,22 —vuelta en 4,5 s— se midió
+     que un arrastre de 2,5 s de punta a punta se atrasaba 44 puntos
+     respecto del dedo. Eso no es un control con peso, es un control que
+     no responde.
+
+     0,38 deja la vuelta completa en 2,6 segundos como mínimo. Cualquiera
+     que arrastre con intención va por debajo de ese número, o sea 1 a 1
+     con el dedo y sin atraso; el tope aparece sólo cuando se tira de una
+     punta a la otra de un saque, y ahí el giro sigue solo, a velocidad
+     pareja, en vez de pegar un salto.
+     ══════════════════════════════════════════════════════════════ */
+  var mando   = document.getElementById('reelMando');
+  var pista   = document.getElementById('reelPista');
+  var tirador = document.getElementById('reelTirador');
+
+  var VEL_MAX = 0.38;   /* fracción del video por segundo, tope duro */
+  var FPS     = 16;     /* los dos archivos son de 16 cuadros por segundo */
+  var PASO_TECLA = 0.035;
+
+  var meta = 0, pos = 0, corriendo = false, ultimo = 0, sembrado = -1;
+  var arrastrando = false;
+
+  /* Los puntos cardinales de la vuelta, para el lector de pantalla: sin
+     esto, un slider que dice "43" no dice nada. */
+  function comoSeLlama(p){
+    if (p < .18) return 'Trasera';
+    if (p < .42) return 'Lateral trasero';
+    if (p < .62) return 'Perfil';
+    if (p < .85) return 'Lateral delantero';
+    return 'Frente';
+  }
+
+  function pintarMando(){
+    if (mando) mando.style.setProperty('--p', pos.toFixed(4));
+    if (!tirador) return;
+    var cien = Math.round(pos * 100);
+    if (tirador.getAttribute('aria-valuenow') !== String(cien)){
+      tirador.setAttribute('aria-valuenow', String(cien));
+      tirador.setAttribute('aria-valuetext', comoSeLlama(pos));
+    }
+  }
+
+  function ponerMeta(p, deUsuario){
+    meta = p < 0 ? 0 : (p > 1 ? 1 : p);
+    if (deUsuario && mando){
+      mando.classList.add('usado');
+      mando.classList.remove('invita');
+    }
+    arrancarBucle();
+  }
+
+  function desdeX(x){
+    if (!pista) return 0;
+    var r = pista.getBoundingClientRect();
+    if (!r.width) return 0;
+    return (x - r.left) / r.width;
+  }
+
+  /* SÓLO SE PIDE UN SEEK POR CUADRO DISTINTO DEL ARCHIVO.
+
+     Escribir currentTime sesenta veces por segundo sobre un video de 16
+     cuadros por segundo es pedir el mismo cuadro tres o cuatro veces
+     seguidas. En escritorio se nota poco; en iPhone cada pedido de más
+     es trabajo del decodificador que compite con el que sí importa.
+     Redondeando a la rejilla de cuadros se pide exactamente uno por
+     imagen nueva. */
+  function escribirVideo(){
+    if (!dur) return;
+    var n = Math.round(pos * dur * FPS);
+    if (n === sembrado) return;
+    sembrado = n;
+    try { v.currentTime = n / FPS; } catch(e){}
+  }
+
+  function cuadro(ahora){
+    if (!corriendo) return;
+
+    /* El reel no se ve: se suelta todo. Pausar acá no es ahorro, es lo
+       que le devuelve el decodificador al video de abajo — iOS los
+       reparte de a uno. */
+    if (!aDistancia(0)){
+      corriendo = false;
+      try { v.pause(); } catch(e){}
+      return;
+    }
+
+    /* Red de seguridad: este video NUNCA se reproduce solo. Si algo lo
+       puso en play —el empujón de iOS, un gesto del sistema— se pausa en
+       el mismo cuadro, así no llega a verse. */
+    if (!v.paused){ try { v.pause(); } catch(e){} }
+
+    var dt = ultimo ? (ahora - ultimo) / 1000 : 0.016;
+    if (dt > 0.1) dt = 0.1;      /* volvés de otra pestaña: no saltes */
+    ultimo = ahora;
+
+    var hueco = meta - pos;
+    var tope  = VEL_MAX * dt;
+    if (hueco >  tope) hueco =  tope;
+    if (hueco < -tope) hueco = -tope;
+    pos += hueco;
+
+    pintarMando();
+    escribirVideo();
+
+    /* Se duerme cuando llegó y nadie está arrastrando. */
+    if (!arrastrando && Math.abs(meta - pos) < 0.0004){
+      pos = meta;
+      pintarMando();
+      escribirVideo();
+      corriendo = false;
+      ultimo = 0;
+      return;
+    }
     requestAnimationFrame(cuadro);
   }
 
-  /* El scroll despierta el bucle y, aparte, mantiene el apagado al día
-     por su cuenta. Así el final se funde en negro aunque el video no
-     haya cargado. */
-  addEventListener('scroll', function(){
-    apagar();
-    animar();
-  }, { passive:true });
-  apagar();
+  function arrancarBucle(){
+    if (corriendo || !aDistancia(0)) return;
+    corriendo = true;
+    ultimo = 0;
+    requestAnimationFrame(cuadro);
+  }
+
+  /* ── EL ARRASTRE ──────────────────────────────────────────────────
+     Pointer Events cubre mouse, dedo y lápiz por un solo camino, y
+     setPointerCapture hace que el arrastre siga funcionando aunque el
+     dedo se salga del riel, que es lo que uno hace sin darse cuenta. */
+  function soltar(e){
+    decidido = false;
+    if (!arrastrando) return;
+    arrastrando = false;
+    try { pista.releasePointerCapture(e.pointerId); } catch(err){}
+    arrancarBucle();     /* que termine de llegar solo */
+  }
+
+  /* CON EL DEDO, EL GIRO NO ARRANCA HASTA SABER QUE EL GESTO ES
+     HORIZONTAL — y esto salió de probarlo en el teléfono.
+
+     La primera versión movía el auto ya en el pointerdown, como hace
+     cualquier slider. En un mouse está bien. Con el dedo no: el control
+     está en el medio de una página que se scrollea, así que apoyar el
+     dedo ahí para bajar movía el auto de golpe antes de que el navegador
+     decidiera que el gesto era vertical. El scroll seguía funcionando
+     —eso lo garantiza `touch-action:pan-y`— pero el auto ya había
+     pegado un salto que nadie pidió.
+
+     Ahora, en táctil, se espera al primer movimiento y se mira para
+     dónde va: si manda el eje horizontal, arranca el giro; si manda el
+     vertical, no se toca nada y el gesto queda para el scroll. Un toque
+     sin arrastre sigue funcionando como toque: salta a ese punto.
+
+     Con mouse se arranca en el apretón, sin esperar nada, porque ahí no
+     hay ningún scroll que se pueda confundir. */
+  var UMBRAL = 5;                 /* px antes de decidir el eje */
+  var x0 = 0, y0 = 0, decidido = false;
+
+  if (pista){
+    pista.addEventListener('pointerdown', function(e){
+      x0 = e.clientX; y0 = e.clientY;
+      arrastrando = true;
+      decidido = (e.pointerType === 'mouse');
+      try { pista.setPointerCapture(e.pointerId); } catch(err){}
+      if (decidido){
+        ponerMeta(desdeX(e.clientX), true);
+        e.preventDefault();
+      }
+    });
+
+    pista.addEventListener('pointermove', function(e){
+      if (!arrastrando) return;
+
+      if (!decidido){
+        var dx = Math.abs(e.clientX - x0), dy = Math.abs(e.clientY - y0);
+        if (dx < UMBRAL && dy < UMBRAL) return;   /* todavía no se sabe */
+        if (dy > dx){
+          /* Manda el eje vertical: esto es un scroll, no un giro. Se
+             suelta el gesto entero y no se vuelve a mirar hasta el
+             próximo apretón. */
+          arrastrando = false;
+          try { pista.releasePointerCapture(e.pointerId); } catch(err){}
+          return;
+        }
+        decidido = true;
+      }
+
+      ponerMeta(desdeX(e.clientX), true);
+      /* preventDefault SÓLO cuando ya se decidió que es un giro: si se
+         llamara siempre, se comería el scroll de quien apenas apoya el
+         dedo de paso. */
+      e.preventDefault();
+    });
+
+    /* Un toque sin arrastre salta a ese punto, como cualquier riel. */
+    pista.addEventListener('pointerup', function(e){
+      if (arrastrando && !decidido &&
+          Math.abs(e.clientX - x0) < UMBRAL && Math.abs(e.clientY - y0) < UMBRAL){
+        ponerMeta(desdeX(e.clientX), true);
+      }
+      soltar(e);
+    });
+    pista.addEventListener('pointercancel', soltar);
+  }
+
+  /* Teclado: es un slider, así que las flechas tienen que moverlo. */
+  if (tirador){
+    tirador.addEventListener('keydown', function(e){
+      var k = e.key, d = 0;
+      if (k === 'ArrowRight' || k === 'ArrowUp')        d =  PASO_TECLA;
+      else if (k === 'ArrowLeft' || k === 'ArrowDown')  d = -PASO_TECLA;
+      else if (k === 'Home'){ ponerMeta(0, true); e.preventDefault(); return; }
+      else if (k === 'End'){  ponerMeta(1, true); e.preventDefault(); return; }
+      else return;
+      ponerMeta(meta + d, true);
+      e.preventDefault();
+    });
+  }
+
+  /* EL EMPUJONCITO, UNA SOLA VEZ. Que el punto se mueva solo cuando la
+     sección aparece es lo que hace entender que se arrastra. */
+  var invitado = false;
+  if ('IntersectionObserver' in window && mando){
+    new IntersectionObserver(function(e){
+      e.forEach(function(x){
+        if (!x.isIntersecting) return;
+        if (!invitado && !mando.classList.contains('usado')){
+          invitado = true;
+          mando.classList.add('invita');
+        }
+        arrancarBucle();
+      });
+    }, { threshold:0.35 }).observe(sec);
+  }
 
   v.addEventListener('loadedmetadata', function(){
     dur = v.duration || 0;
-    actual = objetivo = avance() * dur;
-    try { v.currentTime = actual; } catch(e){}
+    sembrado = -1;
+    escribirVideo();
+    pintarMando();
     despertar();
-    animar();
   });
+
+  pintarMando();
 })();
 </script>
 
