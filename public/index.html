@@ -2928,6 +2928,36 @@ body.cargando{ overflow:hidden; }
   object-position:center;
 }
 
+/* EL APAGADO DEL PIE, QUE VUELVE.
+
+   Con el scrub por scroll había un apagado a negro calculado cuadro a
+   cuadro, y se fue con él: la idea era que el reel y la sección de abajo
+   son las dos negras y no había nada que empalmar. Era falso. El reel no
+   es negro, es un VIDEO —piso encendido, humo, luces— y abajo arranca el
+   mapa. El corte quedaba en una línea dura.
+
+   Ahora es un degradado fijo sobre el pie del video. No necesita scroll
+   ni JavaScript: el video llega apagado a su propio borde, así que a
+   medida que la sección sube lo que se ve es el negro creciendo, que es
+   exactamente el efecto que hacía el otro y cuesta cero.
+
+   z-index 2 lo deja sobre el video pero DEBAJO del control, que va en 3
+   — si no, el degradado le pasaría por encima al punto. */
+.reel-stick::after{
+  content:"";
+  position:absolute;
+  left:0; right:0; bottom:0;
+  height:34%;
+  z-index:2;
+  pointer-events:none;
+  background:linear-gradient(to bottom,
+    rgba(0,0,0,0) 0%,
+    rgba(0,0,0,.28) 38%,
+    rgba(0,0,0,.72) 68%,
+    rgba(0,0,0,.94) 88%,
+    #000 100%);
+}
+
 /* ══════════════════════════════════════════════════════════════════
    EL CONTROL PARA GIRAR EL AUTO.
 
@@ -2955,7 +2985,7 @@ body.cargando{ overflow:hidden; }
      3,1rem son 50 px: le pasan doce al logo más alto. Verificado en
      1440x900, 1280x720, 1440x620, 390x844 y 390x667, con huecos de entre
      14 y 27 px. */
-  top:calc(var(--hud-y) + 3.1rem);
+  top:calc(var(--hud-y) + 2.4rem);
   transform:translateX(-50%);
   z-index:3;
   width:min(33rem,80vw);
@@ -3034,17 +3064,6 @@ body.cargando{ overflow:hidden; }
   inset:-16px;
 }
 
-.reel-pie{
-  margin:0;
-  font-size:.62rem;
-  letter-spacing:.22em;
-  text-transform:uppercase;
-  color:rgba(255,255,255,.5);
-  transition:opacity .5s var(--ease);
-}
-/* En cuanto alguien lo usa, la instrucción sobra. */
-.reel-mando.usado .reel-pie{ opacity:0; }
-
 /* LA SEÑAL DE QUE ABAJO SIGUE HABIENDO PÁGINA.
 
    Con el control arriba, el pie de la sección queda vacío, y una
@@ -3070,17 +3089,32 @@ body.cargando{ overflow:hidden; }
   .reel-sigue{ animation:none; }
 }
 
-/* EL EMPUJONCITO. Una sola vez, cuando la sección entra en pantalla:
-   el punto se corre y vuelve. Es lo que hace que se lea como algo que
-   se arrastra y no como un adorno. Se corta al primer contacto. */
+/* LA INVITACIÓN, QUE AHORA ES LO ÚNICO QUE HAY.
+
+   Antes había un "Deslizá para girar" escrito debajo. Se fue: un cartel
+   que explica un control es la señal de que el control no se explica
+   solo. Un punto que se mueve sí — nadie necesita que le digan que algo
+   que se desliza se desliza.
+
+   Por eso el empujón dejó de ser un guiño y pasó a ser el cartel: viaja
+   más lejos (38 px contra 13), tarda más en ir y volver, y se repite
+   cuatro veces con una pausa larga en el medio. La pausa importa tanto
+   como el movimiento: un punto que oscila sin parar se lee como un
+   adorno animado, uno que se mueve, espera y vuelve a moverse se lee
+   como algo que está esperando que lo agarren.
+
+   Se corta al primer contacto — ver la clase `usado`. */
 @keyframes reel-invita{
-  0%, 62%, 100% { transform:translateX(0); }
-  76%           { transform:translateX(13px); }
-  88%           { transform:translateX(3px); }
+  0%,  46%      { transform:translateX(0); }
+  62%           { transform:translateX(38px); }
+  74%           { transform:translateX(30px); }
+  92%, 100%     { transform:translateX(0); }
 }
 .reel-mando.invita .reel-tirador{
-  animation:reel-invita 2.6s var(--ease) 2;
+  animation:reel-invita 3.2s var(--ease) 4;
 }
+/* En cuanto alguien lo toca, deja de insistir. */
+.reel-mando.usado .reel-tirador{ animation:none; }
 @media (prefers-reduced-motion:reduce){
   .reel-mando.invita .reel-tirador{ animation:none; }
 }
@@ -4049,12 +4083,6 @@ window.TURNO = (function(){
            aria-label="Vuelta completa alrededor del auto"></video>
 
     <div class="reel-mando" id="reelMando">
-      <!-- La instrucción va ANTES del riel, no después: se lee primero y
-           recién entonces se ve qué hay que agarrar. Va en el marcado y
-           no con un column-reverse porque ese es el orden real —primero
-           se dice, después se muestra— y así lo recorre también un
-           lector de pantalla. -->
-      <p class="reel-pie">Deslizá para girar</p>
       <div class="reel-pista" id="reelPista">
         <span class="reel-huella" aria-hidden="true"></span>
         <!-- Es un slider de verdad, no un div que se arrastra: así lo
