@@ -37,6 +37,17 @@
 /assets/mark.svg
   Cache-Control: public, max-age=604800
 
+# Los íconos de pestaña. Viven en la raíz, así que no los agarra ninguna
+# de las reglas de /assets/ y sin esto salen con max-age=0.
+/favicon.svg
+  Cache-Control: public, max-age=604800
+
+/favicon-32.png
+  Cache-Control: public, max-age=604800
+
+/favicon-180.png
+  Cache-Control: public, max-age=604800
+
 # ── LO PESADO: VIDEOS, PÓSTERES, FOTOS Y MAPAS ────────────────────
 #
 # Sin regla propia, Cloudflare les pone "max-age=0, must-revalidate", y
