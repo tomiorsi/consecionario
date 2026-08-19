@@ -1329,6 +1329,21 @@ video::-webkit-media-controls{ display:none !important; }
   --anillo-chico:.16;
   --anillo-tenue:.62;
   --anillo-umbral:.5;
+
+  /* EL CUERPO DEL NOMBRE, EN DOS NUMEROS. Los lee ajustarMarca() en el
+     script del garage; viven acá porque cambian con la pantalla.
+
+       --marca-ancho  que fraccion del ancho del escenario tiene que
+                      ocupar el nombre
+       --marca-tope   hasta donde puede crecer el cuerpo, tambien en
+                      fraccion del ancho
+
+     EL TOPE EXISTE PORQUE LOS CUATRO NOMBRES MIDEN DISTINTO. "Urbanos"
+     es la mitad de largo que "Linea Evolution": sin tope, el corto se
+     estiraria hasta ocupar el mismo ancho y quedaria enorme al lado del
+     largo. */
+  --marca-ancho:.62;
+  --marca-tope:.14;
 }
 
 .gar-auto{
@@ -1511,7 +1526,31 @@ video::-webkit-media-controls{ display:none !important; }
     padding-bottom:clamp(1rem,3vh,2rem);
   }
   .gar-escena{ aspect-ratio:1.62; }
-  .gar-marca{ top:22%; font-size:clamp(1.3rem,6.3vw,2.4rem); }
+  /* EL NOMBRE, MAS GRANDE Y MAS PEGADO AL AUTO.
+
+     Con los numeros de escritorio quedaba en el 45% del ancho: el que
+     mandaba era el TOPE, que esta atado al ancho del escenario, y en un
+     telefono ese ancho es chico mientras que el alto sobra —la escena
+     pasa de 2,25 a 1,62 de proporcion—. O sea que el nombre se frenaba
+     por una medida que aca no es la que escasea.
+
+     Subiendo el tope el nombre llega al ancho que se le pide, y como
+     crece hacia abajo desde `top`, hay que subir el `top` en la misma
+     jugada para que la base siga apoyada sobre el techo del auto y no
+     se lo coma. */
+  .gar-escena{
+    --marca-ancho:.84;
+    --marca-tope:.30;
+  }
+  /* EL 20% NO ES A OJO. El borde de arriba del .gar-auto cae en el 50%
+     del alto, pero ese NO es el techo del auto: la foto trae un 12,6%
+     de lienzo transparente arriba, que sobre un elemento de 47 puntos
+     son casi 6 puntos mas. El techo de verdad esta en el 56%.
+
+     El nombre mide 37 puntos de alto, asi que con top:20% su base cae
+     en el 57% y el auto le muerde el pie — que es lo que lo mete en la
+     escena en vez de dejarlo colgado arriba. */
+  .gar-marca{ top:20%; font-size:clamp(1.3rem,6.3vw,2.4rem); }
 
   /* EL ANILLO EN EL TELEFONO. El escenario pasa de 2,25 a 1,62 de
      proporcion —es mucho mas alto y mucho mas angosto— asi que las
@@ -2861,12 +2900,29 @@ body.cargando{ overflow:hidden; }
   flex-direction:column;
   align-items:center;
   gap:.8rem;
-  /* pan-y ES LA CLAVE DE QUE EL SCROLL NO SE TRABE. Le dice al navegador
-     que el gesto vertical es suyo —sigue scrolleando la página, incluso
-     con el dedo apoyado justo acá— y que el horizontal es nuestro. Con
-     `none` el control se comería el scroll; sin nada, el navegador se
-     quedaría también con el horizontal y no se podría arrastrar. */
-  touch-action:pan-y;
+  /* EL CONTROL SE QUEDA CON EL DEDO ENTERO MIENTRAS LO TENGA ENCIMA.
+
+     Estuvo en `pan-y`, que le deja el eje vertical al navegador para que
+     la página siga scrolleando aunque el dedo caiga justo acá. Suena
+     bien y en la práctica se sentía roto: al girar, cualquier
+     componente vertical del gesto —y siempre hay— arrancaba un scroll,
+     la página se movía un poco y el giro quedaba trabado a la mitad.
+
+     El motivo es que `touch-action` no es una sugerencia: declarado
+     `pan-y`, el eje vertical ES del navegador, y una vez que empezó el
+     paneo el `preventDefault()` del pointermove no lo puede frenar. No
+     hay forma de recuperar el gesto desde el script.
+
+     Con `none` el script se queda con el gesto completo: mientras el
+     dedo esté apoyado no hay scroll ni para arriba ni para abajo, y
+     recién al soltar la página vuelve a moverse.
+
+     LO QUE CUESTA: una franja de 3rem de alto donde no se puede
+     scrollear con el dedo. Es un riel de arrastre —igual que en
+     cualquier control de este tipo, no se scrollea desde arriba de él— y
+     el resto de la sección, que ocupa la pantalla entera, sigue
+     scrolleando normal. */
+  touch-action:none;
   -webkit-user-select:none;
   user-select:none;
 }
@@ -2917,7 +2973,11 @@ body.cargando{ overflow:hidden; }
   box-shadow:0 0 0 6px rgba(255,255,255,.08),
              0 0 22px 5px rgba(255,255,255,.32);
   cursor:grab;
-  touch-action:pan-y;
+  /* Mismo criterio que el mando: el tirador es lo que más se agarra, así
+     que tiene que soltar el scroll igual que el riel. Si quedara en
+     `pan-y`, arrastrar justo desde el punto volvería a scrollear la
+     página a mitad del giro. */
+  touch-action:none;
 }
 .reel-tirador:focus-visible{
   outline:none;
@@ -3880,7 +3940,10 @@ window.TURNO = (function(){
     var base = parseFloat(getComputedStyle(marca).fontSize);
     var mide = marca.scrollWidth;
     if (!base || !mide) return;
-    var cuerpo = Math.min(base * (ancho * 0.62) / mide, ancho * 0.14);
+    var cs = getComputedStyle(escena);
+    var quiere = parseFloat(cs.getPropertyValue('--marca-ancho')) || 0.62;
+    var tope   = parseFloat(cs.getPropertyValue('--marca-tope'))  || 0.14;
+    var cuerpo = Math.min(base * (ancho * quiere) / mide, ancho * tope);
     marca.style.fontSize = cuerpo.toFixed(1) + 'px';
   }
 
