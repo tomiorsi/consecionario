@@ -1,1 +1,5 @@
 .DS_Store
+
+# Cyberduck se copió por accidente a source/. 261 MB que no son del proyecto.
+source/Cyberduck.app/
+*.app/

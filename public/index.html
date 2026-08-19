@@ -129,6 +129,11 @@
   --display:"Syncopate",ui-sans-serif,system-ui,sans-serif;
   --texto:"Montserrat",ui-sans-serif,system-ui,sans-serif;
   --mono:var(--texto);
+  /* NORTHWELL, y sólo para el nombre del grupo en el garage. Es una
+     letra manuscrita: sirve para una palabra puesta como firma y es
+     ilegible para cualquier otra cosa. El respaldo son cursivas del
+     sistema, que es lo más parecido que hay sin descargar nada. */
+  --firma:"Northwell","Snell Roundhand","Brush Script MT",cursive;
 
   /* Alto del escenario. Da aire arriba y abajo del auto en vez de
      dejarlo apretado contra los bordes de la ventana. */
@@ -155,6 +160,26 @@
      ventana: la barra tiene que terminar poco después que el auto para
      que se lea como una tarima donde está parado, y no como un
      horizonte que cruza la pantalla. Es lo que lo deja flotando. */
+}
+
+/* La letra manuscrita del nombre del grupo. Va como archivo propio y no
+   por Google Fonts porque no está ahí.
+
+   ESTÁ RECORTADA A LAS LETRAS QUE SE USAN. El .ttf original pesa 460 KB;
+   dejando sólo el alfabeto con acentos y conservando las ligaduras
+   —que en una manuscrita no son adorno, son lo que hace que las letras
+   se encadenen— queda en 97 KB.
+
+   `font-display:swap` para que el nombre se lea desde el primer cuadro
+   con la cursiva del sistema y cambie cuando llega el archivo: es una
+   sola palabra por grupo, así que el cambio no mueve el resto de la
+   página. */
+@font-face{
+  font-family:"Northwell";
+  src:url("/assets/fuentes/northwell.woff2") format("woff2");
+  font-weight:400;
+  font-style:normal;
+  font-display:swap;
 }
 
 *{margin:0;padding:0;box-sizing:border-box}
@@ -475,6 +500,55 @@ video::-webkit-media-controls{ display:none !important; }
   #velo-alto{ transition:none; }
 }
 
+/* ── LA LUZ DE AMBIENTE ────────────────────────────────────────────
+
+   El sitio es negro de punta a punta y ese negro estaba PLANO: no un
+   lugar oscuro, un vacío. Esto le pone tres fuentes muy grandes y muy
+   suaves, para que el fondo tenga de dónde y hacia dónde, y los autos
+   dejen de verse pegados sobre la nada.
+
+   ES UNA CAPA DE TODA LA VENTANA, Y ESA ES LA DECISIÓN.
+
+   Primero se hizo por sección, dentro del escenario del garage, y se
+   veía exactamente el error que se quería evitar: la luz terminaba en
+   el borde de la caja y quedaba un rectángulo iluminado con la página
+   negra alrededor. La luz de una sala no la corta el mueble.
+
+   Y ES FIXED, no absolute: al quedar pegada a la ventana, dos secciones
+   vecinas reciben el mismo tramo de luz en el mismo lugar de la
+   pantalla. No hay dos degradados que empalmar en la costura, así que
+   no puede aparecer una línea entre una sección y otra.
+
+   POR QUÉ VA POR ENCIMA DEL CONTENIDO Y NO POR DEBAJO. Casi todas las
+   secciones se pintan el fondo negro ellas mismas; una capa por debajo
+   quedaría tapada por todas. Puesta encima con mezcla `screen`, suma
+   luz en vez de pintar: sobre el negro se ve entera, y sobre la chapa
+   blanca de los autos no cambia nada —screen sobre blanco da blanco—.
+   Por eso puede cruzar toda la página sin ensuciar ninguna foto.
+
+   LAS FUENTES ESTÁN LEJOS DE LOS AUTOS A PROPÓSITO: dos en las esquinas
+   opuestas y una desbordando por abajo. Una luz cerca del auto le
+   dibuja un halo y lo vuelve a despegar del fondo, que es el problema
+   que esto viene a resolver.
+
+   z-index 40 la deja sobre todo el contenido —que no pasa de 5— y
+   debajo del velo (50), la barra (55) y el HUD (60): el logo y el menú
+   nunca se tiñen. */
+#ambiente{
+  position:fixed;
+  inset:0;
+  z-index:40;
+  pointer-events:none;
+  mix-blend-mode:screen;
+  background:
+    radial-gradient(78% 58% at 12% 14%,
+      rgba(var(--beam),.10), transparent 70%),
+    radial-gradient(70% 56% at 90% 78%,
+      rgba(var(--beam),.085), transparent 68%),
+    radial-gradient(130% 62% at 50% 112%,
+      rgba(var(--beam),.075), transparent 62%);
+}
+
 /* El grano. Se genera con SVG en vez de traer una imagen: son 200 bytes
    contra los varios KB de un PNG de ruido, y no es un pedido más.
 
@@ -544,38 +618,16 @@ video::-webkit-media-controls{ display:none !important; }
 
 .edit{ text-align:center; }
 
-/* Mismo rótulo con línea que el concierge: son hermanos, tienen que
-   arrancar igual para que la fila se lea como una fila. */
-.edit-eyebrow{
-  display:block;
-  font-size:.6rem;
-  font-weight:600;
-  letter-spacing:.38em;
-  text-indent:.38em;
-  text-transform:uppercase;
-  color:var(--ink-3);
-}
-.edit-eyebrow::after{
-  content:"";
-  display:block;
-  width:2.2rem;
-  height:1px;
-  margin:clamp(.9rem,2vh,1.3rem) auto 0;
-  background:rgba(209,213,219,.28);
-}
+/* SIN VOLANTA NI BAJADA. Estaban el "Editorial" con su filete y el
+   "Historias, análisis y cultura automotriz", y se sacaron: la nota ya
+   se presenta sola con su foto y su titular, y dos renglones de
+   introducción antes de un único artículo eran andamiaje, no contenido.
 
-.edit-bajada{
-  margin:clamp(1.1rem,2.6vh,1.7rem) auto 0;
-  max-width:26rem;
-  font-size:clamp(.92rem,1.2vw,1rem);
-  line-height:1.7;
-  color:var(--steel);
-}
-
-.edit-nota{
-  margin-top:clamp(1.6rem,3.4vh,2.4rem);
-  text-align:left;
-}
+   TODA LA COLUMNA VA CENTRADA. La nota estaba alineada a la izquierda
+   dentro de una sección centrada, así que el bloque quedaba descalzado
+   contra su vecina. Ahora el titular, el copete y el botón comparten
+   el mismo eje que la foto. */
+.edit-nota{ text-align:center; }
 
 .edit-foto{
   position:relative;
@@ -591,38 +643,10 @@ video::-webkit-media-controls{ display:none !important; }
   height:100%;
   object-fit:cover;
 }
-/* El degradado del pie: sin él, las dos etiquetas caen sobre lo que haya
-   en la foto y a veces no se leen. */
-.edit-foto::after{
-  content:"";
-  position:absolute;
-  inset:auto 0 0 0;
-  height:46%;
-  background:linear-gradient(to top, rgba(0,0,0,.78), transparent);
-  pointer-events:none;
-}
-
-.edit-marcas{
-  position:absolute;
-  left:0; right:0; bottom:0;
-  z-index:1;
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:1rem;
-  padding:clamp(.9rem,2vw,1.2rem);
-  font-size:.56rem;
-  font-weight:600;
-  letter-spacing:.2em;
-  text-transform:uppercase;
-}
-.edit-tema{
-  padding:.5em 1em;
-  border:1px solid rgba(255,255,255,.28);
-  border-radius:100px;
-  color:var(--chrome);
-}
-.edit-rato{ color:rgba(255,255,255,.62); }
+/* LA FOTO VA LIMPIA. Tenía dos etiquetas encima —"Cultura" y "5 min"—
+   y un degradado negro al pie puesto sólo para que esas dos etiquetas
+   se leyeran. Sacadas las etiquetas, el degradado tampoco tiene razón
+   de ser: era el fondo de algo que ya no está. */
 
 .edit-titular{
   font-family:var(--display);
@@ -634,11 +658,23 @@ video::-webkit-media-controls{ display:none !important; }
   color:var(--chrome);
 }
 
+/* SIN AZUL EN NINGUNO DE LOS GRISES DE ESTE BLOQUE.
+
+   Los apagados salían de --ink-3 (#5A6673) y de --steel (#D1D5DB), que
+   son grises AZULADOS: sobre el negro de esta sección el azul se ve, y
+   se leía como si el texto secundario fuera de otro color y no de otra
+   jerarquía.
+
+   Ahora los apagados son blanco con transparencia. Es neutro por
+   construcción —no puede virar a ningún lado— y la jerarquía la sigue
+   dando la opacidad, que es lo que la daba antes. */
 .edit-copete{
   margin:clamp(.7rem,1.6vh,1rem) 0 0;
+  max-width:30rem;
+  margin-inline:auto;
   font-size:clamp(.88rem,1.1vw,.95rem);
   line-height:1.7;
-  color:var(--steel);
+  color:rgba(255,255,255,.72);
 }
 
 /* Mismo botón que el resto del sitio: contorno fino, sin relleno. */
@@ -668,26 +704,10 @@ video::-webkit-media-controls{ display:none !important; }
   pointer-events:none;
 }
 
-/* El rótulo, con una línea corta debajo. Es el único adorno de toda la
-   sección y hace bastante: da un punto de partida vertical y separa el
-   rótulo del título sin necesidad de meter aire de más. */
-.conc-eyebrow{
-  display:block;
-  font-size:.6rem;
-  font-weight:600;
-  letter-spacing:.38em;
-  text-indent:.38em;          /* compensa el espaciado del último carácter */
-  text-transform:uppercase;
-  color:var(--ink-3);
-}
-.conc-eyebrow::after{
-  content:"";
-  display:block;
-  width:2.2rem;
-  height:1px;
-  margin:clamp(.9rem,2vh,1.3rem) auto 0;
-  background:rgba(209,213,219,.28);
-}
+/* SIN RÓTULO. Estaba el "El Concierge" con su filete corto, y se fue
+   junto con el "Editorial" de la columna de al lado: eran hermanos y
+   arrancaban igual, así que sacar uno solo dejaba la fila descalzada.
+   El título ya dice de qué se trata. */
 
 /* Menos espaciado entre letras que antes (.08 → .045). Syncopate ya es
    una tipografía muy abierta; sumarle tracking en un título de dos
@@ -709,7 +729,7 @@ video::-webkit-media-controls{ display:none !important; }
   max-width:30rem;
   font-size:clamp(.92rem,1.2vw,1rem);
   line-height:1.7;
-  color:var(--steel);
+  color:rgba(255,255,255,.78);
 }
 
 /* EL SELECTOR, AHORA EN SOLAPAS Y NO EN BLOQUE.
@@ -738,7 +758,7 @@ video::-webkit-media-controls{ display:none !important; }
   font-weight:700;
   letter-spacing:.16em;
   text-transform:uppercase;
-  color:var(--ink-3);
+  color:rgba(255,255,255,.55);
   cursor:pointer;
   transition:color .35s var(--ease);
 }
@@ -783,11 +803,11 @@ video::-webkit-media-controls{ display:none !important; }
   font-weight:600;
   letter-spacing:.2em;
   text-transform:uppercase;
-  color:var(--ink-3);
+  color:rgba(255,255,255,.62);
   margin-bottom:.7rem;
   transition:color .35s var(--ease);
 }
-.conc-campo:focus-within label{ color:var(--steel); }
+.conc-campo:focus-within label{ color:rgba(255,255,255,.9); }
 
 .conc-campo input{
   width:100%;
@@ -801,7 +821,7 @@ video::-webkit-media-controls{ display:none !important; }
   color:var(--chrome);
   transition:border-color .35s var(--ease);
 }
-.conc-campo input::placeholder{ color:rgba(209,213,219,.26); }
+.conc-campo input::placeholder{ color:rgba(255,255,255,.32); }
 .conc-campo input:focus{ outline:none; border-bottom-color:var(--chrome); }
 
 /* El botón ocupa el ancho de la columna. Un botón chico alineado a la
@@ -827,23 +847,6 @@ video::-webkit-media-controls{ display:none !important; }
 }
 @media (hover:hover){
   .conc-enviar:hover{ background:transparent; color:var(--chrome); }
-}
-
-/* Si todavía no se cargó el WhatsApp del negocio, el botón no promete
-   algo que no va a pasar: se apaga y lo dice. */
-.conc-enviar[disabled]{
-  background:transparent;
-  border-color:rgba(209,213,219,.22);
-  color:var(--ink-3);
-  cursor:not-allowed;
-}
-
-.conc-nota{
-  margin:0;
-  text-align:center;
-  font-size:.7rem;
-  line-height:1.65;
-  color:var(--ink-3);
 }
 
 @media (prefers-reduced-motion:reduce){
@@ -875,28 +878,12 @@ video::-webkit-media-controls{ display:none !important; }
   text-align:center;
 }
 
-.social-eyebrow{
-  display:block;
-  font-size:.66rem;
-  font-weight:600;
-  letter-spacing:.3em;
-  text-transform:uppercase;
-  color:var(--steel);
-}
-
-.social-titulo{
-  font-family:var(--display);
-  font-size:clamp(1rem,2.3vw,1.6rem);
-  font-weight:700;
-  text-transform:uppercase;
-  letter-spacing:.09em;
-  line-height:1.45;
-  margin:clamp(.8rem,2vh,1.2rem) 0 0;
-  color:var(--chrome);
-}
-
+/* SIN TÍTULO NI VOLANTA. Estaban el "Comunidad" y el "Todo lo que entra,
+   primero pasa por acá", y se sacaron: abajo arranca el pie, que ya
+   tiene sus propios rótulos, y dos jerarquías de título pegadas una
+   arriba de la otra hacen que el cierre se lea como dos secciones
+   distintas en vez de como un final. Quedan las fotos solas. */
 .social-grilla{
-  margin-top:clamp(2.2rem,5vh,3.4rem);
   display:grid;
   grid-template-columns:repeat(6,1fr);
   gap:clamp(.4rem,.8vw,.7rem);
@@ -924,30 +911,6 @@ video::-webkit-media-controls{ display:none !important; }
   .social-grilla a:hover img{ opacity:1; transform:scale(1.06); }
 }
 
-.social-perfil{
-  display:inline-flex;
-  align-items:center;
-  gap:.6rem;
-  margin-top:clamp(1.8rem,4vh,2.6rem);
-  font-family:var(--display);
-  font-size:.64rem;
-  font-weight:700;
-  letter-spacing:.16em;
-  text-transform:uppercase;
-  color:var(--chrome);
-  text-decoration:none;
-  border-bottom:1px solid transparent;
-  transition:border-color .35s var(--ease);
-}
-@media (hover:hover){
-  .social-perfil:hover{ border-bottom-color:var(--gris); }
-}
-
-.social-perfil[aria-disabled="true"]{
-  color:var(--ink-3);
-  cursor:not-allowed;
-}
-
 @media (max-width:767px){
   /* Seis en fila son sellos ilegibles en un teléfono. Tres y tres. */
   .social-grilla{ grid-template-columns:repeat(3,1fr); }
@@ -965,58 +928,178 @@ video::-webkit-media-controls{ display:none !important; }
    ══════════════════════════════════════════════════════════════════ */
 #pie{
   position:relative;
-  overflow:hidden;
   background:var(--void);
-  padding:clamp(4.5rem,12vh,8rem) var(--gut) clamp(2.5rem,6vh,4rem);
+  padding:clamp(2.4rem,5.5vh,3.4rem) var(--gut) clamp(1.1rem,2.6vh,1.6rem);
 }
 
-/* El sello. Enorme, casi invisible y cortado por el borde de abajo:
-   está para dar peso, no para leerse. */
-.pie-sello{
-  position:absolute;
-  left:50%;
-  bottom:-32%;
-  width:min(46rem,116vw);
-  height:auto;
-  transform:translateX(-50%);
-  color:var(--chrome);
-  opacity:.035;
-  pointer-events:none;
-}
+/* CUATRO COLUMNAS, Y LOS ANCHOS NO SON IGUALES. La navegación es la más
+   angosta porque son cuatro palabras sueltas; contacto es la más ancha
+   porque la dirección ocupa dos renglones; el mapa pide su cuadro.
+   Repartidas en cuatro partes iguales, la navegación quedaba con aire
+   de sobra y la dirección se partía en cuatro. */
+/* EL MISMO ANCHO QUE LA GRILLA DE FOTOS DE ARRIBA, y no uno propio.
 
+   Estaba en 76rem contra las 82rem de .social-caja, así que en pantallas
+   anchas el pie arrancaba 48 px más adentro por lado: las fotos y las
+   columnas no compartían borde y la costura entre las dos secciones se
+   veía. Medido a 1440: las fotos iban de 64 a 1376 y el pie de 112 a
+   1328.
+
+   Si cambia el ancho de una, tiene que cambiar el de la otra. */
 .pie-caja{
-  position:relative;
-  z-index:1;
-  max-width:64rem;
+  max-width:82rem;
   margin:0 auto;
-  text-align:center;
+  display:grid;
+  grid-template-columns:1.1fr 1fr 1.35fr 1.05fr;
+  gap:clamp(1.4rem,3vw,2.6rem);
+  align-items:start;
 }
 
+/* EL LOGO VA CENTRADO A LO ANCHO, PERO ARRIBA DE TODO.
 
+   Estaba centrado en los DOS ejes y con `align-self:stretch`, así que su
+   columna se estiraba hasta los 204 px de la más alta y el logo caía en
+   el medio: arrancaba a los 60 px cuando las otras tres arrancan en 0.
+   Medido, y era exactamente lo que se veía — la marca hundida contra
+   tres columnas que empiezan arriba.
 
-
-
-.pie-datos{
-  margin-top:clamp(3rem,7vh,4.5rem);
-  padding-top:clamp(1.6rem,3.5vh,2.4rem);
-  border-top:1px solid rgba(209,213,219,.16);
+   Sin el `stretch` la columna mide lo que mide el logo, y con el
+   `align-items` en `start` su borde de arriba cae en la misma línea que
+   los rótulos de al lado. El centrado horizontal se conserva, que es lo
+   que hace que la marca no quede pegada al borde izquierdo. */
+.pie-col--marca{
   display:flex;
-  flex-wrap:wrap;
+  align-items:flex-start;
   justify-content:center;
-  gap:.6rem clamp(1.4rem,3vw,2.6rem);
-  font-size:.72rem;
-  letter-spacing:.06em;
-  color:var(--ink-3);
 }
 
-.pie-datos a{
-  color:var(--steel);
+.pie-logo{
+  display:block;
+  width:clamp(7rem,11vw,9.5rem);
+  height:auto;
+}
+
+/* El rótulo de cada columna. Mismo idioma que las volantas del resto
+   del sitio: chico, muy espaciado y en gris, para que ordene sin pesar
+   más que lo que ordena. */
+.pie-rotulo{
+  margin:0 0 clamp(.7rem,1.6vh,1rem);
+  font-family:var(--mono);
+  font-size:.55rem;
+  font-weight:600;
+  letter-spacing:.26em;
+  text-transform:uppercase;
+  /* Blanco al 70%, no --steel: ese gris es azulado y sobre el negro del
+     pie el azul se ve. Ver el mismo cambio en el bloque del editorial. */
+  color:rgba(255,255,255,.7);
+}
+
+.pie-col ul{
+  list-style:none;
+  display:grid;
+  gap:.58rem;
+}
+
+.pie-col a,
+.pie-col span{
+  font-size:.74rem;
+  line-height:1.45;
+  color:rgba(255,255,255,.72);
   text-decoration:none;
-  border-bottom:1px solid transparent;
-  transition:color .3s var(--ease), border-color .3s var(--ease);
+  transition:color .3s var(--ease);
 }
 @media (hover:hover){
-  .pie-datos a:hover{ color:var(--chrome); border-bottom-color:var(--gris); }
+  .pie-col a:hover{ color:var(--chrome); }
+}
+
+/* Cada dato de contacto lleva su ícono adelante, y la fila se alinea por
+   la PRIMERA línea y no por el centro: la dirección ocupa dos renglones
+   y centrada le dejaba el ícono flotando en el medio. */
+.pie-contacto li{
+  display:grid;
+  grid-template-columns:1rem 1fr;
+  gap:.7rem;
+  align-items:start;
+}
+
+.pie-contacto svg{
+  width:1rem;
+  height:1rem;
+  margin-top:.15rem;
+  color:#FFFFFF;
+  opacity:.55;
+}
+
+/* EL AVISO DE COPIADO. Va como ::after del propio dato para que aparezca
+   pegado a él y no en una esquina de la pantalla: lo que se copió es
+   ESTE dato, y un cartel lejos obliga a atar una cosa con la otra. */
+.pie-dato{
+  position:relative;
+  cursor:pointer;
+}
+.pie-dato::after{
+  content:"copiado";
+  position:absolute;
+  left:0;
+  top:-1.35rem;
+  padding:.15rem .45rem;
+  border-radius:2px;
+  background:var(--chrome);
+  color:var(--void);
+  font-family:var(--mono);
+  font-size:.52rem;
+  font-weight:600;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  white-space:nowrap;
+  opacity:0;
+  transform:translateY(3px);
+  pointer-events:none;
+  transition:opacity .25s var(--ease), transform .25s var(--ease);
+}
+.pie-dato.copiado::after{ opacity:1; transform:translateY(0); }
+
+/* El mapa. Es el dibujo de la sección "dónde estamos" reusado, no un
+   archivo nuevo: el mismo trazo, en chico. Se usa la versión de
+   TELÉFONO —abarca menos cuadras y trae los nombres más grandes— porque
+   este cuadro mide lo que mide un teléfono, no lo que mide la sección. */
+.pie-mapa{
+  display:block;
+  position:relative;
+  aspect-ratio:1.35;
+  overflow:hidden;
+  border:1px solid rgba(209,213,219,.14);
+  border-radius:3px;
+  background:#07080A;
+}
+.pie-mapa img{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  opacity:.6;
+  transition:opacity .45s var(--ease);
+}
+@media (hover:hover){
+  .pie-mapa:hover img{ opacity:.85; }
+}
+.pie-pin{
+  position:absolute;
+  left:50%; top:50%;
+  width:9px; height:9px;
+  margin:-4.5px 0 0 -4.5px;
+  border-radius:50%;
+  background:var(--chrome);
+  box-shadow:0 0 0 4px rgba(var(--beam),.18), 0 0 14px 3px rgba(var(--beam),.5);
+}
+
+@media (max-width:900px){
+  /* En tableta las cuatro columnas quedan de 130 px y cada dato se parte
+     en renglones sueltos. Dos y dos. */
+  .pie-caja{ grid-template-columns:1fr 1fr; gap:clamp(2rem,5vh,3rem) 2rem; }
+}
+@media (max-width:560px){
+  .pie-caja{ grid-template-columns:1fr; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -1060,11 +1143,11 @@ video::-webkit-media-controls{ display:none !important; }
   background:var(--void);
 }
 
-/* NO HAY LUZ DE ARRIBA. Estuvo un momento y se saco: sobre un fondo que
-   tiene que ser negro pleno, un halo cenital se lee como una mancha
-   gris, no como iluminacion. La unica fuente es el piso — la luz viene
-   de abajo, que es ademas como se ilumina una tarima de salon de
-   verdad: el auto recortado contra la oscuridad y el disco encendido. */
+/* LA LUZ DE AMBIENTE NO VIVE ACA. Estuvo un rato en .gar-escena::before
+   y el problema es que el escenario es una caja: la luz terminaba donde
+   terminaba la caja, y en pantalla se leía un rectángulo iluminado con
+   la página negra alrededor. Justo lo contrario de lo que tiene que
+   hacer. Ahora es una sola capa de toda la ventana — ver #ambiente. */
 
 /* El grano, misma técnica que en el puente: sobre negro puro no hace
    nada, y aparece donde el degradado se aclara, que es exactamente
@@ -1096,392 +1179,146 @@ video::-webkit-media-controls{ display:none !important; }
    13%: desde el 17% su base llega al 30%, así que el techo le cruza el
    borde de abajo. Suficiente para que se lea detrás, poco para que se
    pierda —el auto es ancho y más abajo se comería el centro—. */
+/* EL NOMBRE DEL GRUPO, ESCRITO A MANO.
+
+   Era Syncopate en mayúsculas y ocupaba el ancho entero como un cartel.
+   Ahora es una firma: una manuscrita, en caja mixta y apoyada sobre el
+   techo del auto.
+
+   VA EN CAJA MIXTA Y NO EN MAYÚSCULAS, y no es un detalle. En una
+   manuscrita las mayúsculas no se encadenan —cada letra queda suelta y
+   el trazo se corta— así que en versales se pierde justo lo que hace
+   que se lea como escrito a mano. Por eso también se sacó el
+   `text-transform`, y por eso los títulos van con la caja ya puesta en
+   el script del garage.
+
+   NO LLEVA `letter-spacing`. Separar las letras de una manuscrita rompe
+   los enlaces entre una y otra: quedan trazos sueltos que no llegan a
+   tocarse.
+
+   PEGADA AL AUTO. Estaba al 19% del alto, arriba de todo y separada de
+   la escena. Ahora arranca más abajo para que el techo del auto del
+   frente le muerda el borde inferior, que es lo que la mete en la
+   escena en vez de dejarla colgada como epígrafe.
+
+   YA NO LLEVA MÁSCARA, y por eso se ve entera. Había un degradado que
+   la desvanecía hacia abajo —heredado de cuando era un cartel en
+   Syncopate, donde sólo se comía el filo de unas versales— y con la
+   manuscrita cortaba las panzas y las colas de las letras: la palabra
+   se leía partida por la mitad.
+
+   No hace falta: el auto ya la tapa solo. Las fotos tienen
+   transparencia real y viajan en z-index 2 o más, así que la chapa se
+   le pone adelante y el cruce queda limpio sin desvanecer nada.
+
+   `line-height` en 1.15 por lo mismo: con .9 las colas de la g y la y
+   se salían de la caja y el `overflow:hidden` del escenario se las
+   comía. */
 .gar-marca{
   position:absolute;
   left:50%;
-  top:19%;
+  top:29%;
   z-index:0;
   transform:translateX(-50%);
   white-space:nowrap;
-  font-family:var(--display);
+  font-family:var(--firma);
   /* El cuerpo lo pone el script, uno por nombre: ver ajustarMarca().
      Este valor es solo el punto de partida y lo que se ve si el script
      no llegara a correr. */
-  font-size:clamp(1.7rem,6.2vw,5.6rem);
-  font-weight:700;
-  letter-spacing:.03em;
-  line-height:1;
-  text-transform:uppercase;
-  color:rgba(255,255,255,.14);
+  font-size:clamp(2.4rem,9vw,7.5rem);
+  font-weight:400;
+  line-height:1.15;
+  color:rgba(255,255,255,.92);
   pointer-events:none;
   transition:opacity .3s var(--ease);
-  -webkit-mask-image:linear-gradient(180deg,#000 46%,rgba(0,0,0,.35) 78%,transparent 100%);
-          mask-image:linear-gradient(180deg,#000 46%,rgba(0,0,0,.35) 78%,transparent 100%);
 }
 .gar-marca.cambiando{ opacity:0; }
 
-/* EL AUTO Y SUS CUATRO PUESTOS SOBRE LA CARRETERA.
+/* EL ANILLO — LOS CUATRO AUTOS, SIEMPRE LOS CUATRO.
 
-   La calle se aleja hacia arriba a la izquierda y viene hacia vos abajo
-   a la derecha. Todo se ordena sobre ese eje: un auto lejos esta chico,
-   arriba y a la izquierda; a medida que se acerca se agranda y baja
-   hacia la derecha; y sale de cuadro pasando al lado de la camara.
+   Estan repartidos cada 90 grados sobre una elipse que se ve en
+   escorzo: el de adelante grande y abajo, el del fondo chico y arriba,
+   y los dos de los costados a mitad de camino. Cambiar de grupo es
+   girar el anillo un cuarto de vuelta.
 
-     lejos       →  entrando   →  actual   →  saliendo
-     (invisible)    (izquierda)   (centro)   (pasa de largo)
+   ANTES HABIA TRES PUESTOS Y UN AUTO ESCONDIDO. Las clases eran
+   es-entrando, es-actual y es-saliendo, y el cuarto auto no tenia
+   ninguna: estaba en opacity 0 fuera de cuadro esperando su turno. De
+   los cuatro grupos se veian tres.
 
-   El movimiento SIEMPRE va en ese sentido. Antes el auto nuevo entraba
-   por la derecha y todo se corria hacia la izquierda, que sobre una
-   calle que baja hacia la derecha se leia como marcha atras.
+   Y NO SE PODIA ARREGLAR AGREGANDO UNA CUARTA CLASE. Con posiciones
+   fijas el viaje de un puesto al otro es una RECTA —el navegador
+   interpola left, bottom y scale por separado, en linea— y cuatro
+   rectas encadenadas dibujan un cuadrado, no un circulo. Para que se
+   lea como una vuelta hay que recorrer el ARCO, y eso pide calcular la
+   posicion en cada cuadro. La hace el script del garage con seno y
+   coseno; aca abajo estan las medidas que usa.
 
-   Se escala desde la linea de apoyo (transform-origin 50% 92%), asi el
-   auto crece y se achica sin despegarse del piso.
+     --anillo-radio   cuanto se abre a los costados, % del ancho
+     --anillo-cerca   a que altura apoya el de adelante, % del alto
+     --anillo-lejos   a que altura apoya el del fondo
+     --anillo-grande  escala del de adelante
+     --anillo-chico   escala del del fondo
+     --anillo-tenue   opacidad del del fondo
 
-   `bottom` entra en la transicion junto con `left`: es lo que hace que
-   el viaje sea en diagonal —siguiendo la calle— y no en horizontal. */
+   A LA VISTA HAY TRES, NO CUATRO. El cuarto —el que en cada momento
+   queda en el fondo del anillo— va apagado del todo.
+
+   Se probo con los cuatro visibles y no funciona: el del fondo cae
+   detras del de adelante, asi que para que se viera entero habia que
+   subirlo por encima de su techo, y ahi deja de leerse como un auto
+   lejos sobre la tarima y pasa a leerse como un auto flotando en el
+   aire. Con tres la escena queda como tiene que quedar —uno grande al
+   frente y dos chicos a los costados— y el anillo se sigue notando
+   igual, porque el cuarto se desvanece justo cuando pasa por atras.
+
+     --anillo-umbral  desde que punto del anillo un auto ya va a plena
+                      opacidad; del umbral hacia el fondo, se apaga */
+.gar-escena{
+  --anillo-radio:27;
+  --anillo-cerca:4;
+  --anillo-lejos:30;
+  --anillo-grande:1;
+  --anillo-chico:.16;
+  --anillo-tenue:.62;
+  --anillo-umbral:.5;
+}
+
 .gar-auto{
   position:absolute;
-  left:-6%;
-  bottom:24%;
-  width:68%;
-  z-index:2;
-  opacity:0;
-  transform-origin:50% 92%;
-  transform:translateX(-50%) scale(.14);
-  transition:left 1.15s var(--ease), bottom 1.15s var(--ease),
-             transform 1.15s var(--ease), opacity 1.15s var(--ease);
-  will-change:left, bottom, transform, opacity;
-  pointer-events:none;
-}
-
-/* El que espera su turno, alla lejos en la calle. */
-.gar-auto.es-entrando{
-  left:10.9%;
-  bottom:16.8%;
-  opacity:.42;
-  transform:translateX(-50%) scale(.31);
-  z-index:2;
-}
-
-/* El del medio manda. */
-.gar-auto.es-actual{
   left:50%;
-  bottom:9%;
-  opacity:1;
-  transform:translateX(-50%) scale(1);
-  z-index:3;
-}
-
-/* El que se va: sigue la calle, crece porque pasa cerca, y sale de
-   cuadro. La opacidad tiene su propio tiempo y arranca tarde —recien a
-   los .45s— para que no se desvanezca en el medio de la pantalla: se
-   tiene que ir por el costado, no evaporarse. */
-/* EL QUE SE VA, SE VA POR LA CALLE.
-
-   El bottom no es un número elegido a ojo: es el que deja la goma
-   apoyada sobre la recta cuando el auto llega a left:128%. Se midió, y
-   con el -12% que tenía antes el apoyo caía 5,6 puntos POR DEBAJO de la
-   calle — o sea que el auto no se iba siguiendo el camino, se hundía.
-   Con la calle corta no se notaba porque no había calle ahí para
-   comparar; ahora que sigue de largo, sí.
-
-   Y alcanza con acomodar la punta: `left`, `bottom` y la escala
-   interpolan las tres en línea recta, así que si el principio y el final
-   están sobre la calle, todo el viaje está sobre la calle. */
-.gar-auto.es-saliendo{
-  /* EL VIAJE TERMINA CUANDO EL AUTO SALIÓ DE VERDAD, y antes no era así.
-
-     Con left:128% el auto frenaba con un quinto del escenario todavía
-     ocupado y ahí se desvanecía. Medido: su caja iba de 78,7% a 177,3%,
-     o sea 21,3 puntos adentro; la chapa arrancaba en el 87,8%. Se veía
-     como un auto estacionado en el borde que se borra solo.
-
-     El número no es a ojo. Al 1,45 de escala el auto mide 98,6% del
-     escenario de ancho, con el centro en `left`, así que su borde
-     trasero cae en left − 40,2 puntos. Para que ese borde pase del 100%
-     hace falta left ≥ 140,2%; 150% deja diez puntos de sobra.
-
-     Y el bottom se recalcula, porque mover el auto más lejos por la
-     calle también lo baja: la calle sigue bajando. */
-  left:150%;
-  bottom:-10.82%;
+  bottom:0;
+  width:52%;
+  /* Se escala desde la linea de apoyo, asi el auto crece y se achica
+     sin despegarse del piso. */
+  transform-origin:50% 100%;
+  /* Arranca invisible: la posicion la escribe el script, y sin esto los
+     cuatro se verian amontonados en el centro el primer cuadro. */
   opacity:0;
-  transform:translateX(-50%) scale(1.45);
-  z-index:1;
-  /* La opacidad se apaga TARDE y rápido, y para entonces el auto ya está
-     fuera de cuadro: el que lo hace desaparecer es el recorte del
-     escenario, no el fundido. El fundido queda sólo como red de
-     seguridad para proporciones raras de ventana. */
-  transition:left 1.15s var(--ease), bottom 1.15s var(--ease),
-             transform 1.15s var(--ease), opacity .22s linear .93s;
-}
-
-/* LA CALLE.
-
-   Va de la goma trasera a la delantera siguiendo la inclinacion real de
-   cada foto. Los cuatro numeros salen de medir el alfa de cada archivo
-   —donde apoya cada rueda, en fraccion del lienzo— y viajan como
-   propiedades en el HTML, porque son distintos por auto: la MINI tiene
-   la distancia entre ejes mas corta y su linea es un 14% mas corta que
-   la del Mercedes.
-
-   UNA SOLA CALLE, QUIETA, Y PASA POR DEBAJO DE LOS DOS AUTOS.
-
-   Antes cada auto traía su propio pedazo de calle adentro, así que la
-   calle viajaba, se escalaba y se iba de cuadro con él. Ahora hay una
-   sola, hermana de los autos y no hija: lo único que cambia es el auto.
-
-   SE PUDO UNIFICAR PORQUE LOS CUATRO YA ESTABAN SOBRE LA MISMA RECTA, y
-   eso se comprobó antes de tocar nada. Se midió, para los cuatro autos y
-   en los dos puestos, dónde cae su línea de apoyo en coordenadas del
-   escenario. Una sola recta desde la goma trasera del que entra hasta la
-   goma delantera del que está en el medio pasa por los cuatro apoyos con
-   0,07 puntos de diferencia en escritorio. O sea: la calle ya existía,
-   estaba dibujada cuatro veces.
-
-   Y DESPUÉS SIGUE DE LARGO. El tramo medido llega hasta la goma
-   delantera del auto del medio, y ahí terminaba: la calle se cortaba
-   justo donde el auto todavía tiene que seguir viaje. Ahora el largo va
-   DUPLICADO sobre la misma recta —mismo origen, mismo ángulo, el doble
-   de tira— así que el tramo que va del medio hacia la derecha mide
-   exactamente lo mismo que el que viene de la izquierda.
-
-     escritorio   de (3,58%, 76,57%) a (95,82%, 94,99%)    5,07°
-     celular      de (-11,34%, 81,78%) a (110,46%, 96,94%)  4,39°
-
-   Los ángulos difieren porque el escenario cambia de proporción entre
-   una pantalla y otra (2,25 contra 1,62) y el giro se aplica en píxeles,
-   no en porcentajes. Las dos puntas quedan fuera de cuadro en celular, y
-   está bien: la calle viene de más atrás y sigue más allá.
-
-   EL 50% DE LA TIRA ES LA GOMA DELANTERA DEL AUTO DEL MEDIO, en las dos
-   pantallas, y no por casualidad: la mitad de una recta que va de la
-   goma trasera del que entra al doble de esa distancia cae justo ahí.
-   Por eso la luz que persigue al auto se planta en 50% y no en 100%.
-
-   Vive DETRÁS de las fotos, así pasa por debajo de las gomas y se ve
-   sólo entre medio, que es donde estaría de verdad.
-
-     .gar-calle          la geometría y el halo
-     .gar-calle::before  el núcleo, encendido siempre
-     .gar-luz            la luz que se prende siguiendo al auto
-     .gar-calle::after   el golpe de luz al llegar al medio */
-.gar-calle{
-  position:absolute;
-  /* Los números salen de medir, no de tantear. Ver arriba. El ancho es
-     el DOBLE del tramo medido: la mitad de la tira cae en la goma
-     delantera del auto del medio y la otra mitad sigue hacia la
-     derecha. */
-  left:3.58%;
-  top:76.57%;
-  width:92.60%;
-  height:30px;
-  margin-top:-15px;
-  transform-origin:0 50%;
-  transform:rotate(5.07deg);
-  z-index:0;
+  will-change:transform, opacity;
   pointer-events:none;
-  /* Dónde arranca y dónde termina la luz que persigue al auto, en
-     fracción de la tira: de la goma delantera del que entra a la del que
-     queda en el medio. */
-  --luz-desde:7.84%;
-  --luz-hasta:50%;
-  /* La cabeza y el charco se miden en vw y no en % del elemento porque
-     el elemento CRECE: un tamaño relativo a él se agrandaría durante el
-     viaje, que es justo lo que no tiene que pasar. */
-  --cabeza:clamp(42px, 5.8vw, 84px);
-  --charco:clamp(44px, 6.2vw, 88px);
-  /* El halo, centrado donde para el auto y no en el medio de la tira:
-     la tira sigue de largo, pero la luz de piso es del auto. */
-  background:radial-gradient(34% 46% at 42% 50%,
-    rgba(255,255,255,.19), rgba(255,255,255,.05) 52%, transparent 80%);
 }
 
-/* EL NÚCLEO, ENCENDIDO SIEMPRE. Es la calle en reposo: lo que queda
-   cuando no está pasando nada.
+/* EL REFLEJO SE SACÓ AL PASAR AL ANILLO, y no por gusto.
 
-   El degradado no es simétrico. Se apaga del todo en la punta
-   izquierda —la que se va al fondo— y llega más viva a la derecha. Una
-   línea pareja se lee como un objeto apoyado; una que se debilita con
-   la distancia se lee como una calle. */
-.gar-calle::before{
-  content:"";
-  position:absolute;
-  left:0; right:0; top:50%;
-  height:2px;
-  margin-top:-1px;
-  /* Los topes están puestos sobre la tira LARGA: el 50% es la goma
-     delantera del auto del medio, así que el punto más encendido va ahí
-     y se apaga hacia las dos puntas. Antes el máximo estaba en el 88%,
-     que sobre la tira vieja era el auto y sobre la nueva es campo
-     abierto a la derecha: el brillo se iba solo, lejos del auto. */
-  background:linear-gradient(90deg,
-    transparent 0%,
-    rgba(255,255,255,.13) 9%,
-    rgba(255,255,255,.30) 30%,
-    rgba(255,255,255,.46) 49%,
-    rgba(255,255,255,.32) 64%,
-    rgba(255,255,255,.11) 88%,
-    transparent 100%);
-}
+   Era un -webkit-box-reflect y servía cuando había UN auto apoyado en
+   el medio: le daba piso a una foto recortada que si no flotaba.
 
-/* ══════════════════════════════════════════════════════════════════
-   UNA SOLA LUZ, QUE VIAJA Y ATERRIZA.
+   Con cuatro autos en escena deja de servir por dos motivos. El reflejo
+   se dibuja por elemento, así que el auto del fondo —que está arriba de
+   todo, en el aire— arrastraba su propio charco de luz colgando a media
+   altura, apoyado en nada. Y los reflejos de los tres chicos se
+   superponían con la chapa del grande, ensuciando justo la pieza que
+   tiene que mandar.
 
-   Antes eran dos efectos distintos corriendo encima: una barra que
-   crecía siguiendo al auto, y aparte toda la tira ensanchándose de golpe
-   al final. Los dos eran blancos, los dos brillaban, y se pisaban en el
-   mismo instante — así que no se leían como una luz haciendo algo, se
-   leían como dos cosas pasando a la vez.
-
-   Ahora hay UNA luz con tres partes que son la misma cosa:
-
-     .gar-luz          la ESTELA: la calle ya encendida detrás
-     .gar-luz::after   la CABEZA: el punto caliente, donde está el auto
-     .gar-calle::after el CHARCO: la luz derramada en el piso al llegar
-
-   Y la clave de que se lea como una sola: LA CABEZA VA PEGADA A LA PUNTA
-   DE LA ESTELA. No tiene animación de posición propia — está anclada con
-   `right:0` al elemento que crece, así que la arrastra la estela sola.
-   Es el mismo objeto, no dos que hay que sincronizar a mano.
-   ══════════════════════════════════════════════════════════════════ */
-
-/* LA ESTELA. No es una barra que se enciende pareja: es un cometa. El
-   degradado va de transparente a blanco de izquierda a derecha y, como
-   está en porcentajes del propio elemento, se estira con él — la cola
-   siempre se desvanece hacia atrás por más que crezca. Eso es lo que
-   convierte "una barra que se alarga" en "una luz que avanza". */
-.gar-luz{
-  position:absolute;
-  left:0; top:50%;
-  width:var(--luz-desde);
-  height:2px;
-  /* Centrada con translate y no con margen negativo porque el alto se
-     anima: con margen fijo, engordar la haría crecer sólo hacia abajo y
-     la luz se despegaría de la calle. */
-  transform:translateY(-50%);
-  opacity:0;
-  background:linear-gradient(90deg,
-    rgba(255,255,255,0) 0%,
-    rgba(255,255,255,.07) 26%,
-    rgba(255,255,255,.26) 58%,
-    rgba(255,255,255,.60) 84%,
-    rgba(255,255,255,.95) 96%,
-    #fff 100%);
-  filter:blur(.5px);
-}
-
-/* LA CABEZA. El punto caliente que va debajo de la goma delantera del
-   auto todo el viaje. Durante el recorrido es un resplandor discreto
-   —basta para que la luz tenga un origen y no sea una barra— y al llegar
-   se abre de golpe. El golpe no es otro efecto: es esta misma cabeza. */
-.gar-luz::after{
-  content:"";
-  position:absolute;
-  right:0; top:50%;
-  width:var(--cabeza);
-  height:var(--cabeza);
-  margin-top:calc(var(--cabeza) / -2);
-  margin-right:calc(var(--cabeza) / -2);
-  border-radius:50%;
-  background:radial-gradient(50% 50% at 50% 50%,
-    #fff, rgba(255,255,255,.62) 16%, rgba(255,255,255,.20) 40%, transparent 72%);
-  opacity:0;
-}
-
-/* EL CHARCO. Luz derramada en el piso donde el auto se planta.
-
-   ES ANCHO Y BAJO A PROPÓSITO, y eso viene de un intento fallido: la
-   primera versión del golpe era un estallido chico justo en la goma
-   delantera y no se veía, porque la calle vive DETRÁS de las fotos y un
-   resplandor de ese tamaño queda tapado por la carrocería. Un charco
-   ancho, en cambio, asoma por donde la calle asoma — entre los dos
-   autos, entre las ruedas, delante de la trompa.
-
-   Va centrado en el 50% de la tira, que es la goma delantera del auto
-   del medio. No compite con la cabeza: la cabeza es el punto y el charco
-   es lo que ese punto derrama. Pican juntos, y por eso se leen como un
-   solo golpe. */
-.gar-calle::after{
-  content:"";
-  position:absolute;
-  left:6%; right:32%;
-  top:50%;
-  height:var(--charco);
-  margin-top:calc(var(--charco) / -2);
-  border-radius:50%;
-  background:radial-gradient(50% 50% at 72% 50%,
-    rgba(255,255,255,.62), rgba(255,255,255,.24) 34%,
-    rgba(255,255,255,.06) 58%, transparent 78%);
-  opacity:0;
-}
-
-@keyframes gar-avanza{
-  from { width:var(--luz-desde); }
-  to   { width:var(--luz-hasta); }
-}
-
-/* LOS TIEMPOS SE APOYAN EN UNA MEDICIÓN: la luz termina de recorrer la
-   calle a los 815 ms —no a los 1150 que dura la transición, porque la
-   curva es un ease-out fuerte y el auto llega mucho antes de terminar de
-   asentarse—. Sobre una animación de 1,9 s eso cae en el 43%, y ahí
-   están puestos los tres picos. */
-/* La estela ENGORDA en el impacto. Es el mismo cuerpo de luz, no una
-   capa nueva: dos píxeles mientras viaja, siete en el golpe, y vuelve.
-   Eso es lo que hace que el golpe se sienta de la luz y no de algo que
-   apareció encima. */
-@keyframes gar-estela{
-  0%   { opacity:0;   height:2px; }
-  6%   { opacity:1;   height:2px; }
-  38%  { opacity:1;   height:3px; }
-  43%  { opacity:1;   height:7px; }
-  52%  { opacity:.9;  height:3px; }
-  64%  { opacity:.32; height:2px; }
-  100% { opacity:0;   height:2px; }
-}
-
-@keyframes gar-cabeza{
-  0%   { opacity:0;   transform:scale(.3); }
-  8%   { opacity:.6;  transform:scale(.46); }
-  34%  { opacity:.72; transform:scale(.58); }
-  43%  { opacity:1;   transform:scale(2.3); }
-  56%  { opacity:.45; transform:scale(1.45); }
-  100% { opacity:0;   transform:scale(1.05); }
-}
-
-@keyframes gar-charco{
-  0%   { opacity:0;   transform:scale(.55,.35); }
-  30%  { opacity:.12; transform:scale(.7,.5); }
-  43%  { opacity:1;   transform:scale(1,1); }
-  60%  { opacity:.38; transform:scale(.95,.85); }
-  100% { opacity:0;   transform:scale(.9,.7); }
-}
-
-.gar-calle.anda .gar-luz{
-  animation:gar-avanza 1.15s var(--ease) both,
-            gar-estela 1.9s linear both;
-}
-.gar-calle.anda .gar-luz::after{ animation:gar-cabeza 1.9s linear both; }
-.gar-calle.anda::after         { animation:gar-charco 1.9s linear both; }
-
-/* Quien pidió no ver movimiento ve la calle encendida y quieta. */
-@media (prefers-reduced-motion:reduce){
-  .gar-calle.anda .gar-luz,
-  .gar-calle.anda .gar-luz::after,
-  .gar-calle.anda::after{ animation:none; }
-  .gar-luz{ opacity:.45; width:var(--luz-hasta); }
-}
-
+   El piso ahora lo trae la foto: la del Mercedes viene con su tarima
+   —ver tools/grupo-foto.py—, que es material de verdad y no un truco
+   de CSS. Las otras tres todavía son recortes sin piso y les hace
+   falta la misma foto. */
 .gar-auto picture{
   display:block;
   position:relative;
   z-index:1;
-  /* El reflejo. Es lo que termina de sentar el auto sobre el disco: sin
-     él, apoya; con él, el piso tiene material. Sólo lo hacen los motores
-     WebKit/Blink —o sea Safari y Chrome, que es casi todo el tráfico de
-     este sitio— y donde no está simplemente no aparece: nada se rompe. */
-  -webkit-box-reflect:below -1px
-    linear-gradient(180deg, rgba(0,0,0,.30) 0%, rgba(0,0,0,.05) 22%, transparent 44%);
 }
 
 .gar-auto img{
@@ -1563,9 +1400,18 @@ video::-webkit-media-controls{ display:none !important; }
    elemento ocupa del 16 al 84 y el auto vive del .09 al .91 de ese
    elemento— asi que desde el 6% del borde derecho queda a su lado sin
    pisarlo. */
+/* LAS DOS FLECHAS. Antes habia una sola, la de ir hacia adelante,
+   porque el carrusel viajaba en un unico sentido. El anillo gira para
+   los dos lados, asi que tener solo la de la derecha era esconder la
+   mitad del control.
+
+   Cada una empuja hacia AFUERA al pasar el mouse —la de la izquierda a
+   la izquierda, la de la derecha a la derecha— y por eso el
+   desplazamiento del hover esta en cada lado y no en la regla comun:
+   con un translateX unico las dos se irian para el mismo lado y la de
+   la izquierda se leeria como que hace lo contrario de lo que hace. */
 .gar-flecha{
   position:absolute;
-  right:clamp(.6rem,2.4vw,2rem);
   top:50%;
   z-index:4;
   appearance:none;
@@ -1578,16 +1424,17 @@ video::-webkit-media-controls{ display:none !important; }
   transform:translateY(-50%);
   transition:color .3s var(--ease), transform .3s var(--ease);
 }
+.gar-flecha--antes{ left:clamp(.6rem,2.4vw,2rem); }
+.gar-flecha--sigue{ right:clamp(.6rem,2.4vw,2rem); }
 .gar-flecha svg{
   display:block;
   width:clamp(1.2rem,2vw,1.75rem);
   height:auto;
 }
 @media (hover:hover){
-  .gar-flecha:hover{
-    color:var(--chrome);
-    transform:translateY(-50%) translateX(5px);
-  }
+  .gar-flecha:hover{ color:var(--chrome); }
+  .gar-flecha--antes:hover{ transform:translateY(-50%) translateX(-5px); }
+  .gar-flecha--sigue:hover{ transform:translateY(-50%) translateX(5px); }
 }
 @media (prefers-reduced-motion:reduce){
   .gar-flecha, .gar-flecha:hover{ transition:none; transform:translateY(-50%); }
@@ -1619,53 +1466,24 @@ video::-webkit-media-controls{ display:none !important; }
   .gar-escena{ aspect-ratio:1.62; }
   .gar-marca{ top:22%; font-size:clamp(1.3rem,6.3vw,2.4rem); }
 
-  /* LA CALLE, MEDIDA DE NUEVO PARA ESTA PROPORCION. No alcanza con
-     reusar la de escritorio: el escenario pasa de 2,25 a 1,62 de
-     proporcion, y como el giro se aplica en pixeles y no en
-     porcentajes, el mismo angulo dibujaria otra recta.
+  /* EL ANILLO EN EL TELEFONO. El escenario pasa de 2,25 a 1,62 de
+     proporcion —es mucho mas alto y mucho mas angosto— asi que las
+     medidas de escritorio no sirven: con el radio de alla los dos
+     autos de los costados se salian de cuadro, y con esa escala los
+     cuatro quedaban chicos y perdidos en el medio.
 
-     La punta izquierda cae en -11,34%, fuera de cuadro, y esta bien: el
-     auto que entra tambien entra desde afuera, y la calle tiene que
-     venir de donde viene el. */
-  .gar-calle{
-    left:-11.34%;
-    top:81.78%;
-    width:122.16%;
-    transform:rotate(4.39deg);
-    /* La goma delantera del que entra cae un poco más adelante que en
-       escritorio porque el vecino entra más metido. */
-    --luz-desde:9.20%;
-    --cabeza:7.6vw;
-    --charco:8.4vw;
+     Se cierra el radio, se agranda el auto y se sube el del fondo, que
+     aca tiene alto de sobra para despegarse del techo del de adelante. */
+  .gar-escena{
+    --anillo-radio:30;
+    --anillo-cerca:3;
+    --anillo-lejos:32;
+    --anillo-chico:.18;
   }
-
-  /* EL AUTO, LO MAS GRANDE QUE PERMITE LA ARITMETICA.
-
-     El auto ocupa 0.816 del ancho de su archivo, asi que al 102% del
-     escenario se extiende del 8.5% al 91.6%: ocupa el 83% de la escena,
-     contra el 57% de antes. Lo que lo limita es el que entra, no el
-     borde: con escala .19 y left -1.5% su trompa llega al 6.4%, dos
-     puntos antes de que empiece el central.
-
-     Su cola queda fuera de cuadro y esta bien: es el auto que viene de
-     lejos por la calle, no un vecino alineado.
-
-     `es-actual` repite el bottom porque `.gar-auto.es-actual` pesa mas
-     que `.gar-auto` y si no, se queda con el valor de escritorio. */
-  .gar-auto{ width:102%; bottom:5%; }
-  .gar-auto.es-actual  { bottom:5%; }
-  /* EL QUE ENTRA PASA POR DETRAS DEL CENTRAL, no al lado.
-
-     Al 0.19 de escala quedaba en 21 px de ancho: una mancha, no un
-     auto. Ahora va al 0.32 y su trompa se mete bajo el auto del medio.
-     Se ve la misma cantidad de pixeles, pero son el flanco de un auto
-     grande en vez de un auto entero diminuto — y el central lo tapa
-     limpio porque las fotos tienen transparencia real y el z-index los
-     ordena. Es ademas lo que corresponde: viene atras. */
-  .gar-auto.es-entrando{ left:0; bottom:11%; transform:translateX(-50%) scale(.32); }
-  /* Mismo criterio que en escritorio: el bottom sale de medir dónde
-     pisa. Con -20% se hundía 10 puntos por debajo de la calle. */
-  .gar-auto.es-saliendo{ left:165%;  bottom:-10.02%; transform:translateX(-50%) scale(1.3); }
+  /* Más chico que el 74% que tenía: con el anillo abierto a 30 puntos,
+     un auto del frente más ancho se comía a los dos de los costados y
+     de ellos asomaba sólo la trompa. */
+  .gar-auto{ width:68%; }
 }
 
 /* En el telefono los mandos se achican: con el auto ocupando el 75% del
@@ -2041,7 +1859,9 @@ video::-webkit-media-controls{ display:none !important; }
   z-index:4;
   width:min(26rem,66vw);
   text-align:right;
-  color:var(--ink);
+  /* Blanco, porque la portada es un estudio oscuro. Estuvo en tinta
+     negra mientras el video de portada era claro. */
+  color:var(--chrome);
 }
 
 /* SYNCOPATE, Y ACÁ ES DONDE CORRESPONDE.
@@ -2071,7 +1891,7 @@ video::-webkit-media-controls{ display:none !important; }
   display:block;
   width:22px;
   height:22px;
-  color:var(--ink);
+  color:var(--chrome);
   opacity:.42;
   animation:cue 2.4s ease-in-out infinite;
 }
@@ -2175,32 +1995,36 @@ body.is-scrolled .hud--tr{ top:var(--hud-y-min); }
 
 /* EL LOGO DE LA BARRA.
 
-   LOS COLORES SON LOS DEL ARCHIVO, MEDIDOS, pero tienen que poder darse
-   vuelta: la barra pasa por la portada —que es un estudio CLARO— y por
-   todo el negro de abajo. Un logo plateado sobre gris claro no se ve.
+   YA NO ES UN DEGRADADO QUE SE DA VUELTA: son las versiones planas, sin
+   reflejos, en negro y en blanco. La barra pasa por la portada —que es
+   un estudio CLARO— y por todo el negro de abajo, y en cada una entra
+   la que más contraste da: negro sobre claro, blanco sobre negro. El
+   gris queda afuera a propósito, porque en ninguno de los dos fondos es
+   el que más se lee.
 
-   Por eso los once topes de los degradados son variables. Acá viven los
-   valores para FONDO CLARO: la misma rampa metálica pero al revés, en
-   tintas oscuras, para que el logo se lea como grabado en vez de
-   desaparecer. Los valores del archivo original están más abajo, en el
-   bloque de .is-dark.
-
-   Los tres degradados conservan sus posiciones exactas; lo único que
-   cambia es el color de cada tope. */
+   DOS <img> SUPERPUESTAS, NO UNA QUE CAMBIA DE COLOR. Con relleno sólido
+   no hace falta repintar nada: alcanza con una grilla de una celda y un
+   crossfade de opacidad entre las dos capas. */
+.mark__logo-wrap{
+  display:grid;
+  transition:opacity .4s var(--ease);
+}
 .mark__logo{
+  grid-area:1/1;
   display:block;
   height:clamp(1.9rem,3vw,2.7rem);
   width:auto;
-
-  --lg1:#2C2E33;  --lg2:#33353A;  --lg3:#54575E;  --lg4:#7C8089;   /* emblema */
-  --lg5:#2C2E33;  --lg6:#3A3D43;                                    /* MANNA */
-  --lg7:#8A8E96;  --lg8:#4A4D54;  --lg9:#2C2E33;
-  --lg10:#6E727A; --lg11:#9AA0A8;                                   /* SELECTED */
-
-  transition:opacity .4s var(--ease);
+  opacity:0;
+  transition:opacity .5s var(--ease);
 }
-.mark:hover .mark__logo,
-.mark:focus-visible .mark__logo{ opacity:.72; }
+.mark__logo--claro{ opacity:1; }
+body.is-dark .mark__logo--claro{ opacity:0; }
+body.is-dark .mark__logo--oscuro{
+  opacity:1;
+  filter:drop-shadow(0 0 .6rem rgba(var(--beam),.28));
+}
+.mark:hover .mark__logo-wrap,
+.mark:focus-visible .mark__logo-wrap{ opacity:.72; }
 .mark:focus-visible{ outline:2px solid var(--ink); outline-offset:6px; border-radius:4px; }
 
 /* El menú. Mismo idioma que el rig: lo que se enciende es una barra de
@@ -3135,17 +2959,6 @@ body.cargando{ overflow:hidden; }
 }
 
 body.is-dark .mark{ color:var(--chrome); }
-/* SOBRE NEGRO, LOS COLORES DEL ARCHIVO TAL CUAL. Son los medidos del
-   logo original, muestreados cada 11% del alto de cada pieza: el emblema
-   cae de #FCFCFC a #C4C4C4, MANNA es casi plano, y SELECTED es el único
-   realmente metálico —gris arriba, brillo al 44%, gris abajo—. */
-body.is-dark .mark__logo{
-  --lg1:#FCFCFC;  --lg2:#F9F9F9;  --lg3:#E3E3E3;  --lg4:#C4C4C4;
-  --lg5:#FCFCFC;  --lg6:#FAFAFA;
-  --lg7:#A6A6A6;  --lg8:#E1E1E1;  --lg9:#FAFAFA;
-  --lg10:#C4C4C4; --lg11:#8A8A8A;
-  filter:drop-shadow(0 0 .6rem rgba(var(--beam),.28));
-}
 body.is-dark .menu a{ color:var(--steel); }
 body.is-dark .menu a:hover,
 body.is-dark .menu a:focus-visible{ color:var(--chrome); }
@@ -3190,18 +3003,16 @@ body.is-dark.is-scrolled #topbar{
      que acompañar toda la página, no pertenecer a una sección. -->
   <header class="hud hud--tl">
     <a class="mark" href="/" aria-label="Manna Motors Selected — inicio">
-      <!-- EL LOGO ENTERO, VECTORIZADO. Antes eran dos cosas: el
-           emblema como SVG y el nombre como texto en Montserrat.
-           Eso funcionaba mientras la letra del logo fuera la del
-           sitio, y no lo es —la A del logo no lleva travesaño—. Ahora
-           es una sola pieza, la misma que se entrega como archivo.
-
-           VA EN LINEA Y NO COMO <img> PORQUE TIENE QUE CAMBIAR DE
-           COLOR. La barra pasa por la portada clara y por todo el
-           negro de abajo; los topes de sus degradados son variables
-           CSS y se dan vuelta con .is-dark. Un <img> no se puede
-           repintar. -->
-      <svg class="mark__logo" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1150 244" aria-hidden="true"><defs><linearGradient id="lg-emblema" x1="0" y1="0" x2="0" y2="1"><stop offset="0.00" stop-color="var(--lg1,#FCFCFC)"/><stop offset="0.33" stop-color="var(--lg2,#F9F9F9)"/><stop offset="0.66" stop-color="var(--lg3,#E3E3E3)"/><stop offset="1.00" stop-color="var(--lg4,#C4C4C4)"/></linearGradient><linearGradient id="lg-manna" x1="0" y1="0" x2="0" y2="1"><stop offset="0.00" stop-color="var(--lg5,#FCFCFC)"/><stop offset="1.00" stop-color="var(--lg6,#FAFAFA)"/></linearGradient><linearGradient id="lg-selected" x1="0" y1="0" x2="0" y2="1"><stop offset="0.00" stop-color="var(--lg7,#A6A6A6)"/><stop offset="0.22" stop-color="var(--lg8,#E1E1E1)"/><stop offset="0.44" stop-color="var(--lg9,#FAFAFA)"/><stop offset="0.65" stop-color="var(--lg10,#C4C4C4)"/><stop offset="1.00" stop-color="var(--lg11,#8A8A8A)"/></linearGradient></defs><path transform="translate(0.00,0.00) scale(2.44000)" fill="url(#lg-emblema)" fill-rule="evenodd" d="M52.76,99.88C56.14,99.67 59.98,99.09 61.91,98.47C62.28,98.35 62.78,98.23 63.07,98.15C63.64,98.06 66.65,97.03 68.22,96.46C75.06,93.82 84.09,87.14 87.84,81.90C88.09,81.62 88.33,81.33 88.38,81.29C88.66,81.12 88.54,80.63 88.25,80.50C88.05,80.46 87.72,80.26 87.43,80.05C87.14,79.88 86.81,79.68 86.60,79.64C86.44,79.55 86.07,79.39 85.78,79.18C84.91,78.65 84.83,78.69 82.73,80.87C80.83,82.93 78.90,84.67 77.16,85.99C76.63,86.36 76.17,86.73 76.13,86.77C76.01,86.93 74.57,87.84 74.07,88.09C73.83,88.21 73.41,88.46 73.21,88.62C72.38,89.24 68.05,91.47 66.61,91.96C65.83,92.25 64.63,92.70 64.01,92.91C63.36,93.16 62.61,93.40 62.37,93.49C62.12,93.53 61.54,93.65 61.13,93.78C55.23,95.30 46.83,95.63 42.46,94.56C42.13,94.48 41.10,94.27 40.23,94.06C37.72,93.57 37.88,93.61 33.72,92.13C32.19,91.59 31.53,91.26 29.51,90.19C24.44,87.51 20.12,84.17 16.69,80.34C15.25,78.69 15.13,78.61 14.63,78.98C14.47,79.14 13.93,79.43 13.48,79.64C11.79,80.54 11.50,80.71 11.50,81.04C11.50,81.20 11.58,81.33 11.62,81.33C11.67,81.33 12.04,81.70 12.41,82.19C15.70,86.27 21.19,90.93 25.76,93.49C29.31,95.51 34.91,97.82 37.06,98.19C37.39,98.23 37.72,98.31 37.84,98.39C38.13,98.52 41.30,99.18 42.37,99.34C42.83,99.38 43.57,99.51 44.02,99.59C44.77,99.71 47.61,99.92 49.59,100.00C50.00,100.00 51.44,99.96 52.76,99.88Z M53.01,79.31C54.78,79.18 54.62,81.04 54.58,63.03C54.53,54.33 54.58,47.24 54.62,47.24C54.70,47.24 54.86,47.44 55.03,47.69C55.19,47.94 55.98,49.05 56.72,50.12C57.46,51.20 58.37,52.47 58.70,52.97C59.03,53.42 59.85,54.62 60.51,55.56C61.21,56.55 62.08,57.79 62.45,58.33C62.82,58.86 63.56,59.89 64.10,60.63C64.63,61.38 65.17,62.16 65.33,62.37C65.62,62.86 70.73,63.36 71.15,62.90C71.19,62.86 71.60,62.24 72.14,61.50C72.63,60.76 73.25,59.89 73.45,59.56C74.24,58.57 75.97,56.14 77.37,54.12C79.47,50.99 80.67,49.26 82.61,46.62C83.55,45.26 84.83,43.49 85.41,42.66C87.06,40.27 87.35,39.94 87.47,40.23C87.72,40.93 88.13,43.20 88.66,46.62C88.83,47.69 88.83,53.01 88.66,54.25C88.62,54.78 88.50,55.69 88.42,56.27C88.33,56.84 88.21,57.54 88.13,57.83C88.09,58.12 87.92,58.74 87.80,59.23C87.06,62.49 86.64,63.69 84.75,67.52C84.01,69.04 83.97,68.96 85.99,70.07C86.77,70.49 88.58,71.48 90.02,72.30C92.79,73.91 92.99,73.99 93.32,73.58C93.69,73.17 95.67,68.92 95.88,68.14C95.96,67.81 96.13,67.52 96.17,67.48C96.25,67.44 96.33,67.27 96.33,67.11C96.33,66.94 96.37,66.74 96.41,66.65C96.62,66.49 97.77,62.74 97.94,61.75C98.06,61.29 98.19,60.51 98.31,59.98C99.79,52.72 99.63,46.29 97.82,38.50C97.40,36.60 95.96,32.52 95.09,30.71C94.81,30.05 94.56,29.47 94.56,29.47C94.56,29.23 93.12,26.55 92.99,26.46C92.87,26.42 92.17,26.71 91.38,27.12C88.66,28.52 86.15,29.84 85.70,30.13C85.41,30.30 84.67,30.67 84.05,31.00C82.81,31.62 82.23,32.15 81.66,33.18C81.45,33.55 81.04,34.09 80.79,34.42C80.50,34.75 79.84,35.70 79.35,36.48C77.86,38.66 76.67,40.40 75.93,41.47C75.56,41.96 74.86,42.95 74.40,43.65C73.95,44.31 73.08,45.55 72.51,46.41C71.93,47.24 71.35,48.06 71.31,48.19C70.98,48.68 69.95,50.16 69.79,50.33C69.70,50.37 69.37,50.87 69.04,51.36C68.34,52.47 68.18,52.43 67.15,50.70C66.90,50.25 64.84,47.28 64.34,46.62C64.10,46.33 63.85,46.00 63.81,45.88C63.77,45.75 63.31,45.09 62.78,44.39C62.24,43.65 61.54,42.66 61.17,42.13C60.80,41.59 60.14,40.60 59.65,39.94C58.45,38.29 57.71,37.26 56.97,36.15C56.60,35.61 55.81,34.46 55.15,33.55C54.49,32.69 53.83,31.74 53.67,31.49C53.38,31.04 53.38,31.04 50.00,31.04C45.92,31.04 46.95,30.34 43.32,35.49C42.70,36.36 41.67,37.84 41.01,38.79C38.42,42.58 37.76,43.53 37.59,43.69C37.35,43.98 34.42,48.15 33.14,50.04C31.45,52.47 31.45,52.47 30.87,51.48C30.67,51.20 30.05,50.21 29.43,49.34C28.81,48.43 27.62,46.66 26.71,45.34C25.85,44.02 24.77,42.46 24.32,41.84C23.91,41.22 22.96,39.86 22.26,38.79C21.52,37.72 20.73,36.56 20.49,36.27C20.07,35.70 20.03,35.66 18.34,33.18C17.27,31.62 17.27,31.62 15.95,30.96C13.81,29.88 10.22,27.99 10.10,27.86C9.56,27.49 7.21,26.38 7.09,26.42C6.72,26.59 4.58,31.24 3.59,34.01C2.56,36.89 2.39,37.30 1.98,39.08C0.21,46.37 0.21,54.08 1.98,61.71C2.14,62.32 2.31,63.03 2.39,63.27C2.80,64.63 3.38,66.28 3.46,66.49C3.54,66.61 3.59,66.82 3.59,66.86C3.59,67.15 4.62,69.54 5.40,71.19C5.85,72.14 6.18,72.92 6.18,72.96C6.18,74.11 7.05,74.03 9.40,72.67C10.35,72.09 11.17,71.64 11.21,71.64C11.21,71.64 11.95,71.23 12.78,70.73C13.60,70.24 14.59,69.70 14.96,69.50C15.75,69.13 15.87,68.88 15.54,68.30C15.00,67.39 14.51,66.41 14.51,66.28C14.51,66.24 14.30,65.70 14.01,65.13C13.07,63.07 11.67,58.20 11.46,55.98C11.42,55.56 11.29,54.86 11.25,54.45C11.05,53.46 11.05,47.61 11.25,46.29C11.34,45.71 11.46,44.89 11.50,44.39C11.62,43.53 11.71,43.08 12.12,41.38C12.24,40.97 12.32,40.52 12.37,40.35C12.45,39.74 12.61,39.90 16.74,45.71C17.23,46.46 17.77,47.20 17.89,47.40C18.34,48.02 20.53,51.11 21.27,52.14C21.68,52.72 22.18,53.50 22.42,53.92C22.67,54.33 23.00,54.82 23.12,55.03C23.29,55.19 23.95,56.14 24.61,57.05C25.27,58.00 26.09,59.11 26.38,59.56C26.71,60.02 27.00,60.43 27.04,60.51C27.08,60.59 27.37,61.01 27.66,61.42C27.99,61.83 28.32,62.32 28.44,62.53C29.10,63.56 34.83,62.94 34.83,61.87C34.83,61.79 35.04,61.42 35.33,61.05C35.61,60.72 36.15,59.98 36.52,59.44C36.85,58.90 37.43,58.12 37.76,57.67C38.09,57.21 38.79,56.27 39.24,55.56C39.74,54.86 40.48,53.79 40.93,53.17C41.38,52.56 42.09,51.57 42.54,50.91C44.27,48.39 45.26,47.11 45.34,47.20C45.42,47.24 45.42,54.41 45.42,63.11C45.42,71.85 45.42,79.02 45.51,79.10C45.75,79.35 50.54,79.47 53.01,79.31Z M16.69,20.20C17.97,18.76 20.49,16.32 21.56,15.50C21.93,15.25 22.51,14.80 22.84,14.47C23.37,14.01 26.01,12.20 26.17,12.20C26.17,12.20 26.59,11.95 27.00,11.67C27.45,11.38 28.28,10.92 28.81,10.63C29.39,10.39 30.01,10.06 30.21,9.93C31.24,9.40 33.88,8.29 35.49,7.75C37.18,7.21 37.84,7.01 39.61,6.51C40.35,6.35 43.36,5.85 46.13,5.52C47.94,5.28 52.06,5.28 53.79,5.52C54.49,5.61 56.06,5.81 57.25,5.94C59.48,6.22 59.65,6.27 61.42,6.76C70.45,9.32 77.70,13.81 83.64,20.49C84.67,21.64 84.62,21.64 86.23,20.86C88.62,19.66 88.71,19.50 87.84,18.47C83.88,13.73 79.93,10.18 76.05,7.91C72.18,5.65 70.32,4.70 66.94,3.42C64.80,2.60 62.90,2.02 62.12,1.90C61.75,1.85 61.34,1.73 61.13,1.69C56.84,0.08 46.21,-0.00 39.82,1.48C39.04,1.69 38.13,1.90 37.76,1.98C37.02,2.10 34.21,3.01 33.06,3.46C32.65,3.63 32.11,3.83 31.86,3.92C30.09,4.45 23.91,7.75 22.34,9.03C22.05,9.23 21.52,9.65 21.10,9.89C18.63,11.46 11.50,18.51 11.50,19.41C11.50,19.58 12.24,20.07 13.69,20.82C14.26,21.10 14.76,21.39 14.84,21.48C15.17,21.81 15.54,21.56 16.69,20.20Z"/><path transform="translate(383.00,36.00)" fill="url(#lg-manna)" fill-rule="evenodd" d="M635.00,1.00C634.68,1.16 638.33,-6.23 634.17,1.50C630.01,9.23 630.80,8.69 622.00,25.17C613.20,41.65 612.16,42.76 606.67,53.00C601.17,63.24 608.14,50.98 604.83,57.17C601.53,63.35 600.17,65.19 596.33,72.33C592.49,79.48 594.33,76.73 592.83,79.50C591.34,82.27 592.09,80.15 591.67,81.00L591.50,82.17L591.83,82.50L605.33,82.33L606.50,81.17C617.01,61.70 627.45,41.61 638.17,21.50L640.00,18.33L640.83,18.17L669.17,71.50C679.51,91.29 671.62,76.80 673.17,80.00C674.71,83.20 673.15,80.59 674.00,81.50L675.83,82.83L678.17,82.50C679.71,82.50 679.28,82.94 680.67,82.83C682.05,82.73 680.15,82.33 682.50,82.17L688.00,82.33L689.00,81.33L685.33,75.17C683.84,72.34 690.84,84.82 684.33,72.50C677.83,60.18 677.00,59.39 665.00,36.67C653.00,13.95 652.81,12.91 646.83,1.50L646.33,1.00L635.17,1.00C631.54,1.00 635.32,0.84 635.00,1.00Z M452.33,1.00L451.67,1.50L451.67,81.33L452.33,82.17L463.17,82.33L464.17,82.17L464.67,81.33L464.50,21.67L465.50,20.50L532.17,80.83L534.83,82.67L537.67,82.33L538.33,82.83L540.33,82.50L544.33,82.83L545.50,81.67L545.50,1.50L545.17,1.17L533.33,1.00L532.67,1.50L532.83,61.50L532.33,62.17L531.50,62.17L464.50,1.17L452.50,1.00C448.61,0.95 452.60,0.84 452.33,1.00Z M303.17,1.00L302.33,1.83L302.50,81.67L302.83,82.00C303.15,82.21 299.82,82.23 303.50,82.33L314.33,82.33L315.50,81.33L315.17,21.67L315.83,20.67L316.50,20.67L382.67,80.83C404.48,100.57 383.55,81.80 384.67,82.33C385.79,82.87 382.81,82.45 386.17,82.50L395.17,82.50L396.00,81.67L396.17,1.50L395.67,1.00L383.67,1.00L383.17,1.67L383.50,4.83L383.33,61.67L382.67,62.50L341.67,25.83C320.12,6.26 323.97,9.28 315.33,1.33C306.69,-6.61 318.51,1.11 314.67,1.00C310.83,0.89 307.01,1.00 303.33,1.00L303.17,1.00Z M197.17,1.00L196.33,1.67C194.41,5.03 192.93,7.87 191.17,11.50C189.41,15.13 194.94,5.27 190.83,13.00C186.73,20.73 183.13,26.65 178.33,35.67C173.53,44.68 178.07,37.01 175.83,41.17C173.59,45.33 172.99,45.63 171.33,48.67C169.68,51.71 176.32,40.16 170.67,50.67L153.67,81.50L154.33,82.50L160.17,82.33C162.30,82.44 158.81,82.83 161.00,82.83C163.19,82.83 164.60,82.76 167.00,82.33C169.40,81.91 157.19,102.03 168.50,81.50L202.33,18.17L203.17,18.17L203.83,18.83C204.47,19.79 202.50,15.94 205.17,21.17C207.83,26.39 208.75,28.77 212.17,35.17C215.58,41.57 208.37,27.30 215.83,41.17C223.30,55.03 228.89,65.65 235.50,78.50C242.11,91.35 235.70,79.95 236.50,81.33L238.00,82.83L238.67,82.83L239.17,82.17L240.50,82.50L250.50,82.17L251.17,82.67L251.83,81.67L212.00,7.17C198.51,-18.49 210.63,3.47 209.67,1.50C208.71,-0.47 212.95,1.16 209.00,1.00C205.05,0.84 201.12,1.00 197.33,1.00L197.17,1.00Z M1.50,1.00L0.67,1.67L0.83,81.67L1.33,82.33L12.33,82.33L13.50,81.67L13.33,23.17L13.83,22.67L14.50,22.67L15.33,23.50C25.63,35.45 34.51,46.13 46.67,60.00L53.33,66.83L85.17,30.50C95.78,18.23 84.95,30.26 86.50,28.50C88.05,26.74 88.45,26.76 90.00,25.00C91.55,23.24 90.53,23.85 91.33,23.00L92.50,22.33L93.17,23.33C93.27,42.21 92.67,62.40 92.83,81.33L93.67,82.50L96.50,82.67L105.00,82.50L105.83,81.67L105.83,1.33L105.50,1.00L93.50,1.17L53.50,47.67L52.83,47.50C50.38,45.05 54.53,50.08 45.83,40.00C37.14,29.92 34.52,26.29 25.67,16.00C16.81,5.71 22.22,12.58 18.17,7.83L13.00,1.17L1.67,1.00L1.50,1.00Z"/><path transform="translate(306.00,153.00)" fill="url(#lg-selected)" fill-rule="evenodd" d="M803.33,24.83L802.67,25.50L802.67,26.67L803.33,27.50L842.67,27.50L843.83,26.17L843.83,25.50L842.67,24.83C829.76,24.62 816.09,24.83 803.50,24.83L803.33,24.83Z M1.17,24.83L0.00,25.17L0.00,27.00L1.17,27.50L40.17,27.50L41.00,26.17L40.50,24.83L1.33,24.83C-11.25,24.83 1.59,24.73 1.17,24.83Z M710.50,1.00L710.00,1.50L710.00,52.50L710.50,53.33L735.33,53.17C745.31,52.69 737.83,52.95 741.67,51.83C745.51,50.71 743.65,51.69 747.33,49.67C751.01,47.64 749.97,48.43 753.17,45.50C756.37,42.57 755.20,43.75 757.33,40.50C759.47,37.25 758.77,38.05 759.83,35.33C760.90,32.61 760.29,34.40 760.67,32.00C761.04,29.60 761.00,31.14 761.00,27.83C761.00,24.53 761.73,26.15 760.67,21.67C759.60,17.19 759.27,17.25 757.67,13.83C756.07,10.42 757.48,13.08 755.67,11.00C753.85,8.92 754.83,9.52 752.00,7.33C749.17,5.15 749.61,5.66 746.83,4.17C744.06,2.67 747.01,3.63 743.33,2.67C739.65,1.71 745.79,1.70 735.33,1.17C724.88,0.63 718.61,1.05 710.67,1.00L710.50,1.00Z M720.67,9.50C725.41,9.50 729.20,9.13 735.33,9.50C741.47,9.87 736.47,9.23 739.83,10.67C743.19,12.11 742.95,11.81 745.83,14.00C748.71,16.19 747.29,15.10 748.83,17.50C750.38,19.90 749.92,19.53 750.67,21.50C751.41,23.47 751.06,20.84 751.17,23.67C751.27,26.49 751.43,26.92 751.00,30.33C750.57,33.75 750.90,31.88 749.83,34.33C748.77,36.79 749.27,35.97 747.67,38.00C746.07,40.03 747.13,39.01 744.83,40.67C742.54,42.32 743.43,41.89 740.50,43.17C737.57,44.45 738.17,44.08 735.67,44.67C733.16,45.25 737.41,44.89 732.67,45.00L720.83,45.00L719.83,44.17L719.83,10.17L720.50,9.50L720.67,9.50Z M620.50,1.00L620.00,1.50L619.83,52.17L620.33,53.33L661.33,53.17L661.83,46.83L661.33,45.00L630.17,45.00L629.50,44.50L629.50,31.83L630.33,30.67L657.17,30.67L657.83,29.83L657.67,23.50L657.33,23.17L630.50,23.17C621.70,23.06 630.15,23.05 629.83,22.83L629.50,22.50L629.67,9.83L630.50,9.17L660.67,9.33L661.67,8.50L661.67,1.50L661.17,1.00L620.67,1.00L620.50,1.00Z M528.67,1.00L528.00,1.50L528.00,8.83L528.50,9.50L546.17,9.17L546.83,9.67L547.17,28.00L546.83,52.50L547.67,53.33L555.83,53.33L556.50,52.83L556.50,10.00L557.33,9.33L574.17,9.33L574.83,8.83L575.00,1.50L574.50,1.00L528.83,1.00C514.17,1.00 528.93,0.84 528.67,1.00Z M347.33,1.00L346.83,1.50L346.83,52.50L347.67,53.33L388.17,53.17L388.67,52.33C388.83,51.37 388.72,52.35 388.67,50.17L388.50,45.50L388.00,45.00L356.83,45.00L356.00,44.17L356.33,42.50C356.39,38.45 356.06,35.23 356.17,31.50L356.67,30.83L383.83,30.67L384.50,29.67L384.50,23.83L383.33,23.00C374.69,22.79 366.09,23.22 357.50,23.17C348.91,23.11 356.98,23.15 356.50,22.83L356.00,22.17L356.33,9.83L357.33,9.17C367.25,9.01 377.41,9.49 387.33,9.33L388.33,8.67L388.33,1.33L387.50,1.00C374.43,0.89 360.35,1.00 347.50,1.00L347.33,1.00Z M263.33,1.00L262.83,1.33L262.83,52.83L263.33,53.33L301.50,53.33L302.33,52.67L302.33,45.33L301.50,44.83C292.17,44.73 282.50,45.11 273.17,45.00L272.33,44.50L272.50,1.67L271.50,1.00C268.62,0.79 266.11,1.00 263.50,1.00C260.89,1.00 263.55,0.89 263.33,1.00Z M173.67,1.00L173.00,1.50L173.17,51.33L172.83,52.17L173.50,53.17L214.17,53.17L214.83,52.33L214.83,47.00L214.67,45.33L214.17,45.00L183.17,45.00L182.50,44.33L182.50,31.33L183.00,30.83L210.33,30.67L210.83,30.17L210.83,23.50L210.50,23.17L183.00,23.00L182.50,22.50L182.50,10.33C182.61,6.23 182.51,10.04 182.83,9.67C183.15,9.29 173.69,9.27 183.50,9.17C193.31,9.06 203.58,9.49 213.50,9.33L214.50,8.67L214.50,1.33L173.83,1.00C160.77,0.89 173.93,0.84 173.67,1.00Z M459.50,0.00C459.07,0.27 459.77,0.46 458.33,0.83C456.89,1.21 458.15,0.31 455.00,1.17C451.85,2.02 452.18,1.69 448.50,3.50C444.82,5.31 446.17,4.70 443.50,6.83C440.83,8.97 441.82,8.41 440.17,10.17C438.51,11.93 439.56,10.47 438.33,12.33C437.11,14.20 437.56,13.12 436.33,16.00C435.11,18.88 435.25,17.23 434.50,21.33C433.75,25.44 434.00,25.05 434.00,28.83C434.00,32.62 433.81,30.13 434.50,33.17C435.19,36.21 434.35,34.65 436.17,38.33C437.98,42.01 437.82,41.57 440.17,44.67C442.51,47.76 441.21,46.13 443.50,48.00C445.79,49.87 444.29,48.95 447.33,50.50C450.37,52.05 450.07,51.77 453.00,52.83C455.93,53.90 452.98,53.30 456.50,53.83C460.02,54.37 459.36,54.61 464.00,54.50C468.64,54.39 466.09,54.78 471.00,53.50C475.91,52.22 475.01,52.69 479.33,50.50C483.65,48.31 482.58,48.37 484.50,46.67L485.33,45.17L479.33,39.67L472.50,44.00C468.23,45.97 470.11,45.30 466.00,45.83C461.89,46.37 462.87,46.04 459.67,45.67C456.47,45.29 458.24,45.52 456.00,44.67C453.76,43.81 455.23,44.76 452.67,43.00C450.11,41.24 450.45,42.05 448.00,39.17C445.55,36.29 446.33,37.25 445.00,34.00C443.67,30.75 444.21,31.99 443.83,29.00C443.46,26.01 443.51,27.39 443.83,24.67C444.15,21.95 443.66,23.38 444.83,20.50C446.01,17.62 445.74,18.12 447.50,15.67C449.26,13.21 448.09,14.54 450.33,12.83C452.57,11.13 451.78,11.61 454.50,10.33C457.22,9.05 455.21,9.42 458.83,8.83C462.46,8.25 462.58,8.45 465.83,8.50C469.09,8.55 467.13,8.57 469.00,9.00C470.87,9.43 469.37,8.82 471.67,9.83C473.96,10.85 473.66,10.62 476.17,12.17L479.50,14.67L484.83,8.83L485.00,8.17L480.17,4.33C476.91,2.36 477.61,3.07 474.83,2.00C472.06,0.93 473.47,1.37 471.50,1.00C469.53,0.63 470.00,1.15 468.67,0.83C467.33,0.51 470.21,0.27 467.33,0.00C464.45,-0.27 462.17,0.00 459.67,0.00C457.16,0.00 459.93,-0.27 459.50,0.00Z M101.00,0.00L100.17,0.67C98.73,1.04 99.17,0.42 96.50,1.17C93.83,1.91 94.02,2.04 91.83,3.00C89.65,3.96 91.27,2.94 89.67,4.17C88.07,5.39 88.27,5.23 86.83,6.83C85.39,8.43 86.02,7.62 85.17,9.17C84.31,10.71 84.59,9.16 84.17,11.67C83.74,14.17 83.78,14.28 83.83,17.00C83.89,19.72 83.48,17.93 84.33,20.17C85.19,22.41 85.22,22.19 86.50,24.00C87.78,25.81 86.68,24.61 88.33,25.83C89.99,27.06 87.88,26.34 91.67,27.83C95.45,29.33 94.73,29.17 100.17,30.50C105.61,31.83 104.19,30.83 108.67,32.00C113.15,33.17 111.87,32.89 114.17,34.17C116.46,35.45 114.98,34.51 115.83,36.00C116.69,37.49 116.78,37.02 116.83,38.83C116.89,40.65 116.85,40.07 116.00,41.67C115.15,43.27 115.71,42.61 114.17,43.83C112.62,45.06 114.79,44.75 111.17,45.50C107.54,46.25 107.74,46.38 102.83,46.17C97.93,45.95 101.01,46.86 95.83,44.83L86.67,39.83L82.00,46.67L85.67,49.50C89.19,51.42 89.32,51.33 93.00,52.67C96.68,54.00 94.02,53.19 97.17,53.67C100.31,54.15 98.35,54.11 102.83,54.17C107.31,54.22 107.17,54.31 111.17,53.83C115.17,53.35 112.56,53.68 115.33,52.67C118.11,51.65 117.22,52.37 119.83,50.67C122.45,48.96 121.95,49.04 123.50,47.33C125.05,45.63 123.87,47.04 124.67,45.33C125.47,43.63 125.47,44.45 126.00,42.00C126.53,39.55 126.44,40.33 126.33,37.67C126.23,35.00 126.15,35.48 125.67,33.67C125.19,31.85 125.69,33.33 124.83,32.00C123.98,30.67 124.76,31.15 123.00,29.50C121.24,27.85 122.80,28.49 119.33,26.83C115.87,25.18 117.02,25.61 112.17,24.33C107.31,23.05 109.18,24.01 104.17,22.83C99.15,21.66 99.75,22.11 96.50,20.67C93.25,19.23 95.07,20.04 94.00,18.33C92.93,16.63 93.22,17.09 93.17,15.33C93.11,13.57 92.87,14.54 93.83,12.83C94.79,11.13 94.73,11.23 96.17,10.00C97.61,8.77 96.52,9.53 98.33,9.00C100.15,8.47 98.53,8.44 101.83,8.33C105.14,8.23 105.09,8.19 108.67,8.67C112.24,9.15 109.59,8.45 113.00,9.83C116.41,11.22 116.99,11.99 119.33,13.00L120.33,13.00L124.17,7.17L124.17,6.17L123.50,5.33C121.21,4.05 121.69,3.66 117.00,2.17C112.31,0.67 111.71,1.36 108.83,0.67L108.00,0.00L101.17,0.00L101.00,0.00Z"/></svg>
+      <!-- EL LOGO ENTERO, EN SU VERSION PLANA. Dos archivos, no uno con
+           degradado: la barra pasa por la portada clara y por todo el
+           negro de abajo, y en cada fondo entra la pieza de mayor
+           contraste -negro sobre claro, blanco sobre negro-. Van como
+           <img> porque el relleno es solido y no necesita repintarse;
+           .is-dark hace el crossfade entre las dos (ver CSS). -->
+      <span class="mark__logo-wrap">
+        <img class="mark__logo mark__logo--claro" src="/assets/logo/logo-horizontal-negro.svg" alt="" aria-hidden="true">
+        <img class="mark__logo mark__logo--oscuro" src="/assets/logo/logo-horizontal-blanco.svg" alt="" aria-hidden="true">
+      </span>
     </a>
   </header>
 
@@ -3788,11 +3599,24 @@ window.TURNO = (function(){
         }
       }
 
-      var corte = portada ? portada.offsetHeight * 0.72 : window.innerHeight * 0.72;
-      /* Con el velo encendido la barra queda sobre negro aunque el
+      /* LA PÁGINA ES OSCURA SALVO PRUEBA EN CONTRARIO, y antes era al
+         revés: se pedía además `scrollY > 72% de la portada`, porque la
+         portada era un estudio CLARO y arriba de todo el header tenía
+         que ir en tinta negra.
+
+         La portada nueva es un estudio OSCURO. Con la condición vieja el
+         logo y el menú arrancaban en tinta negra sobre un fondo casi
+         negro: no se veía nada hasta pasar la primera pantalla.
+
+         Ahora manda una sola pregunta —¿hay una sección clara debajo de
+         la barra?— y esa ya la contesta data-claro, que es el mecanismo
+         que existe justamente para esto. El Estándar sigue poniendo el
+         header en negro cuando le toca; el resto de la página, blanco.
+
+         Con el velo encendido la barra queda sobre negro aunque el
          Estándar siga contando como claro: si no, el logo se pintaría en
          tinta oscura sobre el velo y desaparecería. */
-      var osc = window.scrollY > corte && (!sobreClaro || veloPuesto > 45);
+      var osc = !sobreClaro || veloPuesto > 45;
       if (osc !== oscuro){
         oscuro = osc;
         document.body.classList.toggle('is-dark', osc);
@@ -3839,17 +3663,18 @@ window.TURNO = (function(){
 
 <!-- BLOQUE 2, SEGUNDA MITAD — EL GARAGE.
 
-     Cuatro grupos, uno por auto. El del grupo elegido va al centro y
-     los dos vecinos asoman a los costados, achicados y apagados: se ve
-     de dónde venís y a dónde vas sin tener que tocar nada.
+     Cuatro grupos, uno por auto, y los cuatro en escena todo el tiempo:
+     giran sobre un anillo y el que queda al frente es el elegido. Antes
+     había tres puestos y el cuarto auto esperaba fuera de cuadro — ver
+     el bloque del ANILLO en el CSS para por qué no alcanzaba con
+     agregarle un puesto más.
 
-     LAS FOTOS NO ESTÁN RECORTADAS Y ESO ES A PROPÓSITO. Medido, su
-     fondo da percentil 99 de 1 o 2 sobre 255 —negro puro— y la página
-     también es negro puro, así que se funden sin borde. Recortarlas
-     además las rompía: estos autos tienen el lado en sombra tan negro
-     como el fondo, y el recorte automático se comía las llantas, los
-     pasarruedas y medio BMW. Conservarlas enteras mantiene el reflejo
-     del piso, que es lo que les da peso. -->
+     LAS FOTOS COMPARTEN LIENZO Y LÍNEA DE APOYO, y en un anillo eso no
+     es cosmética: los autos intercambian lugar, así que si una trae
+     otra proporción, al llegar al frente cambiaría de tamaño sola. Las
+     cuatro miden 1100x468 con el auto centrado y apoyado en el 92,1%
+     del alto. Quien prepare una foto nueva que use tools/grupo-foto.py,
+     que es lo que garantiza esos números. -->
 <section id="garage">
   <div class="gar-caja">
 
@@ -3860,11 +3685,6 @@ window.TURNO = (function(){
            escena. Repetirlo para un lector de pantalla seria ruido. -->
       <div class="gar-marca" aria-hidden="true">Alta Gama</div>
 
-      <!-- LA CALLE. Una sola, quieta, y pasa por debajo de los dos
-           autos. Antes cada auto traía la suya y viajaba con él; ver el
-           comentario del CSS para por qué se pudo unificar. -->
-      <span class="gar-calle" aria-hidden="true"><span class="gar-luz"></span></span>
-
       <div class="gar-auto">
         <picture>
           <source media="(max-width:767px)" srcset="assets/grupos/alta-gama@sm.webp">
@@ -3874,31 +3694,35 @@ window.TURNO = (function(){
       </div>
       <div class="gar-auto">
         <picture>
-          <source media="(max-width:767px)" srcset="assets/grupos/deportivos@sm.webp">
-          <img src="assets/grupos/deportivos.webp" alt="BMW M240i violeta"
+          <source media="(max-width:767px)" srcset="assets/grupos/evolution@sm.webp">
+          <img src="assets/grupos/evolution.webp" alt="Ford Mustang Mach-E gris"
                loading="lazy" decoding="async" width="1100" height="468">
         </picture>
       </div>
       <div class="gar-auto">
         <picture>
-          <source media="(max-width:767px)" srcset="assets/grupos/evolution@sm.webp">
-          <img src="assets/grupos/evolution.webp" alt="Ford Mustang Mach-E azul"
+          <source media="(max-width:767px)" srcset="assets/grupos/deportivos@sm.webp">
+          <img src="assets/grupos/deportivos.webp" alt="BMW Serie 2 blanco"
                loading="lazy" decoding="async" width="1100" height="468">
         </picture>
       </div>
       <div class="gar-auto">
         <picture>
           <source media="(max-width:767px)" srcset="assets/grupos/urbanos@sm.webp">
-          <img src="assets/grupos/urbanos.webp" alt="MINI Cooper S rojo"
+          <img src="assets/grupos/urbanos.webp" alt="MINI Cooper S gris"
                loading="lazy" decoding="async" width="1100" height="468">
         </picture>
       </div>
 
-      <!-- Una sola flecha, y va hacia adelante. Vive DENTRO del escenario
-           para poder pararse al lado del auto: sacarla de la fila de
-           abajo es lo que la convierte en parte de la escena en vez de
-           en un control suelto. -->
-      <button class="gar-flecha" data-paso="1" type="button" aria-label="Grupo siguiente">
+      <!-- Las dos flechas. Viven DENTRO del escenario para poder pararse
+           al lado del auto: sacarlas a la fila de abajo es lo que las
+           convertiria en controles sueltos en vez de en parte de la
+           escena. -->
+      <button class="gar-flecha gar-flecha--antes" data-paso="-1" type="button" aria-label="Grupo anterior">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5 8 12l7 7"/></svg>
+      </button>
+      <button class="gar-flecha gar-flecha--sigue" data-paso="1" type="button" aria-label="Grupo siguiente">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>
       </button>
@@ -3917,8 +3741,8 @@ window.TURNO = (function(){
     <div class="gar-mandos">
       <div class="gar-rayas" role="tablist" aria-label="Grupos del garage">
         <button class="gar-raya" role="tab" aria-current="true"  aria-label="Alta Gama"></button>
-        <button class="gar-raya" role="tab" aria-current="false" aria-label="Deportivos"></button>
         <button class="gar-raya" role="tab" aria-current="false" aria-label="Línea Evolution"></button>
+        <button class="gar-raya" role="tab" aria-current="false" aria-label="Deportivos"></button>
         <button class="gar-raya" role="tab" aria-current="false" aria-label="Urbanos"></button>
       </div>
 
@@ -3928,39 +3752,58 @@ window.TURNO = (function(){
 </section>
 
 <script>
-/* EL GARAGE.
+/* EL GARAGE — EL ANILLO DE CUATRO.
 
-   Cuatro grupos. El elegido al centro, los dos vecinos asomando. Todo
-   el movimiento lo hace el CSS: acá sólo se reparten tres clases
-   —es-actual, es-entrando, es-saliendo— y el resto queda sin ninguna,
-   que en el CSS significa apagado y fuera de escena.
+   Los cuatro autos estan siempre en escena, repartidos cada 90 grados
+   sobre una elipse que se ve en escorzo. Cambiar de grupo es girar el
+   anillo un cuarto de vuelta: el que queda al frente es el elegido.
 
-   Repartir clases en vez de calcular transforms a mano tiene una
-   ventaja concreta: el auto que estaba a la izquierda y pasa al centro
-   ANIMA de una posición a la otra, porque es el mismo elemento
-   cambiando de clase. Si se recolocaran nodos, saltaría. */
+   ACA SE CALCULA LA POSICION, Y ANTES NO. Antes este script repartia
+   tres clases —es-actual, es-entrando, es-saliendo— y el movimiento
+   entero lo hacia el CSS. El problema no era el reparto: era la FORMA
+   DEL VIAJE. Entre dos posiciones fijas el navegador interpola en linea
+   recta, asi que cada auto iba de un puesto al siguiente por la cuerda
+   y no por el arco, y cuatro cuerdas encadenadas dibujan un cuadrado.
+   Para que se lea como una vuelta hay que pasar por el arco, y eso pide
+   seno y coseno en cada cuadro.
+
+   LAS MEDIDAS DEL ANILLO NO ESTAN ACA. Viven en el CSS, como variables
+   de .gar-escena, porque cambian entre escritorio y celular y ese es el
+   lugar donde se cambian las cosas que dependen del tamano de pantalla.
+   Este script las lee, y las vuelve a leer cuando cambia la ventana. */
 (function(){
   var sec = document.getElementById('garage');
   if (!sec) return;
 
-  var autos = [].slice.call(sec.querySelectorAll('.gar-auto'));
-  var rayas = [].slice.call(sec.querySelectorAll('.gar-raya'));
-  var texto = sec.querySelector('.gar-texto');
+  var autos  = [].slice.call(sec.querySelectorAll('.gar-auto'));
+  var rayas  = [].slice.call(sec.querySelectorAll('.gar-raya'));
+  var texto  = sec.querySelector('.gar-texto');
   var escena = sec.querySelector('.gar-escena');
-  var calle  = sec.querySelector('.gar-calle');
   var marca  = sec.querySelector('.gar-marca');
   var boton  = sec.querySelector('.gar-boton');
   if (autos.length < 2) return;
 
+  /* EL ORDEN ES EL DEL HTML. Cada entrada le corresponde al .gar-auto
+     que ocupa la misma posición, así que mover un auto en el HTML pide
+     mover su título acá y su rayita abajo.
+
+     LOS TÍTULOS VAN CON LA CAJA YA PUESTA. Antes el CSS los pasaba a
+     mayúsculas; con la manuscrita eso rompe los enlaces entre letras,
+     así que se sacó el text-transform y la caja correcta se escribe
+     acá. */
   var GRUPOS = [
     { titulo:'Alta Gama', seccion:'' },
-    { titulo:'Deportivos', seccion:'' },
     { titulo:'Línea Evolution', seccion:'' },
+    { titulo:'Deportivos', seccion:'' },
     { titulo:'Urbanos', seccion:'' }
   ];
 
-  var N = autos.length;
-  var PAUSA = 7200;   /* quieto entre pase y pase */
+  var N      = autos.length;
+  var VUELTA = Math.PI * 2;
+  var PASO   = VUELTA / N;   /* lo que gira el anillo por cada grupo */
+  var GIRO   = 1500;         /* cuanto tarda ese giro, en ms */
+  var PAUSA  = 3800;         /* quieto entre giro y giro */
+
   var actual = 0, reloj = null;
   var quieto = window.matchMedia &&
                matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -3972,10 +3815,16 @@ window.TURNO = (function(){
      Con un cuerpo fijo, o el largo se corta contra los bordes o los
      cortos quedan chicos para el lugar que tienen.
 
-     Asi que se mide el nombre ya escrito y se lo lleva al 94% del ancho
-     del escenario, con un techo del 9% de ese ancho para que no se coma
-     la escena. En la practica los tres nombres cortos llegan al techo y
-     el largo se acomoda solo. */
+     Asi que se mide el nombre ya escrito y se lo lleva a una fraccion
+     del ancho del escenario, con un techo para que no se coma la
+     escena. En la practica los nombres cortos llegan al techo y el
+     largo se acomoda solo.
+
+     LOS DOS NUMEROS BAJARON AL PASAR A LA MANUSCRITA. Con Syncopate el
+     nombre era un cartel y ocupaba el 94% del ancho; una firma que
+     cruza la pantalla de lado a lado deja de leerse como firma. Al 62%
+     queda del ancho del auto del frente, que es donde tiene que estar
+     para que parezca escrita sobre la escena. */
   function ajustarMarca(){
     if (!marca || !escena) return;
     var ancho = escena.clientWidth;
@@ -3984,7 +3833,7 @@ window.TURNO = (function(){
     var base = parseFloat(getComputedStyle(marca).fontSize);
     var mide = marca.scrollWidth;
     if (!base || !mide) return;
-    var cuerpo = Math.min(base * (ancho * 0.94) / mide, ancho * 0.09);
+    var cuerpo = Math.min(base * (ancho * 0.62) / mide, ancho * 0.14);
     marca.style.fontSize = cuerpo.toFixed(1) + 'px';
   }
 
@@ -4000,87 +3849,104 @@ window.TURNO = (function(){
     });
   }
 
-  /* TRES PAPELES SOBRE LA CALLE. El que espera va a la IZQUIERDA y es
-     el SIGUIENTE, no el anterior: los autos viajan de la izquierda al
-     centro y del centro hacia afuera por la derecha, siempre en ese
-     sentido.
-
-     EL QUE VUELVE AL FONDO DE LA CALLE, VUELVE DE UN SALTO.
-
-     Acá estaba el bug de "aprieto la flecha y gira para la izquierda".
-
-     Cuando a un auto se le termina el turno de irse, deja de tener papel
-     y su posición vuelve a la de arranque, que está en el extremo
-     IZQUIERDO de la calle. Y como `.gar-auto` anima `left` en 1,15 s,
-     ese regreso se animaba: el auto cruzaba la pantalla entera de
-     derecha a izquierda.
-
-     El código anterior lo dejaba un turno de más en `es-saliendo` y daba
-     por hecho que para cuando volviera ya sería invisible. No lo es. La
-     opacidad del que se va tarda en apagarse —arranca recién a los .45 s
-     y dura .38— así que si llega otro pase antes de que termine, el auto
-     todavía se ve. Y llega: pasa siempre que se aprieta la flecha, y
-     también cuando el pase automático cae cerca del toque.
-
-     Medido en el navegador, siguiendo el centro de cada auto cuadro a
-     cuadro con dos clics separados por 400 ms: un auto recorría de 151%
-     a 2% del escenario CON OPACIDAD VISIBLE. Ciento cuarenta y nueve
-     puntos de pantalla hacia la izquierda, a la vista.
-
-     El arreglo es sacarle la transición al auto justo para ese salto y
-     devolvérsela enseguida. El `offsetWidth` no es adorno: obliga al
-     navegador a calcular la posición nueva ahí mismo, con las
-     transiciones apagadas, y es lo que convierte el viaje en un salto. */
-  function colocar(){
-    var entrando = (actual + 1) % N;
-    var saliendo = (actual - 1 + N) % N;
-
-    autos.forEach(function(a, i){
-      var papel = (i === actual)   ? 'es-actual'
-                : (i === entrando) ? 'es-entrando'
-                : (i === saliendo && saliendo !== entrando) ? 'es-saliendo'
-                : '';
-
-      var tenia = a.classList.contains('es-actual') ||
-                  a.classList.contains('es-entrando') ||
-                  a.classList.contains('es-saliendo');
-
-      if (!papel && tenia){
-        a.style.transition = 'none';
-        a.classList.remove('es-actual', 'es-entrando', 'es-saliendo');
-        void a.offsetWidth;
-        a.style.transition = '';
-        return;
-      }
-
-      a.classList.remove('es-actual', 'es-entrando', 'es-saliendo');
-      if (papel) a.classList.add(papel);
-    });
+  /* ── LAS MEDIDAS DEL ANILLO ─────────────────────────────────────
+     Se leen una vez y se guardan. Llamar a getComputedStyle en cada
+     cuadro de una animacion es justo lo que no hay que hacer: obliga al
+     navegador a recalcular estilo sesenta veces por segundo. */
+  var anillo = null;
+  function medir(){
+    var cs = getComputedStyle(escena);
+    function v(n){ return parseFloat(cs.getPropertyValue('--anillo-' + n)); }
+    anillo = {
+      radio:v('radio'), cerca:v('cerca'), lejos:v('lejos'),
+      grande:v('grande'), chico:v('chico'), tenue:v('tenue'),
+      umbral:v('umbral'),
+      an:escena.clientWidth, al:escena.clientHeight
+    };
   }
 
-  /* LA CALLE SE VUELVE A ENCENDER EN CADA PASE.
+  /* ── DONDE VA CADA AUTO ─────────────────────────────────────────
+     Del angulo salen las cuatro cosas. `cerca` vale 0 en el fondo del
+     anillo y 1 al frente, y de el dependen la altura, el tamano y la
+     opacidad; el corrimiento lateral sale del seno.
 
-     Como la calle ya no es hija del auto, no hay clase de auto de la que
-     colgar la animación: la dispara el carrusel.
+     EL CORRIMIENTO VA EN PIXELES Y NO EN PORCENTAJE. Un translate en %
+     se mide contra el propio elemento, y lo que hay que medir aca es el
+     escenario. De ahi que hagan falta `an` y `al`. */
+  function aplicar(ang){
+    for (var i = 0; i < N; i++){
+      var t = ang + i * PASO;
+      var cerca = (Math.cos(t) + 1) / 2;
+      var x = anillo.radio * Math.sin(t) * anillo.an / 100;
+      var y = (anillo.lejos + (anillo.cerca - anillo.lejos) * cerca) * anillo.al / 100;
+      var s = anillo.chico + (anillo.grande - anillo.chico) * cerca;
 
-     Y hay que reiniciarla a mano. Volver a poner una clase que ya está
-     puesta no reinicia nada —el navegador ve el mismo estado y no hace
-     nada— así que se saca, se lo obliga a recalcular con offsetWidth, y
-     recién ahí se vuelve a poner. Sin ese paso del medio, la luz sale
-     una sola vez en toda la sesión. */
-  function encenderCalle(){
-    if (!calle) return;
-    calle.classList.remove('anda');
-    void calle.offsetWidth;
-    calle.classList.add('anda');
+      var a = autos[i];
+      a.style.transform = 'translate(calc(-50% + ' + x.toFixed(1) + 'px), ' +
+                          (-y).toFixed(1) + 'px) scale(' + s.toFixed(4) + ')';
+
+      /* A LA VISTA HAY TRES. El que pasa por el fondo del anillo se
+         apaga; ver el bloque del ANILLO en el CSS para por que. La
+         rampa se apaga en el ultimo tramo del giro, asi que la vuelta
+         se sigue viendo continua: uno se desvanece por atras mientras
+         el de enfrente termina de encenderse. */
+      var visible = cerca / anillo.umbral;
+      if (visible > 1) visible = 1;
+      a.style.opacity = (visible * (anillo.tenue + (1 - anillo.tenue) * cerca)).toFixed(3);
+      /* El que esta mas cerca tapa. El z-index no admite decimales, asi
+         que se lleva a entero. */
+      a.style.zIndex = String(2 + Math.round(cerca * 100));
+    }
+  }
+
+  /* ── EL GIRO ────────────────────────────────────────────────────
+     Un rAF que lleva el angulo de donde esta a donde tiene que ir. Si
+     llega un pedido nuevo con el anterior a mitad de camino, no se
+     encola otro bucle: se cambian el origen y el destino y el bucle que
+     ya esta girando los toma en el cuadro siguiente. */
+  var ahora = 0, desde = 0, hasta = 0, t0 = 0, girando = false;
+
+  function curva(u){
+    return u < .5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+  }
+
+  function cuadro(ts){
+    if (!t0) t0 = ts;
+    var u = (ts - t0) / GIRO;
+    if (u > 1) u = 1;
+    ahora = desde + (hasta - desde) * curva(u);
+    aplicar(ahora);
+    if (u < 1) requestAnimationFrame(cuadro);
+    else { girando = false; ahora = hasta; }
+  }
+
+  /* EL ARCO CORTO, SIEMPRE.
+
+     Para que el grupo k quede al frente su angulo tiene que ser
+     -k*PASO. Pero ese angulo se repite cada vuelta, y tomado crudo el
+     salto del cuarto grupo al primero pide tres cuartos de vuelta PARA
+     ATRAS cuando lo que corresponde es un cuarto para adelante — el
+     anillo giraria al reves justo en el unico paso que cierra el ciclo.
+
+     Se normaliza la diferencia al rango (-180°, 180°] y el anillo toma
+     siempre el arco corto, que para un paso de a uno es el de
+     adelante. */
+  function girar(k){
+    var d = (-k * PASO) - hasta;
+    d = ((d + Math.PI) % VUELTA + VUELTA) % VUELTA - Math.PI;
+    hasta += d;
+
+    if (quieto){ ahora = hasta; aplicar(ahora); return; }
+    desde = ahora;
+    t0 = 0;
+    if (!girando){ girando = true; requestAnimationFrame(cuadro); }
   }
 
   function ir(destino){
     destino = (destino % N + N) % N;
     if (destino === actual) return;
     actual = destino;
-    colocar();
-    encenderCalle();
+    girar(actual);
     texto.classList.add('cambiando');
     if (marca) marca.classList.add('cambiando');
     setTimeout(function(){
@@ -4111,24 +3977,50 @@ window.TURNO = (function(){
     r.addEventListener('click', function(){ frenar(); ir(i); });
   });
 
-  /* Con el cursor encima no pasa solo: si alguien está mirando un
-     grupo, cambiárselo es pelearle. */
-  escena.addEventListener('mouseenter', frenar);
-  escena.addEventListener('mouseleave', programar);
+  /* SE FRENA SOBRE LOS MANDOS, NO SOBRE TODA LA ESCENA.
+
+     La idea original era no pelearle a quien esta mirando un grupo, y
+     esta bien. El problema es donde estaba puesta: sobre `.gar-escena`,
+     que ocupa el ancho completo y buena parte del alto de la ventana.
+
+     `frenar()` limpia el reloj y NADA lo vuelve a arrancar hasta que
+     salte un `mouseleave`. Asi que alcanza con que el puntero quede
+     quieto adentro de la escena —que es donde queda apoyado apenas se
+     scrollea hasta aca— para que el giro automatico no vuelva a
+     arrancar en toda la visita.
+
+     Frenando solo sobre las flechas y las rayitas se conserva lo que
+     importaba —si vas a tocar un mando, el carrusel no te lo mueve
+     abajo del dedo— sin que el resto de la escena apague el reloj. */
+  [].slice.call(sec.querySelectorAll('.gar-flecha, .gar-rayas'))
+    .forEach(function(m){
+      m.addEventListener('mouseenter', frenar);
+      m.addEventListener('mouseleave', programar);
+    });
+
+  medir();
+  aplicar(0);
+  pintar();
+
+  /* Al cambiar la ventana cambian las dos cosas de las que depende el
+     anillo: las medidas del escenario y, si se cruza el corte de
+     celular, las variables mismas. Se rehace la cuenta y se vuelve a
+     dibujar en el angulo en el que estaba. */
+  addEventListener('resize', function(){
+    medir();
+    ajustarMarca();
+    aplicar(ahora);
+  });
 
   /* Y no trabaja de fondo, como el resto del sitio. */
-  colocar();
-  pintar();
-  addEventListener('resize', ajustarMarca);
   if ('IntersectionObserver' in window){
     new IntersectionObserver(function(e){
       e.forEach(function(x){
-        if (x.isIntersecting){ encenderCalle(); programar(); }
+        if (x.isIntersecting) programar();
         else frenar();
       });
     }, { threshold:0.25 }).observe(sec);
   } else {
-    encenderCalle();
     programar();
   }
 })();
@@ -5059,6 +4951,10 @@ var UNIDAD = null;
      las dos. -->
 <div id="velo-alto" aria-hidden="true"></div>
 
+<!-- La luz de ambiente. Misma idea que el velo y por eso viven juntos:
+     es de la VENTANA, no de una sección. Ver su bloque en el CSS. -->
+<div id="ambiente" aria-hidden="true"></div>
+
 <section id="ruta">
   <video id="rutaVid" muted loop playsinline preload="none"
          aria-label="Golf GTI rojo en un camino de montaña"></video>
@@ -5433,17 +5329,10 @@ var UNIDAD = null;
        más.
        ══════════════════════════════════════════════════════════════ -->
   <section class="edit" aria-labelledby="edit-titulo">
-    <small class="edit-eyebrow">Editorial</small>
-    <p class="edit-bajada">Historias, análisis y cultura automotriz.</p>
-
     <article class="edit-nota">
       <figure class="edit-foto">
         <img src="assets/collage/ciudad.webp" alt=""
              loading="lazy" decoding="async" width="1200" height="800">
-        <figcaption class="edit-marcas">
-          <span class="edit-tema">Cultura</span>
-          <span class="edit-rato">5 min</span>
-        </figcaption>
       </figure>
 
       <h2 class="edit-titular" id="edit-titulo">El futuro del diseño: naturaleza y rendimiento</h2>
@@ -5461,7 +5350,6 @@ var UNIDAD = null;
   </section>
 
   <div class="conc-caja">
-    <small class="conc-eyebrow">El Concierge</small>
     <h2 class="conc-titulo">¿Buscás una pieza específica?<br>La encontramos.</h2>
     <p class="conc-bajada">
       Decinos qué estás buscando y lo rastreamos en el mercado global. Y
@@ -5487,9 +5375,6 @@ var UNIDAD = null;
       </div>
 
       <button type="submit" class="conc-enviar">Enviar por WhatsApp</button>
-      <p class="conc-nota" id="conc-nota">
-        Se abre WhatsApp con el mensaje ya escrito. No guardamos nada acá.
-      </p>
     </form>
   </div>
 
@@ -5508,12 +5393,11 @@ var UNIDAD = null;
    base de datos, sin datos de nadie guardados en ningún lado — y el
    pedido cae donde el negocio ya contesta todos los días.
 
-   FALTA UN DATO: el número. Mientras esté vacío el botón se apaga y lo
-   dice, en vez de abrir un WhatsApp que no existe. Es la única línea
-   que hay que completar. */
+   EL NÚMERO VA SIN NADA MÁS QUE DÍGITOS: código de país, área y línea,
+   sin +, sin espacios y sin guiones. Es lo que pide wa.me y lo único
+   que hay que tocar acá si el número cambia. */
 (function(){
-  var WHATSAPP = '';   /* ← el número con código de país y sin signos,
-                          por ejemplo '5491122334455' */
+  var WHATSAPP = '5491112345678';
 
   var form = document.querySelector('.conc-form');
   if (!form) return;
@@ -5521,8 +5405,6 @@ var UNIDAD = null;
   var modos   = document.querySelectorAll('.conc-modos button');
   var rotulo  = document.getElementById('conc-auto-label');
   var campo   = document.getElementById('conc-auto');
-  var enviar  = form.querySelector('.conc-enviar');
-  var nota    = document.getElementById('conc-nota');
   var modo    = 'busco';
 
   var TEXTOS = {
@@ -5540,13 +5422,6 @@ var UNIDAD = null;
       campo.placeholder  = TEXTOS[modo].hint;
     });
   });
-
-  if (!WHATSAPP){
-    enviar.disabled = true;
-    enviar.textContent = 'Falta cargar el WhatsApp';
-    nota.textContent = 'El formulario está listo: sólo falta cargar el número de WhatsApp del negocio.';
-    return;
-  }
 
   form.addEventListener('submit', function(e){
     e.preventDefault();
@@ -5572,9 +5447,6 @@ var UNIDAD = null;
      el comentario en el CSS de #social. -->
 <section id="social">
   <div class="social-caja">
-    <small class="social-eyebrow">Comunidad</small>
-    <h2 class="social-titulo">Todo lo que entra, primero pasa por acá.</h2>
-
     <div class="social-grilla">
       <a href="#" aria-disabled="true"><img src="assets/social/ig-1.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
       <a href="#" aria-disabled="true"><img src="assets/social/ig-2.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
@@ -5583,34 +5455,130 @@ var UNIDAD = null;
       <a href="#" aria-disabled="true"><img src="assets/social/ig-5.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
       <a href="#" aria-disabled="true"><img src="assets/social/ig-6.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
     </div>
-
-    <!-- El enlace queda apagado hasta que haya usuario de Instagram. Un
-         enlace a ningún lado es peor que no tenerlo. -->
-    <span class="social-perfil" aria-disabled="true">Falta cargar el Instagram</span>
   </div>
 </section>
 
 <!-- BLOQUE 6 — EL PIE.
 
-     La invitación al Garage Virtual, los datos institucionales y el
-     isotipo de fondo, que es lo que pide el documento para cerrar.
+     Cuatro columnas: la marca, la navegación, los datos de contacto y el
+     mapa. Abajo, el legal y las redes.
 
-     El botón del Garage está apagado a propósito: hace falta registro
-     de usuarios, que es Prioridad 5 y todavía no existe. Un botón que
-     no hace nada es peor que no tenerlo. -->
+     LOS ENLACES SON A SECCIONES QUE EXISTEN. El diseño de referencia
+     listaba Inventario, Nosotros, Manifiesto y Servicios, que en este
+     sitio no son nada todavía. Se usan las cuatro que sí están, que es
+     el mismo criterio que ya se aplicó en el menú de arriba cuando
+     apuntaba a tres anclas inexistentes. -->
 <footer id="pie">
-  <svg class="pie-sello" viewBox="0 0 100 100" fill="currentColor"
-       fill-rule="evenodd" aria-hidden="true"><use href="#mm-emblema"/></svg>
-
   <div class="pie-caja">
-    <div class="pie-datos">
-      <span>Manna Motors <span aria-hidden="true">·</span> Selected</span>
-      <a href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8" target="_blank" rel="noopener">
-        Pasaje Lanín 154, Barracas, Buenos Aires
+
+    <div class="pie-col pie-col--marca">
+      <img class="pie-logo" src="assets/logo/logo-apilado-blanco.svg"
+           alt="Manna Motors Selected" width="300" height="180"
+           loading="lazy" decoding="async">
+    </div>
+
+    <nav class="pie-col" aria-labelledby="pie-nav">
+      <h2 class="pie-rotulo" id="pie-nav">Navegación</h2>
+      <ul>
+        <li><a href="#garage">Garage</a></li>
+        <li><a href="#estandar">Estándar</a></li>
+        <li><a href="#donde">Dónde estamos</a></li>
+        <li><a href="#concierge">Contacto</a></li>
+      </ul>
+    </nav>
+
+    <div class="pie-col" aria-labelledby="pie-con">
+      <h2 class="pie-rotulo" id="pie-con">Contacto</h2>
+      <ul class="pie-contacto">
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path
+               d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.8 2Z"/></svg>
+          <a class="pie-dato" href="tel:+5491112345678"
+             data-copiar="+54 9 11 1234 5678">+54 9 11 1234 5678</a>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect
+               x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/></svg>
+          <a class="pie-dato" href="mailto:hola@mannamotors.com"
+             data-copiar="hola@mannamotors.com">hola@mannamotors.com</a>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path
+               d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+          <a href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8" target="_blank" rel="noopener">
+            Pasaje Lanín 154, Barracas<br>Buenos Aires, Argentina
+          </a>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle
+               cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <span>Lun a Vie <span aria-hidden="true">·</span> 10:00 a 19:00</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="pie-col" aria-labelledby="pie-map">
+      <h2 class="pie-rotulo" id="pie-map">Encontranos</h2>
+      <a class="pie-mapa" href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8"
+         target="_blank" rel="noopener"
+         aria-label="Pasaje Lanín 154, Barracas — abrir en Google Maps">
+        <img src="assets/mapa/barracas-movil.svg" alt=""
+             loading="lazy" decoding="async" width="1000" height="1000">
+        <span class="pie-pin" aria-hidden="true"></span>
       </a>
     </div>
+
   </div>
+
 </footer>
+
+<script>
+/* EL TELÉFONO Y EL MAIL: SE LLAMAN EN EL CELULAR, SE COPIAN EN LA COMPU.
+
+   En el HTML son enlaces `tel:` y `mailto:`, que es lo que corresponde y
+   lo que hace que en un teléfono el número se marque de una.
+
+   En una computadora ese mismo enlace no sirve para nada útil: abre —o
+   intenta abrir— un programa que muchas veces no está configurado, y el
+   usuario se queda sin el dato. Ahí el clic cambia de gesto y copia.
+
+   LA DIFERENCIA SE DECIDE POR EL PUNTERO Y NO POR EL ANCHO. `pointer:
+   coarse` es un dedo, y un aparato que se maneja con el dedo es un
+   aparato que puede llamar. Una ventana angosta en una computadora
+   sigue siendo una computadora, y por ancho habría caído del lado
+   equivocado.
+
+   Si el navegador no deja copiar —el portapapeles pide contexto seguro,
+   así que en http:// sin más no está— no se hace nada y el enlace sigue
+   funcionando como enlace. */
+(function(){
+  var datos = [].slice.call(document.querySelectorAll('.pie-dato'));
+  if (!datos.length) return;
+  if (matchMedia('(pointer: coarse)').matches) return;
+  if (!navigator.clipboard) return;
+
+  datos.forEach(function(a){
+    var reloj = null;
+    a.addEventListener('click', function(e){
+      e.preventDefault();
+      navigator.clipboard.writeText(a.dataset.copiar || a.textContent.trim())
+        .then(function(){
+          a.classList.add('copiado');
+          clearTimeout(reloj);
+          reloj = setTimeout(function(){ a.classList.remove('copiado'); }, 1800);
+        })
+        .catch(function(){
+          /* Si falló, que al menos haga lo que dice el href. */
+          window.location.href = a.href;
+        });
+    });
+  });
+})();
+</script>
 
 </body>
 </html>
