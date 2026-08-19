@@ -2992,6 +2992,39 @@ body.cargando{ overflow:hidden; }
   inset:-16px;
 }
 
+/* ── EL CONTROL, AL DOBLE EN EL TELÉFONO ────────────────────────────
+
+   Las medidas de arriba están pensadas para un mouse, que apunta a un
+   pixel. Con el dedo, un riel de 1,5 px y un punto de 15 px es un
+   blanco chico — y desde que el control se queda con el gesto entero
+   (ver `touch-action` en .reel-mando), errarle tiene un costo: el dedo
+   cae al lado del riel y ese toque no hace nada.
+
+   En el teléfono sobra alto, así que todo va al doble: el área de
+   agarre pasa de 3 a 6rem, el riel de 1,5 a 3px y el punto de 15 a
+   22px. El dibujo es el mismo, solo que a una escala que se puede
+   agarrar.
+
+   El ::before del punto NO se agranda: ya son 16 px alrededor y con el
+   punto más grande queda un blanco de 54 px de lado, de sobra. */
+@media (max-width:767px){
+  .reel-pista{ height:6rem; }
+
+  .reel-pista::before,
+  .reel-huella{
+    height:3px;
+    margin-top:-1.5px;
+    border-radius:1.5px;
+  }
+
+  .reel-tirador{
+    width:22px; height:22px;
+    margin:-11px 0 0 -11px;
+    box-shadow:0 0 0 8px rgba(255,255,255,.08),
+               0 0 26px 6px rgba(255,255,255,.32);
+  }
+}
+
 /* LA SEÑAL DE QUE ABAJO SIGUE HABIENDO PÁGINA.
 
    Con el control arriba, el pie de la sección queda vacío, y una
