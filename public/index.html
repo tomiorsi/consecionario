@@ -541,12 +541,36 @@ video::-webkit-media-controls{ display:none !important; }
   pointer-events:none;
   mix-blend-mode:screen;
   background:
-    radial-gradient(78% 58% at 12% 14%,
-      rgba(var(--beam),.10), transparent 70%),
-    radial-gradient(70% 56% at 90% 78%,
-      rgba(var(--beam),.085), transparent 68%),
-    radial-gradient(130% 62% at 50% 112%,
-      rgba(var(--beam),.075), transparent 62%);
+    radial-gradient(92% 68% at 14% 10%,
+      rgba(var(--beam),.055), transparent 72%),
+    radial-gradient(86% 66% at 88% 84%,
+      rgba(var(--beam),.05), transparent 70%),
+    radial-gradient(150% 70% at 50% 114%,
+      rgba(var(--beam),.055), transparent 64%);
+}
+
+/* EN EL TELÉFONO SE VAN LAS DOS FUENTES DE LOS COSTADOS.
+
+   Los radios están en porcentaje de la ventana, así que la misma regla
+   se comporta distinto según el ancho. En una pantalla de 390 px, el
+   78% de la fuente de arriba a la izquierda son 304 px sobre 390: se
+   come casi todo el ancho y queda concentrada en una esquina.
+
+   Y como la capa es `fixed`, esa mancha no se mueve NUNCA. En
+   escritorio pasa por difusa; en el teléfono se lee como una mancha
+   pegada al vidrio, siempre en el mismo lugar, y encima asimétrica —
+   medido, el tercio izquierdo daba hasta 2 puntos más de brillo que el
+   derecho sobre un fondo de 11, o sea casi un 20% más.
+
+   Acá abajo queda una sola fuente, centrada y desbordando por abajo:
+   levanta el negro igual y no tiene lado, así que no hay nada que se
+   lea como una luz encendida a la izquierda. */
+@media (max-width:767px){
+  #ambiente{
+    background:
+      radial-gradient(160% 55% at 50% 112%,
+        rgba(var(--beam),.06), transparent 66%);
+  }
 }
 
 /* El grano. Se genera con SVG en vez de traer una imagen: son 200 bytes
@@ -1093,13 +1117,36 @@ video::-webkit-media-controls{ display:none !important; }
   box-shadow:0 0 0 4px rgba(var(--beam),.18), 0 0 14px 3px rgba(var(--beam),.5);
 }
 
+/* ── EL PIE EN ANGOSTO ──────────────────────────────────────────────
+
+   Cuatro columnas de 130 px parten cada dato en renglones sueltos, así
+   que abajo de 900 px se reparte en tres filas:
+
+     la marca            a lo ancho, arriba de todo
+     navegación | contacto   una al lado de la otra
+     encontranos         a lo ancho, centrado
+
+   NAVEGACIÓN Y CONTACTO VAN JUNTAS PORQUE SON LISTAS CORTAS: cuatro
+   renglones de una palabra y cuatro datos de una línea entran de sobra
+   en media pantalla, y apiladas dejaban el pie larguísimo.
+
+   EL MAPA NO: es un cuadro, y en media pantalla queda del tamaño de un
+   sello. Va a lo ancho y con un tope, para que no se estire de lado a
+   lado en una tableta. */
 @media (max-width:900px){
-  /* En tableta las cuatro columnas quedan de 130 px y cada dato se parte
-     en renglones sueltos. Dos y dos. */
-  .pie-caja{ grid-template-columns:1fr 1fr; gap:clamp(2rem,5vh,3rem) 2rem; }
-}
-@media (max-width:560px){
-  .pie-caja{ grid-template-columns:1fr; }
+  .pie-caja{
+    grid-template-columns:1fr 1fr;
+    gap:clamp(1.8rem,4.5vh,2.6rem) clamp(1.2rem,4vw,2rem);
+  }
+  .pie-col--marca{ grid-column:1 / -1; }
+  .pie-col--mapa{
+    grid-column:1 / -1;
+    text-align:center;
+  }
+  .pie-col--mapa .pie-mapa{
+    max-width:22rem;
+    margin-inline:auto;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -5521,7 +5568,7 @@ var UNIDAD = null;
       </ul>
     </div>
 
-    <div class="pie-col" aria-labelledby="pie-map">
+    <div class="pie-col pie-col--mapa" aria-labelledby="pie-map">
       <h2 class="pie-rotulo" id="pie-map">Encontranos</h2>
       <a class="pie-mapa" href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8"
          target="_blank" rel="noopener"
