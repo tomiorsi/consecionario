@@ -656,16 +656,39 @@ video::-webkit-media-controls{ display:none !important; }
 .edit-foto{
   position:relative;
   margin:0;
-  overflow:hidden;
-  border-radius:2px;
   aspect-ratio:3/2;
-  background:#0a0a0a;
 }
-.edit-foto img{
+
+/* LA FOTO GRANDE Y TRES CHICAS AL COSTADO.
+
+   Es una grilla de dos columnas: la nota adentro de la primera y una
+   tira de tres en la segunda. `aspect-ratio` vive en el CONJUNTO, no en
+   cada foto, así la tira mide exactamente el alto de la grande — que es
+   lo que hace que el bloque cierre en un rectángulo y no en una escalera.
+
+   LAS TRES SE REPARTEN EL ALTO CON `1fr` Y NO CON UN ALTO FIJO: el alto
+   de la grande depende del ancho de la columna, que cambia con la
+   ventana. Con medidas fijas habría que recalcularlas en cada corte. */
+.edit-marco{
+  display:grid;
+  grid-template-columns:1fr .3fr;
+  gap:.45rem;
+  height:100%;
+}
+.edit-marco > img,
+.edit-tira img{
   display:block;
   width:100%;
   height:100%;
   object-fit:cover;
+  border-radius:2px;
+  background:#0a0a0a;
+}
+.edit-tira{
+  display:grid;
+  grid-template-rows:repeat(3,1fr);
+  gap:.45rem;
+  min-height:0;      /* si no, las filas se estiran y desbordan la grilla */
 }
 /* LA FOTO VA LIMPIA. Tenía dos etiquetas encima —"Cultura" y "5 min"—
    y un degradado negro al pie puesto sólo para que esas dos etiquetas
@@ -938,6 +961,15 @@ video::-webkit-media-controls{ display:none !important; }
 @media (max-width:767px){
   /* Seis en fila son sellos ilegibles en un teléfono. Tres y tres. */
   .social-grilla{ grid-template-columns:repeat(3,1fr); }
+
+  /* La tira al costado quedaría de 40 px de ancho. Abajo y en fila, que
+     es donde tiene lugar. El conjunto deja de ser 3:2 porque ahora son
+     dos bloques apilados. */
+  .edit-foto{ aspect-ratio:auto; }
+  .edit-marco{ grid-template-columns:1fr; gap:.45rem; }
+  .edit-marco > img{ aspect-ratio:3/2; }
+  .edit-tira{ grid-template-rows:none; grid-template-columns:repeat(3,1fr); }
+  .edit-tira img{ aspect-ratio:1; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -1275,7 +1307,11 @@ video::-webkit-media-controls{ display:none !important; }
   font-size:clamp(2.4rem,9vw,7.5rem);
   font-weight:400;
   line-height:1.15;
-  color:rgba(255,255,255,.92);
+  /* GRIS, Y HECHO CON BLANCO TRANSPARENTE. Un gris de la paleta acá no
+     sirve: --gris y --steel son azulados y sobre el negro el azul se
+     nota. Blanco al 58% sobre negro da un gris neutro por construcción,
+     y encima se apoya en el fondo en vez de flotar por encima. */
+  color:rgba(255,255,255,.58);
   pointer-events:none;
   transition:opacity .3s var(--ease);
 }
@@ -1342,8 +1378,8 @@ video::-webkit-media-controls{ display:none !important; }
      es la mitad de largo que "Linea Evolution": sin tope, el corto se
      estiraria hasta ocupar el mismo ancho y quedaria enorme al lado del
      largo. */
-  --marca-ancho:.62;
-  --marca-tope:.14;
+  --marca-ancho:.55;
+  --marca-tope:.125;
 }
 
 .gar-auto{
@@ -5474,8 +5510,15 @@ var UNIDAD = null;
   <section class="edit" aria-labelledby="edit-titulo">
     <article class="edit-nota">
       <figure class="edit-foto">
-        <img src="assets/collage/ciudad.webp" alt=""
-             loading="lazy" decoding="async" width="1200" height="800">
+        <div class="edit-marco">
+          <img src="assets/collage/ciudad.webp" alt=""
+               loading="lazy" decoding="async" width="1200" height="800">
+          <div class="edit-tira">
+            <img src="assets/social/ig-2.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
+            <img src="assets/social/ig-5.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
+            <img src="assets/social/ig-6.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
+          </div>
+        </div>
       </figure>
 
       <h2 class="edit-titular" id="edit-titulo">El futuro del diseño: naturaleza y rendimiento</h2>
