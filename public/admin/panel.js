@@ -34,7 +34,7 @@ let filtro = 'todos';
    TODAS JUNTAS apenas el auto se crea — en el orden en que estan, que es
    lo que hace que la primera sea la portada. */
 let enEspera = [];
-let contadorTmp = 0;
+let trabajando = false;
 
 /* ── avisos ─────────────────────────────────────────────────────── */
 
@@ -205,24 +205,23 @@ $('#guardar').addEventListener('click', async () => {
   try {
     if (actual) {
       await api('/api/admin/autos/' + actual.id, { method: 'PUT', body: JSON.stringify(datos) });
+      await cargar();
       avisar('Guardado');
     } else {
       const { id } = await api('/api/admin/autos', { method: 'POST', body: JSON.stringify(datos) });
       /* El auto ya existe: recién ahora las fotos tienen a qué colgarse.
-         Se toma la ficha nueva SIN pasar por abrir(), que limpiaría la
+         Se apunta `actual` a mano y no con abrir(), que limpiaría la
          lista de espera justo antes de usarla. */
       actual = { id, fotos: [] };
       await subirLoQueEsperaba();
       await cargar();
-      actual = autos.find((a) => a.id === id) || actual;
-      $('#tituloFicha').textContent = datos.marca + ' ' + datos.modelo;
-      $('#borrar').classList.remove('oculto');
-      pintarFotos();
       avisar('Creado');
-      boton.disabled = false;
-      return;
     }
-    await cargar();
+    /* SE VUELVE AL LISTADO. Quedarse en la ficha después de guardar deja
+       la duda de si guardó o no; volver a la lista y ver el auto ahí es
+       la confirmación. Y es lo que uno quiere hacer después: cargar el
+       siguiente. */
+    cerrarFicha();
   } catch (err) {
     avisar(err.message, true);
   } finally {
@@ -254,14 +253,24 @@ function pintarFotos() {
   const cont = $('#fotos');
   const lista = listaFotos();
 
-  cont.innerHTML = lista.map((f, i) =>
-    '<div class="miniatura' + (f.tmp ? ' enEspera' : '') + '" draggable="true" data-i="' + i + '">' +
-      '<img src="' + (f.tmp ? f.vista : '/fotos/' + f.clave + '-640.webp') + '" alt="">' +
+  cont.innerHTML = lista.map((f, i) => {
+    /* Todavia procesando: hueco con el giro y el nombre del archivo. No
+       se puede arrastrar ni quitar porque todavia no es nada. */
+    if (f.cargando) {
+      return '<div class="miniatura cargando" data-i="' + i + '">' +
+        '<span class="giro"></span>' +
+        '<span class="archivo">' + escapar(f.nombre) + '</span></div>';
+    }
+    return '<div class="miniatura' + (f.enEspera ? ' enEspera' : '') +
+        '" draggable="true" data-i="' + i + '">' +
+      '<img src="' + (f.enEspera ? f.vista : '/fotos/' + f.clave + '-640.webp') + '" alt="">' +
       (i === 0 ? '<span class="portada">Portada</span>' : '') +
-      (f.tmp ? '<span class="esperando">Sin subir</span>' : '') +
+      (f.enEspera ? '<span class="esperando">Sin subir</span>' : '') +
       '<div class="mandos"><button class="mini-btn" data-quitar title="Quitar">&#215;</button></div>' +
-    '</div>').join('') +
-    '<button class="mas" type="button" id="mas"><span>+</span>Agregar fotos</button>';
+    '</div>';
+  }).join('') +
+    '<button class="mas" type="button" id="mas"' + (trabajando ? ' disabled' : '') +
+    '><span>+</span>Agregar fotos</button>';
 
   $('#mas').addEventListener('click', () => $('#archivo').click());
   ['dragenter', 'dragover'].forEach((n) => $('#mas').addEventListener(n, (e) => {
@@ -270,7 +279,7 @@ function pintarFotos() {
   ['dragleave', 'drop'].forEach((n) => $('#mas').addEventListener(n, () =>
     $('#mas').classList.remove('encima')));
 
-  $$('#fotos .miniatura').forEach((m) => {
+  $$('#fotos .miniatura:not(.cargando)').forEach((m) => {
     const i = Number(m.dataset.i);
     m.querySelector('[data-quitar]').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -338,7 +347,7 @@ async function quitarFoto(i) {
   /* La que nunca subio se saca de la lista y listo; hay que soltarle la
      direccion de la vista previa o el navegador se queda con el archivo
      en memoria toda la sesion. */
-  if (foto.tmp) {
+  if (foto.enEspera) {
     URL.revokeObjectURL(foto.vista);
     enEspera.splice(i, 1);
     pintarFotos();
@@ -403,31 +412,60 @@ async function mandar(par) {
   return api('/api/admin/autos/' + actual.id + '/fotos', { method: 'POST', body: cuerpo });
 }
 
+/* PRIMERO LOS HUECOS, DESPUES EL TRABAJO.
+
+   Achicar y subir una foto tarda: entre el canvas y la red pueden ser
+   varios segundos, y si la pantalla no cambia hasta que la primera
+   termina, parece que el clic no agarro y uno vuelve a elegirlas.
+
+   Asi que se dibuja una baldosa por archivo ANTES de tocar ninguno, con
+   su nombre y su giro. Despues se procesan de a una y cada baldosa se
+   reemplaza por su foto cuando le toca. Se ve avanzar. */
 async function elegir(archivos) {
   const imagenes = [...archivos].filter((a) => a.type.startsWith('image/'));
   if (!imagenes.length) return;
 
-  for (const archivo of imagenes) {
-    try {
-      const par = await preparar(archivo);
+  const lista = listaFotos();
+  const huecos = imagenes.map((a) => ({ cargando: true, nombre: a.name }));
+  huecos.forEach((h) => lista.push(h));
+  trabajando = true;
+  pintarFotos();
 
-      /* Si el auto ya existe, sube ahora. Si no, se queda esperando con
-         una vista previa hecha del mismo blob que se va a subir — así lo
-         que se ve es exactamente lo que va a quedar. */
+  let hechas = 0;
+  for (let k = 0; k < imagenes.length; k++) {
+    const hueco = huecos[k];
+    avisar('Procesando ' + (k + 1) + ' de ' + imagenes.length + '…');
+    try {
+      const par = await preparar(imagenes[k]);
+
+      /* Si el auto ya existe, sube ahora. Si no, la foto se queda con una
+         vista previa hecha del MISMO blob que se va a subir — así lo que
+         se ve es exactamente lo que va a quedar. */
       if (actual) {
         const { id, clave } = await mandar(par);
-        actual.fotos.push({ id, clave });
+        delete hueco.cargando; delete hueco.nombre;
+        Object.assign(hueco, { id, clave });
       } else {
-        enEspera.push({ tmp: ++contadorTmp, par, vista: URL.createObjectURL(par.ch) });
+        delete hueco.cargando; delete hueco.nombre;
+        Object.assign(hueco, { enEspera: true, par, vista: URL.createObjectURL(par.ch) });
       }
-      pintarFotos();
+      hechas++;
     } catch (err) {
-      avisar(err.message, true);
+      /* La que fallo se saca de la lista: dejar un hueco girando para
+         siempre es peor que no mostrarla. */
+      const j = lista.indexOf(hueco);
+      if (j >= 0) lista.splice(j, 1);
+      avisar(imagenes[k].name + ': ' + err.message, true);
     }
+    pintarFotos();
   }
 
-  if (actual) { avisar('Fotos subidas'); await cargar(); }
-  else avisar(enEspera.length + ' foto(s) listas — suben al guardar');
+  trabajando = false;
+  pintarFotos();
+
+  if (!hechas) return;
+  if (actual) { avisar(hechas + ' foto(s) subidas'); await cargar(); }
+  else avisar(hechas + ' foto(s) listas — suben al guardar');
 }
 
 /* Cuando el auto recién se crea, sube todo lo que estaba esperando. En
@@ -435,17 +473,21 @@ async function elegir(archivos) {
    de la última, así el orden de la pantalla es el que queda guardado. */
 async function subirLoQueEsperaba() {
   if (!enEspera.length) return;
-  avisar('Subiendo ' + enEspera.length + ' foto(s)…');
-  for (const foto of enEspera) {
+  const total = enEspera.length;
+  trabajando = true;
+  for (let k = 0; k < total; k++) {
+    const foto = enEspera[k];
+    avisar('Subiendo ' + (k + 1) + ' de ' + total + '…');
     try {
       const { id, clave } = await mandar(foto.par);
       actual.fotos.push({ id, clave });
       URL.revokeObjectURL(foto.vista);
     } catch (err) {
-      avisar(err.message, true);
+      avisar(foto.par ? err.message : 'No se pudo subir una foto', true);
     }
   }
   enEspera = [];
+  trabajando = false;
   pintarFotos();
 }
 

@@ -684,11 +684,20 @@ video::-webkit-media-controls{ display:none !important; }
   border-radius:2px;
   background:#0a0a0a;
 }
+/* `minmax(0,1fr)` Y NO `1fr` A SECAS, que es lo que parecia obvio y
+   desbordaba. Un `1fr` es en realidad `minmax(auto, 1fr)`, y ese `auto`
+   le pone de piso el alto del contenido: como las fotos son cuadradas,
+   a 130 px de ancho piden 130 de alto, y tres de esas mas los huecos dan
+   404 contra los 381 que mide la grande. La tira se pasaba de largo y
+   se le montaba al titulo.
+
+   Con el minimo en 0 las filas si pueden achicarse, y el `object-fit`
+   de las imagenes se encarga del recorte. */
 .edit-tira{
   display:grid;
-  grid-template-rows:repeat(3,1fr);
+  grid-template-rows:repeat(3,minmax(0,1fr));
   gap:.45rem;
-  min-height:0;      /* si no, las filas se estiran y desbordan la grilla */
+  min-height:0;
 }
 /* LA FOTO VA LIMPIA. Tenía dos etiquetas encima —"Cultura" y "5 min"—
    y un degradado negro al pie puesto sólo para que esas dos etiquetas
@@ -985,7 +994,7 @@ video::-webkit-media-controls{ display:none !important; }
 #pie{
   position:relative;
   background:var(--void);
-  padding:clamp(2.4rem,5.5vh,3.4rem) var(--gut) clamp(1.1rem,2.6vh,1.6rem);
+  padding:clamp(2rem,4.5vh,2.8rem) var(--gut) clamp(1.6rem,3.5vh,2.4rem);
 }
 
 /* CUATRO COLUMNAS, Y LOS ANCHOS NO SON IGUALES. La navegación es la más
@@ -1008,7 +1017,12 @@ video::-webkit-media-controls{ display:none !important; }
   display:grid;
   grid-template-columns:1.1fr 1fr 1.35fr 1.05fr;
   gap:clamp(1.4rem,3vw,2.6rem);
-  align-items:start;
+  /* CENTRADAS Y NO ARRIBA. Las cuatro columnas miden distinto —la marca
+     es un logo, contacto son cuatro renglones, el mapa es un cuadro— y
+     alineadas arriba cada una dejaba su propio hueco abajo: el pie se
+     leia como cuatro bloques sueltos de alturas distintas en vez de como
+     una franja. Centradas comparten eje y el hueco se reparte. */
+  align-items:center;
 }
 
 /* EL LOGO VA CENTRADO A LO ANCHO, PERO ARRIBA DE TODO.
@@ -1119,10 +1133,15 @@ video::-webkit-media-controls{ display:none !important; }
    archivo nuevo: el mismo trazo, en chico. Se usa la versión de
    TELÉFONO —abarca menos cuadras y trae los nombres más grandes— porque
    este cuadro mide lo que mide un teléfono, no lo que mide la sección. */
+/* MAS CHICO, PORQUE ERA EL QUE MANDABA EL ALTO. Con 1.35 de proporcion
+   el mapa medía casi el doble que la columna de contacto y estiraba la
+   fila entera: de ahi el aire muerto debajo del logo y de los datos.
+   Apaisado y con tope, ocupa lo que le corresponde. */
 .pie-mapa{
   display:block;
   position:relative;
-  aspect-ratio:1.35;
+  max-width:15rem;
+  aspect-ratio:1.7;
   overflow:hidden;
   border:1px solid rgba(209,213,219,.14);
   border-radius:3px;

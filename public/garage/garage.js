@@ -104,7 +104,7 @@ function abrir(a) {
   ].filter(([, v]) => v !== null && v !== undefined && v !== '');
 
   const galeria = a.fotos.length
-    ? '<div class="galeria">' +
+    ? '<div class="lado-foto">' +
         '<div class="grande"><img id="fotoGrande" src="/fotos/' + a.fotos[0].clave +
           '-1600.webp" alt="' + escapar(a.marca + ' ' + a.modelo) + '"></div>' +
         (a.fotos.length > 1
@@ -113,18 +113,25 @@ function abrir(a) {
               '" aria-current="' + (i === 0) + '">').join('') + '</div>'
           : '') +
       '</div>'
-    : '';
+    : '<div class="lado-foto"><div class="grande"></div></div>';
 
   d.innerHTML = '<div class="caja">' +
-    '<div class="arriba"><h2>' + escapar(a.marca) + ' ' + escapar(a.modelo) + '</h2>' +
-      '<button class="cerrar" type="button" id="cerrar">Cerrar</button></div>' +
     galeria +
-    '<div class="datos">' + datos.map(([r, v]) =>
-      '<div><span class="rotulo">' + r + '</span><span class="valor">' + escapar(v) + '</span></div>'
-    ).join('') + '</div>' +
-    (a.descripcion ? '<p class="desc">' + escapar(a.descripcion) + '</p>' : '') +
-    '<a class="consultar" href="/#concierge">Consultar por esta unidad</a>' +
-    '</div>';
+    '<div class="lado-datos">' +
+      '<h2>' + escapar(a.marca) + ' ' + escapar(a.modelo) + '</h2>' +
+      '<div class="datos">' + datos.map(([r, v]) =>
+        '<div><span class="rotulo">' + r + '</span><span class="valor">' + escapar(v) + '</span></div>'
+      ).join('') + '</div>' +
+      /* La descripción lleva su rótulo: sin él es un párrafo suelto
+         debajo de una grilla de datos y no se sabe qué es. */
+      (a.descripcion
+        ? '<div class="bloque-desc"><span class="rotulo">Descripción</span>' +
+          '<p class="desc">' + escapar(a.descripcion) + '</p></div>'
+        : '') +
+      '<a class="consultar" href="/#concierge">Consultar por esta unidad</a>' +
+    '</div>' +
+    '</div>' +
+    '<button class="cerrar" type="button" id="cerrar">Cerrar</button>';
 
   d.hidden = false;
   document.body.style.overflow = 'hidden';
@@ -144,6 +151,20 @@ function cerrar() {
 addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrar(); });
 $('#detalle').addEventListener('click', (e) => { if (e.target === $('#detalle')) cerrar(); });
 
+/* EL ALTO DE LA BARRA, MEDIDO Y NO SUPUESTO.
+
+   La barra es fija, así que el resto de la página tiene que dejarle el
+   lugar. Ese alto depende del logo, del relleno y del corte de pantalla
+   —o sea que cambia— y puesto a mano deja el contenido tapado o
+   flotando. Se mide y se escribe en --barra-h. */
+function medirBarra() {
+  const b = document.querySelector('.barra');
+  if (b) document.documentElement.style.setProperty('--barra-h', b.offsetHeight + 'px');
+}
+addEventListener('resize', medirBarra);
+addEventListener('load', medirBarra);
+medirBarra();
+
 /* ── arranque ────────────────────────────────────────────────────── */
 
 (async () => {
@@ -154,6 +175,24 @@ $('#detalle').addEventListener('click', (e) => { if (e.target === $('#detalle'))
     $('#grilla').innerHTML = '<p class="vacio">No pudimos cargar el catálogo. Probá de nuevo en un momento.</p>';
     return;
   }
+
+  /* SI LA LINEA QUE PIDIERON ESTA VACIA, SE MUESTRAN TODOS.
+
+     El botón "Ver esta línea" de la home existe siempre, para las cuatro
+     líneas, pero el catálogo puede no tener autos cargados en alguna. Sin
+     esto se llegaba a una página que dice "todavía no hay unidades" — un
+     camino sin salida, y encima el visitante no ve que sí hay autos en
+     las otras líneas.
+
+     Se cae al listado completo y se limpia la dirección, así lo que se
+     ve y lo que dice la barra coinciden. */
+  if (filtro !== 'todos' && !autos.some((a) => a.grupo === filtro)) {
+    filtro = 'todos';
+    const u = new URL(location);
+    u.searchParams.delete('grupo');
+    history.replaceState(null, '', u);
+  }
+
   pintarFiltros();
   pintarGrilla();
 })();

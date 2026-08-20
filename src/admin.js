@@ -176,6 +176,39 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   color:var(--void); background:rgba(255,255,255,.85); border-radius:100px; padding:.28em 0;
 }
 
+/* LA BALDOSA QUE TODAVIA ESTA TRABAJANDO.
+
+   Aparece en el instante en que se eligen los archivos, una por foto y
+   antes de procesar ninguna. Eso es lo que contesta la pregunta de
+   "¿agarro o no agarro?": se ven seis huecos apenas se sueltan seis
+   fotos, aunque la primera tarde un segundo en aparecer.
+
+   El giro es un borde con un solo lado claro. No hay imagen ni SVG: es
+   la unica forma de que no sume un pedido mas justo cuando la conexion
+   esta ocupada subiendo. */
+.miniatura.cargando{
+  display:grid; place-content:center; gap:.5rem;
+  background:#0c0c0f; cursor:default;
+}
+.giro{
+  width:1.5rem; height:1.5rem; border-radius:50%;
+  border:2px solid rgba(255,255,255,.16);
+  border-top-color:var(--chrome);
+  animation:girar .8s linear infinite;
+  margin:0 auto;
+}
+@keyframes girar{ to{ transform:rotate(360deg) } }
+.miniatura .archivo{
+  max-width:100%; padding:0 .5rem; text-align:center;
+  font-size:.5rem; letter-spacing:.08em; color:var(--apagado);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+@media (prefers-reduced-motion:reduce){ .giro{ animation-duration:2.4s } }
+
+/* El mas se apaga mientras hay fotos en curso: elegir otra tanda arriba
+   de una que todavia no termino confunde la cuenta. */
+.mas[disabled]{ opacity:.35; cursor:not-allowed }
+
 .aviso{
   position:fixed; left:50%; bottom:1.4rem; transform:translateX(-50%);
   background:var(--chrome); color:var(--void); border-radius:3px;
