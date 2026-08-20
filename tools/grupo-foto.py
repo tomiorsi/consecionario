@@ -43,7 +43,7 @@ GRUPOS = RAIZ / "public" / "assets" / "grupos"
 LIENZO   = (1100, 468)
 BASE     = 0.922    # donde apoya: fraccion del alto del lienzo
 ANCHO_C  = 870      # cuanto ocupa el contenido dentro del lienzo
-CHICA    = (700, 298)   # la version @sm, para celular
+CHICA    = (700, 298)   # la version -sm, para celular
 
 # Por debajo de esto es fondo. Se midio: las cuatro esquinas del origen
 # dan 0 y 1, y el borde de la tarima ya arranca bien por encima.
@@ -91,7 +91,7 @@ def recortar(origen, nombre):
     lienzo.paste(trozo, (x, y), trozo)
 
     grande = GRUPOS / f"{nombre}.webp"
-    chica  = GRUPOS / f"{nombre}@sm.webp"
+    chica  = GRUPOS / f"{nombre}-sm.webp"
     lienzo.save(grande, "WEBP", quality=88, method=6)
     lienzo.resize(CHICA, Image.LANCZOS).save(chica, "WEBP", quality=86, method=6)
 

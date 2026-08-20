@@ -3760,30 +3760,36 @@ window.RESPALDO = function(v, urlH264, rehacer){
            escena. Repetirlo para un lector de pantalla seria ruido. -->
       <div class="gar-marca" aria-hidden="true">Alta Gama</div>
 
+      <!-- LOS NOMBRES DE ESTOS ARCHIVOS NO LLEVAN ARROBA, A PROPOSITO.
+           Se llamaban `alta-gama@sm.webp` y Cloudflare contestaba un 307
+           a la version con el arroba escapado (%40): el navegador lo
+           seguia y la foto se veia, pero eran cuatro idas y vueltas de
+           mas en cada visita de celular, sobre la seccion mas pesada de
+           la pagina. -->
       <div class="gar-auto">
         <picture>
-          <source media="(max-width:767px)" srcset="assets/grupos/alta-gama@sm.webp">
+          <source media="(max-width:767px)" srcset="assets/grupos/alta-gama-sm.webp">
           <img src="assets/grupos/alta-gama.webp" alt="Mercedes-AMG GLE 63 Coupé blanco"
                loading="lazy" decoding="async" width="1100" height="468">
         </picture>
       </div>
       <div class="gar-auto">
         <picture>
-          <source media="(max-width:767px)" srcset="assets/grupos/evolution@sm.webp">
+          <source media="(max-width:767px)" srcset="assets/grupos/evolution-sm.webp">
           <img src="assets/grupos/evolution.webp" alt="Ford Mustang Mach-E gris"
                loading="lazy" decoding="async" width="1100" height="468">
         </picture>
       </div>
       <div class="gar-auto">
         <picture>
-          <source media="(max-width:767px)" srcset="assets/grupos/deportivos@sm.webp">
+          <source media="(max-width:767px)" srcset="assets/grupos/deportivos-sm.webp">
           <img src="assets/grupos/deportivos.webp" alt="BMW Serie 2 blanco"
                loading="lazy" decoding="async" width="1100" height="468">
         </picture>
       </div>
       <div class="gar-auto">
         <picture>
-          <source media="(max-width:767px)" srcset="assets/grupos/urbanos@sm.webp">
+          <source media="(max-width:767px)" srcset="assets/grupos/urbanos-sm.webp">
           <img src="assets/grupos/urbanos.webp" alt="MINI Cooper S gris"
                loading="lazy" decoding="async" width="1100" height="468">
         </picture>
@@ -4128,16 +4134,35 @@ window.RESPALDO = function(v, urlH264, rehacer){
   });
 
   /* Y no trabaja de fondo, como el resto del sitio. */
+  var aLaVista = false;
   if ('IntersectionObserver' in window){
     new IntersectionObserver(function(e){
       e.forEach(function(x){
-        if (x.isIntersecting) programar();
+        aLaVista = x.isIntersecting;
+        if (aLaVista) programar();
         else frenar();
       });
     }, { threshold:0.25 }).observe(sec);
   } else {
+    aLaVista = true;
     programar();
   }
+
+  /* CAMBIAR DE PESTANA NO ES SALIR DE PANTALLA, y el observador de
+     arriba no se entera: para el, la seccion sigue estando a la vista.
+
+     Con la pestana de fondo el navegador congela requestAnimationFrame
+     pero NO los temporizadores —los frena a uno por minuto—, asi que el
+     giro se seguia pidiendo y no se dibujaba: se acumulaban cambios de
+     grupo sin animacion. Al volver, el carrusel estaba parado en un
+     grupo cualquiera, elegido por cuanto tiempo estuvo la pestana de
+     fondo.
+
+     Nadie mira un carrusel que no esta mirando. Se frena y se retoma. */
+  document.addEventListener('visibilitychange', function(){
+    if (document.hidden) frenar();
+    else if (aLaVista) programar();
+  });
 })();
 </script>
 
