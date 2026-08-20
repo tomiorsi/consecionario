@@ -3165,7 +3165,7 @@ body.is-dark.is-scrolled #topbar{
     <!-- Apuntan a secciones que EXISTEN. Antes iban a #stock, #taller y
          #contacto, que nunca se crearon: los tres links no hacían nada.
          Cuando existan el catálogo y el contacto, vuelven. -->
-    <a href="#garage">Garage</a>
+    <a href="/garage">Garage</a>
     <a href="#estandar">Estándar</a>
     <a href="#donde">Por qué elegirnos</a>
   </nav>
@@ -3932,10 +3932,10 @@ window.TURNO = (function(){
      así que se sacó el text-transform y la caja correcta se escribe
      acá. */
   var GRUPOS = [
-    { titulo:'Alta Gama', seccion:'' },
-    { titulo:'Línea Evolution', seccion:'' },
-    { titulo:'Deportivos', seccion:'' },
-    { titulo:'Urbanos', seccion:'' }
+    { titulo:'Alta Gama',       seccion:'/garage?grupo=alta-gama'  },
+    { titulo:'Línea Evolution', seccion:'/garage?grupo=evolution'  },
+    { titulo:'Deportivos',      seccion:'/garage?grupo=deportivos' },
+    { titulo:'Urbanos',         seccion:'/garage?grupo=urbanos'    }
   ];
 
   var N      = autos.length;
@@ -5623,7 +5623,7 @@ var UNIDAD = null;
     <nav class="pie-col" aria-labelledby="pie-nav">
       <h2 class="pie-rotulo" id="pie-nav">Navegación</h2>
       <ul>
-        <li><a href="#garage">Garage</a></li>
+        <li><a href="/garage">Garage</a></li>
         <li><a href="#estandar">Estándar</a></li>
         <li><a href="#donde">Dónde estamos</a></li>
         <li><a href="#concierge">Contacto</a></li>

@@ -1,16 +1,48 @@
 {
-  // Sitio estático servido por Cloudflare Workers.
+  // Sitio estático + una API chica para el catálogo de autos.
   //
-  // Sin este archivo, Cloudflare no sabe que el repo es un sitio y
-  // publica el Worker de ejemplo — el "Hello World" que aparecía.
+  // ANTES ERA SOLO `assets` y ahora hay tambien un Worker. El orden
+  // importa: con `main` presente, Cloudflare manda al script TODO lo que
+  // no encuentre como archivo en public/. O sea que /, /garage y las
+  // fotos siguen saliendo del disco —rapido y cacheado— y solo /api/* y
+  // /admin pasan por codigo.
   //
-  // `directory` apunta a public/ y no a la raíz a propósito: las fotos
-  // originales (source/) y el script de calibración (tools/) quedan en
-  // el repo pero fuera del sitio publicado.
+  // `directory` apunta a public/ y no a la raiz a proposito: las fotos
+  // originales (source/) y los scripts (tools/) quedan en el repo pero
+  // fuera del sitio publicado.
   "name": "consecionario",
+  "main": "src/index.js",
   "compatibility_date": "2026-08-11",
+
   "assets": {
     "directory": "./public",
-    "html_handling": "auto-trailing-slash"
-  }
+    "html_handling": "auto-trailing-slash",
+    // El Worker recibe lo que no sea un archivo estatico. Sin esto, un
+    // pedido a /api/autos devolveria el 404 de assets y nunca llegaria
+    // al codigo.
+    "not_found_handling": "none",
+    // /admin/panel.js NO va en esta lista: es codigo de cliente, no
+    // tiene secretos y conviene que salga del disco cacheado. Solo
+    // /admin —la pagina— pasa por el Worker, que es donde se avisa si
+    // faltan los secretos.
+    "run_worker_first": ["/api/*", "/admin", "/fotos/*"],
+    "binding": "ARCHIVOS"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "manna-autos",
+      "database_id": "e601dfe5-9c7b-4953-92fa-2bcdf30bea0b"
+    }
+  ],
+
+  "r2_buckets": [
+    {
+      "binding": "FOTOS",
+      "bucket_name": "manna-fotos"
+    }
+  ],
+
+  "observability": { "enabled": true }
 }
