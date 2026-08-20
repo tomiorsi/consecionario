@@ -512,47 +512,63 @@ zona.addEventListener('drop', (e) => {
    LAS IMÁGENES FIJAS DE LA HOME
    ══════════════════════════════════════════════════════════════════
 
-   Doce lugares que siempre existen. No se crean ni se borran: se
-   reemplaza lo que hay adentro, y "quitar" es volver a la foto original
-   que trae el HTML.
+   Lugares que siempre existen. No se crean ni se borran: se reemplaza lo
+   que hay adentro, y "quitar" es volver a la foto original que trae el
+   HTML.
 
-   CADA UNA SE RECORTA A LA PROPORCIÓN DE SU LUGAR, y por eso el panel no
-   pide subir la foto ya preparada. Si el CSS de la nota usa 3:2 y entra
-   una vertical, `object-fit` la recortaría igual pero mostrando lo que el
-   navegador decida; recortándola acá, con `cover` centrado, el resultado
-   es el mismo siempre y además no se suben píxeles que nadie va a ver. */
+   VAN AGRUPADAS POR SECCIÓN Y EN EL ORDEN DE LA PÁGINA. Antes eran una
+   grilla sola de doce y no había manera de saber cuál era cuál: la foto
+   grande de la nota y el fondo del collage son la misma imagen de
+   ejemplo, así que la lista plana mostraba la misma miniatura repetida
+   sin ninguna pista de a qué sección iba cada una.
 
-let slots = [];
+   NO SE RECORTA AL SUBIR — ver el comentario de SLOTS en el Worker, que
+   tiene las medidas reales de cada lugar. Resumen: ningún lugar tiene
+   una sola forma, así que se guarda la foto entera y el recorte lo hace
+   el CSS en cada pantalla. */
+
+let secciones = [];
 
 async function cargarMedios() {
-  const { slots: lista } = await api('/api/admin/medios');
-  slots = lista;
+  const r = await api('/api/admin/medios');
+  secciones = r.secciones;
   pintarMedios();
 }
 
-const comoProporcion = (p) =>
-  Math.abs(p - 1) < 0.01 ? 'cuadrada 1:1'
-  : Math.abs(p - 3 / 2) < 0.01 ? 'apaisada 3:2'
-  : Math.abs(p - 4 / 3) < 0.01 ? 'apaisada 4:3'
-  : p.toFixed(2) + ':1';
+/* Todos los lugares en una sola lista plana, para poder referirse a uno
+   por número desde el `data-i` del HTML sin llevar dos índices. */
+const planos = () => secciones.flatMap((s) => s.slots);
 
 function pintarMedios() {
-  $('#medios').innerHTML = slots.map((s, i) => {
-    const propia = !!s.clave;
-    const src = propia ? '/fotos/' + s.clave + '-1600.webp' : rutaOriginal(s.slot);
-    return '<article class="medio" data-i="' + i + '">' +
-      '<div class="marco" style="aspect-ratio:' + s.prop + '">' +
-        (propia ? '<span class="propia">Tuya</span>' : '') +
-        '<img src="' + src + '" alt="" loading="lazy">' +
-      '</div>' +
-      '<div class="pieza">' +
-        '<h3>' + escapar(s.donde) + '</h3>' +
-        '<span class="formato">' + comoProporcion(s.prop) + ' · ' + s.alto + ' px de ancho</span>' +
-        '<div class="mandos">' +
-          '<button class="btn" data-cambiar type="button">Cambiar</button>' +
-          (propia ? '<button class="btn btn--peligro" data-volver type="button">Volver a la original</button>' : '') +
+  $('#medios').innerHTML = secciones.map((sec) => {
+    let n = 0;
+    const previas = secciones.slice(0, secciones.indexOf(sec))
+      .reduce((a, s) => a + s.slots.length, 0);
+
+    const piezas = sec.slots.map((s) => {
+      const i = previas + n++;
+      const propia = !!s.clave;
+      const src = propia ? '/fotos/' + s.clave + '-1600.webp' : rutaOriginal(s.slot);
+      return '<article class="medio" data-i="' + i + '">' +
+        '<div class="marco">' +
+          (propia ? '<span class="propia">Tuya</span>' : '') +
+          '<img src="' + src + '" alt="" loading="lazy">' +
         '</div>' +
-      '</div></article>';
+        '<div class="pieza">' +
+          '<h3>' + escapar(s.donde) + '</h3>' +
+          '<p class="formato">' + escapar(s.guia) + '</p>' +
+          '<div class="mandos">' +
+            '<button class="btn" data-cambiar type="button">Cambiar</button>' +
+            (propia ? '<button class="btn btn--peligro" data-volver type="button">Volver a la original</button>' : '') +
+          '</div>' +
+        '</div></article>';
+    }).join('');
+
+    return '<section class="grupo">' +
+      '<h2 class="grupo-titulo">' + escapar(sec.titulo) + '</h2>' +
+      '<p class="grupo-nota">' + escapar(sec.nota) + '</p>' +
+      '<div class="grupo-fotos">' + piezas + '</div>' +
+    '</section>';
   }).join('');
 
   $$('#medios .medio').forEach((m) => {
@@ -572,8 +588,6 @@ function rutaOriginal(slot) {
   if (slot === 'collage-ciudad')      return '/assets/collage/ciudad.webp';
   const ed = slot.match(/^editorial-(\d)$/);
   if (ed) return '/assets/social/ig-' + [null, 2, 5, 6][Number(ed[1])] + '.webp';
-  const so = slot.match(/^social-(\d)$/);
-  if (so) return '/assets/social/ig-' + so[1] + '.webp';
   return '';
 }
 
@@ -589,11 +603,17 @@ $('#archivoMedio').addEventListener('change', async (e) => {
   e.target.value = '';
   if (!archivo || slotEnCurso === null) return;
 
-  const s = slots[slotEnCurso];
+  const s = planos()[slotEnCurso];
   avisar('Preparando la imagen…');
   try {
     const cuerpo = new FormData();
-    cuerpo.append('imagen', await recortar(archivo, s.alto, s.prop), 'medio.webp');
+    /* ACHICAR, NO RECORTAR. Ver el comentario de SLOTS en el Worker:
+       ningún lugar tiene una sola forma —el fondo del collage es
+       apaisado en la compu y vertical en el celular— así que recortar
+       acá elegiría una de las dos y en la otra el `object-fit` recortaría
+       encima de lo ya recortado. Se sube entera y el CSS recorta en cada
+       pantalla sobre la foto completa. */
+    cuerpo.append('imagen', await achicar(archivo, s.lado), 'medio.webp');
     await api('/api/admin/medios/' + s.slot, { method: 'POST', body: cuerpo });
     avisar('Listo — ya se ve en la página');
     await cargarMedios();
@@ -603,7 +623,7 @@ $('#archivoMedio').addEventListener('change', async (e) => {
 });
 
 async function volverOriginal(i) {
-  const s = slots[i];
+  const s = planos()[i];
   if (!confirm('¿Volver a la foto original de "' + s.donde + '"?')) return;
   try {
     await api('/api/admin/medios/' + s.slot, { method: 'DELETE' });
@@ -612,49 +632,109 @@ async function volverOriginal(i) {
   } catch (err) { avisar(err.message, true); }
 }
 
-/* RECORTE `COVER`, IGUAL QUE EL DEL CSS. Se toma del centro el rectángulo
-   más grande que tenga la proporción pedida y se escala. Es exactamente
-   lo que hace `object-fit:cover`, pero hecho una vez acá en vez de en
-   cada visita — y sin subir los píxeles que el recorte tira. */
-function recortar(archivo, ancho, prop) {
-  return new Promise((listo, fallo) => {
-    const img = new Image();
-    img.onload = () => {
-      const alto = Math.round(ancho / prop);
-      const escala = Math.max(ancho / img.width, alto / img.height);
-      const w = img.width * escala, h = img.height * escala;
+/* ── LOS TEXTOS EDITABLES ───────────────────────────────────────
 
-      const lienzo = document.createElement('canvas');
-      lienzo.width = ancho; lienzo.height = alto;
-      const pincel = lienzo.getContext('2d');
-      pincel.imageSmoothingQuality = 'high';
-      pincel.drawImage(img, (ancho - w) / 2, (alto - h) / 2, w, h);
-      URL.revokeObjectURL(img.src);
+   Dos campos: el titular y la bajada de la nota. Mismo trato que las
+   imágenes — dejar el campo vacío y guardar es volver al original, no
+   dejar el lugar en blanco.
 
-      lienzo.toBlob((b) => (b ? listo(b) : fallo(new Error('No se pudo convertir'))),
-        'image/webp', 0.84);
+   EL TEXTO ORIGINAL SE LEE DE LA PROPIA PÁGINA y no viene del Worker.
+   Es una sola copia: si mañana alguien reescribe el titular en el HTML,
+   el panel muestra ese, sin que haya que acordarse de tocar una segunda
+   lista en el servidor. Se pide la home una vez y se buscan los
+   `data-texto` ahí adentro. */
+
+let textos = [];
+let originales = {};
+
+async function cargarTextos() {
+  const [r, home] = await Promise.all([
+    api('/api/admin/textos'),
+    fetch('/').then((x) => x.text()).catch(() => ''),
+  ]);
+  textos = r.textos;
+
+  if (home) {
+    const doc = new DOMParser().parseFromString(home, 'text/html');
+    doc.querySelectorAll('[data-texto]').forEach((el) => {
+      /* El HTML trae el párrafo cortado en varios renglones con sangría;
+         eso en un campo se ve como espacios de más. */
+      originales[el.dataset.texto] = el.textContent.replace(/\s+/g, ' ').trim();
+    });
+  }
+  pintarTextos();
+}
+
+function pintarTextos() {
+  $('#textos').innerHTML = textos.map((t, i) => {
+    const valor = t.valor ?? originales[t.slot] ?? '';
+    return '<article class="texto" data-i="' + i + '">' +
+      '<h3>' + escapar(t.donde) + '</h3>' +
+      '<p class="pista">' + escapar(t.pista) + '</p>' +
+      '<textarea maxlength="' + t.tope + '">' + escapar(valor) + '</textarea>' +
+      '<div class="pie">' +
+        '<span class="cuenta"></span>' +
+        (t.valor ? '<button class="btn" data-volver type="button">Volver al original</button>' : '') +
+        '<button class="btn btn--fuerte" data-guardar type="button">Guardar</button>' +
+      '</div>' +
+    '</article>';
+  }).join('');
+
+  $$('#textos .texto').forEach((c) => {
+    const i = Number(c.dataset.i);
+    const campo = c.querySelector('textarea');
+    const cuenta = c.querySelector('.cuenta');
+    const tope = textos[i].tope;
+
+    const contar = () => {
+      cuenta.textContent = campo.value.trim().length + ' / ' + tope;
+      cuenta.dataset.pasado = campo.value.trim().length > tope ? 'si' : 'no';
     };
-    img.onerror = () => fallo(new Error('Ese archivo no es una imagen'));
-    img.src = URL.createObjectURL(archivo);
+    contar();
+    campo.addEventListener('input', contar);
+
+    c.querySelector('[data-guardar]').addEventListener('click', () => guardarTexto(i, campo.value));
+    c.querySelector('[data-volver]')?.addEventListener('click', () => {
+      if (confirm('¿Volver al texto original?')) guardarTexto(i, '');
+    });
   });
 }
 
-/* ── las dos pestañas ───────────────────────────────────────────── */
+async function guardarTexto(i, valor) {
+  const t = textos[i];
+  try {
+    await api('/api/admin/textos/' + t.slot, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ valor }),
+    });
+    avisar(valor.trim() ? 'Guardado — ya se ve en la página' : 'Volvió al original');
+    await cargarTextos();
+  } catch (err) { avisar(err.message, true); }
+}
+
+/* ── las pestañas ───────────────────────────────────────────── */
 
 function verPestania(cual) {
   const autos = cual === 'autos';
-  $('#pesAutos').setAttribute('aria-pressed', String(autos));
-  $('#pesMedios').setAttribute('aria-pressed', String(!autos));
+  [['autos', '#pesAutos'], ['medios', '#pesMedios'], ['textos', '#pesTextos']]
+    .forEach(([c, sel]) => $(sel).setAttribute('aria-pressed', String(cual === c)));
+
   $('#filtros').classList.toggle('oculto', !autos);
   $('#grilla').classList.toggle('oculto', !autos);
   $('#nuevo').classList.toggle('oculto', !autos);
-  $('#zonaMedios').classList.toggle('oculto', autos);
+  $('#zonaMedios').classList.toggle('oculto', cual !== 'medios');
+  $('#zonaTextos').classList.toggle('oculto', cual !== 'textos');
   $('#sinAutos').classList.add('oculto');
-  if (autos) pintarLista(); else cargarMedios();
+
+  if (autos) pintarLista();
+  else if (cual === 'medios') cargarMedios();
+  else cargarTextos();
 }
 
 $('#pesAutos').addEventListener('click', () => verPestania('autos'));
 $('#pesMedios').addEventListener('click', () => verPestania('medios'));
+$('#pesTextos').addEventListener('click', () => verPestania('textos'));
 
 /* ── arranque ───────────────────────────────────────────────────── */
 

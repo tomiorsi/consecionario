@@ -112,22 +112,41 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 }
 
 /* ── las imágenes fijas ── */
-.medios{ display:grid; gap:.9rem; grid-template-columns:repeat(auto-fill,minmax(14rem,1fr)) }
+.medios{ display:grid; gap:2.6rem }
+.grupo-titulo{
+  font-family:var(--display); font-size:.72rem; font-weight:700;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--chrome);
+}
+.grupo-nota{
+  margin:.45rem 0 1rem; max-width:40rem;
+  font-size:.72rem; line-height:1.6; color:var(--apagado);
+}
+.grupo-fotos{ display:grid; gap:.9rem; grid-template-columns:repeat(auto-fill,minmax(14rem,1fr)) }
 .medio{
   border:1px solid var(--linea); border-radius:3px; overflow:hidden;
   background:var(--panel); display:flex; flex-direction:column;
 }
-.medio .marco{ position:relative; background:#08080a; overflow:hidden }
+/* Alto fijo y no aspect-ratio del lugar: como los lugares cambian de
+   forma según la pantalla, la miniatura acá es sólo para reconocer la
+   foto, no para prometer cómo se va a recortar. */
+.medio .marco{ position:relative; height:9rem; background:#08080a; overflow:hidden }
 .medio .marco img{ width:100%; height:100%; object-fit:cover; display:block }
-.medio .pieza{ padding:.75rem .85rem .9rem; display:grid; gap:.5rem }
-.medio h3{ font-size:.8rem; font-weight:600; line-height:1.3 }
-/* La medida recomendada, bien a la vista: es lo que evita que suban una
-   foto vertical para un lugar apaisado. */
-.medio .formato{
-  font-family:var(--mono); font-size:.56rem; letter-spacing:.1em;
-  color:var(--apagado);
+/* La pieza estira y los botones se van al fondo: las guías tienen
+   largos distintos y sin esto cada "Cambiar" queda a una altura
+   distinta, que se lee como si las tarjetas estuvieran desalineadas. */
+.medio .pieza{
+  padding:.75rem .85rem .9rem; display:flex; flex-direction:column; gap:.5rem;
+  flex:1;
 }
-.medio .mandos{ display:flex; gap:.4rem; margin-top:.15rem }
+.medio h3{ font-size:.8rem; font-weight:600; line-height:1.3 }
+/* La guía de qué forma entra mejor. Es una frase y no unos números
+   porque ninguno de estos lugares tiene una sola forma: el fondo del
+   collage es apaisado en la compu y vertical en el celular, y decir
+   "3:2" ahí sería mentir. */
+.medio .formato{
+  font-size:.68rem; line-height:1.5; color:var(--apagado);
+}
+.medio .mandos{ display:flex; gap:.4rem; margin-top:auto; padding-top:.35rem }
 .medio .btn{ padding:.55em .9em; font-size:.5rem; flex:1 }
 .propia{
   position:absolute; left:.4rem; top:.4rem;
@@ -135,6 +154,30 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   font-size:.44rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
   padding:.3em .6em; border-radius:100px;
 }
+
+/* ── los textos editables ── */
+.textos{ display:grid; gap:1.4rem; max-width:44rem }
+.texto{
+  border:1px solid var(--linea); border-radius:3px;
+  background:var(--panel); padding:1rem 1.1rem 1.1rem; display:grid; gap:.55rem;
+}
+.texto h3{ font-size:.8rem; font-weight:600 }
+.texto .pista{ font-size:.7rem; color:var(--apagado); line-height:1.5 }
+.texto textarea{
+  width:100%; resize:vertical; min-height:4.2rem;
+  background:var(--void); border:1px solid var(--linea); border-radius:3px;
+  color:inherit; font:inherit; font-size:.82rem; line-height:1.6; padding:.6rem .7rem;
+}
+.texto textarea:focus{ outline:0; border-color:var(--chrome) }
+.texto .pie{ display:flex; align-items:center; gap:.6rem; flex-wrap:wrap }
+/* El contador va con tabular-nums porque cambia con cada tecla: sin
+   eso el número baila de ancho y se lee como un parpadeo. */
+.texto .cuenta{
+  font-family:var(--mono); font-size:.56rem; letter-spacing:.1em;
+  color:var(--apagado); font-variant-numeric:tabular-nums; margin-right:auto;
+}
+.texto .cuenta[data-pasado="si"]{ color:var(--alerta) }
+.texto .btn{ padding:.55em 1.1em; font-size:.5rem }
 
 /* ── lista ── */
 .filtros{ display:flex; flex-wrap:wrap; gap:.4rem; margin:1.4rem 0 }
@@ -293,6 +336,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
       <div class="pestanias">
         <button class="pestania" type="button" id="pesAutos" aria-pressed="true">Autos</button>
         <button class="pestania" type="button" id="pesMedios" aria-pressed="false">Imágenes del sitio</button>
+        <button class="pestania" type="button" id="pesTextos" aria-pressed="false">Textos</button>
       </div>
       <button class="btn btn--fuerte" id="nuevo" type="button">Cargar un auto</button>
     </div>
@@ -303,12 +347,22 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
     <!-- LAS IMÁGENES FIJAS DE LA HOME -->
     <section id="zonaMedios" class="oculto">
       <p class="aclara">
-        Estas son las fotos que están siempre en la página de inicio. Cada
-        una se recorta sola a la medida que usa su lugar, así que podés
-        subir la foto como la tengas.
+        Las fotos fijas de la página de inicio, en el orden en el que
+        aparecen. Se suben enteras y la página recorta lo que le sobra en
+        cada pantalla, así que entra cualquier formato — 16:9 incluido.
+        Debajo de cada una dice qué forma le queda mejor.
       </p>
       <div class="medios" id="medios"></div>
       <input type="file" id="archivoMedio" accept="image/*" hidden>
+    </section>
+
+    <!-- LOS TEXTOS EDITABLES -->
+    <section id="zonaTextos" class="oculto">
+      <p class="aclara">
+        El titular y la bajada de la nota de la página de inicio. Si
+        dejás un campo vacío y guardás, vuelve al texto original.
+      </p>
+      <div class="textos" id="textos"></div>
     </section>
   </main>
 

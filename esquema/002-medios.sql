@@ -1,9 +1,13 @@
 -- LAS IMÁGENES FIJAS DEL SITIO.
 --
--- No son autos: son los doce lugares de la home que siempre existen —la
--- foto de la nota, su tira de tres, las dos del collage y las seis de la
--- grilla de Instagram—. Se pueden reemplazar desde el panel sin tocar
--- código.
+-- No son autos: son los lugares de la home que siempre existen —la foto
+-- de la nota, su tira de tres y las dos del collage—. Se pueden
+-- reemplazar desde el panel sin tocar código.
+--
+-- LA GRILLA DE INSTAGRAM NO ESTÁ ACÁ. Estuvo, y se sacó: lo que va en
+-- esa grilla tiene que ser lo que está publicado en Instagram, y poder
+-- cambiarlo desde el panel sólo servía para que la página mostrara
+-- fotos que allá no existen.
 --
 -- LA LLAVE PRIMARIA ES EL LUGAR, NO UN NÚMERO. Cada fila ES un lugar de
 -- la página, no un elemento de una lista: no se crean ni se borran desde

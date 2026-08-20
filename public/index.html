@@ -669,19 +669,33 @@ video::-webkit-media-controls{ display:none !important; }
    LAS TRES SE REPARTEN EL ALTO CON `1fr` Y NO CON UN ALTO FIJO: el alto
    de la grande depende del ancho de la columna, que cambia con la
    ventana. Con medidas fijas habría que recalcularlas en cada corte. */
-/* LA FILA TAMBIEN TIENE QUE TENER TECHO, no solo las de la tira.
+/* EL ALTO DE LA TIRA NO SE RESUELVE CON GRILLA, Y ESTO COSTO DOS
+   INTENTOS.
 
-   `height:100%` sobre una grilla de fila `auto` es una preferencia, no
-   un limite: la fila la termina definiendo el hijo mas alto, asi que la
-   tira de tres empujaba el marco y se pasaba de largo igual. Declarar la
-   fila como `minmax(0,1fr)` es lo que la obliga a quedarse dentro del
-   alto del contenedor. */
+   Primero fue `1fr` en las filas de la tira, despues `minmax(0,1fr)`
+   tambien en la fila del marco. En Chrome las dos cosas median bien; en
+   Safari la tercera foto seguia pasandose de largo y le caia encima al
+   titulo.
+
+   El motivo es que `minmax(0,1fr)` dentro de una caja que saca su alto
+   de un `aspect-ratio` es justo el rincon donde los dos motores no se
+   ponen de acuerdo. Discutirlo no sirve: hay que no depender de eso.
+
+   Asi que la tira pasa a FLEX con `flex:1 1 0` y `height:0` en cada
+   foto, que es la unica forma portable de que tres hijos se repartan un
+   alto sin que su contenido les ponga un piso — el `height:0` es lo que
+   mata ese piso, y sin el `flex-basis:0` volverian a medir lo que mide
+   la imagen.
+
+   Y el marco lleva `overflow:hidden` como garantia final: si algun
+   motor vuelve a medir distinto, recorta. Un recorte de dos pixeles no
+   se ve; una foto encima del titulo si. */
 .edit-marco{
   display:grid;
   grid-template-columns:1fr .3fr;
-  grid-template-rows:minmax(0,1fr);
   gap:.45rem;
   height:100%;
+  overflow:hidden;
 }
 .edit-marco > img,
 .edit-tira img{
@@ -692,19 +706,18 @@ video::-webkit-media-controls{ display:none !important; }
   border-radius:2px;
   background:#0a0a0a;
 }
-/* `minmax(0,1fr)` Y NO `1fr` A SECAS, que es lo que parecia obvio y
-   desbordaba. Un `1fr` es en realidad `minmax(auto, 1fr)`, y ese `auto`
-   le pone de piso el alto del contenido: como las fotos son cuadradas,
-   a 130 px de ancho piden 130 de alto, y tres de esas mas los huecos dan
-   404 contra los 381 que mide la grande. La tira se pasaba de largo y
-   se le montaba al titulo.
-
-   Con el minimo en 0 las filas si pueden achicarse, y el `object-fit`
-   de las imagenes se encarga del recorte. */
+/* Ver el bloque de .edit-marco: flex y no grilla, a proposito. */
 .edit-tira{
-  display:grid;
-  grid-template-rows:repeat(3,minmax(0,1fr));
+  display:flex;
+  flex-direction:column;
   gap:.45rem;
+  height:100%;
+  min-height:0;
+  overflow:hidden;
+}
+.edit-tira img{
+  flex:1 1 0;
+  height:0;          /* mata el piso que le pondria la imagen */
   min-height:0;
 }
 /* LA FOTO VA LIMPIA. Tenía dos etiquetas encima —"Cultura" y "5 min"—
@@ -985,8 +998,8 @@ video::-webkit-media-controls{ display:none !important; }
   .edit-foto{ aspect-ratio:auto; }
   .edit-marco{ grid-template-columns:1fr; gap:.45rem; }
   .edit-marco > img{ aspect-ratio:3/2; }
-  .edit-tira{ grid-template-rows:none; grid-template-columns:repeat(3,1fr); }
-  .edit-tira img{ aspect-ratio:1; }
+  .edit-tira{ flex-direction:row; height:auto; overflow:visible; }
+  .edit-tira img{ flex:1 1 0; height:auto; aspect-ratio:1; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -5548,8 +5561,12 @@ var UNIDAD = null;
         </div>
       </figure>
 
-      <h2 class="edit-titular" id="edit-titulo">El futuro del diseño: naturaleza y rendimiento</h2>
-      <p class="edit-copete">
+      <!-- ESTOS DOS SE CAMBIAN DESDE EL PANEL. El `data-texto` dice qué
+           lugar es cada uno; lo que está escrito acá es lo que se ve
+           mientras nadie lo haya cambiado, y lo que vuelve si en el
+           panel se borra el campo. Ver el script del final. -->
+      <h2 class="edit-titular" id="edit-titulo" data-texto="editorial-titulo">El futuro del diseño: naturaleza y rendimiento</h2>
+      <p class="edit-copete" data-texto="editorial-copete">
         Exploramos cómo la ingeniería y el diseño sustentable están
         redefiniendo la próxima generación de vehículos.
       </p>
@@ -5661,12 +5678,16 @@ var UNIDAD = null;
 <section id="social">
   <div class="social-caja">
     <div class="social-grilla">
-      <a href="#" aria-disabled="true"><img data-medio="social-1" src="assets/social/ig-1.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
-      <a href="#" aria-disabled="true"><img data-medio="social-2" src="assets/social/ig-2.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
-      <a href="#" aria-disabled="true"><img data-medio="social-3" src="assets/social/ig-3.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
-      <a href="#" aria-disabled="true"><img data-medio="social-4" src="assets/social/ig-4.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
-      <a href="#" aria-disabled="true"><img data-medio="social-5" src="assets/social/ig-5.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
-      <a href="#" aria-disabled="true"><img data-medio="social-6" src="assets/social/ig-6.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
+      <!-- SIN `data-medio`: estas seis NO se cambian desde el panel. La
+           grilla es el feed de Instagram, y lo que va acá tiene que ser
+           lo que está publicado allá — subir otra foto por el panel la
+           dejaría mostrando algo que en Instagram no existe. -->
+      <a href="#" aria-disabled="true"><img src="assets/social/ig-1.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
+      <a href="#" aria-disabled="true"><img src="assets/social/ig-2.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
+      <a href="#" aria-disabled="true"><img src="assets/social/ig-3.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
+      <a href="#" aria-disabled="true"><img src="assets/social/ig-4.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
+      <a href="#" aria-disabled="true"><img src="assets/social/ig-5.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
+      <a href="#" aria-disabled="true"><img src="assets/social/ig-6.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
     </div>
   </div>
 </section>
@@ -5835,6 +5856,41 @@ var UNIDAD = null;
       });
     })
     .catch(function(){ /* se queda con las de siempre */ });
+})();
+</script>
+
+<script>
+/* LOS TEXTOS QUE SE CAMBIAN DESDE EL PANEL.
+   ══════════════════════════════════════════════════════════════════
+
+   Mismo trato que las imágenes de arriba, y por los mismos motivos: el
+   texto ya está escrito en el HTML con un `data-texto` que dice qué
+   lugar es, y esto sólo reemplaza los que fueron cambiados. Si la
+   consulta falla, o la tabla está vacía, o no hay JavaScript, se lee el
+   original — no un hueco.
+
+   SE ESCRIBE CON `textContent` Y NO CON `innerHTML`. Lo que llega es lo
+   que alguien tipeó en un campo del panel: si eso pudiera traer
+   etiquetas, un `<script>` guardado ahí correría en la home de todos los
+   que entren. `textContent` lo pone como texto y listo.
+
+   VA CON LAS IMÁGENES AL FINAL DEL BODY aunque el titular esté en el
+   documento desde el principio: la nota está bien abajo del pliegue, así
+   que el cambio llega mucho antes de que nadie llegue a leerla, y no
+   retrasa el primer pintado. */
+(function(){
+  var lugares = document.querySelectorAll('[data-texto]');
+  if (!lugares.length) return;
+
+  fetch('/api/textos')
+    .then(function(r){ return r.ok ? r.json() : {}; })
+    .then(function(mapa){
+      lugares.forEach(function(el){
+        var valor = mapa[el.dataset.texto];
+        if (valor) el.textContent = valor;
+      });
+    })
+    .catch(function(){ /* se queda con el de siempre */ });
 })();
 </script>
 

@@ -34,19 +34,105 @@ const TAMANOS = ['1600', '640'];
    La proporción de cada uno NO es decorativa: es la que usa el CSS de esa
    sección, y el panel recorta la imagen a esa medida antes de subirla.
    Así lo que se sube entra siempre, sin importar cómo venga la foto. */
+/* ── SECCIONES ────────────────────────────────────────────────────
+   El panel las muestra agrupadas y en el orden de la página. Antes era
+   una grilla sola de doce y no se entendía nada: no se veía qué foto
+   iba con cuál ni que dos de ellas conviven con un video. */
+const SECCIONES = [
+  {
+    clave: 'collage',
+    titulo: 'El collage',
+    nota: 'Son dos fotos que se mueven con el scroll — y atrás de ellas '
+        + 'hay un video, que no se cambia desde acá porque hay que '
+        + 'convertirlo a tres formatos distintos.',
+  },
+  {
+    clave: 'nota',
+    titulo: 'La nota',
+    nota: 'La foto grande y la tira de tres que va al costado.',
+  },
+];
+
+/* ── LOS LUGARES DE IMAGEN ────────────────────────────────────────
+
+   Es una lista BLANCA: sólo se puede escribir en un lugar que esté acá.
+   Sin esto, cualquiera con sesión podría inventar nombres y llenar R2 de
+   archivos que ninguna página muestra.
+
+   NO SE RECORTA AL SUBIR, Y ESTO CAMBIÓ. Antes cada lugar declaraba una
+   proporción y el panel recortaba la foto a esa medida. Estaba mal:
+   MEDIDAS REALES DE CADA LUGAR, MEDIDAS EN LA PÁGINA —
+
+     collage — fondo      3:2 apaisada en la compu,  3:4 VERTICAL en el celular
+     collage — interior   4:3 apaisada,              1:1 cuadrada
+     nota — foto grande   casi cuadrada (1.14:1),    3:2 apaisada
+     nota — tira          casi cuadrada,             1:1 cuadrada
+
+   Ninguno tiene una sola forma, y el del fondo del collage pasa de
+   apaisado a vertical. Recortar al subir elegía una de las dos y en la
+   otra el `object-fit:cover` volvía a recortar sobre lo ya recortado:
+   dos recortes encima, y en el celular se perdía media foto.
+
+   Así que ahora se guarda la foto ENTERA, sólo achicada, y el recorte lo
+   hace el CSS en cada pantalla sobre la imagen completa. `guia` es un
+   consejo de qué entra mejor, no una regla que el panel imponga: entra
+   cualquier forma, 16:9 incluido.
+
+   `ancho` es el lado más largo que se guarda. */
 const SLOTS = {
-  'editorial-principal': { alto: 1600, prop: 3 / 2, donde: 'La nota — foto grande' },
-  'editorial-1':         { alto: 800,  prop: 1,     donde: 'La nota — tira, primera' },
-  'editorial-2':         { alto: 800,  prop: 1,     donde: 'La nota — tira, segunda' },
-  'editorial-3':         { alto: 800,  prop: 1,     donde: 'La nota — tira, tercera' },
-  'collage-interior':    { alto: 1600, prop: 4 / 3, donde: 'Collage — interior' },
-  'collage-ciudad':      { alto: 1600, prop: 3 / 2, donde: 'Collage — exterior' },
-  'social-1':            { alto: 800,  prop: 1,     donde: 'Instagram — 1' },
-  'social-2':            { alto: 800,  prop: 1,     donde: 'Instagram — 2' },
-  'social-3':            { alto: 800,  prop: 1,     donde: 'Instagram — 3' },
-  'social-4':            { alto: 800,  prop: 1,     donde: 'Instagram — 4' },
-  'social-5':            { alto: 800,  prop: 1,     donde: 'Instagram — 5' },
-  'social-6':            { alto: 800,  prop: 1,     donde: 'Instagram — 6' },
+  'collage-ciudad':      {
+    seccion: 'collage', lado: 2000, donde: 'Collage — el fondo',
+    guia: 'Apaisada en la compu y VERTICAL en el celular. Dejale aire '
+        + 'arriba y abajo para que el recorte vertical no corte nada.',
+  },
+  'collage-interior':    {
+    seccion: 'collage', lado: 1600, donde: 'Collage — el interior',
+    guia: 'Apaisada 4:3. En el celular se recorta a cuadrada.',
+  },
+  'editorial-principal': {
+    seccion: 'nota', lado: 1600, donde: 'La nota — foto grande',
+    guia: 'Casi cuadrada en la compu, apaisada 3:2 en el celular. Lo '
+        + 'importante va al centro.',
+  },
+  'editorial-1':         {
+    seccion: 'nota', lado: 900, donde: 'La nota — tira, primera',
+    guia: 'Cuadrada.',
+  },
+  'editorial-2':         {
+    seccion: 'nota', lado: 900, donde: 'La nota — tira, segunda',
+    guia: 'Cuadrada.',
+  },
+  'editorial-3':         {
+    seccion: 'nota', lado: 900, donde: 'La nota — tira, tercera',
+    guia: 'Cuadrada.',
+  },
+};
+
+/* ── LOS TEXTOS QUE SE PUEDEN CAMBIAR ─────────────────────────────
+
+   Lista blanca, igual que SLOTS y por el mismo motivo: sin esto
+   cualquiera con sesión llenaría la tabla de filas que ninguna página
+   lee.
+
+   SON DOS Y NO TREINTA, A PROPÓSITO. Lo que se edita seguido va acá; el
+   resto del texto vive en el HTML, que es donde se lee junto al diseño
+   que lo rodea. Volver editable cada frase suena a favor y termina
+   siendo un sitio cuyo contenido no está en ningún lado.
+
+   `tope` es el largo máximo, y no es un capricho de base de datos: son
+   los caracteres que entran en ese lugar sin desarmar la maqueta. El
+   panel lo muestra como contador mientras se escribe. */
+const TEXTOS = {
+  'editorial-titulo': {
+    tope: 90,
+    donde: 'La nota — titular',
+    pista: 'Dos renglones como mucho.',
+  },
+  'editorial-copete': {
+    tope: 220,
+    donde: 'La nota — bajada',
+    pista: 'La frase que va abajo del titular.',
+  },
 };
 
 /* ── respuestas ──────────────────────────────────────────────────── */
@@ -223,6 +309,18 @@ export default {
           .prepare('SELECT slot, clave FROM medios').all();
         const mapa = {};
         for (const m of results) mapa[m.slot] = m.clave;
+        return json(mapa, 200, { 'cache-control': 'public, max-age=60' });
+      }
+
+      /* ── LOS TEXTOS EDITABLES ─────────────────────────────────────
+         Mismo trato que las imágenes: sólo los que TIENEN reemplazo. La
+         página ya trae los suyos escritos en el HTML; esto le dice
+         cuáles cambiar. */
+      if (ruta === '/api/textos' && metodo === 'GET') {
+        const { results } = await env.DB
+          .prepare('SELECT slot, valor FROM textos').all();
+        const mapa = {};
+        for (const t of results) mapa[t.slot] = t.valor;
         return json(mapa, 200, { 'cache-control': 'public, max-age=60' });
       }
 
@@ -417,20 +515,81 @@ async function admin(peticion, env, ruta, metodo) {
     return json({ id: meta.last_row_id, clave: base }, 201);
   }
 
+  /* ── LOS TEXTOS EDITABLES ─────────────────────────────────────── */
+
+  if (ruta === '/api/admin/textos' && metodo === 'GET') {
+    const { results } = await env.DB
+      .prepare('SELECT slot, valor, editado FROM textos').all();
+    const puestos = new Map(results.map((t) => [t.slot, t]));
+    /* Van TODOS, tengan reemplazo o no, igual que los slots de imagen:
+       el panel necesita mostrar el lugar aunque siga con el original.
+       Pero el original NO viaja desde acá — lo trae el HTML, y el panel
+       lo lee de la propia página. Duplicarlo en el Worker sería una
+       segunda copia que se desincroniza sola. */
+    return json({
+      textos: Object.entries(TEXTOS).map(([slot, t]) => ({
+        slot, donde: t.donde, pista: t.pista, tope: t.tope,
+        valor: puestos.get(slot)?.valor ?? null,
+        editado: puestos.get(slot)?.editado || null,
+      })),
+    });
+  }
+
+  const texto = ruta.match(/^\/api\/admin\/textos\/([a-z0-9-]+)$/);
+
+  if (texto && metodo === 'PUT') {
+    const slot = texto[1];
+    const regla = TEXTOS[slot];
+    if (!regla) return error('Ese texto no existe', 404);
+
+    const cuerpo = await peticion.json().catch(() => null);
+    if (!cuerpo || typeof cuerpo.valor !== 'string') return error('Falta el texto');
+
+    /* SE GUARDA SIN LOS ESPACIOS DE LOS BORDES. Un renglón en blanco al
+       final no se ve al escribirlo pero sí se cuenta contra el tope, y
+       peor: hace que un campo vacío parezca lleno. */
+    const valor = cuerpo.valor.trim();
+    if (valor.length > regla.tope) {
+      return error(`No puede pasar de ${regla.tope} caracteres`);
+    }
+
+    /* VACÍO ES VOLVER AL ORIGINAL, no guardar un texto vacío. Borrar la
+       fila deja que valga el que trae el HTML; guardar '' dejaría el
+       lugar en blanco en la página, que nunca es lo que alguien quiso
+       al borrar el contenido de un campo. */
+    if (!valor) {
+      await env.DB.prepare('DELETE FROM textos WHERE slot = ?').bind(slot).run();
+      return json({ ok: true, valor: null });
+    }
+
+    await env.DB.prepare(
+      `INSERT INTO textos (slot, valor) VALUES (?, ?)
+       ON CONFLICT(slot) DO UPDATE SET valor = excluded.valor,
+                                       editado = datetime('now')`
+    ).bind(slot, valor).run();
+    return json({ ok: true, valor });
+  }
+
   /* ── LAS IMÁGENES FIJAS DE LA HOME ────────────────────────────── */
 
   if (ruta === '/api/admin/medios' && metodo === 'GET') {
     const { results } = await env.DB
       .prepare('SELECT slot, clave, editado FROM medios').all();
     const puestas = new Map(results.map((m) => [m.slot, m]));
-    /* Se devuelven LOS DOCE, tengan reemplazo o no: el panel necesita
-       mostrar el lugar aunque esté con la foto original, con su medida
-       recomendada al lado. */
+    /* Van TODOS los lugares, tengan reemplazo o no: el panel necesita
+       mostrar el lugar aunque siga con la foto original. Y van agrupados
+       por sección y en el orden de la página, que es el único orden en
+       el que alguien puede reconocer cuál es cuál. */
     return json({
-      slots: Object.entries(SLOTS).map(([slot, s]) => ({
-        slot, donde: s.donde, alto: s.alto, prop: s.prop,
-        clave: puestas.get(slot)?.clave || null,
-        editado: puestas.get(slot)?.editado || null,
+      secciones: SECCIONES.map((s) => ({
+        ...s,
+        slots: Object.entries(SLOTS)
+          .filter(([, v]) => v.seccion === s.clave)
+          .map(([slot, v]) => ({
+            slot, donde: v.donde, guia: v.guia, lado: v.lado,
+            clave: puestas.get(slot)?.clave || null,
+            editado: puestas.get(slot)?.editado || null,
+          })),
       })),
     });
   }
