@@ -103,16 +103,19 @@ function abrir(a) {
     ['Línea', GRUPOS[a.grupo]], ['Precio', precioDe(a)],
   ].filter(([, v]) => v !== null && v !== undefined && v !== '');
 
-  /* EL CERRAR VA ADENTRO DE LA FOTO, arriba a la derecha.
+  /* VOLVER: UNA FLECHA PARA ATRÁS, ARRIBA A LA IZQUIERDA DE LA FOTO.
 
-     Estaba suelto arriba del todo, como un botón solo en una franja
-     vacía: ocupaba una banda entera de la pantalla para algo del tamaño
-     de una moneda. Puesto sobre la foto no ocupa nada — la foto ya
-     estaba ahí— y sigue siendo lo primero que se ve arriba a la derecha,
-     que es donde se lo busca. */
-  const cruz = '<button class="cerrar" type="button" id="cerrar" aria-label="Cerrar">' +
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
-    'stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
+     Empezó suelto arriba del todo, ocupando una banda entera de pantalla
+     para algo del tamaño de una moneda. Después fue una cruz sobre la
+     foto, que ahorra el lugar pero dice otra cosa: una cruz es "cerrar",
+     y de una ficha abierta adentro del listado uno vuelve, no cierra.
+
+     La flecha lleva cola —`M19 12H5` es el palito— para no confundirse
+     con las de pasar fotos, que son cabezas de flecha solas. */
+  const volver = '<button class="cerrar" type="button" id="cerrar" aria-label="Volver al listado">' +
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" ' +
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M19 12H5"/><path d="m11 18-6-6 6-6"/></svg></button>';
 
   const flechas = a.fotos.length > 1
     ? '<button class="paso paso--antes" type="button" data-paso="-1" aria-label="Foto anterior">' +
@@ -128,7 +131,7 @@ function abrir(a) {
         '<div class="grande">' +
           '<img id="fotoGrande" src="/fotos/' + a.fotos[0].clave +
             '-1600.webp" alt="' + escapar(a.marca + ' ' + a.modelo) + '">' +
-          flechas + cruz +
+          flechas + volver +
         '</div>' +
         (a.fotos.length > 1
           ? '<div class="tiras">' + a.fotos.map((f, i) =>
@@ -136,7 +139,7 @@ function abrir(a) {
               '" aria-current="' + (i === 0) + '">').join('') + '</div>'
           : '') +
       '</div>'
-    : '<div class="lado-foto"><div class="grande">' + cruz + '</div></div>';
+    : '<div class="lado-foto"><div class="grande">' + volver + '</div></div>';
 
   d.innerHTML = '<div class="caja">' +
     galeria +
@@ -191,6 +194,8 @@ function abrir(a) {
     tiras.forEach((o, k) => o.setAttribute('aria-current', String(k === cual)));
   }
 
+  $('#fotoGrande')?.addEventListener('click', () => abrirZoom(a.fotos[cual].clave));
+
   tiras.forEach((t) => t.addEventListener('click', () => mostrar(Number(t.dataset.i))));
   d.querySelectorAll('.paso').forEach((b) => b.addEventListener('click', () =>
     mostrar(cual + Number(b.dataset.paso))));
@@ -206,7 +211,182 @@ function abrir(a) {
    oyente colgado sobre un detalle que ya no existe. */
 let pasoTeclado = null;
 
+/* ══════════════════════════════════════════════════════════════════
+   LA FOTO EN GRANDE, CON ZOOM
+   ══════════════════════════════════════════════════════════════════
+
+   En la ficha la foto entra recortada a la forma de su hueco. Para mirar
+   un detalle —una llanta, el tapizado, una marca en la chapa— hace falta
+   verla entera y poder acercarse.
+
+   POR QUÉ NO ALCANZA EL ZOOM DEL NAVEGADOR. En el teléfono, abrir dos
+   dedos sobre la página agranda TODA la página: la barra, el texto y la
+   foto por igual, y después hay que volver a acomodar todo. Acá los dos
+   dedos mueven solamente la foto.
+
+   `touch-action:none` en la capa es lo que hace que el sistema no se
+   quede con el gesto: sin eso el navegador interpreta los dos dedos como
+   zoom de página antes de que llegue un solo evento a este código.
+
+   EL ACERCAMIENTO SE ANCLA EN EL PUNTO DEL MEDIO DE LOS DOS DEDOS. Es la
+   diferencia entre que la imagen crezca hacia donde uno está mirando o
+   que se escape hacia el centro. La cuenta: con el origen en el centro,
+   un punto `p` de la pantalla corresponde al punto `(p - centro - d)/s`
+   de la foto; para que ese punto no se mueva al pasar de `s` a `s2`, el
+   desplazamiento nuevo tiene que ser `p - centro - c*s2`. */
+
+let zoomFuera = null;
+
+function abrirZoom(clave) {
+  const capa = $('#zoom');
+  const img = capa.querySelector('img');
+  img.src = '/fotos/' + clave + '-1600.webp';
+  capa.hidden = false;
+
+  let esc = 1, dx = 0, dy = 0;
+  let base = null;
+  const dedos = new Map();
+  let pellizco = null;
+  let ultimoToque = 0;
+  /* EL DOBLE TOQUE SE DECIDE AL LEVANTAR EL DEDO, NO AL APOYARLO, y sólo
+     si el gesto terminó siendo un toque de verdad.
+
+     Contándolo al apoyar, el PRIMER dedo de un pellizco ya contaba como
+     toque; apoyar un dedo enseguida después —para arrastrar la foto ya
+     acercada— caía dentro de los 300 ms y se leía como doble toque, así
+     que la foto se alejaba sola justo cuando uno quería moverla.
+
+     `candidato` se anula apenas entra un segundo dedo o apenas el dedo
+     se corre más de unos píxeles: entonces fue un pellizco o un
+     arrastre, y ninguno de los dos es un toque. */
+  let candidato = null;
+
+  const aplicar = () => {
+    img.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + esc + ')';
+    capa.classList.toggle('cerca', esc > 1.02);
+  };
+
+  /* La foto no puede alejarse más allá de sus propios bordes: si a esta
+     escala no sobra nada para correr, se queda centrada. */
+  const encajar = () => {
+    if (!base) return;
+    const c = capa.getBoundingClientRect();
+    const sobraX = Math.max(0, (base.width * esc - c.width) / 2);
+    const sobraY = Math.max(0, (base.height * esc - c.height) / 2);
+    dx = Math.min(sobraX, Math.max(-sobraX, dx));
+    dy = Math.min(sobraY, Math.max(-sobraY, dy));
+  };
+
+  const medir = () => {
+    const previo = img.style.transform;
+    img.style.transform = 'none';
+    base = img.getBoundingClientRect();
+    img.style.transform = previo;
+  };
+
+  img.complete ? medir() : img.addEventListener('load', medir, { once: true });
+
+  const escalarEn = (px, py, s2) => {
+    const c = capa.getBoundingClientRect();
+    const cx = c.left + c.width / 2, cy = c.top + c.height / 2;
+    /* Dónde cae ese punto dentro de la foto, antes de cambiar la escala. */
+    const fx = (px - cx - dx) / esc, fy = (py - cy - dy) / esc;
+    esc = Math.min(4, Math.max(1, s2));
+    dx = px - cx - fx * esc;
+    dy = py - cy - fy * esc;
+    encajar();
+    aplicar();
+  };
+
+  const abajo = (e) => {
+    dedos.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    capa.setPointerCapture(e.pointerId);
+
+    if (dedos.size === 2) {
+      candidato = null;
+      const [a, b] = [...dedos.values()];
+      pellizco = {
+        dist: Math.hypot(a.x - b.x, a.y - b.y),
+        esc,
+        px: (a.x + b.x) / 2, py: (a.y + b.y) / 2,
+      };
+      return;
+    }
+
+    candidato = { x: e.clientX, y: e.clientY, t: e.timeStamp };
+  };
+
+  const mover = (e) => {
+    const antes = dedos.get(e.pointerId);
+    if (!antes) return;
+    dedos.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (dedos.size >= 2 && pellizco) {
+      const [a, b] = [...dedos.values()];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      escalarEn(pellizco.px, pellizco.py, pellizco.esc * (dist / pellizco.dist));
+      return;
+    }
+
+    if (candidato &&
+        Math.hypot(e.clientX - candidato.x, e.clientY - candidato.y) > 10) {
+      candidato = null;
+    }
+
+    /* Un dedo solo arrastra cuando hay algo para arrastrar. */
+    if (esc > 1.02) {
+      dx += e.clientX - antes.x;
+      dy += e.clientY - antes.y;
+      encajar();
+      aplicar();
+    }
+  };
+
+  const arriba = (e) => {
+    dedos.delete(e.pointerId);
+    if (dedos.size < 2) pellizco = null;
+
+    if (!candidato) return;
+    /* Dos toques seguidos: acercar o volver, en el punto tocado. */
+    if (e.timeStamp - ultimoToque < 300) {
+      escalarEn(candidato.x, candidato.y, esc > 1.02 ? 1 : 2.5);
+      ultimoToque = 0;
+    } else {
+      ultimoToque = e.timeStamp;
+    }
+    candidato = null;
+  };
+
+  capa.addEventListener('pointerdown', abajo);
+  capa.addEventListener('pointermove', mover);
+  capa.addEventListener('pointerup', arriba);
+  capa.addEventListener('pointercancel', arriba);
+
+  const salir = () => cerrarZoom();
+  capa.querySelector('.zoom-salir').addEventListener('click', salir);
+
+  zoomFuera = () => {
+    capa.removeEventListener('pointerdown', abajo);
+    capa.removeEventListener('pointermove', mover);
+    capa.removeEventListener('pointerup', arriba);
+    capa.removeEventListener('pointercancel', arriba);
+    capa.querySelector('.zoom-salir').removeEventListener('click', salir);
+    img.style.transform = '';
+    img.removeAttribute('src');
+    capa.classList.remove('cerca');
+    capa.hidden = true;
+  };
+}
+
+function cerrarZoom() {
+  if (zoomFuera) { zoomFuera(); zoomFuera = null; }
+}
+
 function cerrar() {
+  /* Si estaba mirando una foto de cerca, el primer volver la cierra a
+     ella y no toda la ficha: cerrar dos cosas de un toque siempre se
+     siente como que se perdió un paso. */
+  if (zoomFuera) { cerrarZoom(); return; }
   $('#detalle').hidden = true;
   document.body.style.overflow = '';
   if (pasoTeclado) { removeEventListener('keydown', pasoTeclado); pasoTeclado = null; }

@@ -27,6 +27,35 @@
   padding:clamp(2rem,4.5vh,2.8rem) var(--gut) clamp(1.6rem,3.5vh,2.4rem);
 }
 
+/* LA LÍNEA QUE SEPARA, Y NO LLEGA A LOS BORDES.
+
+   El pie está sobre el mismo negro que el resto de la página, así que
+   sin una marca no hay dónde ver que ahí termina el contenido. En
+   inicio se nota menos —arriba está la grilla de Instagram, que ya
+   dibuja un borde— pero en /garage el pie queda flotando después de un
+   negro vacío.
+
+   TRES CUARTOS Y CON LAS PUNTAS DESVANECIDAS. De borde a borde sería
+   una raya de formulario, que es justo el peso que este pie no quiere.
+   Y cortada seca a los tres cuartos se leería como un error de maqueta:
+   el degradado hace que empiece y termine sin que se vea el corte. */
+#pie::before{
+  content:'';
+  position:absolute;
+  top:0;
+  left:50%;
+  transform:translateX(-50%);
+  width:75%;
+  height:1px;
+  background:linear-gradient(
+    to right,
+    transparent,
+    rgba(255,255,255,.13) 22%,
+    rgba(255,255,255,.13) 78%,
+    transparent
+  );
+}
+
 /* CUATRO COLUMNAS, Y LOS ANCHOS NO SON IGUALES. La navegación es la más
    angosta porque son cuatro palabras sueltas; contacto es la más ancha
    porque la dirección ocupa dos renglones; el mapa pide su cuadro.
