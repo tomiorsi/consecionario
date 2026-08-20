@@ -700,24 +700,7 @@ video::-webkit-media-controls{ display:none !important; }
   height:100%;
   overflow:hidden;
 }
-/* LA CELDA DE LA FOTO GRANDE ES EL <picture>, NO EL <img>.
-
-   La foto grande está envuelta en un <picture> para poder tener una
-   versión de celular distinta (ver el marcado). Eso mete un elemento
-   entre la grilla y la imagen: el que ocupa la celda pasa a ser el
-   <picture>, y el <img> tiene que llenarlo a él.
-
-   `min-width:0` y `min-height:0` porque un hijo de grilla no baja de su
-   contenido por omisión, que es lo mismo que hacía desbordar a la tira
-   de tres. */
-.edit-marco > picture{
-  display:block;
-  min-width:0; min-height:0;
-  overflow:hidden;
-  border-radius:2px;
-  background:#0a0a0a;
-}
-.edit-marco > picture > img,
+.edit-marco > img,
 .edit-tira img{
   display:block;
   width:100%;
@@ -1012,14 +995,17 @@ video::-webkit-media-controls{ display:none !important; }
   /* Seis en fila son sellos ilegibles en un teléfono. Tres y tres. */
   .social-grilla{ grid-template-columns:repeat(3,1fr); }
 
-  /* La tira al costado quedaría de 40 px de ancho. Abajo y en fila, que
-     es donde tiene lugar. El conjunto deja de ser 3:2 porque ahora son
-     dos bloques apilados. */
-  .edit-foto{ aspect-ratio:auto; }
-  .edit-marco{ grid-template-columns:1fr; gap:.45rem; }
-  .edit-marco > picture{ aspect-ratio:3/2; }
-  .edit-tira{ flex-direction:row; height:auto; overflow:visible; }
-  .edit-tira img{ flex:1 1 0; height:auto; aspect-ratio:1; }
+  /* LA MISMA MAQUETA QUE EN LA COMPU: la grande a la izquierda y las
+     tres al costado.
+
+     Estuvo apilada —la grande arriba y las tres abajo en fila— por
+     miedo a que la tira quedara de 40 px. Pero apilado se pierde lo que
+     hace a esta pieza: son tres fotos que ACOMPAÑAN a una, y una arriba
+     de otra se leen como cuatro fotos sueltas.
+
+     La columna se abre un poco más que en la compu —.34 contra .3—
+     porque acá el ancho total es un tercio y ese décimo se nota. */
+  .edit-marco{ grid-template-columns:1fr .34fr; gap:.4rem; }
 }
 
 
@@ -5362,18 +5348,8 @@ var UNIDAD = null;
     <article class="edit-nota">
       <figure class="edit-foto">
         <div class="edit-marco">
-          <!-- EN <picture> AUNQUE HOY TENGA UNA SOLA FUENTE. Este lugar
-               se ve casi cuadrado en la compu y apaisado 3:2 en el
-               celular, así que desde el panel se le puede cargar un
-               archivo por pantalla. Con <picture> alrededor, esa segunda
-               fuente la elige el navegador —y la reevalúa solo si giran
-               el teléfono—; sin él habría que decidirlo por JavaScript
-               mirando el ancho de ese momento, y quedaría la foto
-               equivocada al primer giro. -->
-          <picture>
-            <img data-medio="editorial-principal" src="assets/collage/ciudad.webp" alt=""
-                 loading="lazy" decoding="async" width="1200" height="800">
-          </picture>
+          <img data-medio="editorial-principal" src="assets/collage/ciudad.webp" alt=""
+               loading="lazy" decoding="async" width="1200" height="800">
           <div class="edit-tira">
             <img data-medio="editorial-1" src="assets/social/ig-2.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
             <img data-medio="editorial-2" src="assets/social/ig-5.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
@@ -5664,6 +5640,11 @@ var UNIDAD = null;
            foto equivocada apenas alguien gira el teléfono. */
         if (enPicture) {
           var fuente = padre.querySelector('source[media]');
+          /* Si las dos pantallas terminan en el mismo archivo —porque el
+             lugar es compartido, o porque sólo se subió uno— no hace
+             falta ninguna fuente aparte: sería pedirle al navegador que
+             elija entre dos copias de lo mismo. */
+          if (paraCel && paraCel === paraCompu) paraCel = null;
           if (paraCel) {
             if (!fuente) {
               fuente = document.createElement('source');

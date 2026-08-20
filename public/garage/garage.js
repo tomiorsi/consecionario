@@ -194,13 +194,18 @@ function abrir(a) {
     tiras.forEach((o, k) => o.setAttribute('aria-current', String(k === cual)));
   }
 
-  $('#fotoGrande')?.addEventListener('click', () => abrirZoom(a.fotos[cual].clave));
+  /* Se abre EL CONJUNTO, parado en la que se tocó. */
+  $('#fotoGrande')?.addEventListener('click', () => abrirZoom(a.fotos, cual));
 
   tiras.forEach((t) => t.addEventListener('click', () => mostrar(Number(t.dataset.i))));
   d.querySelectorAll('.paso').forEach((b) => b.addEventListener('click', () =>
     mostrar(cual + Number(b.dataset.paso))));
 
   pasoTeclado = (e) => {
+    /* Con las fotos abiertas en grande manda el otro: si no, una flecha
+       pasaría las dos galerías a la vez y al cerrar aparecería una foto
+       distinta de la que se estaba mirando. */
+    if (zoomFuera) return;
     if (e.key === 'ArrowRight') mostrar(cual + 1);
     else if (e.key === 'ArrowLeft') mostrar(cual - 1);
   };
@@ -212,12 +217,17 @@ function abrir(a) {
 let pasoTeclado = null;
 
 /* ══════════════════════════════════════════════════════════════════
-   LA FOTO EN GRANDE, CON ZOOM
+   LAS FOTOS EN GRANDE: UNA GALERÍA, NO UNA FOTO
    ══════════════════════════════════════════════════════════════════
 
-   En la ficha la foto entra recortada a la forma de su hueco. Para mirar
-   un detalle —una llanta, el tapizado, una marca en la chapa— hace falta
-   verla entera y poder acercarse.
+   En la ficha cada foto entra recortada a la forma de su hueco. Para
+   mirar un detalle —una llanta, el tapizado, una marca en la chapa—
+   hace falta verla entera y poder acercarse.
+
+   SE ABRE EL CONJUNTO Y NO LA FOTO TOCADA. Abrir sólo la que se tocó
+   obliga a cerrar, elegir otra miniatura y volver a abrir para ver la
+   siguiente. Acá se abre en la que se tocó y se pasa de largo con el
+   dedo, que es lo que uno intenta hacer sin pensarlo.
 
    POR QUÉ NO ALCANZA EL ZOOM DEL NAVEGADOR. En el teléfono, abrir dos
    dedos sobre la página agranda TODA la página: la barra, el texto y la
@@ -228,6 +238,11 @@ let pasoTeclado = null;
    quede con el gesto: sin eso el navegador interpreta los dos dedos como
    zoom de página antes de que llegue un solo evento a este código.
 
+   UN DEDO HACE DOS COSAS DISTINTAS SEGÚN LA ESCALA, y no hay ambigüedad
+   posible: de lejos arrastra la tira y cambia de foto; de cerca mueve la
+   foto por adentro. Es la misma regla que usa cualquier visor de fotos
+   de teléfono, y es la única que no obliga a elegir entre pasar y mirar.
+
    EL ACERCAMIENTO SE ANCLA EN EL PUNTO DEL MEDIO DE LOS DOS DEDOS. Es la
    diferencia entre que la imagen crezca hacia donde uno está mirando o
    que se escape hacia el centro. La cuenta: con el origen en el centro,
@@ -237,32 +252,43 @@ let pasoTeclado = null;
 
 let zoomFuera = null;
 
-function abrirZoom(clave) {
+function abrirZoom(fotos, desde) {
+  if (!fotos.length) return;
   const capa = $('#zoom');
-  const img = capa.querySelector('img');
-  img.src = '/fotos/' + clave + '-1600.webp';
+  const tira = capa.querySelector('.zoom-tira');
+
+  /* Todas las fotos en una fila, cada una del ancho de la pantalla. La
+     tira se corre con `translateX`; no hay nada que cargar al pasar
+     porque la ficha ya las pidió todas al abrirse. */
+  tira.innerHTML = fotos.map((f) =>
+    '<div class="zoom-hoja"><img src="/fotos/' + f.clave + '-1600.webp" alt=""></div>'
+  ).join('');
+
+  const hojas = [].slice.call(tira.children);
+  capa.querySelector('.zoom-cuenta').hidden = fotos.length < 2;
+  capa.querySelectorAll('.zoom-paso').forEach((b) => { b.hidden = fotos.length < 2; });
   capa.hidden = false;
 
-  let esc = 1, dx = 0, dy = 0;
-  let base = null;
+  let indice = Math.max(0, Math.min(fotos.length - 1, desde || 0));
+  let esc = 1, dx = 0, dy = 0, base = null;
+
   const dedos = new Map();
   let pellizco = null;
-  let ultimoToque = 0;
-  /* EL DOBLE TOQUE SE DECIDE AL LEVANTAR EL DEDO, NO AL APOYARLO, y sólo
-     si el gesto terminó siendo un toque de verdad.
-
-     Contándolo al apoyar, el PRIMER dedo de un pellizco ya contaba como
-     toque; apoyar un dedo enseguida después —para arrastrar la foto ya
-     acercada— caía dentro de los 300 ms y se leía como doble toque, así
-     que la foto se alejaba sola justo cuando uno quería moverla.
-
-     `candidato` se anula apenas entra un segundo dedo o apenas el dedo
-     se corre más de unos píxeles: entonces fue un pellizco o un
-     arrastre, y ninguno de los dos es un toque. */
+  let arrastre = null;
   let candidato = null;
+  let ultimoToque = 0;
+
+  const foto = () => hojas[indice].querySelector('img');
+
+  const correrTira = (extra, animar) => {
+    tira.style.transition = animar ? 'transform .28s var(--ease)' : 'none';
+    tira.style.transform =
+      'translateX(calc(' + (-indice * 100) + '% + ' + (extra || 0) + 'px))';
+  };
 
   const aplicar = () => {
-    img.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + esc + ')';
+    foto().style.transform =
+      'translate(' + dx + 'px,' + dy + 'px) scale(' + esc + ')';
     capa.classList.toggle('cerca', esc > 1.02);
   };
 
@@ -277,19 +303,19 @@ function abrirZoom(clave) {
     dy = Math.min(sobraY, Math.max(-sobraY, dy));
   };
 
+  /* El tamaño sin transformar, que es contra lo que se calculan los
+     límites. Se mide sacando la transformación un instante. */
   const medir = () => {
+    const img = foto();
     const previo = img.style.transform;
     img.style.transform = 'none';
     base = img.getBoundingClientRect();
     img.style.transform = previo;
   };
 
-  img.complete ? medir() : img.addEventListener('load', medir, { once: true });
-
   const escalarEn = (px, py, s2) => {
     const c = capa.getBoundingClientRect();
     const cx = c.left + c.width / 2, cy = c.top + c.height / 2;
-    /* Dónde cae ese punto dentro de la foto, antes de cambiar la escala. */
     const fx = (px - cx - dx) / esc, fy = (py - cy - dy) / esc;
     esc = Math.min(4, Math.max(1, s2));
     dx = px - cx - fx * esc;
@@ -298,12 +324,27 @@ function abrirZoom(clave) {
     aplicar();
   };
 
+  /* Cambiar de foto DEVUELVE LA ANTERIOR A SU ESCALA. Dejarla acercada
+     es encontrarla al volver metida en un detalle que uno ya no está
+     mirando, sin acordarse de por qué. */
+  function ir(n) {
+    foto().style.transform = '';
+    indice = (n + fotos.length) % fotos.length;
+    esc = 1; dx = 0; dy = 0;
+    capa.classList.remove('cerca');
+    capa.querySelector('.zoom-cuenta').textContent =
+      (indice + 1) + ' / ' + fotos.length;
+    correrTira(0, true);
+    const img = foto();
+    img.complete ? medir() : img.addEventListener('load', medir, { once: true });
+  }
+
   const abajo = (e) => {
     dedos.set(e.pointerId, { x: e.clientX, y: e.clientY });
     capa.setPointerCapture(e.pointerId);
 
     if (dedos.size === 2) {
-      candidato = null;
+      candidato = null; arrastre = null;
       const [a, b] = [...dedos.values()];
       pellizco = {
         dist: Math.hypot(a.x - b.x, a.y - b.y),
@@ -314,6 +355,7 @@ function abrirZoom(clave) {
     }
 
     candidato = { x: e.clientX, y: e.clientY, t: e.timeStamp };
+    if (esc <= 1.02) arrastre = { x: e.clientX, y: e.clientY, corrido: 0, decidido: null };
   };
 
   const mover = (e) => {
@@ -333,18 +375,53 @@ function abrirZoom(clave) {
       candidato = null;
     }
 
-    /* Un dedo solo arrastra cuando hay algo para arrastrar. */
+    /* De cerca, el dedo mueve la foto por adentro. */
     if (esc > 1.02) {
       dx += e.clientX - antes.x;
       dy += e.clientY - antes.y;
       encajar();
       aplicar();
+      return;
     }
+
+    /* De lejos, arrastra la tira. SE DECIDE UNA SOLA VEZ SI EL GESTO ES
+       HORIZONTAL O VERTICAL: sin eso, un movimiento en diagonal corre la
+       tira de a poquito mientras alguien en realidad estaba haciendo
+       otra cosa, y la foto queda temblando entre dos. */
+    if (!arrastre) return;
+    const corridoX = e.clientX - arrastre.x;
+    const corridoY = e.clientY - arrastre.y;
+    if (!arrastre.decidido) {
+      if (Math.abs(corridoX) < 8 && Math.abs(corridoY) < 8) return;
+      arrastre.decidido = Math.abs(corridoX) > Math.abs(corridoY) ? 'lado' : 'alto';
+    }
+    if (arrastre.decidido !== 'lado') return;
+
+    /* En la primera y en la última, el arrastre pesa un tercio: no hay a
+       dónde ir, y frenar en seco se siente como que la pantalla se
+       trabó. */
+    const alBorde = (indice === 0 && corridoX > 0) ||
+                    (indice === fotos.length - 1 && corridoX < 0);
+    arrastre.corrido = alBorde ? corridoX / 3 : corridoX;
+    correrTira(arrastre.corrido, false);
   };
 
   const arriba = (e) => {
     dedos.delete(e.pointerId);
     if (dedos.size < 2) pellizco = null;
+
+    if (arrastre && arrastre.decidido === 'lado') {
+      const c = capa.getBoundingClientRect();
+      /* Un cuarto de pantalla alcanza para pasar. Menos que eso vuelve a
+         su lugar. */
+      if (arrastre.corrido < -c.width / 4) ir(indice + 1);
+      else if (arrastre.corrido > c.width / 4) ir(indice - 1);
+      else correrTira(0, true);
+      arrastre = null;
+      candidato = null;
+      return;
+    }
+    arrastre = null;
 
     if (!candidato) return;
     /* Dos toques seguidos: acercar o volver, en el punto tocado. */
@@ -363,7 +440,13 @@ function abrirZoom(clave) {
   capa.addEventListener('pointercancel', arriba);
 
   const salir = () => cerrarZoom();
+  const pasar = (e) => ir(indice + Number(e.currentTarget.dataset.paso));
   capa.querySelector('.zoom-salir').addEventListener('click', salir);
+  capa.querySelectorAll('.zoom-paso').forEach((b) => b.addEventListener('click', pasar));
+
+  /* Arranca sin animación, ya puesta en la foto que se tocó. */
+  correrTira(0, false);
+  ir(indice);
 
   zoomFuera = () => {
     capa.removeEventListener('pointerdown', abajo);
@@ -371,14 +454,26 @@ function abrirZoom(clave) {
     capa.removeEventListener('pointerup', arriba);
     capa.removeEventListener('pointercancel', arriba);
     capa.querySelector('.zoom-salir').removeEventListener('click', salir);
-    img.style.transform = '';
-    img.removeAttribute('src');
+    capa.querySelectorAll('.zoom-paso').forEach((b) => b.removeEventListener('click', pasar));
+    tira.style.transition = 'none';
+    tira.innerHTML = '';
     capa.classList.remove('cerca');
     capa.hidden = true;
   };
+
+  /* Las flechas del teclado pasan de foto, igual que en la ficha. */
+  zoomTeclado = (e) => {
+    if (e.key === 'ArrowRight') ir(indice + 1);
+    else if (e.key === 'ArrowLeft') ir(indice - 1);
+  };
+  addEventListener('keydown', zoomTeclado);
 }
 
+let zoomTeclado = null;
+
+
 function cerrarZoom() {
+  if (zoomTeclado) { removeEventListener('keydown', zoomTeclado); zoomTeclado = null; }
   if (zoomFuera) { zoomFuera(); zoomFuera = null; }
 }
 

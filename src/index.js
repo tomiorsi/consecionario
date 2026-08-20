@@ -65,14 +65,17 @@ const SECCIONES = [
      collage — video       16:9 apaisado    │  4:5 VERTICAL
      collage — ciudad      3:2 apaisada     │  3:4 VERTICAL
      collage — interior    4:3 apaisada     │  1:1 cuadrada
-     nota — foto grande    1.14 casi cuadr. │  3:2 apaisada
-     nota — tira (x3)      1.07 casi cuadr. │  1:1 cuadrada
+     nota — foto grande    1.14 casi cuadr. │  1.10 casi cuadr.
+     nota — tira (x3)      1.07 casi cuadr. │  1.20 casi cuadr.
 
-   Las cuatro primeras no son variaciones de una misma forma: son formas
-   OPUESTAS —dos de ellas se dan vuelta de apaisada a vertical—, así que
-   llevan un archivo por pantalla. La tira de tres se ve prácticamente
-   cuadrada en las dos, y ahí partirla sería pedir dos veces el mismo
-   archivo: lleva una sola, `todo`.
+   Las tres del collage no son variaciones de una misma forma: son
+   formas OPUESTAS —dos de ellas se dan vuelta de apaisada a vertical—,
+   así que llevan un archivo por pantalla.
+
+   Las de la nota no: esa sección usa la misma disposición en las dos
+   pantallas, sólo que más chica, y las formas quedan casi iguales.
+   Partirlas sería pedir dos veces el mismo archivo, así que llevan una
+   sola, `todo`.
 
    NO SE RECORTA AL SUBIR. Se guarda la foto entera, sólo achicada, y el
    recorte fino lo hace el `object-fit` del CSS. `guia` es un consejo de
@@ -109,10 +112,13 @@ const SLOTS = {
   },
   'editorial-principal': {
     seccion: 'nota', donde: 'La nota — foto grande',
-    pantallas: {
-      compu:   { lado: 1600, guia: 'Casi cuadrada — un poco más ancha que alta.' },
-      celular: { lado: 1200, guia: 'Apaisada 3:2.' },
-    },
+    /* UNA SOLA, DESDE QUE LA NOTA SE VE IGUAL EN LAS DOS PANTALLAS.
+
+       Llevaba dos porque en el celular la maqueta se apilaba y la foto
+       pasaba a ser apaisada 3:2. Ahora el celular usa la misma
+       disposición que la compu —la grande a la izquierda, la tira al
+       costado— y medido queda en 1.10 contra 1.14: la misma foto. */
+    pantallas: { todo: { lado: 1600, guia: 'Casi cuadrada — un poco más ancha que alta.' } },
   },
   'editorial-1': {
     seccion: 'nota', donde: 'La nota — tira, primera',
