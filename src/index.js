@@ -59,65 +59,76 @@ const SECCIONES = [
    Sin esto, cualquiera con sesión podría inventar nombres y llenar R2 de
    archivos que ninguna página muestra.
 
-   NO SE RECORTA AL SUBIR, Y ESTO CAMBIÓ. Antes cada lugar declaraba una
-   proporción y el panel recortaba la foto a esa medida. Estaba mal:
-   MEDIDAS REALES DE CADA LUGAR, MEDIDAS EN LA PÁGINA —
+   CADA LUGAR DECLARA SUS PANTALLAS, y ahí está lo importante. Estas son
+   las medidas reales, tomadas sobre la página:
 
-     collage — fondo      3:2 apaisada en la compu,  3:4 VERTICAL en el celular
-     collage — interior   4:3 apaisada,              1:1 cuadrada
-     nota — foto grande   casi cuadrada (1.14:1),    3:2 apaisada
-     nota — tira          casi cuadrada,             1:1 cuadrada
+     collage — video       16:9 apaisado    │  4:5 VERTICAL
+     collage — ciudad      3:2 apaisada     │  3:4 VERTICAL
+     collage — interior    4:3 apaisada     │  1:1 cuadrada
+     nota — foto grande    1.14 casi cuadr. │  3:2 apaisada
+     nota — tira (x3)      1.07 casi cuadr. │  1:1 cuadrada
 
-   Ninguno tiene una sola forma, y el del fondo del collage pasa de
-   apaisado a vertical. Recortar al subir elegía una de las dos y en la
-   otra el `object-fit:cover` volvía a recortar sobre lo ya recortado:
-   dos recortes encima, y en el celular se perdía media foto.
+   Las cuatro primeras no son variaciones de una misma forma: son formas
+   OPUESTAS —dos de ellas se dan vuelta de apaisada a vertical—, así que
+   llevan un archivo por pantalla. La tira de tres se ve prácticamente
+   cuadrada en las dos, y ahí partirla sería pedir dos veces el mismo
+   archivo: lleva una sola, `todo`.
 
-   Así que ahora se guarda la foto ENTERA, sólo achicada, y el recorte lo
-   hace el CSS en cada pantalla sobre la imagen completa. `guia` es un
-   consejo de qué entra mejor, no una regla que el panel imponga: entra
-   cualquier forma, 16:9 incluido.
-
-   `ancho` es el lado más largo que se guarda. */
+   NO SE RECORTA AL SUBIR. Se guarda la foto entera, sólo achicada, y el
+   recorte fino lo hace el `object-fit` del CSS. `guia` es un consejo de
+   qué entra mejor, no una regla que el panel imponga: entra cualquier
+   forma, 16:9 incluido. `lado` es el lado más largo que se guarda. */
 const SLOTS = {
-  'collage-fondo':       {
-    seccion: 'collage', lado: 2000, donde: 'Collage — el video (arriba a la izquierda)',
+  'collage-fondo': {
+    seccion: 'collage', donde: 'Collage — el video (arriba a la izquierda)',
     /* EL ÚNICO QUE ADMITE VIDEO. Los demás son fotos y punto: si un
        lugar acepta las dos cosas hay que decidirlo en la página cada
        vez, y no hay ninguna otra sección donde eso sirva. */
     admite: ['video', 'imagen'],
-    guia: 'Video .mp4 o foto. Se ve 16:9 apaisado en la compu y casi '
-        + 'vertical (4:5) en el celular, así que dejá lo importante al '
-        + 'centro. El video va sin sonido, de pocos segundos, y conviene '
-        + 'que el final se parezca al principio porque se repite en bucle.',
+    pantallas: {
+      compu:   { lado: 2000, guia: 'Apaisada 16:9.' },
+      celular: { lado: 1200, guia: 'Vertical 4:5 — casi un cuadrado parado.' },
+    },
+    extra: 'Puede ser un video .mp4 o una foto. El video va sin sonido, de '
+         + 'pocos segundos, y conviene que el final se parezca al principio '
+         + 'porque se repite en bucle.',
   },
-  'collage-ciudad':      {
-    seccion: 'collage', lado: 2000, donde: 'Collage — la ciudad (abajo)',
-    guia: 'Apaisada en la compu y VERTICAL en el celular. Dejale aire '
-        + 'arriba y abajo para que el recorte vertical no corte nada.',
+  'collage-ciudad': {
+    seccion: 'collage', donde: 'Collage — la ciudad (abajo)',
+    pantallas: {
+      compu:   { lado: 2000, guia: 'Apaisada 3:2.' },
+      celular: { lado: 1200, guia: 'Vertical 3:4.' },
+    },
   },
-  'collage-interior':    {
-    seccion: 'collage', lado: 1600, donde: 'Collage — el interior (a la derecha)',
-    guia: 'Apaisada 4:3. En el celular se recorta a cuadrada.',
+  'collage-interior': {
+    seccion: 'collage', donde: 'Collage — el interior (a la derecha)',
+    pantallas: {
+      compu:   { lado: 1600, guia: 'Apaisada 4:3.' },
+      celular: { lado: 1200, guia: 'Cuadrada 1:1.' },
+    },
   },
   'editorial-principal': {
-    seccion: 'nota', lado: 1600, donde: 'La nota — foto grande',
-    guia: 'Casi cuadrada en la compu, apaisada 3:2 en el celular. Lo '
-        + 'importante va al centro.',
+    seccion: 'nota', donde: 'La nota — foto grande',
+    pantallas: {
+      compu:   { lado: 1600, guia: 'Casi cuadrada — un poco más ancha que alta.' },
+      celular: { lado: 1200, guia: 'Apaisada 3:2.' },
+    },
   },
-  'editorial-1':         {
-    seccion: 'nota', lado: 900, donde: 'La nota — tira, primera',
-    guia: 'Cuadrada.',
+  'editorial-1': {
+    seccion: 'nota', donde: 'La nota — tira, primera',
+    pantallas: { todo: { lado: 900, guia: 'Cuadrada.' } },
   },
-  'editorial-2':         {
-    seccion: 'nota', lado: 900, donde: 'La nota — tira, segunda',
-    guia: 'Cuadrada.',
+  'editorial-2': {
+    seccion: 'nota', donde: 'La nota — tira, segunda',
+    pantallas: { todo: { lado: 900, guia: 'Cuadrada.' } },
   },
-  'editorial-3':         {
-    seccion: 'nota', lado: 900, donde: 'La nota — tira, tercera',
-    guia: 'Cuadrada.',
+  'editorial-3': {
+    seccion: 'nota', donde: 'La nota — tira, tercera',
+    pantallas: { todo: { lado: 900, guia: 'Cuadrada.' } },
   },
 };
+
+const PANTALLAS = ['compu', 'celular', 'todo'];
 
 /* ── LOS TEXTOS QUE SE PUEDEN CAMBIAR ─────────────────────────────
 
@@ -394,14 +405,20 @@ export default {
          ve exactamente como antes de que esto existiera. */
       if (ruta === '/api/medios' && metodo === 'GET') {
         const { results } = await env.DB
-          .prepare('SELECT slot, clave, clase FROM medios').all();
+          .prepare('SELECT slot, variante, clave, clase FROM medios').all();
+        /* Un objeto por lugar, con una entrada por pantalla cargada:
+
+             { 'collage-ciudad': { compu: {clave, clase},
+                                   celular: {clave, clase} } }
+
+           Va la clase además de la clave porque el fondo del collage
+           puede ser un video o una foto, y la página necesita saber cuál
+           para poner <video> o <img>. La clave viene completa —con
+           extensión— así que la dirección es `/fotos/` + clave. */
         const mapa = {};
-        /* Va la clase además de la clave: el fondo del collage puede ser
-           un video o una foto, y la página necesita saber cuál para
-           poner <video> o <img>. La clave ya viene completa —con
-           extensión— así que la dirección es `/fotos/` + clave y nada
-           más. */
-        for (const m of results) mapa[m.slot] = { clave: m.clave, clase: m.clase };
+        for (const m of results) {
+          (mapa[m.slot] ||= {})[m.variante] = { clave: m.clave, clase: m.clase };
+        }
         return json(mapa, 200, { 'cache-control': 'public, max-age=60' });
       }
 
@@ -724,8 +741,8 @@ async function admin(peticion, env, ruta, metodo) {
 
   if (ruta === '/api/admin/medios' && metodo === 'GET') {
     const { results } = await env.DB
-      .prepare('SELECT slot, clave, clase, editado FROM medios').all();
-    const puestas = new Map(results.map((m) => [m.slot, m]));
+      .prepare('SELECT slot, variante, clave, clase, editado FROM medios').all();
+    const puestas = new Map(results.map((m) => [`${m.slot}/${m.variante}`, m]));
     /* Van TODOS los lugares, tengan reemplazo o no: el panel necesita
        mostrar el lugar aunque siga con la foto original. Y van agrupados
        por sección y en el orden de la página, que es el único orden en
@@ -736,21 +753,32 @@ async function admin(peticion, env, ruta, metodo) {
         slots: Object.entries(SLOTS)
           .filter(([, v]) => v.seccion === s.clave)
           .map(([slot, v]) => ({
-            slot, donde: v.donde, guia: v.guia, lado: v.lado,
+            slot, donde: v.donde, extra: v.extra || null,
             admite: v.admite || ['imagen'],
-            clave: puestas.get(slot)?.clave || null,
-            clase: puestas.get(slot)?.clase || null,
-            editado: puestas.get(slot)?.editado || null,
+            /* Una entrada por pantalla, con su guía, su medida y lo que
+               haya cargado. El panel dibuja una tarjeta por cada una. */
+            pantallas: Object.entries(v.pantallas).map(([variante, d]) => {
+              const hay = puestas.get(`${slot}/${variante}`);
+              return {
+                variante, guia: d.guia, lado: d.lado,
+                clave: hay?.clave || null,
+                clase: hay?.clase || null,
+                editado: hay?.editado || null,
+              };
+            }),
           })),
       })),
     });
   }
 
-  const medio = ruta.match(/^\/api\/admin\/medios\/([a-z0-9-]+)$/);
+  const medio = ruta.match(/^\/api\/admin\/medios\/([a-z0-9-]+)\/([a-z]+)$/);
 
   if (medio && metodo === 'POST') {
-    const slot = medio[1];
+    const [, slot, variante] = medio;
     if (!SLOTS[slot]) return error('Ese lugar no existe', 404);
+    if (!PANTALLAS.includes(variante) || !SLOTS[slot].pantallas[variante]) {
+      return error('Ese lugar no tiene esa pantalla', 404);
+    }
 
     const form = await peticion.formData();
     const parte = form.get('imagen');
@@ -775,7 +803,7 @@ async function admin(peticion, env, ruta, metodo) {
        lugar que la usaba la completaba con `-1600.webp`; con videos de
        por medio eso deja de tener una respuesta única. Guardar la
        dirección entera saca esa regla repetida de encima. */
-    const clave = `medios/${slot}/${crypto.randomUUID()}.${EXTENSION[parte.type]}`;
+    const clave = `medios/${slot}/${variante}/${crypto.randomUUID()}.${EXTENSION[parte.type]}`;
     await env.FOTOS.put(clave, parte.stream(), {
       httpMetadata: { contentType: parte.type },
     });
@@ -783,15 +811,16 @@ async function admin(peticion, env, ruta, metodo) {
     /* La anterior se borra DESPUÉS de que la nueva quedó guardada y la
        fila apunta a ella. Al revés, si algo falla en el medio, el sitio
        queda pidiendo un archivo que ya no está. */
-    const antes = await env.DB.prepare('SELECT clave FROM medios WHERE slot = ?')
-      .bind(slot).first();
+    const antes = await env.DB
+      .prepare('SELECT clave FROM medios WHERE slot = ? AND variante = ?')
+      .bind(slot, variante).first();
 
     await env.DB.prepare(
-      `INSERT INTO medios (slot, clave, clase) VALUES (?, ?, ?)
-       ON CONFLICT(slot) DO UPDATE SET clave = excluded.clave,
-                                       clase = excluded.clase,
-                                       editado = datetime('now')`
-    ).bind(slot, clave, clase).run();
+      `INSERT INTO medios (slot, variante, clave, clase) VALUES (?, ?, ?, ?)
+       ON CONFLICT(slot, variante) DO UPDATE SET clave = excluded.clave,
+                                                 clase = excluded.clase,
+                                                 editado = datetime('now')`
+    ).bind(slot, variante, clave, clase).run();
 
     if (antes?.clave) await env.FOTOS.delete(antes.clave);
     return json({ clave, clase }, 201);
@@ -800,12 +829,14 @@ async function admin(peticion, env, ruta, metodo) {
   /* Volver a la original: se borra la fila y la página vuelve a usar la
      foto que trae escrita en el HTML. */
   if (medio && metodo === 'DELETE') {
-    const slot = medio[1];
-    const fila = await env.DB.prepare('SELECT clave FROM medios WHERE slot = ?')
-      .bind(slot).first();
+    const [, slot, variante] = medio;
+    const fila = await env.DB
+      .prepare('SELECT clave FROM medios WHERE slot = ? AND variante = ?')
+      .bind(slot, variante).first();
     if (!fila) return error('Ese lugar ya está con la original', 404);
 
-    await env.DB.prepare('DELETE FROM medios WHERE slot = ?').bind(slot).run();
+    await env.DB.prepare('DELETE FROM medios WHERE slot = ? AND variante = ?')
+      .bind(slot, variante).run();
     await env.FOTOS.delete(fila.clave);
     return json({ ok: true });
   }

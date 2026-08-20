@@ -112,6 +112,22 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 }
 
 /* ── las imágenes fijas ── */
+/* El par compu / celular. Son pastillas y no otra fila de pestañas a
+   proposito: las pestañas de arriba cambian de que se esta hablando
+   —autos, imagenes, textos— y estas cambian el punto de vista sobre lo
+   mismo. Dos filas de pestañas iguales se leerian como cuatro secciones
+   sueltas. */
+.pastillas{ display:flex; gap:.4rem; margin:0 0 2rem }
+.pastilla{
+  border:1px solid var(--linea); border-radius:100px; background:transparent;
+  color:var(--apagado); padding:.5em 1.2em; font-family:inherit; font-size:.56rem;
+  font-weight:600; letter-spacing:.14em; text-transform:uppercase; cursor:pointer;
+  transition:background .3s var(--ease), color .3s var(--ease), border-color .3s var(--ease);
+}
+.pastilla[aria-pressed="true"]{
+  background:var(--chrome); color:var(--void); border-color:var(--chrome);
+}
+
 .medios{ display:grid; gap:2.6rem }
 .grupo-titulo{
   font-family:var(--display); font-size:.72rem; font-weight:700;
@@ -148,6 +164,13 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   font-size:.68rem; line-height:1.5; color:var(--apagado);
 }
 .medio .mandos{ display:flex; gap:.4rem; margin-top:auto; padding-top:.35rem }
+/* El aviso de "esta es una sola para las dos". Va con el borde a la
+   izquierda y no en cursiva ni en otro color: es una advertencia sobre
+   el alcance de lo que estas por hacer, no una nota al pie. */
+.medio .compartida{
+  border-left:2px solid var(--linea); padding-left:.6rem;
+  font-size:.66rem; line-height:1.5; color:var(--apagado);
+}
 .medio .btn{ padding:.55em .9em; font-size:.5rem; flex:1 }
 .propia{
   position:absolute; left:.4rem; top:.4rem;
@@ -379,11 +402,17 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
     <section id="zonaMedios" class="oculto">
       <p class="aclara">
         Las fotos fijas de la página de inicio, en el orden en el que
-        aparecen. Se suben enteras y la página recorta lo que le sobra en
-        cada pantalla, así que entra cualquier formato — 16:9 incluido.
-        Debajo de cada una dice qué forma le queda mejor.
-        El fondo del collage además admite un video .mp4.
+        aparecen. Casi todas se ven con una forma distinta en la compu y
+        en el celular —el fondo del collage es apaisado en una y vertical
+        en la otra— así que cada pantalla lleva su propio archivo:
+        elegí cuál estás cambiando acá abajo. Debajo de cada una dice qué
+        forma le queda mejor. El video del collage además admite .mp4.
       </p>
+
+      <div class="pastillas" id="pantallas">
+        <button class="pastilla" type="button" data-pantalla="compu" aria-pressed="true">Computadora</button>
+        <button class="pastilla" type="button" data-pantalla="celular" aria-pressed="false">Celular</button>
+      </div>
       <div class="medios" id="medios"></div>
       <input type="file" id="archivoMedio" accept="image/*" hidden>
     </section>

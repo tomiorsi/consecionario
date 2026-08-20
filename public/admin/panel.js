@@ -630,17 +630,33 @@ zona.addEventListener('drop', (e) => {
 
 let secciones = [];
 
+/* QUÉ PANTALLA SE ESTÁ EDITANDO. Los lugares que cambian de forma entre
+   la compu y el celular llevan un archivo por cada una, y cambiar uno no
+   toca el otro. Los que se ven igual en las dos —la tira de tres de la
+   nota— llevan uno solo y aparecen en las dos listas, avisando que es
+   compartido. */
+let pantalla = 'compu';
+
 async function cargarMedios() {
   const r = await api('/api/admin/medios');
   secciones = r.secciones;
   pintarMedios();
 }
 
-/* Todos los lugares en una sola lista plana, para poder referirse a uno
-   por número desde el `data-i` del HTML sin llevar dos índices. */
+/* La pantalla que corresponde mostrar de un lugar: la propia si la
+   tiene, y si no la única que hay, que es la compartida. */
+const deLaPantalla = (s) =>
+  s.pantallas.find((p) => p.variante === pantalla) ||
+  s.pantallas.find((p) => p.variante === 'todo');
+
+/* Todos los lugares en una lista plana, para poder referirse a uno por
+   número desde el `data-i` del HTML sin llevar dos índices. */
 const planos = () => secciones.flatMap((s) => s.slots);
 
 function pintarMedios() {
+  $$('#pantallas .pastilla').forEach((b) =>
+    b.setAttribute('aria-pressed', String(b.dataset.pantalla === pantalla)));
+
   $('#medios').innerHTML = secciones.map((sec) => {
     let n = 0;
     const previas = secciones.slice(0, secciones.indexOf(sec))
@@ -648,22 +664,30 @@ function pintarMedios() {
 
     const piezas = sec.slots.map((s) => {
       const i = previas + n++;
-      const propia = !!s.clave;
-      const src = propia ? '/fotos/' + s.clave : rutaOriginal(s.slot);
+      const v = deLaPantalla(s);
+      const compartida = v.variante === 'todo';
+      const propia = !!v.clave;
+      const src = propia ? '/fotos/' + v.clave : rutaOriginal(s.slot, pantalla);
       /* Un video se muestra como video —muteado y en bucle, como se va a
          ver en la página— y no como un cuadro fijo: lo que hay que poder
          revisar acá es si el bucle cierra bien. */
-      const vista = propia && s.clase === 'video'
+      const vista = propia && v.clase === 'video'
         ? '<video src="' + src + '" muted loop autoplay playsinline></video>'
         : '<img src="' + src + '" alt="" loading="lazy">';
+
       return '<article class="medio" data-i="' + i + '">' +
         '<div class="marco">' +
-          (propia ? '<span class="propia">' + (s.clase === 'video' ? 'Video tuyo' : 'Tuya') + '</span>' : '') +
+          (propia ? '<span class="propia">' + (v.clase === 'video' ? 'Video tuyo' : 'Tuya') + '</span>' : '') +
           vista +
         '</div>' +
         '<div class="pieza">' +
           '<h3>' + escapar(s.donde) + '</h3>' +
-          '<p class="formato">' + escapar(s.guia) + '</p>' +
+          '<p class="formato">' + escapar(v.guia) +
+            (s.extra ? ' ' + escapar(s.extra) : '') + '</p>' +
+          (compartida
+            ? '<p class="compartida">Esta se ve igual en las dos pantallas, ' +
+              'así que es una sola: si la cambiás, cambia en las dos.</p>'
+            : '') +
           '<div class="mandos">' +
             '<button class="btn" data-cambiar type="button">Cambiar</button>' +
             (propia ? '<button class="btn btn--peligro" data-volver type="button">Volver a la original</button>' : '') +
@@ -685,18 +709,29 @@ function pintarMedios() {
   });
 }
 
+$$('#pantallas .pastilla').forEach((b) => b.addEventListener('click', () => {
+  pantalla = b.dataset.pantalla;
+  pintarMedios();
+}));
+
 /* Las fotos que trae el HTML. Están acá para poder mostrar en el panel
    cómo se ve el lugar cuando NO tiene reemplazo. Si alguna vez cambian
    en el HTML, hay que cambiarlas acá — es el único lugar donde esta
-   lista se repite, y por eso conviene que sea corta. */
-function rutaOriginal(slot) {
+   lista se repite, y por eso conviene que sea corta.
+
+   Varias tienen su versión de celular, que es justamente el motivo de
+   que este lugar lleve un archivo por pantalla. */
+function rutaOriginal(slot, cual) {
+  const chico = cual === 'celular';
   /* El fondo del collage es un video, así que su "original" es el
-     póster: en el panel alcanza para reconocer de qué pieza se trata y
-     no arranca una descarga de video por una miniatura. */
-  if (slot === 'collage-fondo')       return '/assets/collage/drive-poster.jpg';
-  if (slot === 'editorial-principal') return '/assets/collage/ciudad.webp';
-  if (slot === 'collage-interior')    return '/assets/collage/interior.webp';
-  if (slot === 'collage-ciudad')      return '/assets/collage/ciudad.webp';
+     póster: alcanza para reconocer de qué pieza se trata y no arranca
+     una descarga de video por una miniatura. */
+  if (slot === 'collage-fondo')
+    return '/assets/collage/drive' + (chico ? '-mobile' : '') + '-poster.jpg';
+  if (slot === 'collage-interior')
+    return '/assets/collage/interior' + (chico ? '-mobile' : '') + '.webp';
+  if (slot === 'collage-ciudad' || slot === 'editorial-principal')
+    return '/assets/collage/ciudad' + (chico ? '-mobile' : '') + '.webp';
   const ed = slot.match(/^editorial-(\d)$/);
   if (ed) return '/assets/social/ig-' + [null, 2, 5, 6][Number(ed[1])] + '.webp';
   return '';
@@ -719,6 +754,7 @@ $('#archivoMedio').addEventListener('change', async (e) => {
   if (!archivo || slotEnCurso === null) return;
 
   const s = planos()[slotEnCurso];
+  const v = deLaPantalla(s);
   const esVideo = archivo.type.startsWith('video/');
 
   if (esVideo && !s.admite.includes('video')) {
@@ -733,19 +769,13 @@ $('#archivoMedio').addEventListener('change', async (e) => {
   avisar(esVideo ? 'Subiendo el video…' : 'Preparando la imagen…');
   try {
     const cuerpo = new FormData();
-    /* ACHICAR, NO RECORTAR. Ver el comentario de SLOTS en el Worker:
-       ningún lugar tiene una sola forma —el fondo del collage es
-       apaisado en la compu y vertical en el celular— así que recortar
-       acá elegiría una de las dos y en la otra el `object-fit` recortaría
-       encima de lo ya recortado. Se sube entera y el CSS recorta en cada
-       pantalla sobre la foto completa. */
     /* EL VIDEO VA TAL CUAL. Achicarlo sería recodificarlo, y eso es
        ffmpeg: acá sólo hay un lienzo, que sabe de imágenes. Por eso el
        tope de tamaño lo marca el Worker y la guía del lugar avisa que
        tiene que ser corto. */
     if (esVideo) cuerpo.append('imagen', archivo, 'medio.mp4');
-    else cuerpo.append('imagen', await achicar(archivo, s.lado), 'medio.webp');
-    await api('/api/admin/medios/' + s.slot, { method: 'POST', body: cuerpo });
+    else cuerpo.append('imagen', await achicar(archivo, v.lado), 'medio.webp');
+    await api('/api/admin/medios/' + s.slot + '/' + v.variante, { method: 'POST', body: cuerpo });
     avisar('Listo — ya se ve en la página');
     await cargarMedios();
   } catch (err) {
@@ -755,9 +785,10 @@ $('#archivoMedio').addEventListener('change', async (e) => {
 
 async function volverOriginal(i) {
   const s = planos()[i];
-  if (!confirm('¿Volver a la foto original de "' + s.donde + '"?')) return;
+  const v = deLaPantalla(s);
+  if (!confirm('¿Volver a la original de "' + s.donde + '"?')) return;
   try {
-    await api('/api/admin/medios/' + s.slot, { method: 'DELETE' });
+    await api('/api/admin/medios/' + s.slot + '/' + v.variante, { method: 'DELETE' });
     avisar('Volvió a la original');
     await cargarMedios();
   } catch (err) { avisar(err.message, true); }

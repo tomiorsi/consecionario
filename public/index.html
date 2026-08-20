@@ -700,7 +700,24 @@ video::-webkit-media-controls{ display:none !important; }
   height:100%;
   overflow:hidden;
 }
-.edit-marco > img,
+/* LA CELDA DE LA FOTO GRANDE ES EL <picture>, NO EL <img>.
+
+   La foto grande está envuelta en un <picture> para poder tener una
+   versión de celular distinta (ver el marcado). Eso mete un elemento
+   entre la grilla y la imagen: el que ocupa la celda pasa a ser el
+   <picture>, y el <img> tiene que llenarlo a él.
+
+   `min-width:0` y `min-height:0` porque un hijo de grilla no baja de su
+   contenido por omisión, que es lo mismo que hacía desbordar a la tira
+   de tres. */
+.edit-marco > picture{
+  display:block;
+  min-width:0; min-height:0;
+  overflow:hidden;
+  border-radius:2px;
+  background:#0a0a0a;
+}
+.edit-marco > picture > img,
 .edit-tira img{
   display:block;
   width:100%;
@@ -1000,7 +1017,7 @@ video::-webkit-media-controls{ display:none !important; }
      dos bloques apilados. */
   .edit-foto{ aspect-ratio:auto; }
   .edit-marco{ grid-template-columns:1fr; gap:.45rem; }
-  .edit-marco > img{ aspect-ratio:3/2; }
+  .edit-marco > picture{ aspect-ratio:3/2; }
   .edit-tira{ flex-direction:row; height:auto; overflow:visible; }
   .edit-tira img{ flex:1 1 0; height:auto; aspect-ratio:1; }
 }
@@ -5345,8 +5362,18 @@ var UNIDAD = null;
     <article class="edit-nota">
       <figure class="edit-foto">
         <div class="edit-marco">
-          <img data-medio="editorial-principal" src="assets/collage/ciudad.webp" alt=""
-               loading="lazy" decoding="async" width="1200" height="800">
+          <!-- EN <picture> AUNQUE HOY TENGA UNA SOLA FUENTE. Este lugar
+               se ve casi cuadrado en la compu y apaisado 3:2 en el
+               celular, así que desde el panel se le puede cargar un
+               archivo por pantalla. Con <picture> alrededor, esa segunda
+               fuente la elige el navegador —y la reevalúa solo si giran
+               el teléfono—; sin él habría que decidirlo por JavaScript
+               mirando el ancho de ese momento, y quedaría la foto
+               equivocada al primer giro. -->
+          <picture>
+            <img data-medio="editorial-principal" src="assets/collage/ciudad.webp" alt=""
+                 loading="lazy" decoding="async" width="1200" height="800">
+          </picture>
           <div class="edit-tira">
             <img data-medio="editorial-1" src="assets/social/ig-2.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
             <img data-medio="editorial-2" src="assets/social/ig-5.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
@@ -5597,18 +5624,68 @@ var UNIDAD = null;
   fetch('/api/medios')
     .then(function(r){ return r.ok ? r.json() : {}; })
     .then(function(mapa){
+      /* CADA PANTALLA CON SU ARCHIVO.
+
+         Casi todos estos lugares se ven con una forma distinta en la
+         compu y en el celular —el fondo del collage es 16:9 apaisado en
+         una y 4:5 vertical en la otra— así que cada uno puede tener dos
+         archivos cargados. `todo` es para los que se ven igual en las
+         dos y llevan uno solo.
+
+         SI FALTA UNO, VALE EL OTRO. Nadie está obligado a subir los dos
+         para cambiar un lugar: si sólo hay el de la compu, ese se usa
+         también en el celular. Es peor un hueco que un recorte. */
+      function elegir(puesto, chico){
+        if (!puesto) return null;
+        return puesto[chico ? 'celular' : 'compu']
+            || puesto.todo
+            || puesto[chico ? 'compu' : 'celular']
+            || null;
+      }
+
+      /* El mismo corte que usa el CSS de la página. */
+      var CHICO = '(max-width:767px)';
+      var esChico = matchMedia(CHICO).matches;
+
       lugares.forEach(function(img){
         var puesto = mapa[img.dataset.medio];
         if (!puesto) return;
-        /* El <picture> del collage manda sobre el <img>: si queda su
-           <source>, el navegador sigue usando el archivo viejo en las
-           pantallas que le tocan. Se sacan para que valga el src nuevo. */
+
         var padre = img.parentElement;
-        if (padre && padre.tagName === 'PICTURE'){
-          padre.querySelectorAll('source').forEach(function(s){ s.remove(); });
+        var enPicture = padre && padre.tagName === 'PICTURE';
+
+        var paraCompu = puesto.compu || puesto.todo;
+        var paraCel   = puesto.celular || puesto.todo;
+
+        /* CON <picture> SE RESUELVE SIN JAVASCRIPT DE POR MEDIO: se le
+           deja a cada <source> su archivo y decide el navegador, que
+           además reevalúa solo si la ventana cambia de tamaño. Meter
+           mano al `src` según lo que mida la ventana AHORA dejaría la
+           foto equivocada apenas alguien gira el teléfono. */
+        if (enPicture) {
+          var fuente = padre.querySelector('source[media]');
+          if (paraCel) {
+            if (!fuente) {
+              fuente = document.createElement('source');
+              fuente.media = CHICO;
+              padre.insertBefore(fuente, img);
+            }
+            fuente.srcset = '/fotos/' + paraCel.clave;
+          } else if (fuente) {
+            /* Sin versión propia de celular, la de la compu tiene que
+               valer para las dos: si quedara el <source> original, el
+               teléfono seguiría mostrando la foto vieja. */
+            fuente.remove();
+          }
+          if (paraCompu) img.src = '/fotos/' + paraCompu.clave;
+          img.removeAttribute('srcset');
+          return;
         }
-        img.src = '/fotos/' + puesto.clave;
-        img.removeAttribute('srcset');
+
+        /* Sin <picture> alrededor —la tira de tres de la nota— hay un
+           solo archivo por lugar, así que no hay nada que elegir. */
+        var uno = elegir(puesto, esChico);
+        if (uno) { img.src = '/fotos/' + uno.clave; img.removeAttribute('srcset'); }
       });
 
       /* EL FONDO DEL COLLAGE ES EL ÚNICO QUE PUEDE CAMBIAR DE ETIQUETA.
@@ -5618,12 +5695,17 @@ var UNIDAD = null;
          alcanza con cambiarle la dirección: hay que reemplazar el
          elemento.
 
+         Acá sí se decide por el ancho de ahora y no con <picture>,
+         porque <video> no tiene forma de elegir por medida: el atributo
+         `media` en sus <source> lo ignoran casi todos los navegadores.
+         Es el mismo criterio que ya usaba el script del collage para
+         elegir entre su archivo de escritorio y el de celular.
+
          Cuando sigue siendo video se le deja anotada la fuente en un
-         atributo en vez de tocarlo: el script del collage ya está
-         corriendo, con su observador y su criterio de cuándo pedir el
-         archivo, y manejarlo desde acá sería tener dos dueños del mismo
-         video. */
-      var fondo = mapa['collage-fondo'];
+         atributo en vez de tocarlo: ese script ya está corriendo, con su
+         observador y su criterio de cuándo pedir el archivo, y manejarlo
+         desde acá sería tener dos dueños del mismo video. */
+      var fondo = elegir(mapa['collage-fondo'], esChico);
       if (fondo) {
         var caja = document.querySelector('#collage .col-video');
         var vid = document.getElementById('colVid');
