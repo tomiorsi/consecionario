@@ -4009,6 +4009,43 @@ window.TURNO = (function(){
   aplicar(0);
   pintar();
 
+  /* EL CUERPO SE MIDE, Y LA FUENTE LLEGA DESPUES QUE EL SCRIPT.
+     ────────────────────────────────────────────────────────────────
+
+     ajustarMarca() calcula el tamano midiendo cuanto ocupa el nombre.
+     Pero Northwell se pide por red y va con `font-display:swap`, asi que
+     en la primera visita el script mide el nombre escrito con la fuente
+     DE RESPALDO —Snell Roundhand o Brush Script— y guarda ese numero.
+     Despues llega Northwell, se cambia sola, y el tamano se queda en el
+     que se habia calculado para otra letra.
+
+     NO ES UN DETALLE: medido sobre esta pagina, el respaldo es entre 34%
+     y 54% mas ancho que Northwell con el mismo cuerpo. Como el tamano
+     sale de dividir por ese ancho, el nombre termina asi:
+
+       en la compu (1167 px)   Linea Evolution   25% mas chico
+       en el celular (324 px)  los cuatro        entre 14% y 33%,
+                                                 y cada uno distinto
+
+     En la compu los otros tres se salvan porque el tope de tamano los
+     recorta antes; en el celular no se salva ninguno, y como el error es
+     distinto para cada nombre, se ven de tamanos que no coinciden al
+     pasar de uno a otro.
+
+     Y NO LE PASA A TODO EL MUNDO, que es lo que lo hace dificil de ver:
+     con la fuente ya en la cache del navegador esta lista antes de que
+     corra el script y la cuenta sale bien. Falla en la primera visita, o
+     con la red lenta — o sea, justo a quien entra por primera vez.
+
+     La misma espera ya la hace la portada mas abajo, por lo mismo. */
+  if (document.fonts){
+    /* Se pide explicitamente y no se espera a que el navegador la
+       descubra: `fonts.ready` promete que termino lo que estaba en
+       curso, no que arranco lo que todavia nadie pidio. */
+    if (document.fonts.load) document.fonts.load('1em "Northwell"').catch(function(){});
+    if (document.fonts.ready) document.fonts.ready.then(ajustarMarca);
+  }
+
   /* Al cambiar la ventana cambian las dos cosas de las que depende el
      anillo: las medidas del escenario y, si se cruza el corte de
      celular, las variables mismas. Se rehace la cuenta y se vuelve a
