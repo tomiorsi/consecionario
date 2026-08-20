@@ -165,6 +165,23 @@ addEventListener('resize', medirBarra);
 addEventListener('load', medirBarra);
 medirBarra();
 
+/* EL VIDRIO APARECE AL BAJAR. Mismo umbral que la home (24 px) para que
+   las dos páginas se sientan la misma. Sólo se escribe cuando el estado
+   CAMBIA, así el listener no toca el DOM en cada píxel de scroll. */
+(() => {
+  const barra = document.querySelector('.barra');
+  if (!barra) return;
+  let puesto = null;
+  const mirar = () => {
+    const si = scrollY > 24;
+    if (si === puesto) return;
+    puesto = si;
+    barra.classList.toggle('con-vidrio', si);
+  };
+  addEventListener('scroll', mirar, { passive: true });
+  mirar();
+})();
+
 /* ── arranque ────────────────────────────────────────────────────── */
 
 (async () => {

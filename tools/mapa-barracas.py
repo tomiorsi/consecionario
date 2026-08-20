@@ -26,7 +26,12 @@ Uso:  mapa-barracas.py <salida.svg> <volcado-overpass.json> [radio_m] [tam_texto
 """
 import json, math, sys, unicodedata
 
-LAT, LON = -34.640808, -58.378815    # Pasaje Lanin 154
+LAT, LON = -34.640427, -58.379223    # Pasaje Lanin 154
+# La coordenada la dio el negocio leyendola del propio Google Maps.
+# ANTES SE INTERPOLABA ENTRE LOS NUMEROS DE PUERTA DE OSM (152 y 200) y
+# daba -34.640808, -58.378815: la misma calle, pero unos 50 m al sudeste.
+# La interpolacion supone que las puertas estan repartidas parejo sobre
+# el tramo, y en un pasaje corto y torcido como este no lo estan.
 LADO     = 1000                      # lado del SVG en unidades
 
 RADIO_M  = float(sys.argv[3]) if len(sys.argv) > 3 else 340
