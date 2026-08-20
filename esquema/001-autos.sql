@@ -35,8 +35,9 @@ CREATE TABLE IF NOT EXISTS autos (
   -- `vendido` lo saca de la lista sin perder la ficha ni las fotos.
   estado       TEXT    NOT NULL DEFAULT 'borrador'
                        CHECK (estado IN ('borrador','publicado','vendido')),
-  -- Para poder fijar uno arriba de todo sin depender de la fecha.
-  destacado    INTEGER NOT NULL DEFAULT 0,
+  -- El orden lo pone la persona arrastrando la lista en el panel. Ver
+  -- 004-orden.sql: reemplazó a un `destacado` de si/no.
+  orden        INTEGER NOT NULL DEFAULT 0,
 
   creado       TEXT    NOT NULL DEFAULT (datetime('now')),
   editado      TEXT    NOT NULL DEFAULT (datetime('now'))
@@ -45,7 +46,7 @@ CREATE TABLE IF NOT EXISTS autos (
 -- El listado publico siempre filtra por estado y ordena por estos dos
 -- campos; sin el indice, cada visita recorre la tabla entera.
 CREATE INDEX IF NOT EXISTS autos_publicados
-  ON autos (estado, destacado DESC, creado DESC);
+  ON autos (estado, orden, creado DESC);
 
 CREATE INDEX IF NOT EXISTS autos_por_grupo
   ON autos (grupo, estado);

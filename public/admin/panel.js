@@ -23,6 +23,12 @@ let autos = [];
 let actual = null;          /* el auto abierto en la ficha */
 let filtro = 'todos';
 
+/* MODO ORDENAR. Mientras está prendido la grilla no abre fichas: se
+   arrastra. Se guarda aparte el orden con el que se entró para poder
+   cancelar sin recargar. */
+let ordenando = false;
+let ordenAntes = null;
+
 /* LAS FOTOS DE UN AUTO QUE TODAVIA NO EXISTE.
 
    Una foto se guarda contra el id de su auto, asi que hasta que el auto
@@ -147,9 +153,107 @@ function pintarLista() {
       '</div></article>';
   }).join('');
 
-  $$('#grilla .ficha').forEach((f) => f.addEventListener('click', () =>
-    abrir(autos.find((a) => a.id === Number(f.dataset.id)))));
+  $('#grilla').classList.toggle('ordenando', ordenando);
+
+  $$('#grilla .ficha').forEach((f, i) => {
+    if (!ordenando) {
+      f.addEventListener('click', () => abrir(autos.find((a) => a.id === Number(f.dataset.id))));
+      return;
+    }
+    /* EL TEMBLOR SE DESFASA POR TARJETA. Con todas en el mismo momento
+       de la animación se ve una sola cosa moviéndose en bloque, que es
+       justo lo contrario de lo que el temblor quiere decir. */
+    f.style.animationDelay = (-(i % 4) * 0.13).toFixed(2) + 's';
+    f.draggable = true;
+    arrastrarFicha(f, i);
+  });
 }
+
+/* ── ORDENAR ARRASTRANDO ────────────────────────────────────────────
+
+   Igual que las fotos de una ficha, pero sobre la lista de autos y con
+   un modo aparte: la grilla de autos ya usa el clic para abrir, así que
+   si fuera siempre arrastrable no habría forma de distinguir un clic de
+   un arrastre corto.
+
+   SE REORDENA `autos` COMPLETO, aunque en pantalla haya un filtro.
+   `lista` son los autos visibles; moverlos entre sí es permutar los
+   lugares que ocupan dentro del arreglo grande, y los que no se ven no
+   se mueven. Así reordenar "Alta gama" no le cambia el lugar a nada del
+   resto — es la misma regla que aplica el Worker al guardar. */
+function visibles() {
+  return filtro === 'todos' ? autos : autos.filter((a) => a.grupo === filtro);
+}
+
+let fichaDesde = null;
+
+function arrastrarFicha(el, i) {
+  el.addEventListener('dragstart', (e) => {
+    fichaDesde = i;
+    el.classList.add('viajando');
+    e.dataTransfer.effectAllowed = 'move';
+    /* Firefox no arranca el arrastre si no se escribe algo acá. */
+    e.dataTransfer.setData('text/plain', String(i));
+  });
+  el.addEventListener('dragend', () => {
+    fichaDesde = null;
+    $$('#grilla .ficha').forEach((o) => o.classList.remove('viajando', 'destino'));
+  });
+  el.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (fichaDesde !== null && fichaDesde !== i) el.classList.add('destino');
+  });
+  el.addEventListener('dragleave', () => el.classList.remove('destino'));
+  el.addEventListener('drop', (e) => {
+    e.preventDefault();
+    el.classList.remove('destino');
+    if (fichaDesde === null || fichaDesde === i) return;
+
+    const lista = visibles();
+    /* Los lugares que este subconjunto ocupa dentro de `autos`. */
+    const puestos = lista.map((a) => autos.indexOf(a));
+    const movido = lista.splice(fichaDesde, 1)[0];
+    lista.splice(i, 0, movido);
+    puestos.forEach((puesto, k) => { autos[puesto] = lista[k]; });
+
+    pintarLista();
+  });
+}
+
+function verOrdenando(prende) {
+  ordenando = prende;
+  if (prende) ordenAntes = autos.slice();
+  $('#ordenar').classList.toggle('oculto', prende);
+  $('#guardarOrden').classList.toggle('oculto', !prende);
+  $('#cancelarOrden').classList.toggle('oculto', !prende);
+  $('#nuevo').classList.toggle('oculto', prende);
+  pintarLista();
+}
+
+$('#ordenar').addEventListener('click', () => verOrdenando(true));
+
+$('#cancelarOrden').addEventListener('click', () => {
+  if (ordenAntes) autos = ordenAntes;
+  ordenAntes = null;
+  verOrdenando(false);
+});
+
+$('#guardarOrden').addEventListener('click', async () => {
+  /* SE MANDAN SÓLO LOS VISIBLES. Si hay un filtro puesto, el orden que
+     alguien acaba de armar es el de ese grupo; mandar la lista entera
+     haría que el Worker reescriba también los que no se tocaron. */
+  const ids = visibles().map((a) => a.id);
+  try {
+    await api('/api/admin/autos/orden', {
+      method: 'PUT',
+      body: JSON.stringify({ ids }),
+    });
+    ordenAntes = null;
+    verOrdenando(false);
+    avisar('Orden guardado');
+    await cargar();
+  } catch (err) { avisar(err.message, true); }
+});
 
 /* ── la ficha ───────────────────────────────────────────────────── */
 
@@ -194,7 +298,6 @@ $('#guardar').addEventListener('click', async () => {
   if (!f.reportValidity()) return;
 
   const datos = Object.fromEntries(new FormData(f));
-  datos.destacado = f.elements.destacado.checked;
   /* Un precio vacío no es cero: es "a consultar". El campo vacío llega
      como cadena vacía y el servidor lo pasa a NULL; `sinPrecio` le avisa
      que eso es a propósito y no un olvido. */
@@ -261,11 +364,9 @@ function pintarFotos() {
         '<span class="giro"></span>' +
         '<span class="archivo">' + escapar(f.nombre) + '</span></div>';
     }
-    return '<div class="miniatura' + (f.enEspera ? ' enEspera' : '') +
-        '" draggable="true" data-i="' + i + '">' +
+    return '<div class="miniatura" draggable="true" data-i="' + i + '">' +
       '<img src="' + (f.enEspera ? f.vista : '/fotos/' + f.clave + '-640.webp') + '" alt="">' +
       (i === 0 ? '<span class="portada">Portada</span>' : '') +
-      (f.enEspera ? '<span class="esperando">Sin subir</span>' : '') +
       '<div class="mandos"><button class="mini-btn" data-quitar title="Quitar">&#215;</button></div>' +
     '</div>';
   }).join('') +
@@ -548,11 +649,17 @@ function pintarMedios() {
     const piezas = sec.slots.map((s) => {
       const i = previas + n++;
       const propia = !!s.clave;
-      const src = propia ? '/fotos/' + s.clave + '-1600.webp' : rutaOriginal(s.slot);
+      const src = propia ? '/fotos/' + s.clave : rutaOriginal(s.slot);
+      /* Un video se muestra como video —muteado y en bucle, como se va a
+         ver en la página— y no como un cuadro fijo: lo que hay que poder
+         revisar acá es si el bucle cierra bien. */
+      const vista = propia && s.clase === 'video'
+        ? '<video src="' + src + '" muted loop autoplay playsinline></video>'
+        : '<img src="' + src + '" alt="" loading="lazy">';
       return '<article class="medio" data-i="' + i + '">' +
         '<div class="marco">' +
-          (propia ? '<span class="propia">Tuya</span>' : '') +
-          '<img src="' + src + '" alt="" loading="lazy">' +
+          (propia ? '<span class="propia">' + (s.clase === 'video' ? 'Video tuyo' : 'Tuya') + '</span>' : '') +
+          vista +
         '</div>' +
         '<div class="pieza">' +
           '<h3>' + escapar(s.donde) + '</h3>' +
@@ -583,6 +690,10 @@ function pintarMedios() {
    en el HTML, hay que cambiarlas acá — es el único lugar donde esta
    lista se repite, y por eso conviene que sea corta. */
 function rutaOriginal(slot) {
+  /* El fondo del collage es un video, así que su "original" es el
+     póster: en el panel alcanza para reconocer de qué pieza se trata y
+     no arranca una descarga de video por una miniatura. */
+  if (slot === 'collage-fondo')       return '/assets/collage/drive-poster.jpg';
   if (slot === 'editorial-principal') return '/assets/collage/ciudad.webp';
   if (slot === 'collage-interior')    return '/assets/collage/interior.webp';
   if (slot === 'collage-ciudad')      return '/assets/collage/ciudad.webp';
@@ -595,6 +706,10 @@ let slotEnCurso = null;
 
 function pedirImagen(i) {
   slotEnCurso = i;
+  const s = planos()[i];
+  /* El selector de archivos filtra por lo que el lugar admite, así no
+     hay que rechazar después de que alguien ya eligió. */
+  $('#archivoMedio').accept = s.admite.includes('video') ? 'image/*,video/mp4' : 'image/*';
   $('#archivoMedio').click();
 }
 
@@ -604,7 +719,18 @@ $('#archivoMedio').addEventListener('change', async (e) => {
   if (!archivo || slotEnCurso === null) return;
 
   const s = planos()[slotEnCurso];
-  avisar('Preparando la imagen…');
+  const esVideo = archivo.type.startsWith('video/');
+
+  if (esVideo && !s.admite.includes('video')) {
+    avisar('Ese lugar es sólo para fotos', true);
+    return;
+  }
+  if (esVideo && archivo.type !== 'video/mp4') {
+    avisar('El video tiene que ser .mp4 — es el único que reproducen todos los navegadores', true);
+    return;
+  }
+
+  avisar(esVideo ? 'Subiendo el video…' : 'Preparando la imagen…');
   try {
     const cuerpo = new FormData();
     /* ACHICAR, NO RECORTAR. Ver el comentario de SLOTS en el Worker:
@@ -613,7 +739,12 @@ $('#archivoMedio').addEventListener('change', async (e) => {
        acá elegiría una de las dos y en la otra el `object-fit` recortaría
        encima de lo ya recortado. Se sube entera y el CSS recorta en cada
        pantalla sobre la foto completa. */
-    cuerpo.append('imagen', await achicar(archivo, s.lado), 'medio.webp');
+    /* EL VIDEO VA TAL CUAL. Achicarlo sería recodificarlo, y eso es
+       ffmpeg: acá sólo hay un lienzo, que sabe de imágenes. Por eso el
+       tope de tamaño lo marca el Worker y la guía del lugar avisa que
+       tiene que ser corto. */
+    if (esVideo) cuerpo.append('imagen', archivo, 'medio.mp4');
+    else cuerpo.append('imagen', await achicar(archivo, s.lado), 'medio.webp');
     await api('/api/admin/medios/' + s.slot, { method: 'POST', body: cuerpo });
     avisar('Listo — ya se ve en la página');
     await cargarMedios();
@@ -722,7 +853,10 @@ function verPestania(cual) {
 
   $('#filtros').classList.toggle('oculto', !autos);
   $('#grilla').classList.toggle('oculto', !autos);
-  $('#nuevo').classList.toggle('oculto', !autos);
+  $('#nuevo').classList.toggle('oculto', !autos || ordenando);
+  $('#ordenar').classList.toggle('oculto', !autos || ordenando);
+  $('#guardarOrden').classList.toggle('oculto', !autos || !ordenando);
+  $('#cancelarOrden').classList.toggle('oculto', !autos || !ordenando);
   $('#zonaMedios').classList.toggle('oculto', cual !== 'medios');
   $('#zonaTextos').classList.toggle('oculto', cual !== 'textos');
   $('#sinAutos').classList.add('oculto');

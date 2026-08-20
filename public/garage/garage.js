@@ -72,7 +72,7 @@ function pintarGrilla() {
       .filter(Boolean).join(' · ');
 
     return '<article class="auto" data-id="' + a.id + '" role="button" tabindex="0">' +
-      '<div class="lente">' + (a.destacado ? '<span class="cinta">Destacado</span>' : '') + foto + '</div>' +
+      '<div class="lente">' + foto + '</div>' +
       '<div class="cuerpo">' +
         '<h2>' + escapar(a.marca) + ' ' + escapar(a.modelo) + '</h2>' +
         (ficha ? '<span class="ficha">' + escapar(ficha) + '</span>' : '') +
@@ -103,17 +103,40 @@ function abrir(a) {
     ['Línea', GRUPOS[a.grupo]], ['Precio', precioDe(a)],
   ].filter(([, v]) => v !== null && v !== undefined && v !== '');
 
+  /* EL CERRAR VA ADENTRO DE LA FOTO, arriba a la derecha.
+
+     Estaba suelto arriba del todo, como un botón solo en una franja
+     vacía: ocupaba una banda entera de la pantalla para algo del tamaño
+     de una moneda. Puesto sobre la foto no ocupa nada — la foto ya
+     estaba ahí— y sigue siendo lo primero que se ve arriba a la derecha,
+     que es donde se lo busca. */
+  const cruz = '<button class="cerrar" type="button" id="cerrar" aria-label="Cerrar">' +
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" ' +
+    'stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>';
+
+  const flechas = a.fotos.length > 1
+    ? '<button class="paso paso--antes" type="button" data-paso="-1" aria-label="Foto anterior">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" ' +
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg></button>' +
+      '<button class="paso paso--luego" type="button" data-paso="1" aria-label="Foto siguiente">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" ' +
+        'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg></button>'
+    : '';
+
   const galeria = a.fotos.length
     ? '<div class="lado-foto">' +
-        '<div class="grande"><img id="fotoGrande" src="/fotos/' + a.fotos[0].clave +
-          '-1600.webp" alt="' + escapar(a.marca + ' ' + a.modelo) + '"></div>' +
+        '<div class="grande">' +
+          '<img id="fotoGrande" src="/fotos/' + a.fotos[0].clave +
+            '-1600.webp" alt="' + escapar(a.marca + ' ' + a.modelo) + '">' +
+          flechas + cruz +
+        '</div>' +
         (a.fotos.length > 1
           ? '<div class="tiras">' + a.fotos.map((f, i) =>
               '<img src="/fotos/' + f.clave + '-640.webp" alt="" data-i="' + i +
               '" aria-current="' + (i === 0) + '">').join('') + '</div>'
           : '') +
       '</div>'
-    : '<div class="lado-foto"><div class="grande"></div></div>';
+    : '<div class="lado-foto"><div class="grande">' + cruz + '</div></div>';
 
   d.innerHTML = '<div class="caja">' +
     galeria +
@@ -130,22 +153,63 @@ function abrir(a) {
         : '') +
       '<a class="consultar" href="/#concierge">Consultar por esta unidad</a>' +
     '</div>' +
-    '</div>' +
-    '<button class="cerrar" type="button" id="cerrar">Cerrar</button>';
+    '</div>';
 
   d.hidden = false;
   document.body.style.overflow = 'hidden';
 
   $('#cerrar').addEventListener('click', cerrar);
-  d.querySelectorAll('.tiras img').forEach((t) => t.addEventListener('click', () => {
-    $('#fotoGrande').src = '/fotos/' + a.fotos[t.dataset.i].clave + '-1600.webp';
-    d.querySelectorAll('.tiras img').forEach((o) => o.setAttribute('aria-current', o === t));
-  }));
+
+  /* TODAS LAS FOTOS SE PIDEN AL ABRIR, no al tocarlas.
+
+     Antes cada foto se pedía recién cuando alguien la elegía: se cambiaba
+     el `src` y hasta que el archivo llegaba seguía viéndose la anterior.
+     Con una foto grande eso son varios segundos en los que parece que el
+     clic no hizo nada, y el reflejo es volver a tocar.
+
+     Pedirlas todas de una las deja en la cache del navegador, y el cambio
+     pasa a ser instantáneo. Son unas pocas por auto y ya se está viendo
+     la ficha: el momento de gastar esa red es justo este.
+
+     `decoding="async"` para que la decodificación no trabe el hilo
+     mientras alguien está mirando la primera. */
+  a.fotos.forEach((f) => {
+    const previa = new Image();
+    previa.decoding = 'async';
+    previa.src = '/fotos/' + f.clave + '-1600.webp';
+  });
+
+  let cual = 0;
+  const tiras = [].slice.call(d.querySelectorAll('.tiras img'));
+
+  function mostrar(i) {
+    if (!a.fotos.length) return;
+    /* Da la vuelta en los dos sentidos: con tres fotos, seguir para la
+       derecha desde la última tiene que traer la primera y no morir. */
+    cual = (i + a.fotos.length) % a.fotos.length;
+    $('#fotoGrande').src = '/fotos/' + a.fotos[cual].clave + '-1600.webp';
+    tiras.forEach((o, k) => o.setAttribute('aria-current', String(k === cual)));
+  }
+
+  tiras.forEach((t) => t.addEventListener('click', () => mostrar(Number(t.dataset.i))));
+  d.querySelectorAll('.paso').forEach((b) => b.addEventListener('click', () =>
+    mostrar(cual + Number(b.dataset.paso))));
+
+  pasoTeclado = (e) => {
+    if (e.key === 'ArrowRight') mostrar(cual + 1);
+    else if (e.key === 'ArrowLeft') mostrar(cual - 1);
+  };
+  addEventListener('keydown', pasoTeclado);
 }
+
+/* Se guarda para poder sacarlo al cerrar: si no, cada apertura deja otro
+   oyente colgado sobre un detalle que ya no existe. */
+let pasoTeclado = null;
 
 function cerrar() {
   $('#detalle').hidden = true;
   document.body.style.overflow = '';
+  if (pasoTeclado) { removeEventListener('keydown', pasoTeclado); pasoTeclado = null; }
 }
 
 addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrar(); });

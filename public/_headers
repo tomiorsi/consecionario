@@ -31,6 +31,16 @@
   Cache-Control: no-cache
   CDN-Cache-Control: no-store
 
+# El garage, con el mismo criterio que la home: es la que reparte las
+# direcciones de las fotos de los autos y la que enlaza /pie.css.
+/garage/
+  Cache-Control: no-cache
+  CDN-Cache-Control: no-store
+
+/garage/index.html
+  Cache-Control: no-cache
+  CDN-Cache-Control: no-store
+
 /assets/cars/*
   Cache-Control: public, max-age=31536000, immutable
 

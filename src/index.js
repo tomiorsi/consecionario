@@ -42,9 +42,9 @@ const SECCIONES = [
   {
     clave: 'collage',
     titulo: 'El collage',
-    nota: 'Son dos fotos que se mueven con el scroll — y atrás de ellas '
-        + 'hay un video, que no se cambia desde acá porque hay que '
-        + 'convertirlo a tres formatos distintos.',
+    nota: 'Un video y dos fotos que se mueven con el scroll. Las tres '
+        + 'piezas se cambian desde acá; el video acepta .mp4 y también '
+        + 'se lo puede reemplazar por una foto.',
   },
   {
     clave: 'nota',
@@ -80,13 +80,24 @@ const SECCIONES = [
 
    `ancho` es el lado más largo que se guarda. */
 const SLOTS = {
+  'collage-fondo':       {
+    seccion: 'collage', lado: 2000, donde: 'Collage — el video (arriba a la izquierda)',
+    /* EL ÚNICO QUE ADMITE VIDEO. Los demás son fotos y punto: si un
+       lugar acepta las dos cosas hay que decidirlo en la página cada
+       vez, y no hay ninguna otra sección donde eso sirva. */
+    admite: ['video', 'imagen'],
+    guia: 'Video .mp4 o foto. Se ve 16:9 apaisado en la compu y casi '
+        + 'vertical (4:5) en el celular, así que dejá lo importante al '
+        + 'centro. El video va sin sonido, de pocos segundos, y conviene '
+        + 'que el final se parezca al principio porque se repite en bucle.',
+  },
   'collage-ciudad':      {
-    seccion: 'collage', lado: 2000, donde: 'Collage — el fondo',
+    seccion: 'collage', lado: 2000, donde: 'Collage — la ciudad (abajo)',
     guia: 'Apaisada en la compu y VERTICAL en el celular. Dejale aire '
         + 'arriba y abajo para que el recorte vertical no corte nada.',
   },
   'collage-interior':    {
-    seccion: 'collage', lado: 1600, donde: 'Collage — el interior',
+    seccion: 'collage', lado: 1600, donde: 'Collage — el interior (a la derecha)',
     guia: 'Apaisada 4:3. En el celular se recorta a cuadrada.',
   },
   'editorial-principal': {
@@ -133,6 +144,35 @@ const TEXTOS = {
     donde: 'La nota — bajada',
     pista: 'La frase que va abajo del titular.',
   },
+};
+
+/* ── QUÉ SE PUEDE SUBIR ───────────────────────────────────────────
+
+   Lista blanca de tipos, no de extensiones: la extensión la elige quien
+   sube el archivo y no dice nada de lo que hay adentro.
+
+   EL VIDEO SE GUARDA TAL CUAL LLEGA. El panel no puede convertirlo —eso
+   es ffmpeg y acá no hay— así que lo que se sube es lo que se sirve. Por
+   eso sólo se admite MP4: es el único formato que reproducen todos los
+   navegadores sin pedir nada más. Un .mov o un .webm andarían en algunas
+   máquinas y en otras no, que es peor que rechazarlo de entrada.
+
+   EL LÍMITE DEL VIDEO ES ALTO PERO NO INFINITO. Son 40 MB: alcanza de
+   sobra para los pocos segundos que dura el fondo del collage, y frena
+   que alguien suba sin querer una filmación de diez minutos que después
+   tendría que bajarse cada visita. */
+const TIPOS = {
+  imagen: { mimes: ['image/webp', 'image/jpeg', 'image/png'], tope: 3 * 1024 * 1024 },
+  video:  { mimes: ['video/mp4'],                             tope: 40 * 1024 * 1024 },
+};
+
+const claseDe = (mime) =>
+  TIPOS.video.mimes.includes(mime) ? 'video'
+  : TIPOS.imagen.mimes.includes(mime) ? 'imagen'
+  : null;
+
+const EXTENSION = {
+  'image/webp': 'webp', 'image/jpeg': 'jpg', 'image/png': 'png', 'video/mp4': 'mp4',
 };
 
 /* ── respuestas ──────────────────────────────────────────────────── */
@@ -242,11 +282,59 @@ export default {
       if (ruta.startsWith('/fotos/')) {
         if (metodo !== 'GET' && metodo !== 'HEAD') return error('Método no permitido', 405);
         const clave = decodeURIComponent(ruta.slice('/fotos/'.length));
+
+        /* PEDIDOS POR TRAMO, Y NO ES UN LUJO: SIN ESTO SAFARI NO
+           REPRODUCE.
+
+           Para una imagen da igual, se manda entera. Para un <video>
+           no: Safari abre pidiendo `Range: bytes=0-1` y si le contestan
+           200 con el archivo completo, en vez de 206 con el tramo, da
+           el video por no reproducible y no vuelve a intentar. Chrome
+           lo tolera, y por eso es la clase de cosa que funciona en la
+           máquina del que la programó.
+
+           R2 lee tramos de una, así que el Worker no baja el archivo
+           entero para recortar dos bytes. */
+        const tramo = peticion.headers.get('range');
+        const pedido = tramo && /^bytes=(\d*)-(\d*)$/.exec(tramo.trim());
+
+        if (pedido) {
+          const desde = pedido[1] === '' ? undefined : Number(pedido[1]);
+          const hasta = pedido[2] === '' ? undefined : Number(pedido[2]);
+          /* Los dos vacíos —"bytes=-"— no piden nada; se sirve entero. */
+          const rango = desde === undefined
+            ? (hasta === undefined ? null : { suffix: hasta })
+            : { offset: desde, ...(hasta === undefined ? {} : { length: hasta - desde + 1 }) };
+
+          if (rango) {
+            const parte = await env.FOTOS.get(clave, { range: rango });
+            if (!parte) return new Response('No está', { status: 404 });
+            const r = parte.range || {};
+            const arranca = r.offset ?? 0;
+            const largo = r.length ?? parte.size;
+            return new Response(parte.body, {
+              status: 206,
+              headers: {
+                'content-type': parte.httpMetadata?.contentType || 'application/octet-stream',
+                'content-range': `bytes ${arranca}-${arranca + largo - 1}/${parte.size}`,
+                'content-length': String(largo),
+                'accept-ranges': 'bytes',
+                'cache-control': 'public, max-age=31536000, immutable',
+                etag: parte.httpEtag,
+              },
+            });
+          }
+        }
+
         const obj = await env.FOTOS.get(clave);
         if (!obj) return new Response('No está', { status: 404 });
         return new Response(obj.body, {
           headers: {
             'content-type': obj.httpMetadata?.contentType || 'image/webp',
+            'content-length': String(obj.size),
+            /* Se anuncia siempre, aunque este pedido no traiga tramo: es
+               así como el navegador sabe que puede pedirlos. */
+            'accept-ranges': 'bytes',
             'cache-control': 'public, max-age=31536000, immutable',
             etag: obj.httpEtag,
           },
@@ -306,9 +394,14 @@ export default {
          ve exactamente como antes de que esto existiera. */
       if (ruta === '/api/medios' && metodo === 'GET') {
         const { results } = await env.DB
-          .prepare('SELECT slot, clave FROM medios').all();
+          .prepare('SELECT slot, clave, clase FROM medios').all();
         const mapa = {};
-        for (const m of results) mapa[m.slot] = m.clave;
+        /* Va la clase además de la clave: el fondo del collage puede ser
+           un video o una foto, y la página necesita saber cuál para
+           poner <video> o <img>. La clave ya viene completa —con
+           extensión— así que la dirección es `/fotos/` + clave y nada
+           más. */
+        for (const m of results) mapa[m.slot] = { clave: m.clave, clase: m.clase };
         return json(mapa, 200, { 'cache-control': 'public, max-age=60' });
       }
 
@@ -334,7 +427,7 @@ export default {
         const { results } = await env.DB.prepare(
           `SELECT * FROM autos
             WHERE estado = 'publicado' ${grupo ? 'AND grupo = ?' : ''}
-            ORDER BY destacado DESC, creado DESC`
+            ORDER BY orden, creado DESC`
         ).bind(...(grupo ? [grupo] : [])).all();
 
         return json({ autos: await conFotos(env, results) }, 200, {
@@ -388,7 +481,6 @@ const CAMPOS = {
   color:       (v) => texto(v, 40),
   descripcion: (v) => texto(v, 4000),
   estado:      (v) => (['borrador', 'publicado', 'vendido'].includes(v) ? v : 'borrador'),
-  destacado:   (v) => (v ? 1 : 0),
 };
 
 const texto = (v, max) => {
@@ -422,9 +514,67 @@ function limpiar(cuerpo) {
 async function admin(peticion, env, ruta, metodo) {
   /* ── el listado del panel: TODO, no sólo lo publicado ── */
   if (ruta === '/api/admin/autos' && metodo === 'GET') {
+    /* MISMO ORDEN QUE EL SITIO, y no por fecha de edición como antes.
+       El panel es donde se arrastra la lista para dejarla como se quiere
+       ver; si acá se mostrara en otro orden, arrastrar sería adivinar. */
     const { results } = await env.DB
-      .prepare('SELECT * FROM autos ORDER BY editado DESC').all();
+      .prepare('SELECT * FROM autos ORDER BY orden, creado DESC').all();
     return json({ autos: await conFotos(env, results) });
+  }
+
+  /* ── GUARDAR EL ORDEN ──────────────────────────────────────────
+
+     Llega la lista de ids TAL COMO QUEDÓ EN PANTALLA. Puede ser la lista
+     entera o la de un solo grupo.
+
+     SI ES UN GRUPO, SE PERMUTAN SÓLO SUS LUGARES. Se leen las posiciones
+     que esos autos ya ocupaban en la lista general, se ordenan, y se
+     reparten en el orden nuevo. Los autos que no vinieron no se mueven:
+     reordenar "Alta gama" no puede reacomodar el resto de la lista.
+
+     Se escribe con posiciones de 10 en 10 —0, 10, 20…— para que quede
+     lugar entre dos sin tener que renumerar todo. */
+  if (ruta === '/api/admin/autos/orden' && metodo === 'PUT') {
+    const cuerpo = await peticion.json().catch(() => null);
+    const ids = Array.isArray(cuerpo?.ids) ? cuerpo.ids.map(Number) : null;
+    if (!ids || !ids.length) return error('Falta la lista');
+    if (ids.some((n) => !Number.isInteger(n) || n <= 0)) return error('Lista inválida');
+    if (new Set(ids).size !== ids.length) return error('Hay ids repetidos');
+    if (ids.length > 500) return error('Son demasiados');
+
+    /* SE TRABAJA SOBRE LA LISTA ENTERA, aunque lleguen los de un grupo.
+
+       La clave es qué LUGARES ocupa el conjunto que llegó dentro de la
+       lista general. Reordenar "Alta gama" tiene que permutar los autos
+       entre esos lugares y no tocar ninguno más: si los tres de alta
+       gama están 1º, 4º y 6º, después de reordenar siguen estando 1º, 4º
+       y 6º — con otros autos adentro, pero en los mismos lugares. Lo que
+       hay en 2º, 3º y 5º no se entera. */
+    const { results: todos } = await env.DB
+      .prepare('SELECT id FROM autos ORDER BY orden, creado DESC').all();
+
+    const puestoDe = new Map(todos.map((a, i) => [a.id, i]));
+    if (ids.some((id) => !puestoDe.has(id))) return error('Algún auto no existe', 404);
+
+    /* Los lugares del conjunto, en el orden en que estaban. */
+    const lugares = ids.map((id) => puestoDe.get(id)).sort((a, b) => a - b);
+
+    const fila = todos.map((a) => a.id);
+    lugares.forEach((lugar, k) => { fila[lugar] = ids[k]; });
+
+    /* SE REESCRIBE TODO Y NO SÓLO LO QUE SE MOVIÓ.
+
+       Los autos ya cargados arrancan todos en 0 y entre ellos desempata
+       la fecha; mientras haya empates, "el lugar que ocupa" depende de
+       ese desempate y cualquier cuenta sobre los números viejos se
+       ensucia. Numerar la lista completa de 10 en 10 deja una posición
+       propia por auto y el problema desaparece para siempre. Son unas
+       decenas de filas: cuesta menos que llevar la cuenta. */
+    await env.DB.batch(fila.map((id, i) => env.DB
+      .prepare('UPDATE autos SET orden = ? WHERE id = ?')
+      .bind(i * 10, id)));
+
+    return json({ ok: true });
   }
 
   if (ruta === '/api/admin/autos' && metodo === 'POST') {
@@ -574,7 +724,7 @@ async function admin(peticion, env, ruta, metodo) {
 
   if (ruta === '/api/admin/medios' && metodo === 'GET') {
     const { results } = await env.DB
-      .prepare('SELECT slot, clave, editado FROM medios').all();
+      .prepare('SELECT slot, clave, clase, editado FROM medios').all();
     const puestas = new Map(results.map((m) => [m.slot, m]));
     /* Van TODOS los lugares, tengan reemplazo o no: el panel necesita
        mostrar el lugar aunque siga con la foto original. Y van agrupados
@@ -587,7 +737,9 @@ async function admin(peticion, env, ruta, metodo) {
           .filter(([, v]) => v.seccion === s.clave)
           .map(([slot, v]) => ({
             slot, donde: v.donde, guia: v.guia, lado: v.lado,
+            admite: v.admite || ['imagen'],
             clave: puestas.get(slot)?.clave || null,
+            clase: puestas.get(slot)?.clase || null,
             editado: puestas.get(slot)?.editado || null,
           })),
       })),
@@ -602,12 +754,30 @@ async function admin(peticion, env, ruta, metodo) {
 
     const form = await peticion.formData();
     const parte = form.get('imagen');
-    if (!(parte instanceof File)) return error('Falta la imagen');
-    if (parte.size > 3 * 1024 * 1024) return error('Esa foto pesa demasiado');
+    if (!(parte instanceof File)) return error('Falta el archivo');
 
-    const clave = `medios/${slot}/${crypto.randomUUID()}`;
-    await env.FOTOS.put(`${clave}-1600.webp`, parte.stream(), {
-      httpMetadata: { contentType: 'image/webp' },
+    const clase = claseDe(parte.type);
+    if (!clase) return error('Ese tipo de archivo no se puede subir acá');
+
+    const admite = SLOTS[slot].admite || ['imagen'];
+    if (!admite.includes(clase)) {
+      return error(clase === 'video'
+        ? 'Ese lugar es sólo para fotos'
+        : 'Ese lugar es sólo para videos');
+    }
+
+    const regla = TIPOS[clase];
+    if (parte.size > regla.tope) {
+      return error(`Ese archivo pesa demasiado — el tope es ${Math.round(regla.tope / 1048576)} MB`);
+    }
+
+    /* LA CLAVE LLEVA LA EXTENSIÓN. Antes se guardaba a medias y cada
+       lugar que la usaba la completaba con `-1600.webp`; con videos de
+       por medio eso deja de tener una respuesta única. Guardar la
+       dirección entera saca esa regla repetida de encima. */
+    const clave = `medios/${slot}/${crypto.randomUUID()}.${EXTENSION[parte.type]}`;
+    await env.FOTOS.put(clave, parte.stream(), {
+      httpMetadata: { contentType: parte.type },
     });
 
     /* La anterior se borra DESPUÉS de que la nueva quedó guardada y la
@@ -617,13 +787,14 @@ async function admin(peticion, env, ruta, metodo) {
       .bind(slot).first();
 
     await env.DB.prepare(
-      `INSERT INTO medios (slot, clave) VALUES (?, ?)
+      `INSERT INTO medios (slot, clave, clase) VALUES (?, ?, ?)
        ON CONFLICT(slot) DO UPDATE SET clave = excluded.clave,
+                                       clase = excluded.clase,
                                        editado = datetime('now')`
-    ).bind(slot, clave).run();
+    ).bind(slot, clave, clase).run();
 
-    if (antes?.clave) await env.FOTOS.delete(`${antes.clave}-1600.webp`);
-    return json({ clave }, 201);
+    if (antes?.clave) await env.FOTOS.delete(antes.clave);
+    return json({ clave, clase }, 201);
   }
 
   /* Volver a la original: se borra la fila y la página vuelve a usar la
@@ -635,7 +806,7 @@ async function admin(peticion, env, ruta, metodo) {
     if (!fila) return error('Ese lugar ya está con la original', 404);
 
     await env.DB.prepare('DELETE FROM medios WHERE slot = ?').bind(slot).run();
-    await env.FOTOS.delete(`${fila.clave}-1600.webp`);
+    await env.FOTOS.delete(fila.clave);
     return json({ ok: true });
   }
 

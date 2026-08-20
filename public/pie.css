@@ -1,0 +1,231 @@
+/* EL PIE, EN SU PROPIA HOJA.
+   ══════════════════════════════════════════════════════════════════
+
+   Estaba adentro del <style> de index.html, como todo el resto del
+   sitio. Salió de ahí cuando el pie pasó a estar TAMBIÉN en /garage:
+   dos copias del mismo CSS es la clase de cosa que se desincroniza a la
+   primera corrección, y a este pie ya se le hicieron varias.
+
+   EL HTML DEL PIE SÍ SIGUE DUPLICADO en las dos páginas —son 60 líneas
+   de marcado estático y acá no hay armador de plantillas—, pero es
+   idéntico en las dos y usa rutas absolutas justamente para poder
+   serlo. Si se toca, se toca en index.html Y en garage/index.html.
+
+   DEPENDE DE LOS TOKENS DE LA PÁGINA: --void, --chrome, --gut, --linea,
+   --apagado, --display, --texto, --ease. Las dos páginas los declaran.
+
+   Lo que el documento pide de cierre: la invitación al Garage Virtual,
+   los datos institucionales y el isotipo de la doble M como sello de
+   fondo.
+
+   El sello no es una imagen: es el mismo trazado del logo del header,
+   reusado con <use>. Repetirlo habría sumado 8 KB al archivo.
+   ══════════════════════════════════════════════════════════════════ */
+#pie{
+  position:relative;
+  background:var(--void);
+  padding:clamp(2rem,4.5vh,2.8rem) var(--gut) clamp(1.6rem,3.5vh,2.4rem);
+}
+
+/* CUATRO COLUMNAS, Y LOS ANCHOS NO SON IGUALES. La navegación es la más
+   angosta porque son cuatro palabras sueltas; contacto es la más ancha
+   porque la dirección ocupa dos renglones; el mapa pide su cuadro.
+   Repartidas en cuatro partes iguales, la navegación quedaba con aire
+   de sobra y la dirección se partía en cuatro. */
+/* EL MISMO ANCHO QUE LA GRILLA DE FOTOS DE ARRIBA, y no uno propio.
+
+   Estaba en 76rem contra las 82rem de .social-caja, así que en pantallas
+   anchas el pie arrancaba 48 px más adentro por lado: las fotos y las
+   columnas no compartían borde y la costura entre las dos secciones se
+   veía. Medido a 1440: las fotos iban de 64 a 1376 y el pie de 112 a
+   1328.
+
+   Si cambia el ancho de una, tiene que cambiar el de la otra. */
+.pie-caja{
+  max-width:82rem;
+  margin:0 auto;
+  display:grid;
+  grid-template-columns:1.1fr 1fr 1.35fr 1.05fr;
+  gap:clamp(1.4rem,3vw,2.6rem);
+  /* CENTRADAS Y NO ARRIBA. Las cuatro columnas miden distinto —la marca
+     es un logo, contacto son cuatro renglones, el mapa es un cuadro— y
+     alineadas arriba cada una dejaba su propio hueco abajo: el pie se
+     leia como cuatro bloques sueltos de alturas distintas en vez de como
+     una franja. Centradas comparten eje y el hueco se reparte. */
+  align-items:center;
+}
+
+/* EL LOGO VA CENTRADO A LO ANCHO, PERO ARRIBA DE TODO.
+
+   Estaba centrado en los DOS ejes y con `align-self:stretch`, así que su
+   columna se estiraba hasta los 204 px de la más alta y el logo caía en
+   el medio: arrancaba a los 60 px cuando las otras tres arrancan en 0.
+   Medido, y era exactamente lo que se veía — la marca hundida contra
+   tres columnas que empiezan arriba.
+
+   Sin el `stretch` la columna mide lo que mide el logo, y con el
+   `align-items` en `start` su borde de arriba cae en la misma línea que
+   los rótulos de al lado. El centrado horizontal se conserva, que es lo
+   que hace que la marca no quede pegada al borde izquierdo. */
+.pie-col--marca{
+  display:flex;
+  align-items:flex-start;
+  justify-content:center;
+}
+
+.pie-logo{
+  display:block;
+  width:clamp(7rem,11vw,9.5rem);
+  height:auto;
+}
+
+/* El rótulo de cada columna. Mismo idioma que las volantas del resto
+   del sitio: chico, muy espaciado y en gris, para que ordene sin pesar
+   más que lo que ordena. */
+.pie-rotulo{
+  margin:0 0 clamp(.7rem,1.6vh,1rem);
+  font-family:var(--mono);
+  font-size:.55rem;
+  font-weight:600;
+  letter-spacing:.26em;
+  text-transform:uppercase;
+  /* Blanco al 70%, no --steel: ese gris es azulado y sobre el negro del
+     pie el azul se ve. Ver el mismo cambio en el bloque del editorial. */
+  color:rgba(255,255,255,.7);
+}
+
+.pie-col ul{
+  list-style:none;
+  display:grid;
+  gap:.58rem;
+}
+
+.pie-col a,
+.pie-col span{
+  font-size:.74rem;
+  line-height:1.45;
+  color:rgba(255,255,255,.72);
+  text-decoration:none;
+  transition:color .3s var(--ease);
+}
+@media (hover:hover){
+  .pie-col a:hover{ color:var(--chrome); }
+}
+
+/* Cada dato de contacto lleva su ícono adelante, y la fila se alinea por
+   la PRIMERA línea y no por el centro: la dirección ocupa dos renglones
+   y centrada le dejaba el ícono flotando en el medio. */
+.pie-contacto li{
+  display:grid;
+  grid-template-columns:1rem 1fr;
+  gap:.7rem;
+  align-items:start;
+}
+
+.pie-contacto svg{
+  width:1rem;
+  height:1rem;
+  margin-top:.15rem;
+  color:#FFFFFF;
+  opacity:.55;
+}
+
+/* EL AVISO DE COPIADO. Va como ::after del propio dato para que aparezca
+   pegado a él y no en una esquina de la pantalla: lo que se copió es
+   ESTE dato, y un cartel lejos obliga a atar una cosa con la otra. */
+.pie-dato{
+  position:relative;
+  cursor:pointer;
+}
+.pie-dato::after{
+  content:"copiado";
+  position:absolute;
+  left:0;
+  top:-1.35rem;
+  padding:.15rem .45rem;
+  border-radius:2px;
+  background:var(--chrome);
+  color:var(--void);
+  font-family:var(--mono);
+  font-size:.52rem;
+  font-weight:600;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  white-space:nowrap;
+  opacity:0;
+  transform:translateY(3px);
+  pointer-events:none;
+  transition:opacity .25s var(--ease), transform .25s var(--ease);
+}
+.pie-dato.copiado::after{ opacity:1; transform:translateY(0); }
+
+/* El mapa. Es el dibujo de la sección "dónde estamos" reusado, no un
+   archivo nuevo: el mismo trazo, en chico. Se usa la versión de
+   TELÉFONO —abarca menos cuadras y trae los nombres más grandes— porque
+   este cuadro mide lo que mide un teléfono, no lo que mide la sección. */
+/* MAS CHICO, PORQUE ERA EL QUE MANDABA EL ALTO. Con 1.35 de proporcion
+   el mapa medía casi el doble que la columna de contacto y estiraba la
+   fila entera: de ahi el aire muerto debajo del logo y de los datos.
+   Apaisado y con tope, ocupa lo que le corresponde. */
+.pie-mapa{
+  display:block;
+  position:relative;
+  max-width:15rem;
+  aspect-ratio:1.7;
+  overflow:hidden;
+  border:1px solid rgba(209,213,219,.14);
+  border-radius:3px;
+  background:#07080A;
+}
+.pie-mapa img{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  opacity:.6;
+  transition:opacity .45s var(--ease);
+}
+@media (hover:hover){
+  .pie-mapa:hover img{ opacity:.85; }
+}
+.pie-pin{
+  position:absolute;
+  left:50%; top:50%;
+  width:9px; height:9px;
+  margin:-4.5px 0 0 -4.5px;
+  border-radius:50%;
+  background:var(--chrome);
+  box-shadow:0 0 0 4px rgba(var(--beam),.18), 0 0 14px 3px rgba(var(--beam),.5);
+}
+
+/* ── EL PIE EN ANGOSTO ──────────────────────────────────────────────
+
+   Cuatro columnas de 130 px parten cada dato en renglones sueltos, así
+   que abajo de 900 px se reparte en tres filas:
+
+     la marca            a lo ancho, arriba de todo
+     navegación | contacto   una al lado de la otra
+     encontranos         a lo ancho, centrado
+
+   NAVEGACIÓN Y CONTACTO VAN JUNTAS PORQUE SON LISTAS CORTAS: cuatro
+   renglones de una palabra y cuatro datos de una línea entran de sobra
+   en media pantalla, y apiladas dejaban el pie larguísimo.
+
+   EL MAPA NO: es un cuadro, y en media pantalla queda del tamaño de un
+   sello. Va a lo ancho y con un tope, para que no se estire de lado a
+   lado en una tableta. */
+@media (max-width:900px){
+  .pie-caja{
+    grid-template-columns:1fr 1fr;
+    gap:clamp(1.8rem,4.5vh,2.6rem) clamp(1.2rem,4vw,2rem);
+  }
+  .pie-col--marca{ grid-column:1 / -1; }
+  .pie-col--mapa{
+    grid-column:1 / -1;
+    text-align:center;
+  }
+  .pie-col--mapa .pie-mapa{
+    max-width:22rem;
+    margin-inline:auto;
+  }
+}

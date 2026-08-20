@@ -11,6 +11,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&family=Montserrat:wght@300..800&display=swap" rel="stylesheet">
+<!-- El mismo pie que la home, desde la misma hoja. El marcado está
+     duplicado abajo (idéntico, con rutas absolutas); el CSS no. -->
+<link rel="stylesheet" href="/pie.css">
 <style>
 /* Los mismos tokens que index.html. No se comparte una hoja porque el
    sitio entero vive en un solo archivo y partirlo ahora seria un cambio
@@ -169,13 +172,6 @@ a{color:inherit;text-decoration:none}
   margin-top:.35rem; font-family:var(--display); font-size:.82rem;
   font-weight:700; letter-spacing:.04em;
 }
-.cinta{
-  position:absolute; left:.7rem; top:.7rem; z-index:1;
-  background:var(--chrome); color:var(--void);
-  font-size:.48rem; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
-  padding:.35em .75em; border-radius:100px;
-}
-
 .vacio{ padding:5rem var(--gut); text-align:center; color:var(--apagado); grid-column:1/-1 }
 
 /* ── EL DETALLE, EN UNA SOLA PANTALLA ──────────────────────────────
@@ -196,16 +192,23 @@ a{color:inherit;text-decoration:none}
 .detalle{
   position:fixed; inset:0; z-index:60;
   background:rgba(0,0,0,.97); backdrop-filter:blur(10px);
-  display:grid; place-items:center;
+  display:grid; align-items:stretch; justify-items:center;
   padding:clamp(.9rem,2.6vw,2rem);
   /* Arranca debajo de la barra, que ahora queda encima. */
   padding-top:calc(var(--barra-h,4.6rem) + clamp(.9rem,2.6vw,2rem));
 }
 .detalle[hidden]{ display:none }
 
+/* ESTIRA HASTA EL ALTO DISPONIBLE en vez de quedar centrada.
+
+   Con `place-items:center` la caja medía lo que medía la columna de
+   datos y el resto quedaba como aire arriba y abajo: unos 110 px de cada
+   lado en una pantalla de escritorio, con el botón de cerrar flotando
+   solo en la banda de arriba. Estirando, ese lugar se lo lleva la foto,
+   que es lo que alguien vino a mirar. */
 .detalle .caja{
   width:min(80rem,100%);
-  max-height:100%;
+  height:100%;
   display:grid;
   grid-template-columns:1.2fr .8fr;
   gap:clamp(1rem,2.4vw,2.2rem);
@@ -214,6 +217,7 @@ a{color:inherit;text-decoration:none}
 
 .lado-foto{ display:flex; flex-direction:column; gap:.55rem; min-height:0 }
 .lado-foto .grande{
+  position:relative;
   flex:1 1 auto; min-height:0;
   overflow:hidden; border-radius:3px; background:#0b0b0d;
 }
@@ -227,11 +231,14 @@ a{color:inherit;text-decoration:none}
 }
 .tiras img[aria-current="true"]{ opacity:1; border-color:var(--chrome) }
 
-/* La ficha scrollea sola si la descripción es larga, en vez de estirar
-   la caja y sacar la foto de la pantalla. */
+/* LA QUE SCROLLEA ES LA DESCRIPCIÓN, NO LA FICHA ENTERA.
+
+   Antes el scroll estaba acá y con una descripción larga se iban de
+   pantalla el título y los datos —y el botón de consultar, que es lo que
+   no puede irse—. Ahora la ficha queda quieta y el que se mueve es el
+   párrafo. */
 .lado-datos{
-  display:flex; flex-direction:column; min-height:0; overflow:auto;
-  padding-right:.3rem;
+  display:flex; flex-direction:column; min-height:0; overflow:hidden;
 }
 .detalle h2{
   font-family:var(--display); font-size:clamp(.95rem,1.9vw,1.35rem);
@@ -243,12 +250,32 @@ a{color:inherit;text-decoration:none}
 }
 .datos div span{ display:block }
 .datos .valor{ font-size:.88rem; margin-top:.2rem }
+/* EL RÓTULO PEGADO A SU TEXTO Y SEPARADO DE LA GRILLA.
+
+   Estaba justo al revés: sin margen arriba, así que "Descripción" quedaba
+   pisando la fila de Línea y Precio como si fuera un dato más de la
+   grilla, y con 1.4rem entre el rótulo y el párrafo, que lo dejaba
+   flotando lejos de lo que nombra. Un rótulo pertenece a lo que tiene
+   abajo, no a lo que tiene arriba.
+
+   TOMA EL LUGAR QUE SOBRA Y SCROLLEA ADENTRO: `flex:1 1 0` con
+   `min-height:0`, que es lo que le permite ser más chica que su texto. */
+.bloque-desc{
+  margin-top:2.2rem;
+  flex:1 1 0; min-height:0;
+  display:flex; flex-direction:column;
+}
+.bloque-desc .rotulo{ display:block; flex:0 0 auto }
 .desc{
-  margin-top:1.4rem; line-height:1.75; font-size:.85rem;
-  color:var(--apagado); white-space:pre-line;
+  margin-top:.55rem; line-height:1.75; font-size:.85rem;
+  /* En blanco, como los valores de la grilla: es contenido, no un pie de
+     foto. En gris se leía como una aclaración de segunda. */
+  color:var(--chrome); white-space:pre-line;
+  flex:1 1 auto; min-height:0; overflow:auto;
+  padding-right:.4rem;
 }
 .consultar{
-  display:block; text-align:center; margin-top:auto; padding:1em 2em;
+  display:block; text-align:center; margin-top:1.6rem; flex:0 0 auto; padding:1em 2em;
   border:1px solid var(--chrome); border-radius:2px; background:var(--chrome); color:var(--void);
   font-family:var(--display); font-size:.58rem; font-weight:700;
   letter-spacing:.18em; text-transform:uppercase;
@@ -256,26 +283,49 @@ a{color:inherit;text-decoration:none}
 }
 .consultar:hover{ background:transparent; color:var(--chrome) }
 
-/* El cerrar va fijo en la esquina y no en la fila del título: en la caja
-   le robaba ancho justo a la columna más angosta. */
-.cerrar{
-  position:fixed; z-index:71;
-  top:calc(var(--barra-h,4.6rem) + .7rem);
-  right:clamp(.9rem,2.6vw,2rem);
-  appearance:none; border:1px solid var(--linea); border-radius:2px;
-  background:rgba(0,0,0,.6); backdrop-filter:blur(8px);
-  color:var(--chrome); cursor:pointer; font-family:inherit;
-  padding:.6em 1.1em; font-size:.56rem; font-weight:600;
-  letter-spacing:.16em; text-transform:uppercase;
+/* EL CERRAR Y LAS FLECHAS VAN SOBRE LA FOTO.
+
+   El cerrar estaba fijo arriba a la derecha, solo en una franja vacía:
+   una banda entera de pantalla para un botón. Sobre la foto no ocupa
+   nada propio.
+
+   Los tres son redondos y del mismo tamaño para que se lean como los
+   controles de la foto y no como tres botones distintos. */
+.cerrar,
+.paso{
+  position:absolute; z-index:2;
+  display:grid; place-items:center;
+  width:2.4rem; height:2.4rem;
+  appearance:none; border:1px solid var(--linea); border-radius:100px;
+  background:rgba(0,0,0,.55); backdrop-filter:blur(8px);
+  color:var(--chrome); cursor:pointer;
+  transition:background .3s var(--ease), border-color .3s var(--ease);
 }
-.cerrar:hover{ border-color:rgba(255,255,255,.5) }
+.cerrar svg,
+.paso svg{ width:1.05rem; height:1.05rem }
+.cerrar{ top:.7rem; right:.7rem }
+.paso{ top:50%; transform:translateY(-50%) }
+.paso--antes{ left:.7rem }
+.paso--luego{ right:.7rem }
+
+@media (hover:hover){
+  .cerrar:hover,
+  .paso:hover{ background:rgba(0,0,0,.8); border-color:rgba(255,255,255,.55) }
+}
 
 /* EN EL TELEFONO NO HAY DOS COLUMNAS QUE VALGAN: 380 px partidos al
    medio no alcanzan para ninguna de las dos. Se apila y se scrollea, que
    es lo que corresponde ahí. */
 @media (max-width:820px){
-  .detalle{ place-items:start; overflow:auto }
-  .detalle .caja{ grid-template-columns:1fr; max-height:none; padding-top:2.6rem }
+  /* En vertical manda el scroll de la página, no el de la descripción:
+     con la ficha apilada debajo de la foto hay lugar de sobra para
+     abajo, y un párrafo con scroll propio adentro de una página que
+     también scrollea es una trampa. */
+  .detalle{ align-items:start; overflow:auto }
+  .detalle .caja{ grid-template-columns:1fr; height:auto; max-height:none }
+  .lado-datos{ overflow:visible }
+  .bloque-desc{ flex:0 0 auto }
+  .desc{ overflow:visible; padding-right:0 }
   .lado-foto .grande{ aspect-ratio:16/10; flex:0 0 auto }
   .lado-datos{ overflow:visible }
   /* EL BOTON VA ARRIBA, PEGADO A LAS FOTOS. Apilado queda al final de
@@ -283,7 +333,7 @@ a{color:inherit;text-decoration:none}
      `order` lo sube sin mover nada en el HTML, que en escritorio lo
      necesita al final de la columna. */
   .consultar{ order:-1; margin-top:0; margin-bottom:.4rem }
-  .bloque-desc{ margin-top:1.4rem }
+  .bloque-desc{ margin-top:1.8rem }
 }
 </style>
 </head>
@@ -309,8 +359,91 @@ a{color:inherit;text-decoration:none}
 <div class="grilla" id="grilla"></div>
 
 <div class="detalle" id="detalle" hidden></div>
+<!-- BLOQUE 6 — EL PIE.
+
+     Cuatro columnas: la marca, la navegación, los datos de contacto y el
+     mapa. Abajo, el legal y las redes.
+
+     ESTE MARCADO ESTÁ TAMBIÉN EN garage/index.html, IDÉNTICO. Por eso
+     las rutas son absolutas: desde /garage un "assets/…" relativo
+     buscaría /garage/assets/…. Si se toca acá, se toca allá.
+
+     LOS ENLACES SON A SECCIONES QUE EXISTEN. El diseño de referencia
+     listaba Inventario, Nosotros, Manifiesto y Servicios, que en este
+     sitio no son nada todavía. Se usan las cuatro que sí están, que es
+     el mismo criterio que ya se aplicó en el menú de arriba cuando
+     apuntaba a tres anclas inexistentes. -->
+<footer id="pie">
+  <div class="pie-caja">
+
+    <div class="pie-col pie-col--marca">
+      <img class="pie-logo" src="/assets/logo/logo-apilado-blanco.svg"
+           alt="Manna Motors Selected" width="300" height="180"
+           loading="lazy" decoding="async">
+    </div>
+
+    <nav class="pie-col" aria-labelledby="pie-nav">
+      <h2 class="pie-rotulo" id="pie-nav">Navegación</h2>
+      <ul>
+        <li><a href="/garage">Garage</a></li>
+        <li><a href="/#estandar">Estándar</a></li>
+        <li><a href="/#donde">Dónde estamos</a></li>
+        <li><a href="/#concierge">Contacto</a></li>
+      </ul>
+    </nav>
+
+    <div class="pie-col" aria-labelledby="pie-con">
+      <h2 class="pie-rotulo" id="pie-con">Contacto</h2>
+      <ul class="pie-contacto">
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path
+               d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.8 2Z"/></svg>
+          <a class="pie-dato" href="tel:+5491112345678"
+             data-copiar="+54 9 11 1234 5678">+54 9 11 1234 5678</a>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect
+               x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/></svg>
+          <a class="pie-dato" href="mailto:hola@mannamotors.com"
+             data-copiar="hola@mannamotors.com">hola@mannamotors.com</a>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path
+               d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+          <a href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8" target="_blank" rel="noopener">
+            Pasaje Lanín 154, Barracas<br>Buenos Aires, Argentina
+          </a>
+        </li>
+        <li>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle
+               cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <span>Lun a Vie <span aria-hidden="true">·</span> 10:00 a 19:00</span>
+        </li>
+      </ul>
+    </div>
+
+    <div class="pie-col pie-col--mapa" aria-labelledby="pie-map">
+      <h2 class="pie-rotulo" id="pie-map">Encontranos</h2>
+      <a class="pie-mapa" href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8"
+         target="_blank" rel="noopener"
+         aria-label="Pasaje Lanín 154, Barracas — abrir en Google Maps">
+        <img src="/assets/mapa/barracas-movil.svg?v=2" alt=""
+             loading="lazy" decoding="async" width="1000" height="1000">
+        <span class="pie-pin" aria-hidden="true"></span>
+      </a>
+    </div>
+
+  </div>
+
+</footer>
+
 <div id="ambiente" aria-hidden="true"></div>
 
 <script src="/garage/garage.js"></script>
+<script src="/pie.js" defer></script>
 </body>
 </html>

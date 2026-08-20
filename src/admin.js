@@ -130,7 +130,8 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
    forma según la pantalla, la miniatura acá es sólo para reconocer la
    foto, no para prometer cómo se va a recortar. */
 .medio .marco{ position:relative; height:9rem; background:#08080a; overflow:hidden }
-.medio .marco img{ width:100%; height:100%; object-fit:cover; display:block }
+.medio .marco img,
+.medio .marco video{ width:100%; height:100%; object-fit:cover; display:block }
 /* La pieza estira y los botones se van al fondo: las guías tienen
    largos distintos y sin esto cada "Cambiar" queda a una altura
    distinta, que se lee como si las tarjetas estuvieran desalineadas. */
@@ -153,6 +154,33 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   background:var(--chrome); color:var(--void);
   font-size:.44rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
   padding:.3em .6em; border-radius:100px;
+}
+
+/* ── MODO ORDENAR ──
+   El temblor del iPhone. Es un giro de menos de un grado: mas que eso
+   marea y se lee como un error de la pagina en vez de como "esto se
+   puede mover".
+
+   El desfase entre tarjetas lo pone el JS con animation-delay negativo,
+   que arranca la animacion ya empezada en vez de esperar. */
+@keyframes tiembla{
+  0%,100%{ transform:rotate(-.5deg) }
+  50%    { transform:rotate(.5deg) }
+}
+.grilla.ordenando .ficha{
+  animation:tiembla .32s var(--ease) infinite;
+  cursor:grab;
+}
+.grilla.ordenando .ficha.viajando{ opacity:.3; animation:none }
+.grilla.ordenando .ficha.destino{
+  outline:2px solid var(--chrome); outline-offset:3px; animation:none;
+}
+/* Mientras se ordena no se abre nada: la foto y el texto no deben
+   tragarse el arrastre ni mostrar el cursor de mano. */
+.grilla.ordenando .ficha *{ pointer-events:none }
+
+@media (prefers-reduced-motion:reduce){
+  .grilla.ordenando .ficha{ animation:none; outline:1px dashed var(--linea) }
 }
 
 /* ── los textos editables ── */
@@ -253,13 +281,11 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .miniatura.viajando{ opacity:.3 }
 .miniatura.destino{ outline:2px solid var(--chrome); outline-offset:2px }
 
-/* La que todavia no subio se ve, pero se ve que no subio. */
-.miniatura.enEspera img{ opacity:.5 }
-.miniatura .esperando{
-  position:absolute; inset:auto .4rem .4rem; text-align:center;
-  font-size:.46rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
-  color:var(--void); background:rgba(255,255,255,.85); border-radius:100px; padding:.28em 0;
-}
+/* LA QUE TODAVIA NO SUBIO NO SE MARCA. Tenia un cartel "Sin subir"
+   encima y sobraba: la foto se ve, se puede arrastrar y se puede quitar
+   igual que las demas, y el unico momento en que no esta subida es el
+   rato entre elegirla y apretar Guardar. El cartel no pedia hacer nada
+   —la subida ya pasa sola al guardar— y quedaba tapando la foto. */
 
 /* LA BALDOSA QUE TODAVIA ESTA TRABAJANDO.
 
@@ -338,7 +364,12 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
         <button class="pestania" type="button" id="pesMedios" aria-pressed="false">Imágenes del sitio</button>
         <button class="pestania" type="button" id="pesTextos" aria-pressed="false">Textos</button>
       </div>
-      <button class="btn btn--fuerte" id="nuevo" type="button">Cargar un auto</button>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <button class="btn" id="ordenar" type="button">Ordenar</button>
+        <button class="btn oculto" id="cancelarOrden" type="button">Cancelar</button>
+        <button class="btn btn--fuerte oculto" id="guardarOrden" type="button">Guardar orden</button>
+        <button class="btn btn--fuerte" id="nuevo" type="button">Cargar un auto</button>
+      </div>
     </div>
     <div class="filtros" id="filtros"></div>
     <div class="grilla" id="grilla"></div>
@@ -351,6 +382,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
         aparecen. Se suben enteras y la página recorta lo que le sobra en
         cada pantalla, así que entra cualquier formato — 16:9 incluido.
         Debajo de cada una dice qué forma le queda mejor.
+        El fondo del collage además admite un video .mp4.
       </p>
       <div class="medios" id="medios"></div>
       <input type="file" id="archivoMedio" accept="image/*" hidden>
@@ -413,9 +445,6 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
         <input name="color" placeholder="Blanco"></label>
       <label class="campo ancho"><span class="rotulo">Descripción</span>
         <textarea name="descripcion" placeholder="Historia, service, detalles."></textarea></label>
-      <label class="campo ancho" style="display:flex;align-items:center;gap:.6rem">
-        <input type="checkbox" name="destacado" style="width:auto">
-        <span class="rotulo" style="color:#fff">Destacado — va primero en el listado</span></label>
     </form>
 
     <section style="margin-top:2.4rem" id="zonaFotos">
