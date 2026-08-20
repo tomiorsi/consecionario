@@ -149,12 +149,32 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 }
 .mini-btn:hover{ background:rgba(0,0,0,.9) }
 
-.soltar{
-  margin-top:1rem; border:1px dashed var(--linea); border-radius:3px;
-  padding:2rem 1rem; text-align:center; color:var(--apagado); font-size:.8rem;
-  transition:border-color .3s var(--ease), background .3s var(--ease);
+/* EL MAS ES UNA BALDOSA MAS DE LA GRILLA, no una caja aparte debajo.
+   Asi el lugar donde se agregan fotos es el mismo lugar donde estan las
+   fotos, y la grilla no cambia de forma cuando se sube la primera. */
+.mas{
+  display:grid; place-content:center; gap:.4rem;
+  aspect-ratio:16/10; border:1px dashed var(--linea); border-radius:3px;
+  background:transparent; color:var(--apagado); cursor:pointer;
+  font-family:inherit; font-size:.58rem; letter-spacing:.14em; text-transform:uppercase;
+  transition:border-color .3s var(--ease), color .3s var(--ease), background .3s var(--ease);
 }
-.soltar.encima{ border-color:var(--chrome); background:rgba(255,255,255,.04) }
+.mas span{ font-size:1.6rem; line-height:1; font-weight:300 }
+.mas:hover,.mas.encima{ border-color:var(--chrome); color:var(--chrome); background:rgba(255,255,255,.04) }
+
+/* Mientras se arrastra: la que viaja se apaga y la de destino marca el
+   borde, que es lo que dice donde va a caer. */
+.miniatura{ cursor:grab }
+.miniatura.viajando{ opacity:.3 }
+.miniatura.destino{ outline:2px solid var(--chrome); outline-offset:2px }
+
+/* La que todavia no subio se ve, pero se ve que no subio. */
+.miniatura.enEspera img{ opacity:.5 }
+.miniatura .esperando{
+  position:absolute; inset:auto .4rem .4rem; text-align:center;
+  font-size:.46rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--void); background:rgba(255,255,255,.85); border-radius:100px; padding:.28em 0;
+}
 
 .aviso{
   position:fixed; left:50%; bottom:1.4rem; transform:translateX(-50%);
@@ -255,14 +275,15 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
         <span class="rotulo" style="color:#fff">Destacado — va primero en el listado</span></label>
     </form>
 
-    <section style="margin-top:2.4rem">
-      <h2 class="rotulo">Fotos</h2>
-      <div class="fotos" id="fotos"></div>
-      <div class="soltar" id="soltar">
-        Arrastrá las fotos acá, o <label style="text-decoration:underline;cursor:pointer">elegilas<input type="file" id="archivo" accept="image/*" multiple hidden></label>.<br>
-        <small style="opacity:.6">Se achican solas antes de subir. La primera es la portada.</small>
+    <section style="margin-top:2.4rem" id="zonaFotos">
+      <div style="display:flex;align-items:baseline;gap:.8rem;flex-wrap:wrap">
+        <h2 class="rotulo">Fotos</h2>
+        <span class="rotulo" style="color:rgba(255,255,255,.32);letter-spacing:.1em">
+          Arrastralas para cambiar el orden · la primera es la portada
+        </span>
       </div>
-      <p class="vacio oculto" id="sinGuardar" style="padding:1rem 0;text-align:left">Guardá el auto una vez y después vas a poder subirle fotos.</p>
+      <div class="fotos" id="fotos"></div>
+      <input type="file" id="archivo" accept="image/*" multiple hidden>
     </section>
   </main>
 </div>

@@ -23,6 +23,19 @@ let autos = [];
 let actual = null;          /* el auto abierto en la ficha */
 let filtro = 'todos';
 
+/* LAS FOTOS DE UN AUTO QUE TODAVIA NO EXISTE.
+
+   Una foto se guarda contra el id de su auto, asi que hasta que el auto
+   no esta en la base no hay a que colgarla. Antes eso se resolvia
+   pidiendo guardar primero, y era un paso de mas: uno elige las fotos
+   cuando las tiene a mano, no cuando el formulario lo permite.
+
+   Ahora se quedan aca, ya achicadas y con una vista previa, y suben
+   TODAS JUNTAS apenas el auto se crea — en el orden en que estan, que es
+   lo que hace que la primera sea la portada. */
+let enEspera = [];
+let contadorTmp = 0;
+
 /* ── avisos ─────────────────────────────────────────────────────── */
 
 let relojAviso;
@@ -142,6 +155,8 @@ function pintarLista() {
 
 function abrir(auto) {
   actual = auto || null;
+  enEspera.forEach((x) => URL.revokeObjectURL(x.vista));
+  enEspera = [];
   const f = $('#formAuto');
   f.reset();
 
@@ -158,8 +173,6 @@ function abrir(auto) {
   }
 
   $('#borrar').classList.toggle('oculto', !auto);
-  $('#soltar').classList.toggle('oculto', !auto);
-  $('#sinGuardar').classList.toggle('oculto', !!auto);
   pintarFotos();
 
   $('#vistaLista').classList.add('oculto');
@@ -195,9 +208,17 @@ $('#guardar').addEventListener('click', async () => {
       avisar('Guardado');
     } else {
       const { id } = await api('/api/admin/autos', { method: 'POST', body: JSON.stringify(datos) });
-      avisar('Creado — ahora podés subirle fotos');
+      /* El auto ya existe: recién ahora las fotos tienen a qué colgarse.
+         Se toma la ficha nueva SIN pasar por abrir(), que limpiaría la
+         lista de espera justo antes de usarla. */
+      actual = { id, fotos: [] };
+      await subirLoQueEsperaba();
       await cargar();
-      abrir(autos.find((a) => a.id === id));
+      actual = autos.find((a) => a.id === id) || actual;
+      $('#tituloFicha').textContent = datos.marca + ' ' + datos.modelo;
+      $('#borrar').classList.remove('oculto');
+      pintarFotos();
+      avisar('Creado');
       boton.disabled = false;
       return;
     }
@@ -224,46 +245,110 @@ $('#borrar').addEventListener('click', async () => {
 
 /* ── LAS FOTOS ──────────────────────────────────────────────────── */
 
+/* La lista que se ve es la del auto si ya existe, y la de espera si no.
+   Nunca las dos: cuando el auto se crea, las de espera suben y pasan a
+   ser las del auto. */
+const listaFotos = () => (actual ? actual.fotos : enEspera);
+
 function pintarFotos() {
   const cont = $('#fotos');
-  if (!actual) { cont.innerHTML = ''; return; }
+  const lista = listaFotos();
 
-  cont.innerHTML = actual.fotos.map((f, i) =>
-    '<div class="miniatura" data-id="' + f.id + '">' +
-      '<img src="/fotos/' + f.clave + '-640.webp" alt="">' +
+  cont.innerHTML = lista.map((f, i) =>
+    '<div class="miniatura' + (f.tmp ? ' enEspera' : '') + '" draggable="true" data-i="' + i + '">' +
+      '<img src="' + (f.tmp ? f.vista : '/fotos/' + f.clave + '-640.webp') + '" alt="">' +
       (i === 0 ? '<span class="portada">Portada</span>' : '') +
-      '<div class="mandos">' +
-        (i > 0 ? '<button class="mini-btn" data-mover="-1" title="Mover antes">&#8592;</button>' : '') +
-        (i < actual.fotos.length - 1 ? '<button class="mini-btn" data-mover="1" title="Mover después">&#8594;</button>' : '') +
-        '<button class="mini-btn" data-quitar title="Quitar">&#215;</button>' +
-      '</div></div>').join('');
+      (f.tmp ? '<span class="esperando">Sin subir</span>' : '') +
+      '<div class="mandos"><button class="mini-btn" data-quitar title="Quitar">&#215;</button></div>' +
+    '</div>').join('') +
+    '<button class="mas" type="button" id="mas"><span>+</span>Agregar fotos</button>';
+
+  $('#mas').addEventListener('click', () => $('#archivo').click());
+  ['dragenter', 'dragover'].forEach((n) => $('#mas').addEventListener(n, (e) => {
+    e.preventDefault(); $('#mas').classList.add('encima');
+  }));
+  ['dragleave', 'drop'].forEach((n) => $('#mas').addEventListener(n, () =>
+    $('#mas').classList.remove('encima')));
 
   $$('#fotos .miniatura').forEach((m) => {
-    const id = Number(m.dataset.id);
-    m.querySelector('[data-quitar]')?.addEventListener('click', () => quitarFoto(id));
-    m.querySelectorAll('[data-mover]').forEach((b) =>
-      b.addEventListener('click', () => moverFoto(id, Number(b.dataset.mover))));
+    const i = Number(m.dataset.i);
+    m.querySelector('[data-quitar]').addEventListener('click', (e) => {
+      e.stopPropagation();
+      quitarFoto(i);
+    });
+    arrastrable(m, i);
   });
 }
 
-async function quitarFoto(id) {
+/* REORDENAR ARRASTRANDO.
+
+   La posicion se guarda como INDICE y no como id porque la lista mezcla
+   fotos ya subidas —que tienen id— con fotos en espera, que no tienen
+   ninguno todavia. El indice sirve para las dos.
+
+   `dragover` tiene que llamar a preventDefault o el navegador no admite
+   la soltada: por omision ningun elemento es un destino valido. */
+let vieneDe = null;
+
+function arrastrable(nodo, i) {
+  nodo.addEventListener('dragstart', (e) => {
+    vieneDe = i;
+    nodo.classList.add('viajando');
+    e.dataTransfer.effectAllowed = 'move';
+    /* Firefox no arranca el arrastre si no se escribe algo. */
+    e.dataTransfer.setData('text/plain', String(i));
+  });
+  nodo.addEventListener('dragend', () => {
+    vieneDe = null;
+    $$('#fotos .miniatura').forEach((m) => m.classList.remove('viajando', 'destino'));
+  });
+  nodo.addEventListener('dragover', (e) => {
+    if (vieneDe === null || vieneDe === i) return;
+    e.preventDefault();
+    nodo.classList.add('destino');
+  });
+  nodo.addEventListener('dragleave', () => nodo.classList.remove('destino'));
+  nodo.addEventListener('drop', (e) => {
+    e.preventDefault();
+    if (vieneDe === null || vieneDe === i) return;
+    reordenar(vieneDe, i);
+  });
+}
+
+async function reordenar(desde, hasta) {
+  const lista = listaFotos();
+  const [movida] = lista.splice(desde, 1);
+  lista.splice(hasta, 0, movida);
+  pintarFotos();
+
+  /* Las que todavia no subieron no tienen orden que guardar: su orden es
+     el de esta lista, y se aplica cuando suban. */
+  if (!actual) return;
   try {
-    await api('/api/admin/fotos/' + id, { method: 'DELETE' });
-    actual.fotos = actual.fotos.filter((f) => f.id !== id);
-    pintarFotos();
+    await api('/api/admin/autos/' + actual.id + '/fotos/orden',
+      { method: 'PUT', body: JSON.stringify({ ids: actual.fotos.map((f) => f.id) }) });
     await cargar();
   } catch (err) { avisar(err.message, true); }
 }
 
-async function moverFoto(id, paso) {
-  const i = actual.fotos.findIndex((f) => f.id === id);
-  const j = i + paso;
-  if (j < 0 || j >= actual.fotos.length) return;
-  [actual.fotos[i], actual.fotos[j]] = [actual.fotos[j], actual.fotos[i]];
-  pintarFotos();
+async function quitarFoto(i) {
+  const foto = listaFotos()[i];
+  if (!foto) return;
+
+  /* La que nunca subio se saca de la lista y listo; hay que soltarle la
+     direccion de la vista previa o el navegador se queda con el archivo
+     en memoria toda la sesion. */
+  if (foto.tmp) {
+    URL.revokeObjectURL(foto.vista);
+    enEspera.splice(i, 1);
+    pintarFotos();
+    return;
+  }
+
   try {
-    await api('/api/admin/autos/' + actual.id + '/fotos/orden',
-      { method: 'PUT', body: JSON.stringify({ ids: actual.fotos.map((f) => f.id) }) });
+    await api('/api/admin/fotos/' + foto.id, { method: 'DELETE' });
+    actual.fotos.splice(i, 1);
+    pintarFotos();
     await cargar();
   } catch (err) { avisar(err.message, true); }
 }
@@ -302,39 +387,84 @@ function achicar(archivo, lado) {
   });
 }
 
-async function subir(archivos) {
-  if (!actual) { avisar('Guardá el auto primero', true); return; }
+/* Achicar las dos versiones de una foto. Se hace siempre acá, exista el
+   auto o no: lo que cambia después es si se manda o si se guarda. */
+async function preparar(archivo) {
+  return {
+    g: await achicar(archivo, 1600),
+    ch: await achicar(archivo, 640),
+  };
+}
 
-  for (const archivo of archivos) {
-    if (!archivo.type.startsWith('image/')) continue;
+async function mandar(par) {
+  const cuerpo = new FormData();
+  cuerpo.append('1600', par.g, '1600.webp');
+  cuerpo.append('640', par.ch, '640.webp');
+  return api('/api/admin/autos/' + actual.id + '/fotos', { method: 'POST', body: cuerpo });
+}
+
+async function elegir(archivos) {
+  const imagenes = [...archivos].filter((a) => a.type.startsWith('image/'));
+  if (!imagenes.length) return;
+
+  for (const archivo of imagenes) {
     try {
-      avisar('Subiendo ' + archivo.name + '…');
-      const cuerpo = new FormData();
-      cuerpo.append('1600', await achicar(archivo, 1600), '1600.webp');
-      cuerpo.append('640', await achicar(archivo, 640), '640.webp');
+      const par = await preparar(archivo);
 
-      const { id, clave } = await api('/api/admin/autos/' + actual.id + '/fotos',
-        { method: 'POST', body: cuerpo });
-      actual.fotos.push({ id, clave });
+      /* Si el auto ya existe, sube ahora. Si no, se queda esperando con
+         una vista previa hecha del mismo blob que se va a subir — así lo
+         que se ve es exactamente lo que va a quedar. */
+      if (actual) {
+        const { id, clave } = await mandar(par);
+        actual.fotos.push({ id, clave });
+      } else {
+        enEspera.push({ tmp: ++contadorTmp, par, vista: URL.createObjectURL(par.ch) });
+      }
       pintarFotos();
     } catch (err) {
       avisar(err.message, true);
     }
   }
-  avisar('Fotos subidas');
-  await cargar();
+
+  if (actual) { avisar('Fotos subidas'); await cargar(); }
+  else avisar(enEspera.length + ' foto(s) listas — suben al guardar');
 }
 
-$('#archivo').addEventListener('change', (e) => { subir([...e.target.files]); e.target.value = ''; });
+/* Cuando el auto recién se crea, sube todo lo que estaba esperando. En
+   ORDEN y de a una: el servidor le da a cada foto el lugar siguiente al
+   de la última, así el orden de la pantalla es el que queda guardado. */
+async function subirLoQueEsperaba() {
+  if (!enEspera.length) return;
+  avisar('Subiendo ' + enEspera.length + ' foto(s)…');
+  for (const foto of enEspera) {
+    try {
+      const { id, clave } = await mandar(foto.par);
+      actual.fotos.push({ id, clave });
+      URL.revokeObjectURL(foto.vista);
+    } catch (err) {
+      avisar(err.message, true);
+    }
+  }
+  enEspera = [];
+  pintarFotos();
+}
 
-const zona = $('#soltar');
+$('#archivo').addEventListener('change', (e) => { elegir(e.target.files); e.target.value = ''; });
+
+/* Soltar sobre cualquier parte de la sección de fotos, no sólo sobre el
+   más: el gesto natural es tirarlas donde están las otras. */
+const zona = $('#zonaFotos');
 ['dragenter', 'dragover'].forEach((n) => zona.addEventListener(n, (e) => {
-  e.preventDefault(); zona.classList.add('encima');
+  if (vieneDe !== null) return;          /* es un reordenamiento, no un alta */
+  if (!e.dataTransfer.types.includes('Files')) return;
+  e.preventDefault();
 }));
-['dragleave', 'drop'].forEach((n) => zona.addEventListener(n, (e) => {
-  e.preventDefault(); zona.classList.remove('encima');
-}));
-zona.addEventListener('drop', (e) => subir([...e.dataTransfer.files]));
+zona.addEventListener('drop', (e) => {
+  if (vieneDe !== null) return;
+  if (!e.dataTransfer.files.length) return;
+  e.preventDefault();
+  elegir(e.dataTransfer.files);
+});
 
 /* ── arranque ───────────────────────────────────────────────────── */
 
