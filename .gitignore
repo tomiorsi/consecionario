@@ -7,3 +7,6 @@ source/Cyberduck.app/
 # Secretos y estado local de wrangler
 .dev.vars
 .wrangler/
+
+# wrangler r2 object get descarga aca; no es parte del proyecto
+autos/
