@@ -86,6 +86,10 @@
 /assets/grupos/*
   Cache-Control: public, max-age=86400
 
+# EL MAPA LLEVA HUELLA EN LA DIRECCION (?v=…), asi que se puede guardar
+# tranquilo: si el dibujo cambia, cambia el numero y esa direccion nueva
+# no la tiene nadie guardada. Sin la huella, un mapa corregido tardaba un
+# dia en llegarle a quien ya habia entrado — paso, y por eso esta esto.
 /assets/mapa/*
   Cache-Control: public, max-age=86400
 
