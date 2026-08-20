@@ -84,6 +84,19 @@
 # con las de arriba, por eso van carpeta por carpeta y no un /assets/*
 # que se comería también a cars/ y a mark.svg.
 
+# LA TIPOGRAFIA, UN ANO Y SIN PREGUNTAR.
+#
+# Venia sin regla propia, asi que caia en el valor por omision:
+# max-age=0, must-revalidate. Con eso el navegador la tiene guardada pero
+# igual pregunta antes de usarla, y esa ida y vuelta pasa ANTES de que la
+# fuente sirva para algo. En una conexion lenta es medio segundo con el
+# nombre del grupo escrito en la letra de respaldo.
+#
+# El archivo no cambia nunca: es un subconjunto fijo de Northwell. Si
+# algun dia cambiara, hay que cambiarle el nombre — no bajarle el cache.
+/assets/fuentes/*
+  Cache-Control: public, max-age=31536000, immutable
+
 /assets/video/*
   Cache-Control: public, max-age=86400
 

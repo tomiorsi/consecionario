@@ -24,6 +24,19 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&family=Montserrat:wght@300..800&display=swap" rel="stylesheet">
+<!-- LA TIPOGRAFIA SE PIDE ACA Y NO CUANDO EL CSS LA DESCUBRA.
+
+     Sin esto la cadena es: bajar el HTML → parsear el <style> → ver el
+     @font-face → ver que algo lo usa → recién ahí pedir el archivo. Son
+     tres pasos de espera antes de que empiece la descarga, y mientras
+     tanto el nombre del grupo se dibuja con la letra de respaldo.
+
+     Va `crossorigin` aunque el archivo sea de este mismo dominio: las
+     fuentes se piden siempre en modo anónimo, y sin el atributo el
+     navegador guarda DOS entradas distintas y la precarga no sirve para
+     nada — la pide dos veces. -->
+<link rel="preload" href="/assets/fuentes/northwell.woff2" as="font" type="font/woff2" crossorigin>
+
 <!-- El pie vive en su propia hoja: está también en /garage y dos
      copias del mismo CSS se desincronizan a la primera corrección. -->
 <link rel="stylesheet" href="/pie.css">
@@ -3111,6 +3124,58 @@ window.TURNO = (function(){
     }
   };
 })();
+
+/* EL RESPALDO CUANDO EL NAVEGADOR MIENTE.
+   ══════════════════════════════════════════════════════════════════
+
+   Los cuatro videos se sirven en varios codecs y el navegador elige. La
+   elección la hace con `canPlayType` sobre la cadena del <source>, y ahí
+   está el agujero: ESA CADENA NO DICE TODO LO QUE HACE FALTA SABER.
+
+   `hvc1.1.6.L120.B0` no dice que el archivo es de 10 bits, y
+   `hvc1.4.10.L120.B0` —el del reel— pide el perfil 4, que son las Range
+   Extensions y no las tiene cualquiera. Un navegador con HEVC de 8 bits,
+   o sin ese perfil, contesta "probably" igual: mira el codec y el nivel,
+   no el resto. Elige ese archivo, se lo baja entero, y recién al
+   decodificarlo falla.
+
+   Y AHÍ NO HAY VUELTA ATRÁS POR SÍ SOLA. La lista de <source> se
+   recorre UNA vez, al elegir; si el elegido falla más tarde, al
+   decodificar, el navegador no vuelve a la lista: marca error en el
+   <video> y se queda ahí. El resultado es un recuadro negro en una
+   máquina y el video andando en la de al lado — que es exactamente la
+   clase de falla que uno le echa a la computadora del otro.
+
+   Esto escucha ese error y rehace el <video> con el H.264 pelado, que no
+   promete nada raro y lo reproduce todo. Pesa el doble; es el precio de
+   que se vea.
+
+   NO SE PUEDE PROBAR DESDE ACÁ, y conviene dejarlo escrito: para verlo
+   fallar hace falta una máquina que declare un codec que no puede
+   decodificar. En las que se probó, los seis archivos decodifican bien.
+   Esto no arregla un síntoma visto: tapa un camino que el código dejaba
+   abierto y del que no había forma de volver. */
+window.RESPALDO = function(v, urlH264, rehacer){
+  if (!v || !urlH264) return;
+  var cayo = false;
+  v.addEventListener('error', function(){
+    if (cayo) return;
+    var e = v.error;
+    /* 3 = no se pudo decodificar. 4 = ninguna fuente sirvió.
+       Las otras dos —abortado por el usuario, red cortada— no se
+       arreglan cambiando de archivo. */
+    if (!e || (e.code !== 3 && e.code !== 4)) return;
+    cayo = true;
+
+    while (v.firstChild) v.removeChild(v.firstChild);
+    var s = document.createElement('source');
+    s.src  = urlH264;
+    s.type = 'video/mp4';
+    v.appendChild(s);
+    v.load();
+    if (rehacer) { try { rehacer(); } catch(err){} }
+  });
+};
 </script>
 
 <!-- Portada en video. Primera pantalla del sitio; el escenario del auto
@@ -3198,6 +3263,12 @@ window.TURNO = (function(){
       s.src  = base + f[0];
       s.type = f[1];
       v.appendChild(s);
+    });
+
+    /* Si el codec elegido resulta no decodificar, se vuelve al H.264 y
+       se intenta arrancar de nuevo. Ver window.RESPALDO. */
+    window.RESPALDO(v, base + '.mp4', function(){
+      try { var pr = v.play(); if (pr && pr.catch) pr.catch(function(){}); } catch(e){}
     });
 
     /* Y NADA MÁS.
@@ -4187,6 +4258,11 @@ window.TURNO = (function(){
     });
 
     v.load();
+
+    /* El reel es el que más expuesto está: su cadena pide el perfil 4 de
+       HEVC, que es el menos común de los que usa el sitio. */
+    window.RESPALDO(v, base + '.mp4', despertar);
+
     despertar();
   }
 
@@ -5077,6 +5153,7 @@ var UNIDAD = null;
       });
 
       v.load();
+      window.RESPALDO(v, base + '.mp4', tocar);
 
       /* El primer play() sale con el video todavía vacío y puede
          rechazarse. Si ese rechazo se traga en silencio, la sección
@@ -5264,6 +5341,11 @@ var UNIDAD = null;
       });
 
       v.load();
+
+      /* Con un video propio cargado desde el panel no hay a qué volver:
+         es un solo archivo y ya es H.264. */
+      if (!propio) window.RESPALDO(v, base + '.mp4', tocar);
+
       /* Cuando llegan los datos se vuelve a intentar: el primer play()
          sale con el video todavía vacío y puede rechazarse. Antes ese
          rechazo se tragaba en silencio y el video quedaba como una foto. */
