@@ -25,6 +25,30 @@ import { PANEL } from './admin.js';
 const GRUPOS = ['alta-gama', 'evolution', 'deportivos', 'urbanos'];
 const TAMANOS = ['1600', '640'];
 
+/* LOS LUGARES FIJOS DE LA HOME.
+
+   Es una lista BLANCA: sólo se puede escribir en un slot que esté acá.
+   Sin esto, cualquiera con sesión podría inventar nombres y llenar R2 de
+   archivos que ninguna página muestra.
+
+   La proporción de cada uno NO es decorativa: es la que usa el CSS de esa
+   sección, y el panel recorta la imagen a esa medida antes de subirla.
+   Así lo que se sube entra siempre, sin importar cómo venga la foto. */
+const SLOTS = {
+  'editorial-principal': { alto: 1600, prop: 3 / 2, donde: 'La nota — foto grande' },
+  'editorial-1':         { alto: 800,  prop: 1,     donde: 'La nota — tira, primera' },
+  'editorial-2':         { alto: 800,  prop: 1,     donde: 'La nota — tira, segunda' },
+  'editorial-3':         { alto: 800,  prop: 1,     donde: 'La nota — tira, tercera' },
+  'collage-interior':    { alto: 1600, prop: 4 / 3, donde: 'Collage — interior' },
+  'collage-ciudad':      { alto: 1600, prop: 3 / 2, donde: 'Collage — exterior' },
+  'social-1':            { alto: 800,  prop: 1,     donde: 'Instagram — 1' },
+  'social-2':            { alto: 800,  prop: 1,     donde: 'Instagram — 2' },
+  'social-3':            { alto: 800,  prop: 1,     donde: 'Instagram — 3' },
+  'social-4':            { alto: 800,  prop: 1,     donde: 'Instagram — 4' },
+  'social-5':            { alto: 800,  prop: 1,     donde: 'Instagram — 5' },
+  'social-6':            { alto: 800,  prop: 1,     donde: 'Instagram — 6' },
+};
+
 /* ── respuestas ──────────────────────────────────────────────────── */
 
 const json = (dato, estado = 200, cabeceras = {}) =>
@@ -187,6 +211,19 @@ export default {
         return json({ ok: true }, 200, {
           'set-cookie': 'sesion=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0',
         });
+      }
+
+      /* ── LAS IMÁGENES FIJAS ───────────────────────────────────────
+         Devuelve sólo los slots que TIENEN reemplazo. La página ya trae
+         sus fotos de siempre escritas en el HTML; esto le dice cuáles
+         cambiar. Con la tabla vacía la respuesta es `{}` y el sitio se
+         ve exactamente como antes de que esto existiera. */
+      if (ruta === '/api/medios' && metodo === 'GET') {
+        const { results } = await env.DB
+          .prepare('SELECT slot, clave FROM medios').all();
+        const mapa = {};
+        for (const m of results) mapa[m.slot] = m.clave;
+        return json(mapa, 200, { 'cache-control': 'public, max-age=60' });
       }
 
       /* ── CATÁLOGO PÚBLICO ─────────────────────────────────────────
@@ -378,6 +415,69 @@ async function admin(peticion, env, ruta, metodo) {
 
     await tocar(env, auto.id);
     return json({ id: meta.last_row_id, clave: base }, 201);
+  }
+
+  /* ── LAS IMÁGENES FIJAS DE LA HOME ────────────────────────────── */
+
+  if (ruta === '/api/admin/medios' && metodo === 'GET') {
+    const { results } = await env.DB
+      .prepare('SELECT slot, clave, editado FROM medios').all();
+    const puestas = new Map(results.map((m) => [m.slot, m]));
+    /* Se devuelven LOS DOCE, tengan reemplazo o no: el panel necesita
+       mostrar el lugar aunque esté con la foto original, con su medida
+       recomendada al lado. */
+    return json({
+      slots: Object.entries(SLOTS).map(([slot, s]) => ({
+        slot, donde: s.donde, alto: s.alto, prop: s.prop,
+        clave: puestas.get(slot)?.clave || null,
+        editado: puestas.get(slot)?.editado || null,
+      })),
+    });
+  }
+
+  const medio = ruta.match(/^\/api\/admin\/medios\/([a-z0-9-]+)$/);
+
+  if (medio && metodo === 'POST') {
+    const slot = medio[1];
+    if (!SLOTS[slot]) return error('Ese lugar no existe', 404);
+
+    const form = await peticion.formData();
+    const parte = form.get('imagen');
+    if (!(parte instanceof File)) return error('Falta la imagen');
+    if (parte.size > 3 * 1024 * 1024) return error('Esa foto pesa demasiado');
+
+    const clave = `medios/${slot}/${crypto.randomUUID()}`;
+    await env.FOTOS.put(`${clave}-1600.webp`, parte.stream(), {
+      httpMetadata: { contentType: 'image/webp' },
+    });
+
+    /* La anterior se borra DESPUÉS de que la nueva quedó guardada y la
+       fila apunta a ella. Al revés, si algo falla en el medio, el sitio
+       queda pidiendo un archivo que ya no está. */
+    const antes = await env.DB.prepare('SELECT clave FROM medios WHERE slot = ?')
+      .bind(slot).first();
+
+    await env.DB.prepare(
+      `INSERT INTO medios (slot, clave) VALUES (?, ?)
+       ON CONFLICT(slot) DO UPDATE SET clave = excluded.clave,
+                                       editado = datetime('now')`
+    ).bind(slot, clave).run();
+
+    if (antes?.clave) await env.FOTOS.delete(`${antes.clave}-1600.webp`);
+    return json({ clave }, 201);
+  }
+
+  /* Volver a la original: se borra la fila y la página vuelve a usar la
+     foto que trae escrita en el HTML. */
+  if (medio && metodo === 'DELETE') {
+    const slot = medio[1];
+    const fila = await env.DB.prepare('SELECT clave FROM medios WHERE slot = ?')
+      .bind(slot).first();
+    if (!fila) return error('Ese lugar ya está con la original', 404);
+
+    await env.DB.prepare('DELETE FROM medios WHERE slot = ?').bind(slot).run();
+    await env.FOTOS.delete(`${fila.clave}-1600.webp`);
+    return json({ ok: true });
   }
 
   const foto = ruta.match(/^\/api\/admin\/fotos\/(\d+)$/);

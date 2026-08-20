@@ -94,6 +94,48 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   font-weight:700; letter-spacing:.06em; text-transform:uppercase;
 }
 
+/* ── pestañas ── */
+.pestanias{ display:flex; gap:.3rem }
+.pestania{
+  appearance:none; border:0; border-bottom:1px solid transparent; background:transparent;
+  color:var(--apagado); padding:.4em .2em; margin-right:1rem;
+  font-family:var(--display); font-size:.72rem; font-weight:700;
+  letter-spacing:.06em; text-transform:uppercase;
+  transition:color .3s var(--ease), border-color .3s var(--ease);
+}
+.pestania[aria-pressed="true"]{ color:var(--chrome); border-bottom-color:var(--chrome) }
+.pestania:hover{ color:var(--chrome) }
+
+.aclara{
+  margin:1.4rem 0 1.2rem; max-width:44rem;
+  font-size:.8rem; line-height:1.7; color:var(--apagado);
+}
+
+/* ── las imágenes fijas ── */
+.medios{ display:grid; gap:.9rem; grid-template-columns:repeat(auto-fill,minmax(14rem,1fr)) }
+.medio{
+  border:1px solid var(--linea); border-radius:3px; overflow:hidden;
+  background:var(--panel); display:flex; flex-direction:column;
+}
+.medio .marco{ position:relative; background:#08080a; overflow:hidden }
+.medio .marco img{ width:100%; height:100%; object-fit:cover; display:block }
+.medio .pieza{ padding:.75rem .85rem .9rem; display:grid; gap:.5rem }
+.medio h3{ font-size:.8rem; font-weight:600; line-height:1.3 }
+/* La medida recomendada, bien a la vista: es lo que evita que suban una
+   foto vertical para un lugar apaisado. */
+.medio .formato{
+  font-family:var(--mono); font-size:.56rem; letter-spacing:.1em;
+  color:var(--apagado);
+}
+.medio .mandos{ display:flex; gap:.4rem; margin-top:.15rem }
+.medio .btn{ padding:.55em .9em; font-size:.5rem; flex:1 }
+.propia{
+  position:absolute; left:.4rem; top:.4rem;
+  background:var(--chrome); color:var(--void);
+  font-size:.44rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+  padding:.3em .6em; border-radius:100px;
+}
+
 /* ── lista ── */
 .filtros{ display:flex; flex-wrap:wrap; gap:.4rem; margin:1.4rem 0 }
 .chip{
@@ -248,12 +290,26 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   <!-- LISTA -->
   <main class="hoja" id="vistaLista">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
-      <h1 class="titulo">Autos</h1>
+      <div class="pestanias">
+        <button class="pestania" type="button" id="pesAutos" aria-pressed="true">Autos</button>
+        <button class="pestania" type="button" id="pesMedios" aria-pressed="false">Imágenes del sitio</button>
+      </div>
       <button class="btn btn--fuerte" id="nuevo" type="button">Cargar un auto</button>
     </div>
     <div class="filtros" id="filtros"></div>
     <div class="grilla" id="grilla"></div>
     <div class="vacio oculto" id="sinAutos">Todavía no hay autos cargados.</div>
+
+    <!-- LAS IMÁGENES FIJAS DE LA HOME -->
+    <section id="zonaMedios" class="oculto">
+      <p class="aclara">
+        Estas son las fotos que están siempre en la página de inicio. Cada
+        una se recorta sola a la medida que usa su lugar, así que podés
+        subir la foto como la tengas.
+      </p>
+      <div class="medios" id="medios"></div>
+      <input type="file" id="archivoMedio" accept="image/*" hidden>
+    </section>
   </main>
 
   <!-- FICHA -->

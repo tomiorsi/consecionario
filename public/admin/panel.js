@@ -508,6 +508,154 @@ zona.addEventListener('drop', (e) => {
   elegir(e.dataTransfer.files);
 });
 
+/* ══════════════════════════════════════════════════════════════════
+   LAS IMÁGENES FIJAS DE LA HOME
+   ══════════════════════════════════════════════════════════════════
+
+   Doce lugares que siempre existen. No se crean ni se borran: se
+   reemplaza lo que hay adentro, y "quitar" es volver a la foto original
+   que trae el HTML.
+
+   CADA UNA SE RECORTA A LA PROPORCIÓN DE SU LUGAR, y por eso el panel no
+   pide subir la foto ya preparada. Si el CSS de la nota usa 3:2 y entra
+   una vertical, `object-fit` la recortaría igual pero mostrando lo que el
+   navegador decida; recortándola acá, con `cover` centrado, el resultado
+   es el mismo siempre y además no se suben píxeles que nadie va a ver. */
+
+let slots = [];
+
+async function cargarMedios() {
+  const { slots: lista } = await api('/api/admin/medios');
+  slots = lista;
+  pintarMedios();
+}
+
+const comoProporcion = (p) =>
+  Math.abs(p - 1) < 0.01 ? 'cuadrada 1:1'
+  : Math.abs(p - 3 / 2) < 0.01 ? 'apaisada 3:2'
+  : Math.abs(p - 4 / 3) < 0.01 ? 'apaisada 4:3'
+  : p.toFixed(2) + ':1';
+
+function pintarMedios() {
+  $('#medios').innerHTML = slots.map((s, i) => {
+    const propia = !!s.clave;
+    const src = propia ? '/fotos/' + s.clave + '-1600.webp' : rutaOriginal(s.slot);
+    return '<article class="medio" data-i="' + i + '">' +
+      '<div class="marco" style="aspect-ratio:' + s.prop + '">' +
+        (propia ? '<span class="propia">Tuya</span>' : '') +
+        '<img src="' + src + '" alt="" loading="lazy">' +
+      '</div>' +
+      '<div class="pieza">' +
+        '<h3>' + escapar(s.donde) + '</h3>' +
+        '<span class="formato">' + comoProporcion(s.prop) + ' · ' + s.alto + ' px de ancho</span>' +
+        '<div class="mandos">' +
+          '<button class="btn" data-cambiar type="button">Cambiar</button>' +
+          (propia ? '<button class="btn btn--peligro" data-volver type="button">Volver a la original</button>' : '') +
+        '</div>' +
+      '</div></article>';
+  }).join('');
+
+  $$('#medios .medio').forEach((m) => {
+    const i = Number(m.dataset.i);
+    m.querySelector('[data-cambiar]').addEventListener('click', () => pedirImagen(i));
+    m.querySelector('[data-volver]')?.addEventListener('click', () => volverOriginal(i));
+  });
+}
+
+/* Las fotos que trae el HTML. Están acá para poder mostrar en el panel
+   cómo se ve el lugar cuando NO tiene reemplazo. Si alguna vez cambian
+   en el HTML, hay que cambiarlas acá — es el único lugar donde esta
+   lista se repite, y por eso conviene que sea corta. */
+function rutaOriginal(slot) {
+  if (slot === 'editorial-principal') return '/assets/collage/ciudad.webp';
+  if (slot === 'collage-interior')    return '/assets/collage/interior.webp';
+  if (slot === 'collage-ciudad')      return '/assets/collage/ciudad.webp';
+  const ed = slot.match(/^editorial-(\d)$/);
+  if (ed) return '/assets/social/ig-' + [null, 2, 5, 6][Number(ed[1])] + '.webp';
+  const so = slot.match(/^social-(\d)$/);
+  if (so) return '/assets/social/ig-' + so[1] + '.webp';
+  return '';
+}
+
+let slotEnCurso = null;
+
+function pedirImagen(i) {
+  slotEnCurso = i;
+  $('#archivoMedio').click();
+}
+
+$('#archivoMedio').addEventListener('change', async (e) => {
+  const archivo = e.target.files[0];
+  e.target.value = '';
+  if (!archivo || slotEnCurso === null) return;
+
+  const s = slots[slotEnCurso];
+  avisar('Preparando la imagen…');
+  try {
+    const cuerpo = new FormData();
+    cuerpo.append('imagen', await recortar(archivo, s.alto, s.prop), 'medio.webp');
+    await api('/api/admin/medios/' + s.slot, { method: 'POST', body: cuerpo });
+    avisar('Listo — ya se ve en la página');
+    await cargarMedios();
+  } catch (err) {
+    avisar(err.message, true);
+  }
+});
+
+async function volverOriginal(i) {
+  const s = slots[i];
+  if (!confirm('¿Volver a la foto original de "' + s.donde + '"?')) return;
+  try {
+    await api('/api/admin/medios/' + s.slot, { method: 'DELETE' });
+    avisar('Volvió a la original');
+    await cargarMedios();
+  } catch (err) { avisar(err.message, true); }
+}
+
+/* RECORTE `COVER`, IGUAL QUE EL DEL CSS. Se toma del centro el rectángulo
+   más grande que tenga la proporción pedida y se escala. Es exactamente
+   lo que hace `object-fit:cover`, pero hecho una vez acá en vez de en
+   cada visita — y sin subir los píxeles que el recorte tira. */
+function recortar(archivo, ancho, prop) {
+  return new Promise((listo, fallo) => {
+    const img = new Image();
+    img.onload = () => {
+      const alto = Math.round(ancho / prop);
+      const escala = Math.max(ancho / img.width, alto / img.height);
+      const w = img.width * escala, h = img.height * escala;
+
+      const lienzo = document.createElement('canvas');
+      lienzo.width = ancho; lienzo.height = alto;
+      const pincel = lienzo.getContext('2d');
+      pincel.imageSmoothingQuality = 'high';
+      pincel.drawImage(img, (ancho - w) / 2, (alto - h) / 2, w, h);
+      URL.revokeObjectURL(img.src);
+
+      lienzo.toBlob((b) => (b ? listo(b) : fallo(new Error('No se pudo convertir'))),
+        'image/webp', 0.84);
+    };
+    img.onerror = () => fallo(new Error('Ese archivo no es una imagen'));
+    img.src = URL.createObjectURL(archivo);
+  });
+}
+
+/* ── las dos pestañas ───────────────────────────────────────────── */
+
+function verPestania(cual) {
+  const autos = cual === 'autos';
+  $('#pesAutos').setAttribute('aria-pressed', String(autos));
+  $('#pesMedios').setAttribute('aria-pressed', String(!autos));
+  $('#filtros').classList.toggle('oculto', !autos);
+  $('#grilla').classList.toggle('oculto', !autos);
+  $('#nuevo').classList.toggle('oculto', !autos);
+  $('#zonaMedios').classList.toggle('oculto', autos);
+  $('#sinAutos').classList.add('oculto');
+  if (autos) pintarLista(); else cargarMedios();
+}
+
+$('#pesAutos').addEventListener('click', () => verPestania('autos'));
+$('#pesMedios').addEventListener('click', () => verPestania('medios'));
+
 /* ── arranque ───────────────────────────────────────────────────── */
 
 (async () => {

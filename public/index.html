@@ -4964,14 +4964,14 @@ window.TURNO = (function(){
     <div class="col-pieza col-interior">
       <picture>
         <source media="(max-width:767px)" srcset="assets/collage/interior-mobile.webp">
-        <img src="assets/collage/interior.webp" alt="Interior de un Range Rover Evoque de noche" loading="lazy" decoding="async">
+        <img data-medio="collage-interior" src="assets/collage/interior.webp" alt="Interior de un Range Rover Evoque de noche" loading="lazy" decoding="async">
       </picture>
     </div>
 
     <div class="col-pieza col-exterior">
       <picture>
         <source media="(max-width:767px)" srcset="assets/collage/ciudad-mobile.webp">
-        <img src="assets/collage/ciudad.webp" alt="La ciudad de noche" loading="lazy" decoding="async">
+        <img data-medio="collage-ciudad" src="assets/collage/ciudad.webp" alt="La ciudad de noche" loading="lazy" decoding="async">
       </picture>
     </div>
   </div>
@@ -5538,12 +5538,12 @@ var UNIDAD = null;
     <article class="edit-nota">
       <figure class="edit-foto">
         <div class="edit-marco">
-          <img src="assets/collage/ciudad.webp" alt=""
+          <img data-medio="editorial-principal" src="assets/collage/ciudad.webp" alt=""
                loading="lazy" decoding="async" width="1200" height="800">
           <div class="edit-tira">
-            <img src="assets/social/ig-2.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
-            <img src="assets/social/ig-5.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
-            <img src="assets/social/ig-6.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
+            <img data-medio="editorial-1" src="assets/social/ig-2.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
+            <img data-medio="editorial-2" src="assets/social/ig-5.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
+            <img data-medio="editorial-3" src="assets/social/ig-6.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
           </div>
         </div>
       </figure>
@@ -5661,12 +5661,12 @@ var UNIDAD = null;
 <section id="social">
   <div class="social-caja">
     <div class="social-grilla">
-      <a href="#" aria-disabled="true"><img src="assets/social/ig-1.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
-      <a href="#" aria-disabled="true"><img src="assets/social/ig-2.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
-      <a href="#" aria-disabled="true"><img src="assets/social/ig-3.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
-      <a href="#" aria-disabled="true"><img src="assets/social/ig-4.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
-      <a href="#" aria-disabled="true"><img src="assets/social/ig-5.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
-      <a href="#" aria-disabled="true"><img src="assets/social/ig-6.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
+      <a href="#" aria-disabled="true"><img data-medio="social-1" src="assets/social/ig-1.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
+      <a href="#" aria-disabled="true"><img data-medio="social-2" src="assets/social/ig-2.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
+      <a href="#" aria-disabled="true"><img data-medio="social-3" src="assets/social/ig-3.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
+      <a href="#" aria-disabled="true"><img data-medio="social-4" src="assets/social/ig-4.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
+      <a href="#" aria-disabled="true"><img data-medio="social-5" src="assets/social/ig-5.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
+      <a href="#" aria-disabled="true"><img data-medio="social-6" src="assets/social/ig-6.webp" alt="" loading="lazy" decoding="async" width="620" height="620"></a>
     </div>
   </div>
 </section>
@@ -5790,6 +5790,51 @@ var UNIDAD = null;
         });
     });
   });
+})();
+</script>
+
+<script>
+/* LAS IMÁGENES QUE SE CAMBIAN DESDE EL PANEL.
+   ══════════════════════════════════════════════════════════════════
+
+   La página trae sus fotos de siempre escritas en el HTML, con un
+   `data-medio` que dice qué lugar es cada una. Este script pregunta
+   cuáles fueron reemplazadas y sólo cambia esas.
+
+   ASÍ ES COMO NO SE ROMPE NADA SI ESTO FALLA. Si la consulta no
+   contesta, o la tabla está vacía, o alguien apaga el JavaScript, la
+   página se ve exactamente como se veía antes de que el panel
+   existiera: las fotos ya están puestas, no se dibujan desde acá.
+
+   Y por eso "volver a la original" en el panel es simplemente borrar la
+   fila, no subir de nuevo la foto vieja.
+
+   VA AL FINAL DEL BODY Y NO EN EL HEAD a propósito: las doce imágenes
+   son `loading="lazy"` y están todas debajo del pliegue, así que el
+   cambio llega mucho antes de que alguna se vea. Ponerlo antes retrasaría
+   el primer pintado a cambio de nada. */
+(function(){
+  var lugares = document.querySelectorAll('[data-medio]');
+  if (!lugares.length) return;
+
+  fetch('/api/medios')
+    .then(function(r){ return r.ok ? r.json() : {}; })
+    .then(function(mapa){
+      lugares.forEach(function(img){
+        var clave = mapa[img.dataset.medio];
+        if (!clave) return;
+        /* El <picture> del collage manda sobre el <img>: si queda su
+           <source>, el navegador sigue usando el archivo viejo en las
+           pantallas que le tocan. Se sacan para que valga el src nuevo. */
+        var padre = img.parentElement;
+        if (padre && padre.tagName === 'PICTURE'){
+          padre.querySelectorAll('source').forEach(function(s){ s.remove(); });
+        }
+        img.src = '/fotos/' + clave + '-1600.webp';
+        img.removeAttribute('srcset');
+      });
+    })
+    .catch(function(){ /* se queda con las de siempre */ });
 })();
 </script>
 
