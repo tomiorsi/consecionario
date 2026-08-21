@@ -1,0 +1,60 @@
+CONECTAR INSTAGRAM AL SITIO
+Para que la grilla de abajo de la home se actualice sola.
+
+
+ANTES DE EMPEZAR
+
+  La cuenta de Instagram tiene que ser PROFESIONAL (Empresa o Creador).
+  Si es personal, nada de esto funciona.
+  Instagram -> Configuracion -> Tipo de cuenta -> Cambiar a profesional.
+
+
+PASOS EN META FOR DEVELOPERS
+
+  1. Crear una app.
+     Tipo: Empresa / Business.
+
+  2. Agregarle el producto "Instagram".
+     Elegir la opcion de acceso a la API con login de Instagram.
+
+  3. Vincular la cuenta de Instagram del negocio a la app.
+
+  4. Pedir los permisos de solo lectura del propio contenido:
+       instagram_business_basic
+     (alcanza con ese; no hace falta pedir publicar ni mensajes)
+
+  5. Generar un token de acceso de LARGA DURACION.
+     El corto dura una hora y no sirve.
+
+
+QUE HAY QUE MANDARME
+
+  - ID de la app
+  - Clave secreta de la app  (app secret)
+  - Token de larga duracion
+  - ID de la cuenta de Instagram
+
+  Los cuatro juntos. Con eso lo dejo andando.
+
+  IMPORTANTE: la clave secreta y el token son como una contrasena.
+  Mandalos por un medio privado, no por un chat de grupo.
+
+
+DOS COSAS QUE CONVIENE SABER
+
+  - El token de larga duracion vence a los 60 dias. Se renueva solo si
+    el sitio lo renueva antes de que venza; eso lo dejo automatico, no
+    hay que acordarse de nada. Pero si el sitio queda mas de 60 dias
+    sin recibir visitas, el token muere y hay que generar uno nuevo.
+
+  - Los reels llegan por la API como videos, junto con las fotos. En la
+    grilla se muestra la portada de cada uno.
+
+
+SI ALGO NO APARECE CON ESE NOMBRE
+
+  Meta le cambia el nombre a los menus bastante seguido. Lo que importa
+  es llegar a esto: una app con el producto Instagram, la cuenta del
+  negocio vinculada, permiso de lectura del propio contenido, y un token
+  de larga duracion. Si un paso no aparece igual, mandame una captura de
+  donde estas y te digo por donde seguir.
