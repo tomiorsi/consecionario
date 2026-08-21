@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Las tres paginas del sitio. Las fichas de cada auto NO estan aca: no
+  tienen direccion propia —se abren como una capa sobre /garage— asi que
+  no hay nada que un buscador pueda guardar. El dia que cada auto tenga
+  su URL, van aca.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://mannaselected.com.ar/</loc>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://mannaselected.com.ar/garage/</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://mannaselected.com.ar/por-que-elegirnos/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+</urlset>

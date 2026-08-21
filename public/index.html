@@ -18,6 +18,86 @@
      comparó: al 100% el aro queda pegado al borde y a 16 px se lava
      entero. Achicándola, la misma tinta cae en menos píxeles y el
      monograma se lee más negro. -->
+
+<!-- ══════════════════════════════════════════════════════════════════
+     LO QUE LEEN LOS BUSCADORES Y WHATSAPP
+     ══════════════════════════════════════════════════════════════════
+
+     EL CANONICAL APUNTA AL DOMINIO PROPIO, no a workers.dev. La misma
+     pagina se sirve por las dos direcciones, y sin esto Google las trata
+     como dos sitios distintos compitiendo entre si. Con el canonical
+     puesto, todo lo que se gane en una cuenta para la otra.
+
+     LAS ETIQUETAS og: SON LAS QUE USA WHATSAPP. Cuando alguien pega el
+     link en un chat, lo que se ve —el titulo, la bajada y la foto— sale
+     de aca. Sin ellas WhatsApp muestra la direccion pelada.
+
+     LA FOTO ES ABSOLUTA Y NO RELATIVA: quien lee estas etiquetas esta en
+     otro servidor y una ruta que empiece con / no le dice nada. -->
+<link rel="canonical" href="https://mannaselected.com.ar/">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Manna Motors Selected">
+<meta property="og:locale" content="es_AR">
+<meta property="og:url" content="https://mannaselected.com.ar/">
+<meta property="og:title" content="Manna Motors Selected — Autos seleccionados en Buenos Aires">
+<meta property="og:description" content="Unidades revisadas, documentadas y listas para transferir. Y si lo que buscas no esta, lo buscamos por vos.">
+<meta property="og:image" content="https://mannaselected.com.ar/assets/video/portada-desktop-poster.jpg">
+<meta property="og:image:width" content="1916">
+<meta property="og:image:height" content="1080">
+<meta property="og:image:alt" content="Dos autos seleccionados en el estudio de Manna Motors">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Manna Motors Selected — Autos seleccionados en Buenos Aires">
+<meta name="twitter:description" content="Unidades revisadas, documentadas y listas para transferir. Y si lo que buscas no esta, lo buscamos por vos.">
+<meta name="twitter:image" content="https://mannaselected.com.ar/assets/video/portada-desktop-poster.jpg">
+
+<meta name="theme-color" content="#000000">
+
+<!-- LA FICHA DEL NEGOCIO, EN EL FORMATO QUE GOOGLE ENTIENDE.
+
+     Es lo que le permite mostrar la direccion, el telefono y el horario
+     en el costado de los resultados, y lo que lo ayuda a ubicar el local
+     en Maps. Son los MISMOS datos que estan en el pie: si cambia uno,
+     cambian los dos.
+
+     `AutoDealer` y no `LocalBusiness` a secas: es un tipo que Google
+     conoce, y decirle exactamente que clase de negocio es vale mas que
+     una descripcion generica. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "AutoDealer",
+  "name": "Manna Motors Selected",
+  "url": "https://mannaselected.com.ar",
+  "image": "https://mannaselected.com.ar/assets/video/portada-desktop-poster.jpg",
+  "logo": "https://mannaselected.com.ar/assets/logo/logo-horizontal-blanco.svg",
+  "description": "Concesionario de autos seleccionados en Barracas, Buenos Aires. Cada unidad pasa por inspeccion y documentacion antes de publicarse.",
+  "telephone": "+5491112345678",
+  "email": "hola@mannamotors.com",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "Pasaje Lanin 154",
+    "addressLocality": "Barracas",
+    "addressRegion": "Ciudad Autonoma de Buenos Aires",
+    "addressCountry": "AR"
+  },
+  "geo": {
+    "@type": "GeoCoordinates",
+    "latitude": -34.640427,
+    "longitude": -58.379223
+  },
+  "openingHoursSpecification": [{
+    "@type": "OpeningHoursSpecification",
+    "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday"],
+    "opens": "10:00",
+    "closes": "19:00"
+  }],
+  "areaServed": { "@type": "Country", "name": "Argentina" },
+  "currenciesAccepted": "USD, ARS"
+}
+</script>
+
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/favicon-180.png">
@@ -667,6 +747,7 @@ video::-webkit-media-controls{ display:none !important; }
      nota tiene que seguir estando a la izquierda. */
   .conc-dos > .edit{ order:2 }
   .conc-dos > .conc-caja{ order:1 }
+
 }
 
 /* EL FORMULARIO ES UNA PIEZA, LA NOTA ES TEXTO.
@@ -892,6 +973,29 @@ video::-webkit-media-controls{ display:none !important; }
   opacity:.42;
   cursor:default;
   pointer-events:none;
+}
+
+/* ── LA NOTA, APILADA ─────────────────────────────────────────────
+
+   ESTA MEDIA QUERY VA ACA ABAJO Y NO ARRIBA CON LAS OTRAS, y no es
+   capricho: estuvo arriba, junto al resto de las reglas de celular, y
+   no hacia nada. Las reglas de `.edit` de este bloque vienen DESPUES en
+   el archivo y tienen la misma especificidad, asi que ganaban ellas por
+   orden de aparicion. Una media query no suma especificidad.
+
+   EL BOTON NECESITA SU PROPIO AIRE CUANDO NO HAY DE DONDE SACARLO. En
+   escritorio lo separa `margin-top:auto`, que lo manda al fondo de una
+   columna a la que le sobra alto —asi queda a la altura del boton de
+   enviar de al lado—. Apilado no sobra nada: las filas miden lo que
+   mide su contenido, el `auto` se resuelve en cero y el boton termina
+   pegado al copete.
+
+   Y el relleno de abajo, que existia para emparejar con el de la
+   tarjeta, apilado solo agrega hueco muerto. */
+@media (max-width:940px){
+  .edit{ padding-bottom:0 }
+  .edit-copete{ margin-bottom:0 }
+  .edit-boton{ margin-top:clamp(2rem,4.5vh,2.8rem) }
 }
 
 /* SIN RÓTULO. Estaba el "El Concierge" con su filete corto, y se fue

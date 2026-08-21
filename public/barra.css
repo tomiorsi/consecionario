@@ -72,3 +72,86 @@
 }
 .barra nav a:hover{ color:var(--chrome) }
 
+
+/* ── EL MENU EN CELULAR ───────────────────────────────────────────
+
+   Con tres enlaces —y uno de ellos de tres palabras, "Por qué
+   elegirnos"— la fila no entra en 375 px: se partia en dos renglones y
+   la barra pasaba de una linea a dos, con el logo descalzado al lado.
+
+   PASAN A UN PANEL QUE SE ABRE, igual que en la home. No ocupa la
+   pantalla entera: mide lo que miden sus enlaces y cuelga de la esquina
+   de donde salio, que por tres items es lo que corresponde.
+
+   LA MASCARA DE LA BARRA SE APAGA MIENTRAS EL MENU ESTA ABIERTO. La
+   barra se desvanece hacia abajo con un mask-image, y una mascara
+   afecta a TODO el elemento y a lo que cuelga de el: el panel, que sale
+   justo por debajo, se desvanecia con ella y quedaba ilegible. Con el
+   menu abierto la barra ya no necesita desvanecerse —es una superficie
+   opaca— asi que se le saca la mascara y se le pone el vidrio. */
+
+.quema{ display:none }
+
+@media (max-width:860px){
+  .barra{ position:fixed }
+  .barra nav{
+    position:absolute;
+    top:calc(100% - .6rem);
+    right:var(--gut);
+    flex-direction:column;
+    align-items:flex-end;
+    gap:.9rem;
+    padding:1.05rem 1.2rem;
+    background:rgba(6,7,9,.94);
+    backdrop-filter:blur(16px) saturate(1.15);
+    -webkit-backdrop-filter:blur(16px) saturate(1.15);
+    border:1px solid var(--linea);
+    border-radius:4px;
+    opacity:0;
+    visibility:hidden;
+    transform:translateY(-6px);
+    transition:opacity .32s var(--ease), transform .32s var(--ease),
+               visibility .32s var(--ease);
+  }
+  body.menu-abierto .barra nav{
+    opacity:1;
+    visibility:visible;
+    transform:translateY(0);
+  }
+  body.menu-abierto .barra{
+    -webkit-mask-image:none;
+            mask-image:none;
+    background:linear-gradient(180deg, rgba(6,7,9,.92), rgba(6,7,9,.78));
+    backdrop-filter:blur(16px) saturate(1.15);
+    -webkit-backdrop-filter:blur(16px) saturate(1.15);
+  }
+
+  .quema{
+    display:grid;
+    place-content:center;
+    gap:5px;
+    width:2.6rem;
+    height:2.6rem;
+    padding:0;
+    border:0;
+    background:transparent;
+    cursor:pointer;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .quema span{
+    display:block;
+    width:20px;
+    height:1.5px;
+    background:var(--chrome);
+    transition:transform .38s var(--ease), opacity .28s var(--ease);
+  }
+  /* Las dos lineas se cruzan en X: cada una baja o sube la mitad del
+     hueco que las separa y despues gira. */
+  body.menu-abierto .quema span:first-child{ transform:translateY(3.25px) rotate(45deg) }
+  body.menu-abierto .quema span:last-child{ transform:translateY(-3.25px) rotate(-45deg) }
+}
+
+@media (prefers-reduced-motion:reduce){
+  .barra nav{ transition:none }
+  .quema span{ transition:none }
+}

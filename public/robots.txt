@@ -1,0 +1,13 @@
+# Manna Motors Selected
+
+User-agent: *
+Allow: /
+
+# El panel y la API no son contenido: no hay nada que indexar y el panel
+# ademas pide clave. El Worker ya manda x-robots-tag noindex en /admin;
+# esto le ahorra el viaje al buscador.
+Disallow: /admin
+Disallow: /api/
+Disallow: /fotos/
+
+Sitemap: https://mannaselected.com.ar/sitemap.xml

@@ -5,6 +5,42 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Garage — Manna Motors Selected</title>
 <meta name="description" content="Las unidades seleccionadas de Manna Motors. Cada auto, revisado y documentado antes de publicarse.">
+
+<!-- ══════════════════════════════════════════════════════════════════
+     LO QUE LEEN LOS BUSCADORES Y WHATSAPP
+     ══════════════════════════════════════════════════════════════════
+
+     EL CANONICAL APUNTA AL DOMINIO PROPIO, no a workers.dev. La misma
+     pagina se sirve por las dos direcciones, y sin esto Google las trata
+     como dos sitios distintos compitiendo entre si. Con el canonical
+     puesto, todo lo que se gane en una cuenta para la otra.
+
+     LAS ETIQUETAS og: SON LAS QUE USA WHATSAPP. Cuando alguien pega el
+     link en un chat, lo que se ve —el titulo, la bajada y la foto— sale
+     de aca. Sin ellas WhatsApp muestra la direccion pelada.
+
+     LA FOTO ES ABSOLUTA Y NO RELATIVA: quien lee estas etiquetas esta en
+     otro servidor y una ruta que empiece con / no le dice nada. -->
+<link rel="canonical" href="https://mannaselected.com.ar/garage/">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Manna Motors Selected">
+<meta property="og:locale" content="es_AR">
+<meta property="og:url" content="https://mannaselected.com.ar/garage/">
+<meta property="og:title" content="Garage — Manna Motors Selected">
+<meta property="og:description" content="Las unidades seleccionadas de Manna Motors. Cada auto, revisado y documentado antes de publicarse.">
+<meta property="og:image" content="https://mannaselected.com.ar/assets/video/portada-desktop-poster.jpg">
+<meta property="og:image:width" content="1916">
+<meta property="og:image:height" content="1080">
+<meta property="og:image:alt" content="Dos autos seleccionados en el estudio de Manna Motors">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Garage — Manna Motors Selected">
+<meta name="twitter:description" content="Las unidades seleccionadas de Manna Motors. Cada auto, revisado y documentado antes de publicarse.">
+<meta name="twitter:image" content="https://mannaselected.com.ar/assets/video/portada-desktop-poster.jpg">
+
+<meta name="theme-color" content="#000000">
+
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="/favicon-180.png">
@@ -366,7 +402,16 @@ a{color:inherit;text-decoration:none}
      con la ficha apilada debajo de la foto hay lugar de sobra para
      abajo, y un párrafo con scroll propio adentro de una página que
      también scrollea es una trampa. */
-  .detalle{ align-items:start; overflow:auto }
+  /* AIRE DEBAJO DEL BOTON. Apilado, "Consultar por esta unidad" es lo
+     ultimo de la ficha, y con el relleno de 14 px que traia la capa la
+     pagina terminaba justo donde termina el boton: se lee como si
+     estuviera cortada, y en un telefono el dedo queda encima del borde
+     de la pantalla justo cuando va a tocarlo. */
+  .detalle{
+    align-items:start;
+    overflow:auto;
+    padding-bottom:clamp(2.5rem,7vh,4rem);
+  }
   .detalle .caja{ grid-template-columns:1fr; height:auto; max-height:none }
   .lado-datos{ overflow:visible }
   .bloque-desc{ flex:0 0 auto }
@@ -404,6 +449,10 @@ a{color:inherit;text-decoration:none}
          catalogo es hacerle perder lo que estaba viendo. -->
     <a href="#pie">Contacto</a>
   </nav>
+  <button class="quema" type="button" aria-label="Abrir menu" aria-expanded="false">
+    <span></span><span></span>
+  </button>
+
 </header>
 
 <section class="tapa">

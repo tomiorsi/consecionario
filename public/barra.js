@@ -39,3 +39,39 @@
   addEventListener('scroll', mirar, { passive:true });
   mirar();
 })();
+
+/* EL MENU DE CELULAR.
+
+   Mismo comportamiento que en la home: el boton abre y cierra, tocar un
+   enlace cierra, tocar afuera cierra, y Escape cierra. La clase vive en
+   el <body> porque la barra tiene que cambiar con el —se le apaga la
+   mascara— y no solo el panel. */
+(function(){
+  var boton = document.querySelector('.quema');
+  var panel = document.querySelector('.barra nav');
+  if (!boton || !panel) return;
+
+  function poner(abierto){
+    document.body.classList.toggle('menu-abierto', abierto);
+    boton.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+    boton.setAttribute('aria-label', abierto ? 'Cerrar menu' : 'Abrir menu');
+  }
+
+  boton.addEventListener('click', function(e){
+    e.stopPropagation();
+    poner(!document.body.classList.contains('menu-abierto'));
+  });
+
+  panel.addEventListener('click', function(e){
+    if (e.target.tagName === 'A') poner(false);
+  });
+
+  document.addEventListener('click', function(e){
+    if (!document.body.classList.contains('menu-abierto')) return;
+    if (!panel.contains(e.target) && !boton.contains(e.target)) poner(false);
+  });
+
+  addEventListener('keydown', function(e){
+    if (e.key === 'Escape') poner(false);
+  });
+})();
