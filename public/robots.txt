@@ -10,4 +10,4 @@ Disallow: /admin
 Disallow: /api/
 Disallow: /fotos/
 
-Sitemap: https://mannaselected.com.ar/sitemap.xml
+Sitemap: https://www.mannaselected.com.ar/sitemap.xml
