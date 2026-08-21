@@ -634,7 +634,12 @@ video::-webkit-media-controls{ display:none !important; }
   max-width:76rem;
   margin:0 auto;
   display:grid;
-  grid-template-columns:1fr 1fr;
+  /* LA COLUMNA DEL FORMULARIO ES MÁS ANCHA QUE LA DE LA NOTA. No es
+     un ajuste de milímetros: de las dos cosas que ofrece esta sección,
+     esta es la que importa, y darle más lugar es la manera más callada
+     de decirlo. Además le deja al título el ancho que necesita para
+     entrar en dos renglones a un cuerpo decente. */
+  grid-template-columns:1fr 1.15fr;
   gap:clamp(2.5rem,5vw,4.5rem);
   /* ESTIRA LAS DOS COLUMNAS AL MISMO ALTO. Con `start` cada una medía
      lo suyo y los dos botones —"Ir al garage" y "Enviar por WhatsApp"—
@@ -709,15 +714,11 @@ video::-webkit-media-controls{ display:none !important; }
   background:linear-gradient(90deg, transparent, rgba(255,255,255,.42), transparent);
 }
 
-.conc-rotulo{
-  display:block;
-  font-family:var(--mono);
-  font-size:.56rem;
-  letter-spacing:.3em;
-  text-transform:uppercase;
-  color:rgba(255,255,255,.62);
-  margin-bottom:.2rem;
-}
+/* SIN RÓTULO ARRIBA DEL TÍTULO. Estuvo un "Pedido directo" y se sacó:
+   la tarjeta ya se distingue sola por el marco y el fondo, y un rótulo
+   encima de un título que empieza con una pregunta es un renglón que
+   no agrega nada. La nota de al lado sí lo lleva, porque ahí hace falta
+   decir qué es esa columna. */
 
 /* ══════════════════════════════════════════════════════════════════
    EDITORIAL
@@ -915,20 +916,20 @@ video::-webkit-media-controls{ display:none !important; }
      la tarjeta quedan 510 px de ancho util a 1440, y "¿Buscás una pieza
      específica?" —la línea más larga— mide 473 px a 20 px de cuerpo. Un
      punto más y se parte en tres renglones. */
-  font-size:clamp(1rem,1.7vw,1.25rem);
+  font-size:clamp(1.05rem,1.9vw,1.4rem);
   font-weight:700;
   text-transform:uppercase;
   letter-spacing:.04em;
   line-height:1.28;
-  margin:.5rem 0 0;
+  margin:0;
   color:var(--chrome);
 }
 
 .conc-bajada{
   margin:clamp(.8rem,1.8vh,1.1rem) auto 0;
   max-width:32rem;
-  font-size:clamp(.92rem,1.2vw,1rem);
-  line-height:1.7;
+  font-size:clamp(.95rem,1.25vw,1.05rem);
+  line-height:1.75;
   color:rgba(255,255,255,.78);
 }
 
@@ -941,8 +942,18 @@ video::-webkit-media-controls{ display:none !important; }
 
    Ahora son dos palabras con una línea fina debajo de la activa. Dice
    exactamente lo mismo, ocupa el mismo lugar, y deja de gritar. */
+/* CENTRADO EXPLÍCITO, Y NO HEREDADO.
+
+   Era `inline-flex`, y se centraba porque la caja de alrededor tenía
+   `text-align:center` y una caja en línea obedece a eso. Al volverse
+   flex la caja, esto pasó a ser un hijo de flex: los hijos de flex se
+   blockifican —`inline-flex` se vuelve `flex`— y ahí el text-align del
+   padre ya no lo alcanza, así que los dos botones se fueron contra el
+   borde izquierdo. Se centra con `justify-content`, que es lo que
+   corresponde en una fila flex. */
 .conc-modos{
-  display:inline-flex;
+  display:flex;
+  justify-content:center;
   gap:clamp(1.4rem,3vw,2.4rem);
   margin:clamp(2.2rem,5vh,3.2rem) 0 0;
 }
@@ -989,12 +1000,23 @@ video::-webkit-media-controls{ display:none !important; }
    estirados a 700px se leen como un trámite: el ojo tiene que viajar
    por una línea larguísima para encontrar un dato de cuatro palabras.
    A 24rem la línea del campo mide lo que mide el dato que va adentro. */
+/* `width:100%` ADEMÁS DEL `max-width`, por lo mismo de arriba.
+
+   Como hijo de flex, un bloque con `margin:0 auto` deja de estirarse y
+   se encoge a lo que mide su contenido: el formulario pasó de 384 px a
+   236, con los campos apretados y el texto de adentro cortado. Pidiendo
+   el 100% vuelve a partir del ancho disponible y el `max-width` lo
+   frena donde corresponde; `align-self:center` es lo que ahora lo
+   centra, ya no las márgenes automáticas.
+
+   `flex:1` es lo que lo hace crecer a lo alto, que es de donde saca el
+   lugar el botón de enviar para irse al fondo. */
 .conc-form{
-  display:flex;
-  flex-direction:column;
   flex:1;
+  width:100%;
   max-width:24rem;
-  margin:clamp(2.4rem,5vh,3.4rem) auto 0;
+  align-self:center;
+  margin:clamp(2.4rem,5vh,3.4rem) 0 0;
   display:grid;
   gap:clamp(1.4rem,3vh,2rem);
   text-align:left;
@@ -5794,7 +5816,6 @@ var UNIDAD = null;
   </section>
 
   <div class="conc-caja">
-    <span class="conc-rotulo">Pedido directo</span>
     <h2 class="conc-titulo">¿Buscás una pieza específica?<br>La encontramos.</h2>
     <p class="conc-bajada">
       Decinos qué estás buscando y lo rastreamos en el mercado global. Y
