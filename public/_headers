@@ -41,6 +41,14 @@
   Cache-Control: no-cache
   CDN-Cache-Control: no-store
 
+/por-que-elegirnos/
+  Cache-Control: no-cache
+  CDN-Cache-Control: no-store
+
+/por-que-elegirnos/index.html
+  Cache-Control: no-cache
+  CDN-Cache-Control: no-store
+
 /assets/cars/*
   Cache-Control: public, max-age=31536000, immutable
 

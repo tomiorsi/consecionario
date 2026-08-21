@@ -340,6 +340,20 @@ function abrirZoom(fotos, desde) {
   }
 
   const abajo = (e) => {
+    /* LOS BOTONES NO SON LA FOTO.
+
+       Los gestos se escuchan en la capa entera para poder arrastrar
+       desde cualquier lado, pero eso incluye los botones que estan
+       encima. Y no alcanza con ignorarlos: `setPointerCapture` sobre la
+       capa redirige a la capa TODOS los eventos que siguen, asi que el
+       `pointerup` ya no cae sobre el boton y el navegador nunca llega a
+       fabricar el `click`. El resultado es una cruz y unas flechas que
+       se ven, se pueden apretar, y no hacen nada.
+
+       Se sale antes de capturar: sobre un boton no hay nada que
+       arrastrar. */
+    if (e.target.closest('.zoom-salir, .zoom-paso')) return;
+
     dedos.set(e.pointerId, { x: e.clientX, y: e.clientY });
     capa.setPointerCapture(e.pointerId);
 
@@ -490,36 +504,8 @@ function cerrar() {
 addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrar(); });
 $('#detalle').addEventListener('click', (e) => { if (e.target === $('#detalle')) cerrar(); });
 
-/* EL ALTO DE LA BARRA, MEDIDO Y NO SUPUESTO.
-
-   La barra es fija, así que el resto de la página tiene que dejarle el
-   lugar. Ese alto depende del logo, del relleno y del corte de pantalla
-   —o sea que cambia— y puesto a mano deja el contenido tapado o
-   flotando. Se mide y se escribe en --barra-h. */
-function medirBarra() {
-  const b = document.querySelector('.barra');
-  if (b) document.documentElement.style.setProperty('--barra-h', b.offsetHeight + 'px');
-}
-addEventListener('resize', medirBarra);
-addEventListener('load', medirBarra);
-medirBarra();
-
-/* EL VIDRIO APARECE AL BAJAR. Mismo umbral que la home (24 px) para que
-   las dos páginas se sientan la misma. Sólo se escribe cuando el estado
-   CAMBIA, así el listener no toca el DOM en cada píxel de scroll. */
-(() => {
-  const barra = document.querySelector('.barra');
-  if (!barra) return;
-  let puesto = null;
-  const mirar = () => {
-    const si = scrollY > 24;
-    if (si === puesto) return;
-    puesto = si;
-    barra.classList.toggle('con-vidrio', si);
-  };
-  addEventListener('scroll', mirar, { passive: true });
-  mirar();
-})();
+/* La barra —su alto y el vidrio al bajar— vive en /barra.js, que
+   comparte con /por-que-elegirnos. */
 
 /* ── arranque ────────────────────────────────────────────────────── */
 

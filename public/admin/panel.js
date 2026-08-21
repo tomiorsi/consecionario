@@ -649,6 +649,20 @@ const deLaPantalla = (s) =>
   s.pantallas.find((p) => p.variante === pantalla) ||
   s.pantallas.find((p) => p.variante === 'todo');
 
+/* LAS COMPARTIDAS SE MUESTRAN SÓLO EN COMPUTADORA.
+
+   Un lugar que usa la misma foto en las dos pantallas aparecía en las
+   dos listas, con un cartel explicando que era una sola. Pero eso es
+   pedirle a alguien que lea una advertencia para entender que dos
+   tarjetas que se ven distintas son en realidad la misma: el cartel
+   tapaba un problema que se arregla no mostrándola dos veces.
+
+   Se muestra donde se prepara la foto —la computadora— y listo. Lo que
+   se cambie ahí vale también para el celular, que es lo que la nota de
+   abajo de la tarjeta sigue diciendo. */
+const vaEnEstaPantalla = (s) =>
+  pantalla === 'compu' || s.pantallas.some((p) => p.variante === pantalla);
+
 /* Todos los lugares en una lista plana, para poder referirse a uno por
    número desde el `data-i` del HTML sin llevar dos índices. */
 const planos = () => secciones.flatMap((s) => s.slots);
@@ -658,12 +672,23 @@ function pintarMedios() {
     b.setAttribute('aria-pressed', String(b.dataset.pantalla === pantalla)));
 
   $('#medios').innerHTML = secciones.map((sec) => {
-    let n = 0;
     const previas = secciones.slice(0, secciones.indexOf(sec))
       .reduce((a, s) => a + s.slots.length, 0);
 
-    const piezas = sec.slots.map((s) => {
-      const i = previas + n++;
+    /* Se conserva el número que le toca a cada lugar dentro de la lista
+       plana —el `data-i`— aunque acá se muestren sólo algunos: es lo que
+       usa el resto del panel para saber de cuál se habla. */
+    const visibles = sec.slots
+      .map((s, i) => ({ s, i: previas + i }))
+      .filter(({ s }) => vaEnEstaPantalla(s));
+
+    /* Una sección donde ninguno de sus lugares cambia entre pantallas
+       queda vacía en el celular. No se dibuja el título de una lista sin
+       nada adentro. */
+    if (!visibles.length) return '';
+
+    const piezas = visibles.map(({ s, i: iFijo }) => {
+      const i = iFijo;
       const v = deLaPantalla(s);
       const compartida = v.variante === 'todo';
       const propia = !!v.clave;
@@ -685,8 +710,8 @@ function pintarMedios() {
           '<p class="formato">' + escapar(v.guia) +
             (s.extra ? ' ' + escapar(s.extra) : '') + '</p>' +
           (compartida
-            ? '<p class="compartida">Esta se ve igual en las dos pantallas, ' +
-              'así que es una sola: si la cambiás, cambia en las dos.</p>'
+            ? '<p class="compartida">Se ve igual en la compu y en el celular, ' +
+              'así que es una sola foto para las dos.</p>'
             : '') +
           '<div class="mandos">' +
             '<button class="btn" data-cambiar type="button">Cambiar</button>' +

@@ -77,10 +77,20 @@ const SECCIONES = [
    Partirlas sería pedir dos veces el mismo archivo, así que llevan una
    sola, `todo`.
 
+   LA GUÍA VA EN PROPORCIÓN Y NO EN PALABRAS. Decía "casi cuadrada" o
+   "un poco más ancha que alta", que es lo que uno diría mirando, pero
+   con eso nadie puede preparar una foto ni pedírsela a otro. Un 1:1 o un
+   16:9 se entiende y se transmite.
+
+   Los números están redondeados a la proporción simple más cercana: la
+   foto de la nota mide 1.14 en la compu y 1.10 en el celular, y para
+   quien prepara la foto eso es un cuadrado. El `object-fit` se encarga
+   de la diferencia.
+
    NO SE RECORTA AL SUBIR. Se guarda la foto entera, sólo achicada, y el
-   recorte fino lo hace el `object-fit` del CSS. `guia` es un consejo de
+   recorte fino lo hace el `object-fit` del CSS. La guía es un consejo de
    qué entra mejor, no una regla que el panel imponga: entra cualquier
-   forma, 16:9 incluido. `lado` es el lado más largo que se guarda. */
+   forma. `lado` es el lado más largo que se guarda. */
 const SLOTS = {
   'collage-fondo': {
     seccion: 'collage', donde: 'Collage — el video (arriba a la izquierda)',
@@ -89,8 +99,8 @@ const SLOTS = {
        vez, y no hay ninguna otra sección donde eso sirva. */
     admite: ['video', 'imagen'],
     pantallas: {
-      compu:   { lado: 2000, guia: 'Apaisada 16:9.' },
-      celular: { lado: 1200, guia: 'Vertical 4:5 — casi un cuadrado parado.' },
+      compu:   { lado: 2000, guia: '16:9 — apaisada.' },
+      celular: { lado: 1200, guia: '4:5 — vertical.' },
     },
     extra: 'Puede ser un video .mp4 o una foto. El video va sin sonido, de '
          + 'pocos segundos, y conviene que el final se parezca al principio '
@@ -99,15 +109,15 @@ const SLOTS = {
   'collage-ciudad': {
     seccion: 'collage', donde: 'Collage — la ciudad (abajo)',
     pantallas: {
-      compu:   { lado: 2000, guia: 'Apaisada 3:2.' },
-      celular: { lado: 1200, guia: 'Vertical 3:4.' },
+      compu:   { lado: 2000, guia: '3:2 — apaisada.' },
+      celular: { lado: 1200, guia: '3:4 — vertical.' },
     },
   },
   'collage-interior': {
     seccion: 'collage', donde: 'Collage — el interior (a la derecha)',
     pantallas: {
-      compu:   { lado: 1600, guia: 'Apaisada 4:3.' },
-      celular: { lado: 1200, guia: 'Cuadrada 1:1.' },
+      compu:   { lado: 1600, guia: '4:3 — apaisada.' },
+      celular: { lado: 1200, guia: '1:1 — cuadrada.' },
     },
   },
   'editorial-principal': {
@@ -118,19 +128,19 @@ const SLOTS = {
        pasaba a ser apaisada 3:2. Ahora el celular usa la misma
        disposición que la compu —la grande a la izquierda, la tira al
        costado— y medido queda en 1.10 contra 1.14: la misma foto. */
-    pantallas: { todo: { lado: 1600, guia: 'Casi cuadrada — un poco más ancha que alta.' } },
+    pantallas: { todo: { lado: 1600, guia: '1:1 — cuadrada.' } },
   },
   'editorial-1': {
     seccion: 'nota', donde: 'La nota — tira, primera',
-    pantallas: { todo: { lado: 900, guia: 'Cuadrada.' } },
+    pantallas: { todo: { lado: 900, guia: '1:1 — cuadrada.' } },
   },
   'editorial-2': {
     seccion: 'nota', donde: 'La nota — tira, segunda',
-    pantallas: { todo: { lado: 900, guia: 'Cuadrada.' } },
+    pantallas: { todo: { lado: 900, guia: '1:1 — cuadrada.' } },
   },
   'editorial-3': {
     seccion: 'nota', donde: 'La nota — tira, tercera',
-    pantallas: { todo: { lado: 900, guia: 'Cuadrada.' } },
+    pantallas: { todo: { lado: 900, guia: '1:1 — cuadrada.' } },
   },
 };
 

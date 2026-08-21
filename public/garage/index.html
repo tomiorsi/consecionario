@@ -13,6 +13,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&family=Montserrat:wght@300..800&display=swap" rel="stylesheet">
 <!-- El mismo pie que la home, desde la misma hoja. El marcado está
      duplicado abajo (idéntico, con rutas absolutas); el CSS no. -->
+<link rel="stylesheet" href="/barra.css">
 <link rel="stylesheet" href="/pie.css">
 <style>
 /* Los mismos tokens que index.html. No se comparte una hoja porque el
@@ -59,64 +60,6 @@ a{color:inherit;text-decoration:none}
   font-family:var(--texto); font-size:.58rem; font-weight:600;
   letter-spacing:.26em; text-transform:uppercase; color:var(--apagado);
 }
-
-/* ── barra ──────────────────────────────────────────────────────
-   FIJA Y POR ENCIMA DEL DETALLE. Era sticky en z-index 50 y el detalle
-   va en 60, así que al abrir un auto la barra desaparecía: el logo y la
-   navegación quedaban tapados y no había cómo volver sin cerrar.
-
-   Fija —y no sticky— porque cuando el detalle está abierto el body no
-   scrollea, y una barra sticky se queda donde la dejó el scroll: si uno
-   abrió un auto desde el fondo de la grilla, la barra estaría fuera de
-   la pantalla.
-
-   El alto lo mide el script y lo escribe en --barra-h. No se pone a mano
-   porque depende del logo, del relleno y del corte de pantalla, y si se
-   pone un número fijo el contenido queda tapado o flotando. */
-.barra{
-  position:fixed; top:0; left:0; right:0; z-index:70;
-  display:flex; align-items:center; justify-content:space-between; gap:1rem;
-  padding:1.1rem var(--gut);
-
-  /* ARRANCA TRANSPARENTE Y EL VIDRIO APARECE AL BAJAR, igual que en la
-     home. Arriba de todo no hay nada que separar —el contenido recién
-     empieza— y una barra opaca sobre el negro se lee como una franja
-     pegada encima. */
-  background:transparent;
-  backdrop-filter:blur(0px);
-  -webkit-backdrop-filter:blur(0px);
-
-  /* SIN LÍNEA, SE DESVANECE. Misma pieza que en la home y por el mismo
-     motivo: la máscara va acá y no en el `background` porque tiene que
-     enmascarar TODO el elemento, el color Y el desenfoque juntos. Si
-     sólo se difuminara el color, el corte del `backdrop-filter` seguiría
-     dibujando una línea nítida donde termina la barra — justo lo que se
-     quiere evitar. */
-  -webkit-mask-image:linear-gradient(180deg, #000 42%, rgba(0,0,0,.55) 74%, transparent 100%);
-          mask-image:linear-gradient(180deg, #000 42%, rgba(0,0,0,.55) 74%, transparent 100%);
-
-  transition:background .45s var(--ease),
-             backdrop-filter .45s var(--ease), -webkit-backdrop-filter .45s var(--ease);
-}
-
-/* Los mismos valores que usa la home cuando el fondo es oscuro. */
-.barra.con-vidrio{
-  background:linear-gradient(180deg, rgba(6,7,9,.82), rgba(6,7,9,.30));
-  backdrop-filter:blur(16px) saturate(1.15);
-  -webkit-backdrop-filter:blur(16px) saturate(1.15);
-}
-
-@media (prefers-reduced-motion:reduce){
-  .barra{ transition:none }
-}
-.barra .marca img{ height:clamp(1.7rem,2.6vw,2.3rem); width:auto }
-.barra nav{ display:flex; gap:clamp(1rem,2.4vw,2.2rem) }
-.barra nav a{
-  font-size:.6rem; font-weight:400; letter-spacing:.24em;
-  text-transform:uppercase; color:var(--gris);
-  transition:color .35s var(--ease);
-}
-.barra nav a:hover{ color:var(--chrome) }
 
 /* ── encabezado ── */
 .tapa{ padding:clamp(2.6rem,7vh,4.5rem) var(--gut) clamp(1.4rem,3vh,2rem); text-align:center }
@@ -430,11 +373,18 @@ a{color:inherit;text-decoration:none}
   .desc{ overflow:visible; padding-right:0 }
   .lado-foto .grande{ aspect-ratio:16/10; flex:0 0 auto }
   .lado-datos{ overflow:visible }
-  /* EL BOTON VA ARRIBA, PEGADO A LAS FOTOS. Apilado queda al final de
-     una columna larga, y para consultar hay que pasar por toda la ficha.
-     `order` lo sube sin mover nada en el HTML, que en escritorio lo
-     necesita al final de la columna. */
-  .consultar{ order:-1; margin-top:0; margin-bottom:.4rem }
+  /* EL BOTON VA AL FINAL, DEBAJO DE LA DESCRIPCION.
+
+     Estuvo arriba, pegado a las fotos, con la idea de que consultar no
+     obligara a recorrer la ficha entera. Pero ahi parte la lectura al
+     medio: se ven las fotos, aparece un boton, y recien despues el
+     nombre del auto, el precio y la descripcion. Se pide antes de haber
+     contado que es lo que se ofrece.
+
+     Al final es donde cae naturalmente: primero las fotos y los datos,
+     y cuando alguien termino de leer, el boton. Es el mismo orden que
+     en escritorio, asi que ya no hace falta el `order`. */
+  .consultar{ margin-top:1.8rem }
   .bloque-desc{ margin-top:1.8rem }
 }
 </style>
@@ -510,7 +460,7 @@ a{color:inherit;text-decoration:none}
     <nav class="pie-col" aria-labelledby="pie-nav">
       <h2 class="pie-rotulo" id="pie-nav">Navegación</h2>
       <ul>
-        <li><a href="/garage">Garage</a></li>
+        <li><a href="/garage/">Garage</a></li>
         <li><a href="/#estandar">Estándar</a></li>
         <li><a href="/#donde">Dónde estamos</a></li>
         <li><a href="/#concierge">Contacto</a></li>
@@ -568,6 +518,7 @@ a{color:inherit;text-decoration:none}
 
 <div id="ambiente" aria-hidden="true"></div>
 
+<script src="/barra.js" defer></script>
 <script src="/garage/garage.js"></script>
 <script src="/pie.js" defer></script>
 </body>

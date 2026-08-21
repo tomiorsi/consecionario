@@ -8,11 +8,12 @@
 
    EL HTML DEL PIE SÍ SIGUE DUPLICADO en las dos páginas —son 60 líneas
    de marcado estático y acá no hay armador de plantillas—, pero es
-   idéntico en las dos y usa rutas absolutas justamente para poder
-   serlo. Si se toca, se toca en index.html Y en garage/index.html.
+   idéntico en las tres y usa rutas absolutas justamente para poder
+   serlo. Si se toca, se toca en index.html, en garage/index.html Y en
+   por-que-elegirnos/index.html.
 
    DEPENDE DE LOS TOKENS DE LA PÁGINA: --void, --chrome, --gut, --linea,
-   --apagado, --display, --texto, --ease. Las dos páginas los declaran.
+   --apagado, --display, --texto, --ease. Las tres páginas los declaran.
 
    Lo que el documento pide de cierre: la invitación al Garage Virtual,
    los datos institucionales y el isotipo de la doble M como sello de

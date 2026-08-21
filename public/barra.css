@@ -1,0 +1,74 @@
+/* LA BARRA DE ARRIBA, EN SU PROPIA HOJA.
+   ══════════════════════════════════════════════════════════════════
+
+   Estaba escrita adentro de garage/index.html. Salió de ahí cuando la
+   misma barra pasó a estar también en /por-que-elegirnos: son casi
+   sesenta líneas de CSS con un enmascarado delicado, y dos copias de
+   eso se desincronizan a la primera corrección.
+
+   La home NO usa esta hoja: allá la barra es otra pieza —el HUD, que se
+   compacta con el scroll y cambia de color sobre la portada clara—.
+   Estas dos páginas son negras de arriba abajo y por eso comparten una
+   versión más simple.
+
+   DEPENDE DE LOS TOKENS DE LA PÁGINA: --gut, --ease, --gris, --chrome.
+   Y de barra.js, que mide el alto y lo escribe en --barra-h.
+
+/* ── barra ──────────────────────────────────────────────────────
+   FIJA Y POR ENCIMA DEL DETALLE. Era sticky en z-index 50 y el detalle
+   va en 60, así que al abrir un auto la barra desaparecía: el logo y la
+   navegación quedaban tapados y no había cómo volver sin cerrar.
+
+   Fija —y no sticky— porque cuando el detalle está abierto el body no
+   scrollea, y una barra sticky se queda donde la dejó el scroll: si uno
+   abrió un auto desde el fondo de la grilla, la barra estaría fuera de
+   la pantalla.
+
+   El alto lo mide el script y lo escribe en --barra-h. No se pone a mano
+   porque depende del logo, del relleno y del corte de pantalla, y si se
+   pone un número fijo el contenido queda tapado o flotando. */
+.barra{
+  position:fixed; top:0; left:0; right:0; z-index:70;
+  display:flex; align-items:center; justify-content:space-between; gap:1rem;
+  padding:1.1rem var(--gut);
+
+  /* ARRANCA TRANSPARENTE Y EL VIDRIO APARECE AL BAJAR, igual que en la
+     home. Arriba de todo no hay nada que separar —el contenido recién
+     empieza— y una barra opaca sobre el negro se lee como una franja
+     pegada encima. */
+  background:transparent;
+  backdrop-filter:blur(0px);
+  -webkit-backdrop-filter:blur(0px);
+
+  /* SIN LÍNEA, SE DESVANECE. Misma pieza que en la home y por el mismo
+     motivo: la máscara va acá y no en el `background` porque tiene que
+     enmascarar TODO el elemento, el color Y el desenfoque juntos. Si
+     sólo se difuminara el color, el corte del `backdrop-filter` seguiría
+     dibujando una línea nítida donde termina la barra — justo lo que se
+     quiere evitar. */
+  -webkit-mask-image:linear-gradient(180deg, #000 42%, rgba(0,0,0,.55) 74%, transparent 100%);
+          mask-image:linear-gradient(180deg, #000 42%, rgba(0,0,0,.55) 74%, transparent 100%);
+
+  transition:background .45s var(--ease),
+             backdrop-filter .45s var(--ease), -webkit-backdrop-filter .45s var(--ease);
+}
+
+/* Los mismos valores que usa la home cuando el fondo es oscuro. */
+.barra.con-vidrio{
+  background:linear-gradient(180deg, rgba(6,7,9,.82), rgba(6,7,9,.30));
+  backdrop-filter:blur(16px) saturate(1.15);
+  -webkit-backdrop-filter:blur(16px) saturate(1.15);
+}
+
+@media (prefers-reduced-motion:reduce){
+  .barra{ transition:none }
+}
+.barra .marca img{ height:clamp(1.7rem,2.6vw,2.3rem); width:auto }
+.barra nav{ display:flex; gap:clamp(1rem,2.4vw,2.2rem) }
+.barra nav a{
+  font-size:.6rem; font-weight:400; letter-spacing:.24em;
+  text-transform:uppercase; color:var(--gris);
+  transition:color .35s var(--ease);
+}
+.barra nav a:hover{ color:var(--chrome) }
+

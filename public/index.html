@@ -636,7 +636,13 @@ video::-webkit-media-controls{ display:none !important; }
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:clamp(2.5rem,5vw,4.5rem);
-  align-items:start;
+  /* ESTIRA LAS DOS COLUMNAS AL MISMO ALTO. Con `start` cada una medía
+     lo suyo y los dos botones —"Ir al garage" y "Enviar por WhatsApp"—
+     terminaban a alturas distintas, que es lo que delata que son dos
+     bloques pegados y no una composición. Estiradas, cada botón se va
+     al fondo de su columna con `margin-top:auto` y los dos quedan
+     apoyados en la misma línea. */
+  align-items:stretch;
 }
 @media (max-width:940px){
   .conc-dos{
@@ -644,19 +650,88 @@ video::-webkit-media-controls{ display:none !important; }
     gap:clamp(3.5rem,8vh,5.5rem);
     max-width:46rem;
   }
+  /* APILADO, PRIMERO EL FORMULARIO.
+
+     Lado a lado son dos caminos que se ofrecen a la vez y da igual cuál
+     va a la izquierda. Uno abajo del otro dejan de ser dos caminos y
+     pasan a ser un orden: lo primero es lo que se propone, y lo de
+     abajo, lo que queda si eso no interesa. Escribir vale más que leer
+     una nota.
+
+     Se hace con `order` y no moviendo el HTML porque en escritorio la
+     nota tiene que seguir estando a la izquierda. */
+  .conc-dos > .edit{ order:2 }
+  .conc-dos > .conc-caja{ order:1 }
 }
 
+/* EL FORMULARIO ES UNA PIEZA, LA NOTA ES TEXTO.
+
+   Puestos lado a lado sin nada que los separe, los dos se leían igual:
+   dos columnas centradas, mismo peso, misma nada de fondo. Y no son lo
+   mismo — de todo lo que hay en esta página, esto es lo único donde
+   alguien puede escribirle a la marca.
+
+   NO SE RESUELVE AGRANDANDO LA LETRA. Eso sería competir con el titular
+   de al lado, y una página donde dos cosas gritan no destaca ninguna.
+   Se resuelve dándole CUERPO: un marco, un fondo apenas levantado del
+   negro y aire adentro. Deja de ser texto sobre la página y pasa a ser
+   un objeto apoyado encima — que es exactamente lo que es.
+
+   EL DEGRADADO DE ARRIBA ES LO QUE LO SEPARA DEL FONDO. Un relleno
+   plano al 3% sobre negro casi no se ve; una caída de claro a nada
+   desde el borde de arriba dibuja el canto de la pieza sin necesidad de
+   subir el contraste en todo el bloque. */
 .conc-caja{
   max-width:46rem;
   margin:0 auto;
   text-align:center;
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  /* El relleno de los costados es MENOS que el de arriba y abajo, y no
+     por gusto: cada píxel que se lleva de ancho es ancho que pierde el
+     título, y a 3rem por lado la primera línea no entraba. */
+  padding:clamp(2rem,4.5vh,3rem) clamp(1.3rem,2.4vw,2rem) clamp(2rem,4.5vh,2.8rem);
+  border:1px solid rgba(255,255,255,.14);
+  border-radius:4px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.012) 42%, rgba(255,255,255,.012));
+}
+
+/* Un filete de luz sobre el borde de arriba, del ancho del centro y
+   desvanecido en las puntas. Es el mismo gesto que la línea del pie:
+   marca dónde empieza la pieza sin dibujarle una caja dura. */
+.conc-caja::before{
+  content:'';
+  position:absolute;
+  top:-1px; left:12%; right:12%;
+  height:1px;
+  background:linear-gradient(90deg, transparent, rgba(255,255,255,.42), transparent);
+}
+
+.conc-rotulo{
+  display:block;
+  font-family:var(--mono);
+  font-size:.56rem;
+  letter-spacing:.3em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,.62);
+  margin-bottom:.2rem;
 }
 
 /* ══════════════════════════════════════════════════════════════════
    EDITORIAL
    ══════════════════════════════════════════════════════════════════ */
 
-.edit{ text-align:center; }
+/* Estirada por la grilla y en columna, para poder mandar el botón al
+   fondo. El relleno de abajo es el mismo que el de la tarjeta de al
+   lado: sin eso los dos botones quedan al fondo de su columna pero a
+   distinta altura, porque a uno lo separa el relleno de la tarjeta. */
+.edit{
+  text-align:center;
+  display:flex;
+  padding-bottom:clamp(2rem,4.5vh,2.8rem);
+}
 
 /* SIN VOLANTA NI BAJADA. Estaban el "Editorial" con su filete y el
    "Historias, análisis y cultura automotriz", y se sacaron: la nota ya
@@ -667,7 +742,23 @@ video::-webkit-media-controls{ display:none !important; }
    dentro de una sección centrada, así que el bloque quedaba descalzado
    contra su vecina. Ahora el titular, el copete y el botón comparten
    el mismo eje que la foto. */
-.edit-nota{ text-align:center; }
+.edit-nota{
+  text-align:center;
+  display:flex;
+  flex-direction:column;
+  flex:1;
+  min-width:0;
+}
+
+.edit-rotulo{
+  display:block;
+  font-family:var(--mono);
+  font-size:.56rem;
+  letter-spacing:.3em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,.42);
+  margin:clamp(1.1rem,2.6vh,1.7rem) 0 .6rem;
+}
 
 .edit-foto{
   position:relative;
@@ -762,6 +853,7 @@ video::-webkit-media-controls{ display:none !important; }
    construcción —no puede virar a ningún lado— y la jerarquía la sigue
    dando la opacidad, que es lo que la daba antes. */
 .edit-copete{
+  margin-bottom:clamp(1.2rem,2.6vh,1.7rem);
   margin:clamp(.7rem,1.6vh,1rem) 0 0;
   max-width:30rem;
   margin-inline:auto;
@@ -773,7 +865,11 @@ video::-webkit-media-controls{ display:none !important; }
 /* Mismo botón que el resto del sitio: contorno fino, sin relleno. */
 .edit-boton{
   display:inline-block;
-  margin-top:clamp(1.2rem,2.6vh,1.7rem);
+  align-self:center;
+  /* Al fondo de la columna, a la altura del botón de enviar. El aire
+     mínimo contra el copete lo pone el copete: `margin-top:auto` sólo
+     empuja si sobra lugar, y si no sobra se pega. */
+  margin-top:auto;
   padding:.95em 1.9em;
   border:1px solid rgba(255,255,255,.3);
   border-radius:2px;
@@ -808,18 +904,29 @@ video::-webkit-media-controls{ display:none !important; }
    palabras — que es lo que se veía "raro". */
 .conc-titulo{
   font-family:var(--display);
-  font-size:clamp(1.15rem,2.7vw,2rem);
+  /* MAS CHICO Y MAS APRETADO DESDE QUE ESTA ADENTRO DE LA TARJETA.
+
+     La tarjeta le come unos 100 px de ancho por el relleno, asi que el
+     mismo cuerpo que antes entraba en dos renglones pasaba a cuatro, y
+     un titulo de cuatro renglones deja de leerse como una frase. Baja
+     el cuerpo, baja el interlineado —1.4 en mayusculas es mucho aire— y
+     vuelve a entrar en dos. */
+  /* EL TOPE SALE DE UNA MEDICION, no de probar a ojo. Con el relleno de
+     la tarjeta quedan 510 px de ancho util a 1440, y "¿Buscás una pieza
+     específica?" —la línea más larga— mide 473 px a 20 px de cuerpo. Un
+     punto más y se parte en tres renglones. */
+  font-size:clamp(1rem,1.7vw,1.25rem);
   font-weight:700;
   text-transform:uppercase;
-  letter-spacing:.045em;
-  line-height:1.4;
-  margin:clamp(1.1rem,2.6vh,1.7rem) 0 0;
+  letter-spacing:.04em;
+  line-height:1.28;
+  margin:.5rem 0 0;
   color:var(--chrome);
 }
 
 .conc-bajada{
-  margin:clamp(1rem,2.2vh,1.4rem) auto 0;
-  max-width:30rem;
+  margin:clamp(.8rem,1.8vh,1.1rem) auto 0;
+  max-width:32rem;
   font-size:clamp(.92rem,1.2vw,1rem);
   line-height:1.7;
   color:rgba(255,255,255,.78);
@@ -883,6 +990,9 @@ video::-webkit-media-controls{ display:none !important; }
    por una línea larguísima para encontrar un dato de cuatro palabras.
    A 24rem la línea del campo mide lo que mide el dato que va adentro. */
 .conc-form{
+  display:flex;
+  flex-direction:column;
+  flex:1;
   max-width:24rem;
   margin:clamp(2.4rem,5vh,3.4rem) auto 0;
   display:grid;
@@ -922,6 +1032,7 @@ video::-webkit-media-controls{ display:none !important; }
    escalón que no cierra; a lo ancho, la columna termina en una pieza
    sólida y se lee como un bloque terminado. */
 .conc-enviar{
+  margin-top:auto;
   width:100%;
   margin-top:clamp(.8rem,1.8vh,1.2rem);
   appearance:none;
@@ -1820,7 +1931,12 @@ video::-webkit-media-controls{ display:none !important; }
   right:var(--gut);
   bottom:calc(var(--gut) + clamp(2.2rem,5vh,3.6rem));
   z-index:4;
-  width:min(26rem,66vw);
+  /* SE ENSANCHO CON LA FRASE. Estaba en 26rem, que era la medida justa
+     para el cuerpo chico de antes; al agrandar la letra la frase se
+     partia en cuatro renglones contra este borde en vez de en los dos
+     que marca el <br>. El ancho y el cuerpo van juntos: si se toca uno
+     hay que mirar el otro. */
+  width:min(36rem,78vw);
   text-align:right;
   /* Blanco, porque la portada es un estudio oscuro. Estuvo en tinta
      negra mientras el video de portada era claro. */
@@ -1833,13 +1949,34 @@ video::-webkit-media-controls{ display:none !important; }
    exactamente lo que pide el documento para los títulos principales.
    Por eso el cuerpo es chico en relación al ancho — puesto al tamaño
    de un titular normal, esta misma frase ocupaba media pantalla. */
+/* LA FRASE DE LA PORTADA: MAS GRANDE Y MAS FINA.
+
+   Estaba en Syncopate 700 a 1,25rem. Syncopate ya es una tipografia
+   ancha —sus letras ocupan mucho de por si— y en negrita, en
+   mayusculas y chica, las astas se juntan y el conjunto se ve pesado y
+   apretado, como un cartel. Es la primera frase que alguien lee del
+   sitio y no deberia leerse como un aviso.
+
+   TRES CAMBIOS Y NINGUNO ES CAMBIAR DE FUENTE. La familia sigue siendo
+   la de la marca; lo que estaba mal era como se la usaba:
+
+     · peso 400 en vez de 700 — en una fuente ancha, el peso es lo que
+       la vuelve maciza; en fina se lee elegante
+     · casi el doble de cuerpo — con menos peso hace falta mas tamano
+       para que siga pesando lo mismo en la composicion
+     · mas espacio entre letras y menos entre renglones — el interlineado
+       de 1.8 la desarmaba en dos frases sueltas
+
+   El limite de arriba lo pone el ancho: son dos renglones que no se
+   pueden partir, y pasado 2,1rem el segundo toca el borde en una
+   pantalla de 1440. */
 .cover-title{
   font-family:var(--display);
-  font-size:clamp(.8rem,1.55vw,1.25rem);
-  font-weight:700;
+  font-size:clamp(.92rem,2.05vw,1.95rem);
+  font-weight:400;
   text-transform:uppercase;
-  letter-spacing:.09em;
-  line-height:1.8;
+  letter-spacing:.1em;
+  line-height:1.3;
   margin:0;
 }
 
@@ -2029,6 +2166,43 @@ body.is-dark .mark__logo--oscuro{
 .menu a:focus-visible{ color:var(--ink); }
 .menu a:hover::after,
 .menu a:focus-visible::after{ transform:scaleX(1); }
+
+/* EL CONTACTO ES EL ÚNICO CON MARCO.
+
+   Los otros dos llevan a mirar —el catálogo, quiénes somos— y éste
+   lleva a escribir. Es la diferencia entre navegar y hacer algo, y si
+   los tres se vieran iguales la única acción de la barra quedaría
+   escondida entre dos que no lo son.
+
+   SE QUEDA CON EL SUBRAYADO ROJO APAGADO: ya tiene su propio gesto de
+   hover —se rellena— y las dos cosas juntas son ruido. */
+.menu a.menu-cta{
+  padding:.55em 1.25em;
+  border:1px solid var(--linea-hud, rgba(255,255,255,.28));
+  border-radius:100px;
+  transition:color .35s var(--ease), background .35s var(--ease),
+             border-color .35s var(--ease);
+}
+.menu a.menu-cta::after{ display:none }
+
+/* SE RELLENA AL CONTRARIO DEL FONDO, y hay que escribir los dos casos.
+
+   `--ink` es negro siempre —no se redefine con .is-dark, ahí el cambio
+   lo hacen los colores del texto uno por uno— así que usarlo para el
+   relleno daba una pastilla negra sobre la barra negra: invisible.
+
+   Sobre la portada clara la pastilla se llena de negro con letra
+   blanca; sobre el negro de abajo, al revés. */
+body:not(.is-dark) .menu a.menu-cta{ border-color:rgba(0,0,0,.3) }
+body:not(.is-dark) .menu a.menu-cta:hover,
+body:not(.is-dark) .menu a.menu-cta:focus-visible{
+  background:var(--void); border-color:var(--void); color:var(--chrome);
+}
+body.is-dark .menu a.menu-cta{ border-color:rgba(255,255,255,.32) }
+body.is-dark .menu a.menu-cta:hover,
+body.is-dark .menu a.menu-cta:focus-visible{
+  background:var(--chrome); border-color:var(--chrome); color:var(--void);
+}
 /* ══════════════════════════════════════════════════════════════════
    EL MENÚ EN CELULAR
    ══════════════════════════════════════════════════════════════════
@@ -3042,9 +3216,13 @@ body.is-dark.is-scrolled #topbar{
     <!-- Apuntan a secciones que EXISTEN. Antes iban a #stock, #taller y
          #contacto, que nunca se crearon: los tres links no hacían nada.
          Cuando existan el catálogo y el contacto, vuelven. -->
-    <a href="/garage">Garage</a>
-    <a href="#estandar">Estándar</a>
-    <a href="#donde">Por qué elegirnos</a>
+    <a href="/garage/">Garage</a>
+    <a href="/por-que-elegirnos/">Por qué elegirnos</a>
+    <!-- EL ÚNICO DEL MENÚ QUE ES UN BOTÓN, y por eso va último: los dos
+         de arriba llevan a mirar, éste lleva a escribir. Si los tres se
+         vieran iguales, la acción que importa quedaría escondida entre
+         dos que no la son. -->
+    <a class="menu-cta" href="#concierge">Contacto</a>
   </nav>
 
 <script>
@@ -3426,6 +3604,97 @@ window.RESPALDO = function(v, urlH264, rehacer){
 
     addEventListener('keydown', function(e){
       if (e.key === 'Escape') poner(false);
+    });
+  })();
+
+  /* ══════════════════════════════════════════════════════════════
+     IR A UNA SECCION SIN SALTAR
+     ══════════════════════════════════════════════════════════════
+
+     Un enlace a un ancla te deja en destino en el mismo cuadro. En una
+     pagina de una pantalla eso esta bien; en esta, que mide ocho, es
+     desorientador: se aprieta "Contacto" arriba de todo y sin ninguna
+     transicion aparece un formulario, sin haber visto que hay en el
+     medio ni entender cuanto se bajo.
+
+     POR QUE NO ALCANZA `scroll-behavior:smooth`. Se probo y el problema
+     es la duracion: el navegador la calcula sola y para siete pantallas
+     sale un barrido rapidisimo que se lee como un tiron largo en vez de
+     como un salto corto. Aca la duracion crece con la distancia pero
+     con un tope, asi que un tramo corto es rapido y uno largo no se
+     hace eterno.
+
+     SE CANCELA APENAS EL VISITANTE TOCA ALGO. Una animacion de scroll
+     que le pelea a la rueda del mouse es de las cosas mas molestas que
+     puede hacer una pagina: si alguien mueve la rueda, toca la pantalla
+     o aprieta una tecla, esto se aparta y le devuelve el control.
+
+     CON MOVIMIENTO REDUCIDO NO ANIMA, salta — que es exactamente lo que
+     esa preferencia pide. */
+  (function(){
+    var quieto = window.matchMedia &&
+                 matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    var animando = null;
+
+    function frenar(){ animando = null; }
+    ['wheel','touchstart','keydown'].forEach(function(ev){
+      addEventListener(ev, frenar, { passive:true });
+    });
+
+    /* Suave al arrancar y al llegar, plano en el medio. */
+    function curva(u){
+      return u < .5 ? 4*u*u*u : 1 - Math.pow(-2*u + 2, 3) / 2;
+    }
+
+    function llevar(destino){
+      var desde = window.scrollY || window.pageYOffset;
+      var tope  = document.documentElement.scrollHeight - window.innerHeight;
+      var hasta = Math.max(0, Math.min(tope, destino));
+      var tramo = hasta - desde;
+      if (!tramo) return;
+
+      /* Entre medio segundo y segundo y medio, segun cuanto haya que
+         recorrer: unos 0,55 ms por pixel. */
+      var dura = Math.max(500, Math.min(1500, Math.abs(tramo) * 0.55));
+      var yo = animando = {};
+      var t0 = null;
+
+      requestAnimationFrame(function paso(ts){
+        if (animando !== yo) return;          /* alguien tomo el control */
+        if (t0 === null) t0 = ts;
+        var u = (ts - t0) / dura;
+        if (u > 1) u = 1;
+        window.scrollTo(0, desde + tramo * curva(u));
+        if (u < 1) requestAnimationFrame(paso);
+        else animando = null;
+      });
+    }
+
+    document.addEventListener('click', function(e){
+      var a = e.target.closest && e.target.closest('a[href]');
+      if (!a || a.target === '_blank') return;
+
+      var href = a.getAttribute('href');
+      /* Vale "#seccion" y tambien "/#seccion", que es como lo escriben
+         el pie y el garage para poder apuntar aca desde otra pagina. */
+      var m = /^\/?#(.+)$/.exec(href || '');
+      if (!m) return;
+
+      var destino = document.getElementById(m[1]);
+      if (!destino) return;
+
+      e.preventDefault();
+      var y = destino.getBoundingClientRect().top + (window.scrollY || 0);
+
+      if (quieto){ window.scrollTo(0, y); }
+      else { llevar(y); }
+
+      /* La direccion queda con el ancla, como en un salto normal, para
+         que se pueda compartir y para que el boton de volver funcione.
+         `replaceState` y no el hash directo: escribir location.hash
+         provoca el salto instantaneo que estamos evitando. */
+      if (history.replaceState) history.replaceState(null, '', '#' + m[1]);
     });
   })();
 
@@ -5506,21 +5775,26 @@ var UNIDAD = null;
            lugar es cada uno; lo que está escrito acá es lo que se ve
            mientras nadie lo haya cambiado, y lo que vuelve si en el
            panel se borra el campo. Ver el script del final. -->
+      <!-- El rótulo dice de qué es esta columna. Sin él, un titular
+           suelto al lado de un formulario no se sabe si es una nota, un
+           anuncio o parte del mismo formulario. -->
+      <span class="edit-rotulo">Editorial</span>
       <h2 class="edit-titular" id="edit-titulo" data-texto="editorial-titulo">El futuro del diseño: naturaleza y rendimiento</h2>
       <p class="edit-copete" data-texto="editorial-copete">
         Exploramos cómo la ingeniería y el diseño sustentable están
         redefiniendo la próxima generación de vehículos.
       </p>
 
-      <!-- SIN DESTINO TODAVÍA. Va con aria-disabled y sin href, igual
-           que el WhatsApp y el Instagram mientras no hay a dónde
-           mandar: un botón que no lleva a ningún lado se siente peor
-           que uno que avisa que todavía no. -->
-      <a class="edit-boton" role="link" aria-disabled="true">Leer la nota</a>
+      <!-- LLEVA AL GARAGE Y NO A UNA NOTA. Estuvo apagado, sin destino,
+           esperando una nota que escribir. Mientras tanto lo que sí
+           existe —y es a donde conviene mandar a alguien que llegó
+           hasta el final de la página— es el catálogo. -->
+      <a class="edit-boton" href="/garage/">Ir al garage</a>
     </article>
   </section>
 
   <div class="conc-caja">
+    <span class="conc-rotulo">Pedido directo</span>
     <h2 class="conc-titulo">¿Buscás una pieza específica?<br>La encontramos.</h2>
     <p class="conc-bajada">
       Decinos qué estás buscando y lo rastreamos en el mercado global. Y
@@ -5659,7 +5933,7 @@ var UNIDAD = null;
     <nav class="pie-col" aria-labelledby="pie-nav">
       <h2 class="pie-rotulo" id="pie-nav">Navegación</h2>
       <ul>
-        <li><a href="/garage">Garage</a></li>
+        <li><a href="/garage/">Garage</a></li>
         <li><a href="/#estandar">Estándar</a></li>
         <li><a href="/#donde">Dónde estamos</a></li>
         <li><a href="/#concierge">Contacto</a></li>
