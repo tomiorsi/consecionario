@@ -167,12 +167,16 @@ const TEXTOS = {
   'editorial-titulo': {
     tope: 90,
     donde: 'La nota — titular',
-    pista: 'Dos renglones como mucho.',
+    pista: 'OJO: ya casi no se usa. El titular lo pone el auto del dia '
+         + '—es su marca y modelo—. Esto se ve solo si no hay ningun auto '
+         + 'publicado con al menos cuatro fotos.',
   },
   'editorial-copete': {
     tope: 220,
     donde: 'La nota — bajada',
-    pista: 'La frase que va abajo del titular.',
+    pista: 'OJO: ya casi no se usa. La bajada la pone el auto del dia: es '
+         + 'el primer parrafo de su descripcion. Esto se ve solo si no hay '
+         + 'ningun auto publicado con al menos cuatro fotos.',
   },
 };
 

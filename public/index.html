@@ -6084,6 +6084,8 @@ var UNIDAD = null;
 (function(){
   var grande = document.querySelector('[data-medio="editorial-principal"]');
   var tira = [].slice.call(document.querySelectorAll('.edit-tira img'));
+  var titulo = document.querySelector('[data-texto="editorial-titulo"]');
+  var copete = document.querySelector('[data-texto="editorial-copete"]');
   if (!grande || tira.length !== 3) return;
 
   fetch('/api/autos')
@@ -6111,6 +6113,31 @@ var UNIDAD = null;
            comentario alla. */
         img.dataset.tomado = '1';
       });
+
+      /* EL TITULO Y LA BAJADA TAMBIEN SALEN DEL AUTO.
+
+         El titulo es el mismo nombre que muestra la ficha en el garage.
+
+         LA BAJADA ES EL PRIMER PARRAFO DE LA DESCRIPCION, no la
+         descripcion entera: ahi abajo puede haber quince renglones de
+         service, papeles y detalles, y esto es un copete de dos lineas
+         al lado de un formulario. Se corta en el primer punto y aparte,
+         que es donde el que escribio ya cerro una idea.
+
+         `textContent` y no innerHTML: la descripcion la tipea alguien en
+         el panel, y si pudiera traer etiquetas, un <script> guardado ahi
+         correria en la home de todos los que entren. */
+      if (titulo) {
+        titulo.textContent = nombre;
+        titulo.dataset.tomado = '1';
+      }
+      if (copete && auto.descripcion) {
+        var primero = String(auto.descripcion).split(/\r?\n/)[0].trim();
+        if (primero) {
+          copete.textContent = primero;
+          copete.dataset.tomado = '1';
+        }
+      }
     })
     .catch(function(){ /* se queda con las de siempre */ });
 })();
@@ -6296,6 +6323,12 @@ var UNIDAD = null;
     .then(function(r){ return r.ok ? r.json() : {}; })
     .then(function(mapa){
       lugares.forEach(function(el){
+        /* Mismo caso que las fotos: el titulo y la bajada de la nota los
+           escribe el auto del dia, y los dos scripts tocan el mismo
+           elemento desde dos fetch distintos. Sin la marca ganaba el que
+           contestaba ultimo. Ver el comentario en el script del panel de
+           imagenes. */
+        if (el.dataset.tomado) return;
         var valor = mapa[el.dataset.texto];
         if (valor) el.textContent = valor;
       });
