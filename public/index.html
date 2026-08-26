@@ -2834,7 +2834,7 @@ body.cargando{ overflow:hidden; }
   /* La cabeza recortada a la mitad: ver el comentario de #concierge, que
      es la seccion que tiene justo arriba. El pie no se toca, que lo que
      sigue es otra cosa. */
-  padding:clamp(2.8rem,7vh,4.5rem) 0 clamp(7rem,18vh,13rem);
+  padding:clamp(2rem,5vh,3.2rem) 0 clamp(4.5rem,11vh,8rem);
   overflow:hidden;
 }
 
@@ -2891,8 +2891,13 @@ body.cargando{ overflow:hidden; }
 
      Con 32% vuelve a montarse sobre el borde inferior del video. Si
      alguna vez cambia la proporción de la ciudad, este número hay que
-     recalcularlo. */
-  top:32%;
+     recalcularlo.
+
+     Y eso paso: al subir el solape de la ciudad a -14% el marco se
+     acorto de 903px a 809px, y el mismo 32% apuntaba 30px mas arriba
+     —el cuadrado se comia el video—. Con 36% el solape con el borde
+     inferior del video vuelve a los ~130px de antes. */
+  top:36%;
   width:38%;
   aspect-ratio:4/3;
   z-index:2;
@@ -2919,7 +2924,12 @@ body.cargando{ overflow:hidden; }
       lo que evita que se lea como una grilla. */
 .col-exterior{
   position:relative;
-  margin-top:-6%;
+  /* El solape con el video es lo que fija el alto del marco: la ciudad
+     mide 550px y cada punto de este margen le come 11.8px al total. Se
+     paso de -6% a -14% para acortar la seccion 94px sin achicar ninguna
+     pieza — el collage sigue con las mismas tres formas y los mismos
+     tres tamanos, solo que mas montadas entre si. */
+  margin-top:-14%;
   margin-left:14%;
   width:70%;
   aspect-ratio:3/2;
@@ -2944,7 +2954,7 @@ body.cargando{ overflow:hidden; }
    piezas mal alineadas en vez de como una superposición buscada. */
 
 @media (max-width:767px){
-  #collage{ padding:clamp(2.2rem,6vh,3.5rem) 0 clamp(5rem,14vh,8rem); }
+  #collage{ padding:clamp(1.8rem,4.5vh,2.8rem) 0 clamp(3.5rem,9vh,5.5rem); }
 
   .col-marco{ width:min(34rem,90vw); }
 
@@ -2970,7 +2980,20 @@ body.cargando{ overflow:hidden; }
     top:auto; bottom:auto; right:auto;
     width:52%;
     aspect-ratio:1/1;
-    margin:-24% 0 0 auto;
+    /* Los dos margenes negativos del celular —este y el de la ciudad—
+       son los que fijan el largo de la seccion, porque aca las tres
+       piezas van apiladas en el flujo. Subirlos de -24%/-19% a
+       -28%/-30% acorta el bloque ~50px y de paso marca mas el solape,
+       que en vertical es justamente lo que hay que exagerar.
+
+       El reparto entre los dos no es libre: lo que importa es la SUMA
+       —los dos juntos tienen que dar -58%— pero cargarlo sobre el
+       cuadrado lo hunde en el video. Con -32% le sobresalian 68px de
+       sus 176 y dejaba de leerse montado sobre el borde: parecia
+       pegado encima. Con -28% sobresalen 82px y el peso extra lo lleva
+       la ciudad, que al ser el telon puede meterse mas sin perder
+       nada. */
+    margin:-28% 0 0 auto;
     /* Se movía 95px y con eso se despegaba de las otras dos. Igual que
        en escritorio: es la pieza chica de arriba, tiene que quedarse
        casi quieta y que las otras se muevan a su alrededor. */
@@ -2986,7 +3009,7 @@ body.cargando{ overflow:hidden; }
        que pasa por detrás— y el collage se lee como un bloque.
 
        El margen izquierdo la corre del borde hacia el centro. */
-    margin-top:-19%;
+    margin-top:-30%;
     margin-left:11%;
     width:78%;
     /* 3:4 y no 3:2 como en escritorio. En una pantalla vertical el 3:2
@@ -6119,9 +6142,10 @@ var UNIDAD = null;
         </li>
         <li>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle
-               cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-          <span>Lun a Vie <span aria-hidden="true">·</span> 10:00 a 19:00</span>
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect
+               x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle
+               cx="17.1" cy="6.9" r="1.1" fill="currentColor" stroke="none"/></svg>
+          <a href="https://instagram.com/mannaselected" target="_blank" rel="noopener">@mannaselected</a>
         </li>
       </ul>
     </div>
