@@ -799,10 +799,25 @@ video::-webkit-media-controls{ display:none !important; }
      por gusto: cada píxel que se lleva de ancho es ancho que pierde el
      título, y a 3rem por lado la primera línea no entraba. */
   padding:clamp(2rem,4.5vh,3rem) clamp(1.3rem,2.4vw,2rem) clamp(2rem,4.5vh,2.8rem);
-  border:1px solid rgba(255,255,255,.14);
+  border:1px solid rgba(255,255,255,.16);
   border-radius:4px;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.012) 42%, rgba(255,255,255,.012));
+  /* OSCURA, PERO NO NEGRA. Y ESE ES TODO EL PUNTO.
+
+     Estuvo casi negra —blanco al 5% sobre el fondo— y para distinguirse
+     dependia de un filete de luz en el canto. Despues estuvo clara, y el
+     salto era demasiado. Este es el punto medio: un gris de #1C1D20
+     contra el #000 de la pagina. Son 28 puntos de diferencia, poco en un
+     numero y suficiente en pantalla: se ve que es una pieza apoyada
+     encima sin que parezca de otro sitio.
+
+     NO SE USA UN GRIS DE LA PALETA. Los del sitio —--gris, --steel— son
+     azulados, y sobre un fondo negro ese azul se nota. Este es
+     practicamente neutro, con un punto de azul apenas para que no se
+     vea sucio.
+
+     El degradado es minimo pero es lo que la despega de ser un
+     rectangulo plano. */
+  background:linear-gradient(180deg, #1C1D20, #141517);
 }
 
 /* Un filete de luz sobre el borde de arriba, del ancho del centro y
@@ -815,6 +830,8 @@ video::-webkit-media-controls{ display:none !important; }
   height:1px;
   background:linear-gradient(90deg, transparent, rgba(255,255,255,.42), transparent);
 }
+
+
 
 /* SIN RÓTULO ARRIBA DEL TÍTULO. Estuvo un "Pedido directo" y se sacó:
    la tarjeta ya se distingue sola por el marco y el fondo, y un rótulo
@@ -949,7 +966,16 @@ video::-webkit-media-controls{ display:none !important; }
    se leyeran. Sacadas las etiquetas, el degradado tampoco tiene razón
    de ser: era el fondo de algo que ya no está. */
 
+/* EN MAYÚSCULAS, IGUAL QUE EN EL GARAGE.
+
+   Sin esto se imprime lo que hay cargado —"BMW 330I Sport"— y Syncopate
+   dibuja su "p" y su "o" minúsculas casi iguales a las mayúsculas, pero
+   la "r" y la "t" no: quedaba "SPOrt", con dos letras que se caen. No es
+   la fuente fallando, es un texto en minúsculas dentro de un título que
+   en todo el resto del sitio va en caja alta. La ficha del garage ya lo
+   hacía; esto lo empareja. */
 .edit-titular{
+  text-transform:uppercase;
   font-family:var(--display);
   font-size:clamp(.92rem,1.5vw,1.15rem);
   font-weight:700;
@@ -3991,13 +4017,22 @@ window.RESPALDO = function(v, urlH264, rehacer){
          corte que ver. */
       if (!velo){
         velo = document.getElementById('velo-alto');
-        /* LAS DOS SECCIONES QUE SE VAN CON LUZ. El Estándar es blanco y
-           el reel es un video con el piso encendido; las dos, al salir,
-           cortaban seco contra lo que sigue. La sección de abajo no se
-           toca en ninguno de los dos casos: lo que se oscurece es la
-           pantalla. */
-        claras2 = [document.getElementById('estandar'),
-                   document.getElementById('reel')].filter(Boolean);
+        /* SOLO EL ESTÁNDAR, Y EL REEL SE FUE DE ACÁ.
+
+           El velo existe para que una sección con luz no corte seco
+           contra lo que sigue. El reel estaba en la lista porque abajo
+           tenía el collage y el corte se notaba.
+
+           Desde que el concierge quedó justo debajo del reel eso dejó de
+           ser cierto —un video oscuro entrando a una sección negra no
+           necesita ninguna ayuda— y encima empezó a molestar: el velo
+           tarda en apagarse, y esa cola caía ahora sobre la tarjeta
+           clara del formulario. Se veía como una sombra rara colgando
+           del header, tapando media pantalla.
+
+           El Estándar sí se queda: es blanco de verdad y sale contra el
+           negro del mapa. */
+        claras2 = [document.getElementById('estandar')].filter(Boolean);
       }
       if (velo && claras2.length){
         var alto = window.innerHeight || 1;
