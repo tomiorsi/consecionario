@@ -81,7 +81,7 @@
   "image": "https://www.mannaselected.com.ar/assets/video/portada-desktop-poster.jpg",
   "logo": "https://www.mannaselected.com.ar/assets/logo/logo-horizontal-blanco.svg",
   "description": "Concesionario de autos seleccionados en Barracas, Buenos Aires. Cada unidad pasa por inspeccion y documentacion antes de publicarse.",
-  "telephone": "+5491112345678",
+  "telephone": "+5491176703813",
   "email": "hola@mannamotors.com",
   "address": {
     "@type": "PostalAddress",
@@ -547,7 +547,10 @@ video::-webkit-media-controls{ display:none !important; }
 #puente{
   position:relative;
   height:16svh;
-  background:linear-gradient(to bottom,
+  /* `to top` y no `to bottom`: ver el comentario del marcado. Las
+     paradas son las mismas —la rampa calculada con smoothstep— solo que
+     ahora el hueso queda arriba y el negro abajo. */
+  background:linear-gradient(to top,
       rgb(11 12 16) 0%,
       rgb(18 18 22) 10%,
       rgb(35 36 39) 20%,
@@ -5268,7 +5271,7 @@ window.RESPALDO = function(v, urlH264, rehacer){
    sin +, sin espacios y sin guiones. Es lo que pide wa.me y lo único
    que hay que tocar acá si el número cambia. */
 (function(){
-  var WHATSAPP = '5491112345678';
+  var WHATSAPP = '5491176703813';
 
   var form = document.querySelector('.conc-form');
   if (!form) return;
@@ -5463,64 +5466,10 @@ var UNIDAD = null;
      nada más. El data-claro-desde le avisa al header a partir de qué
      altura el fondo ya es claro, para que se pinte en negro antes de
      quedar blanco sobre gris. -->
-<div id="puente" data-claro data-claro-desde=".55" aria-hidden="true"></div>
-
-<!-- BLOQUE 4 — EL ESTÁNDAR MANNA.
-
-     Es el bloque de confianza del documento, y por eso es el único
-     claro de toda la página: rompe la oscuridad a propósito. Los tres
-     puntos y sus textos son los del documento.
-
-     Antes acá había una franja con una frase suelta. El contenido de
-     inspección estaba repartido en las notas del reel; ahora vive donde
-     corresponde, junto y con nombre. -->
-<section id="estandar" data-claro>
-  <div class="estandar-caja">
-    <small class="estandar-eyebrow">La garantía</small>
-    <h2 class="estandar-titulo">El Estándar Manna</h2>
-    <p class="estandar-bajada">
-      Ninguna unidad se publica antes de pasar por acá.
-    </p>
-
-    <ul class="estandar-lista">
-      <li>
-        <span class="estandar-num">01</span>
-        <h3>Inspección Selecta</h3>
-        <p>Certificación de estructura, pintura y motor por expertos.</p>
-      </li>
-      <li>
-        <span class="estandar-num">02</span>
-        <h3>Documentación Perfecta</h3>
-        <p>Unidades 100% listas para transferir sin sorpresas legales en
-           Buenos Aires.</p>
-      </li>
-      <li>
-        <!-- El único de los tres que todavía no existe: el depósito en
-             línea es la Prioridad 1 del documento y necesita pasarela de
-             pago. Se deja a la vista para que se entienda la promesa
-             completa, pero marcado, que es lo honesto hasta que funcione. -->
-        <span class="estandar-num">03</span>
-        <h3>Reserva Protegida <em>Próximamente</em></h3>
-        <p>Tu depósito de seguridad congelado bajo absoluta garantía de
-           reembolso.</p>
-      </li>
-    </ul>
-  </div>
-</section>
-
 <!-- La ruta. Tres planos montados en un solo archivo, corte seco, loop.
 
      El orden no es casual: viene de frente, pasa al lado, se va. Leído
      así los tres se sienten UN SOLO manejo y no tres clips distintos. -->
-<!-- El velo que oscurece la pantalla al salir del Estándar. Va suelto,
-     fuera de las secciones, porque es de la VENTANA y no de ninguna de
-     las dos. -->
-<div id="velo-alto" aria-hidden="true"></div>
-
-<!-- La luz de ambiente. Misma idea que el velo y por eso viven juntos:
-     es de la VENTANA, no de una sección. Ver su bloque en el CSS. -->
-<div id="ambiente" aria-hidden="true"></div>
-
 <section id="ruta">
   <video id="rutaVid" muted loop playsinline preload="none"
          aria-label="Golf GTI rojo en un camino de montaña"></video>
@@ -5889,6 +5838,78 @@ var UNIDAD = null;
 })();
 </script>
 
+<!-- BLOQUE 4 — EL ESTÁNDAR MANNA.
+
+     Es el bloque de confianza del documento, y por eso es el único
+     claro de toda la página: rompe la oscuridad a propósito. Los tres
+     puntos y sus textos son los del documento.
+
+     Antes acá había una franja con una frase suelta. El contenido de
+     inspección estaba repartido en las notas del reel; ahora vive donde
+     corresponde, junto y con nombre. -->
+<section id="estandar" data-claro>
+  <div class="estandar-caja">
+    <small class="estandar-eyebrow">La garantía</small>
+    <h2 class="estandar-titulo">El Estándar Manna</h2>
+    <p class="estandar-bajada">
+      Ninguna unidad se publica antes de pasar por acá.
+    </p>
+
+    <ul class="estandar-lista">
+      <li>
+        <span class="estandar-num">01</span>
+        <h3>Inspección Selecta</h3>
+        <p>Certificación de estructura, pintura y motor por expertos.</p>
+      </li>
+      <li>
+        <span class="estandar-num">02</span>
+        <h3>Documentación Perfecta</h3>
+        <p>Unidades 100% listas para transferir sin sorpresas legales en
+           Buenos Aires.</p>
+      </li>
+      <li>
+        <!-- El único de los tres que todavía no existe: el depósito en
+             línea es la Prioridad 1 del documento y necesita pasarela de
+             pago. Se deja a la vista para que se entienda la promesa
+             completa, pero marcado, que es lo honesto hasta que funcione. -->
+        <span class="estandar-num">03</span>
+        <h3>Reserva Protegida <em>Próximamente</em></h3>
+        <p>Tu depósito de seguridad congelado bajo absoluta garantía de
+           reembolso.</p>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<!-- El velo que oscurece la pantalla al salir del Estándar. Va suelto,
+     fuera de las secciones, porque es de la VENTANA y no de ninguna de
+     las dos. -->
+<!-- EL DEGRADADO, AHORA DEBAJO Y AL REVES.
+
+     Estaba arriba del Estandar y hacia la entrada: del negro al hueso,
+     para no cortar seco contra la seccion clara. Pero desde que el video
+     de la ruta quedo justo antes, esa entrada dejo de necesitar
+     ayuda —un video que termina y una seccion blanca que empieza es un
+     corte que se lee bien— y el degradado ahi solo alargaba la espera.
+
+     Donde si hace falta es a la salida: el blanco del Estandar contra
+     el negro del mapa. Es el mismo elemento, con el degradado dado
+     vuelta —`to top` en vez de `to bottom`— asi que arriba queda el
+     hueso y abajo el negro.
+
+     SIN `data-claro`. Ese atributo le dice al header "de aca para abajo
+     considerame claro", y en un degradado invertido eso es al reves de
+     lo que pasa: lo claro esta arriba. Mientras la parte clara cruza la
+     barra manda el Estandar, que sigue teniendo el atributo. -->
+<div id="puente" aria-hidden="true"></div>
+
+<div id="velo-alto" aria-hidden="true"></div>
+
+<!-- La luz de ambiente. Misma idea que el velo y por eso viven juntos:
+     es de la VENTANA, no de una sección. Ver su bloque en el CSS. -->
+<div id="ambiente" aria-hidden="true"></div>
+
+
 <!-- DÓNDE ESTAMOS.
 
      Toda la sección es un enlace: se pidió que tocar el mapa abra
@@ -6024,8 +6045,8 @@ var UNIDAD = null;
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path
                d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8.1 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.8 2Z"/></svg>
-          <a class="pie-dato" href="tel:+5491112345678"
-             data-copiar="+54 9 11 1234 5678">+54 9 11 1234 5678</a>
+          <a class="pie-dato" href="tel:+5491176703813"
+             data-copiar="+54 9 11 7670 3813">+54 9 11 7670 3813</a>
         </li>
         <li>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
