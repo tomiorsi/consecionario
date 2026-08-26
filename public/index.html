@@ -714,7 +714,17 @@ video::-webkit-media-controls{ display:none !important; }
 #concierge{
   position:relative;
   background:var(--void);
-  padding:clamp(5rem,13vh,9rem) var(--gut);
+  /* EL PIE DE ESTA SECCION ES LA MITAD QUE SU CABEZA.
+
+     Los rellenos no se ven de a uno: entre dos secciones que se tocan,
+     el hueco que queda es la SUMA del de abajo de una y el de arriba de
+     la otra. Medido a 1440x900 eran 117 + 144 = 261 px de negro entre
+     el formulario y el collage, que se lee como que la pagina termino.
+
+     Se recortan los dos lados del limite —aca abajo y alla arriba— y no
+     uno solo: bajando uno a cero el otro quedaria haciendo todo el
+     trabajo y la separacion seguiria dependiendo de una sola seccion. */
+  padding:clamp(5rem,13vh,9rem) var(--gut) clamp(2.4rem,6vh,4rem);
 }
 
 /* LAS DOS COLUMNAS DEL FINAL. Editorial a la izquierda, concierge a la
@@ -2090,16 +2100,20 @@ video::-webkit-media-controls{ display:none !important; }
    La derecha es el único lado despejado del ciclorama. La intención
    del documento —una sola frase minimalista sobre el video— se cumple
    igual; lo que no se puede es ignorar dónde está el auto. */
+/* LA FRASE, JUNTA Y ABAJO A LA DERECHA.
+
+   Estuvo un rato partida en dos esquinas opuestas —la primera mitad
+   arriba a la izquierda y la segunda abajo a la derecha—. Se volvio
+   atras: separadas por media pantalla dejan de leerse como una frase y
+   pasan a leerse como dos, y la segunda sin la primera no dice nada.
+
+   El ancho va de la mano del cuerpo: si se toca uno hay que mirar el
+   otro, porque es contra este borde que la frase decide donde cortar. */
 .cover-copy{
   position:absolute;
   right:var(--gut);
   bottom:calc(var(--gut) + clamp(2.2rem,5vh,3.6rem));
   z-index:4;
-  /* SE ENSANCHO CON LA FRASE. Estaba en 26rem, que era la medida justa
-     para el cuerpo chico de antes; al agrandar la letra la frase se
-     partia en cuatro renglones contra este borde en vez de en los dos
-     que marca el <br>. El ancho y el cuerpo van juntos: si se toca uno
-     hay que mirar el otro. */
   width:min(36rem,78vw);
   text-align:right;
   /* Blanco, porque la portada es un estudio oscuro. Estuvo en tinta
@@ -2136,7 +2150,7 @@ video::-webkit-media-controls{ display:none !important; }
    pantalla de 1440. */
 .cover-title{
   font-family:var(--display);
-  font-size:clamp(.92rem,2.05vw,1.95rem);
+  font-size:clamp(.88rem,1.85vw,1.7rem);
   font-weight:400;
   text-transform:uppercase;
   letter-spacing:.1em;
@@ -2797,7 +2811,10 @@ body.cargando{ overflow:hidden; }
 #collage{
   position:relative;
   background:var(--void);
-  padding:clamp(6rem,16vh,11rem) 0 clamp(7rem,18vh,13rem);
+  /* La cabeza recortada a la mitad: ver el comentario de #concierge, que
+     es la seccion que tiene justo arriba. El pie no se toca, que lo que
+     sigue es otra cosa. */
+  padding:clamp(2.8rem,7vh,4.5rem) 0 clamp(7rem,18vh,13rem);
   overflow:hidden;
 }
 
@@ -2907,7 +2924,7 @@ body.cargando{ overflow:hidden; }
    piezas mal alineadas en vez de como una superposición buscada. */
 
 @media (max-width:767px){
-  #collage{ padding:clamp(4rem,12vh,7rem) 0 clamp(5rem,14vh,8rem); }
+  #collage{ padding:clamp(2.2rem,6vh,3.5rem) 0 clamp(5rem,14vh,8rem); }
 
   .col-marco{ width:min(34rem,90vw); }
 
