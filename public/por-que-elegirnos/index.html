@@ -62,10 +62,14 @@
   /* El bloque claro. Mismo criterio que la home: el texto principal es
      el negro de la pagina y los secundarios bajan de ahi, no grises
      inventados aparte. */
-  --gris-claro:#E7E8E9;
+  --gris-claro:#CFD2D5;
   --tinta:#000;
   --tinta-2:#3F4650;
-  --tinta-3:#5A6673;
+  /* EL MAS APAGADO TUVO QUE BAJAR CON EL FONDO. Era #5A6673 y sobre el
+     gris anterior daba 4.8 de contraste; sobre este da 3.85, por debajo
+     del minimo legible para un texto chico. Un fondo mas oscuro obliga
+     a oscurecer lo que va encima, no al reves. */
+  --tinta-3:#46505B;
   --beam:214,232,255;
   --display:"Syncopate",ui-sans-serif,system-ui,sans-serif;
   --texto:"Montserrat",ui-sans-serif,system-ui,sans-serif;
@@ -228,6 +232,10 @@ a{color:inherit;text-decoration:none}
      de luz, que por contraste se lee como lo importante. Un gris y no
      el hueso de la home —#F4F1EA, tibio— porque este es un corte, no un
      bloque: mas frio y mas corto.
+
+     Y un gris de verdad, no un blanco roto: #E7E8E9 quedaba tan cerca
+     del blanco que la franja se leia como un hueco en la pagina en vez
+     de como un bloque de otro color.
 
      SIN LINEAS ARRIBA NI ABAJO. Las tenia cuando era negra sobre negro,
      que era la unica forma de separarla. Un bloque de otro color se
@@ -506,7 +514,18 @@ a{color:inherit;text-decoration:none}
     nos ocupamos del resto.
   </p>
   <div class="botones">
-    <a class="boton boton--fuerte" href="/#concierge">Coordinar visita</a>
+    <!-- VA DERECHO A WHATSAPP, NO AL FORMULARIO DE LA HOME.
+
+         Apuntaba a /#concierge: mandaba a otra pagina, hacia scrollear
+         hasta el formulario y recien ahi se podia escribir. Para un
+         boton que dice "coordinar visita" son tres pasos de mas.
+
+         El mensaje va escrito de antemano en el `text=`, asi que el
+         chat abre con la primera linea puesta y del otro lado se
+         entiende de donde viene la consulta. El numero va sin +, sin
+         espacios y sin guiones, que es lo unico que acepta wa.me. -->
+    <a class="boton boton--fuerte" target="_blank" rel="noopener"
+       href="https://wa.me/5491176703813?text=Hola%2C%20quiero%20coordinar%20una%20visita%20al%20garage.">Coordinar visita</a>
     <a class="boton boton--suave" href="/garage/">Ver el garage</a>
   </div>
 </section>
