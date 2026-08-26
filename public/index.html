@@ -550,18 +550,28 @@ video::-webkit-media-controls{ display:none !important; }
   /* `to top` y no `to bottom`: ver el comentario del marcado. Las
      paradas son las mismas —la rampa calculada con smoothstep— solo que
      ahora el hueso queda arriba y el negro abajo. */
+  /* LAS PARADAS SE RECALCULARON CON EL COLOR NUEVO DEL ESTANDAR.
+
+     Esta rampa no es una interpolacion cualquiera: son once paradas
+     calculadas a mano con smoothstep —3t²-2t³— entre el negro y el
+     color de la seccion clara. Cuando el Estandar dejo el hueso por el
+     gris, dejar las paradas viejas habria terminado la rampa en
+     rgb(244 241 234) contra una seccion de rgb(207 210 213): una
+     costura de 37 puntos justo en el borde.
+
+     Recalculadas con la misma formula y el mismo destino nuevo. */
   background:linear-gradient(to top,
       rgb(11 12 16) 0%,
-      rgb(18 18 22) 10%,
-      rgb(35 36 39) 20%,
-      rgb(61 61 63) 30%,
-      rgb(93 93 93) 40%,
-      rgb(128 126 125) 50%,
-      rgb(162 160 157) 60%,
-      rgb(194 192 187) 70%,
-      rgb(220 217 211) 80%,
-      rgb(237 235 228) 90%,
-      rgb(244 241 234) 100%);
+      rgb(16 18 22) 10%,
+      rgb(31 33 36) 20%,
+      rgb(53 55 59) 30%,
+      rgb(80 82 85) 40%,
+      rgb(109 111 114) 50%,
+      rgb(138 140 144) 60%,
+      rgb(165 167 170) 70%,
+      rgb(187 189 193) 80%,
+      rgb(202 204 207) 90%,
+      rgb(207 210 213) 100%);
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -1923,7 +1933,29 @@ video::-webkit-media-controls{ display:none !important; }
    ══════════════════════════════════════════════════════════════════ */
 #estandar{
   position:relative;
-  background:var(--hueso);
+  /* GRIS Y NO EL HUESO. El hueso —#F4F1EA, tibio y casi blanco— hacia
+     que la seccion se leyera como un hueco en la pagina. Este es el
+     mismo gris que la franja de /por-que-elegirnos, asi los dos unicos
+     bloques claros del sitio son el mismo bloque.
+
+     NO SE TOCA EL TOKEN `--hueso`: sigue siendo el color de la marca y
+     lo usa el degradado del puente por su cuenta. Lo que cambia es esta
+     seccion.
+
+     LOS TRES VALORES DE ABAJO SON LA CONSECUENCIA. Estaban calculados
+     para el hueso y sobre un fondo mas oscuro no alcanzan:
+
+     · `--ink-3` —el rotulo y los numeros— daba 4.8 de contraste sobre
+       el hueso y 3.85 sobre este, por debajo del minimo legible para un
+       texto chico en mayusculas.
+     · `--gris` es la raya de arriba de cada punto: #D1D5DB sobre
+       #CFD2D5 son el mismo color, la raya desaparecia.
+
+     Van redefinidos ACA y no en :root porque los usan tambien el menu
+     de telefono y el destacado, que estan sobre otros fondos. */
+  --ink-3:#46505B;
+  --gris:rgba(0,0,0,.18);
+  background:#CFD2D5;
   color:var(--ink);
   padding:clamp(4rem,11vh,8rem) var(--gut);
 }
@@ -4144,7 +4176,7 @@ window.RESPALDO = function(v, urlH264, rehacer){
        "hechastienden": el <br> corta la línea pero no separa palabras, y
        un lector de pantalla lee las dos pegadas. -->
   <div class="cover-copy">
-    <h1 class="cover-title">Selectos con los autos. Cercanos con las personas.</h1>
+    <h1 class="cover-title">Selectos con los autos, cercanos con las personas.</h1>
   </div>
 
   <svg class="scroll-cue" viewBox="0 0 24 24" fill="none" stroke="currentColor"
