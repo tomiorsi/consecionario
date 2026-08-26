@@ -1382,7 +1382,12 @@ video::-webkit-media-controls{ display:none !important; }
 .gar-marca{
   position:absolute;
   left:50%;
-  top:29%;
+  /* MAS ABAJO QUE ANTES (29% -> 33%), para que el auto le muerda mas el
+     pie. Medido a 540 px de escena: el techo real del auto —descontando
+     el 12,6% de lienzo transparente que trae la foto arriba— cae en el
+     52,7%, y con 29% la base del nombre quedaba en el 53,8%, apenas un
+     punto por debajo. Rozaba en vez de meterse. */
+  top:33%;
   z-index:0;
   transform:translateX(-50%);
   white-space:nowrap;
@@ -1464,8 +1469,16 @@ video::-webkit-media-controls{ display:none !important; }
      es la mitad de largo que "Linea Evolution": sin tope, el corto se
      estiraria hasta ocupar el mismo ancho y quedaria enorme al lado del
      largo. */
-  --marca-ancho:.55;
-  --marca-tope:.125;
+  /* MAS CHICO QUE ANTES, un 20% en los dos numeros. Estaban en .55 y
+     .125 y el nombre competia con los autos: en una escena donde lo que
+     se mira es el auto, el nombre acompana, no encabeza.
+
+     SE BAJAN LOS DOS Y NO UNO. El tope es el que manda en los cuatro
+     nombres a este ancho —ninguno llega a ocupar el .55 antes de
+     chocarlo— pero si se bajara solo el tope, en una pantalla mucho mas
+     ancha volveria a mandar el otro y el nombre creceria de nuevo. */
+  --marca-ancho:.44;
+  --marca-tope:.10;
 }
 
 .gar-auto{
@@ -1661,8 +1674,8 @@ video::-webkit-media-controls{ display:none !important; }
      jugada para que la base siga apoyada sobre el techo del auto y no
      se lo coma. */
   .gar-escena{
-    --marca-ancho:.84;
-    --marca-tope:.30;
+    --marca-ancho:.67;
+    --marca-tope:.24;
   }
   /* EL 20% NO ES A OJO. El borde de arriba del .gar-auto cae en el 50%
      del alto, pero ese NO es el techo del auto: la foto trae un 12,6%
@@ -1672,7 +1685,7 @@ video::-webkit-media-controls{ display:none !important; }
      El nombre mide 37 puntos de alto, asi que con top:20% su base cae
      en el 57% y el auto le muerde el pie — que es lo que lo mete en la
      escena en vez de dejarlo colgado arriba. */
-  .gar-marca{ top:20%; font-size:clamp(1.3rem,6.3vw,2.4rem); }
+  .gar-marca{ top:24%; font-size:clamp(1.3rem,6.3vw,2.4rem); }
 
   /* EL ANILLO EN EL TELEFONO. El escenario pasa de 2,25 a 1,62 de
      proporcion —es mucho mas alto y mucho mas angosto— asi que las
@@ -5132,76 +5145,150 @@ window.RESPALDO = function(v, urlH264, rehacer){
 
 
 
-<!-- DÓNDE ESTAMOS.
+<!-- BLOQUE 5 — EL CONCIERGE.
 
-     Toda la sección es un enlace: se pidió que tocar el mapa abra
-     Google Maps, así que el <a> envuelve todo en vez de haber un botón
-     chiquito en una esquina.
+     El formulario del documento más la sección que pediste en el margen:
+     que puedan ofrecer su auto. Son las dos puntas del mismo negocio,
+     así que van en un solo formulario con un selector arriba. -->
+<section id="concierge">
+  <div class="conc-dos">
 
-     El mapa es un dibujo con datos de OpenStreetMap, no un iframe de
-     Google. Los motivos, en el CSS de #donde. -->
-<a id="donde"
-   href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8"
-   target="_blank" rel="noopener"
-   aria-label="Pasaje Lanín 154, Barracas — abrir en Google Maps">
+  <!-- ══════════════════════════════════════════════════════════════
+       EDITORIAL. Va a la IZQUIERDA del concierge, no debajo: son las dos
+       cosas que se le pueden pedir al visitante al final de la página
+       —que lea o que escriba— y ponerlas lado a lado las presenta como
+       dos caminos en vez de como una cola.
 
-  <!-- Dos dibujos, no dos tamaños del mismo. El SVG se ve a 1440 px de
-       ancho en computadora y a unos 560 en teléfono: con un solo
-       archivo, o los nombres de calle salen enormes en uno o ilegibles
-       en el otro. El de teléfono además abarca menos cuadras, porque en
-       una pantalla angosta entra menos.
+       LA FOTO ES PRESTADA POR AHORA. Es la de la ciudad del collage,
+       puesta para que se vea la maqueta; hay que reemplazarla por la de
+       la nota. Igual que la ficha del destacado, esto está hecho para
+       que cambiar la nota sea cambiar el objeto NOTA del script y nada
+       más.
+       ══════════════════════════════════════════════════════════════ -->
+  <section class="edit" aria-labelledby="edit-titulo">
+    <article class="edit-nota">
+      <figure class="edit-foto">
+        <div class="edit-marco">
+          <img data-medio="editorial-principal" src="assets/collage/ciudad.webp" alt=""
+               loading="lazy" decoding="async" width="1200" height="800">
+          <div class="edit-tira">
+            <img data-medio="editorial-1" src="assets/social/ig-2.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
+            <img data-medio="editorial-2" src="assets/social/ig-5.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
+            <img data-medio="editorial-3" src="assets/social/ig-6.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
+          </div>
+        </div>
+      </figure>
 
-       Acá sí sirve <source media>: en <picture> lo respetan todos los
-       navegadores. Es dentro de <video> donde Safari lo ignora, que es
-       el motivo por el que los videos del sitio se eligen por script. -->
-  <picture>
-    <source media="(max-width:767px)" srcset="assets/mapa/barracas-movil.svg?v=2">
-    <img src="assets/mapa/barracas.svg?v=2"
-         alt="Mapa de Barracas con el Pasaje Lanín señalado"
-         loading="lazy" decoding="async" width="1000" height="1000">
-  </picture>
+      <!-- ESTOS DOS SE CAMBIAN DESDE EL PANEL. El `data-texto` dice qué
+           lugar es cada uno; lo que está escrito acá es lo que se ve
+           mientras nadie lo haya cambiado, y lo que vuelve si en el
+           panel se borra el campo. Ver el script del final. -->
+      <!-- El rótulo dice de qué es esta columna. Sin él, un titular
+           suelto al lado de un formulario no se sabe si es una nota, un
+           anuncio o parte del mismo formulario. -->
+      <span class="edit-rotulo">Editorial</span>
+      <h2 class="edit-titular" id="edit-titulo" data-texto="editorial-titulo">El futuro del diseño: naturaleza y rendimiento</h2>
+      <p class="edit-copete" data-texto="editorial-copete">
+        Exploramos cómo la ingeniería y el diseño sustentable están
+        redefiniendo la próxima generación de vehículos.
+      </p>
 
-  <span class="donde-pin" aria-hidden="true"></span>
+      <!-- LLEVA AL GARAGE Y NO A UNA NOTA. Estuvo apagado, sin destino,
+           esperando una nota que escribir. Mientras tanto lo que sí
+           existe —y es a donde conviene mandar a alguien que llegó
+           hasta el final de la página— es el catálogo. -->
+      <a class="edit-boton" href="/garage/">Ir al garage</a>
+    </article>
+  </section>
 
-  <div class="donde-caja">
-    <small>Dónde estamos</small>
-    <h2>Pasaje Lanín 154, Barracas.</h2>
-    <p>La calle de las casas pintadas: unas cuarenta fachadas
-       intervenidas por Marino Santa María en pintura y mosaico
-       veneciano, declarada Sitio de Interés Cultural por la
-       Legislatura porteña.</p>
-    <span class="donde-ir">
-      Abrir en Google Maps
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-           stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
-           aria-hidden="true">
-        <path d="M7 17 17 7M8 7h9v9"/>
-      </svg>
-    </span>
+  <div class="conc-caja">
+    <h2 class="conc-titulo">¿Buscás una pieza específica?<br>La encontramos.</h2>
+    <p class="conc-bajada">
+      Decinos qué estás buscando y lo rastreamos en el mercado global. Y
+      si lo que tenés es un auto para vender, también es acá.
+    </p>
+
+    <div class="conc-modos" role="group" aria-label="Qué querés hacer">
+      <button type="button" data-modo="busco"   aria-pressed="true">Busco un auto</button>
+      <button type="button" data-modo="ofrezco" aria-pressed="false">Ofrezco el mío</button>
+    </div>
+
+    <form class="conc-form" novalidate>
+      <div class="conc-campo">
+        <label for="conc-nombre">Tu nombre</label>
+        <input id="conc-nombre" name="nombre" type="text"
+               autocomplete="name" placeholder="Como querés que te llamemos" required>
+      </div>
+
+      <div class="conc-campo">
+        <label for="conc-auto" id="conc-auto-label">Auto que buscás</label>
+        <input id="conc-auto" name="auto" type="text"
+               placeholder="Marca, modelo y año" required>
+      </div>
+
+      <button type="submit" class="conc-enviar">Enviar por WhatsApp</button>
+    </form>
   </div>
-</a>
+
+  </div>
+</section>
 
 <script>
-/* La deriva del mapa sólo corre cuando la sección está a la vista.
+/* EL FORMULARIO NO TIENE SERVIDOR, Y ES A PROPÓSITO.
 
-   Una animación de transform es barata, pero mantiene viva una capa en
-   el compositor todo el tiempo aunque nadie la mire. Es la misma regla
-   que ya siguen la portada, el reel y el collage: nada trabaja de
-   fondo. Sin IntersectionObserver, corre siempre y listo. */
+   Un formulario común necesita algo que reciba el envío: un backend, o
+   un servicio de terceros con cuenta y tablero. Las dos cosas suman
+   piezas y ninguna resuelve lo que de verdad pasa después, que es
+   contestarle a la persona.
+
+   Acá el envío arma un mensaje de WhatsApp y lo abre. Sin backend, sin
+   base de datos, sin datos de nadie guardados en ningún lado — y el
+   pedido cae donde el negocio ya contesta todos los días.
+
+   EL NÚMERO VA SIN NADA MÁS QUE DÍGITOS: código de país, área y línea,
+   sin +, sin espacios y sin guiones. Es lo que pide wa.me y lo único
+   que hay que tocar acá si el número cambia. */
 (function(){
-  var sec = document.getElementById('donde');
-  if (!sec) return;
+  var WHATSAPP = '5491112345678';
 
-  if (!('IntersectionObserver' in window)){
-    sec.classList.add('a-la-vista');
-    return;
-  }
+  var form = document.querySelector('.conc-form');
+  if (!form) return;
 
-  new IntersectionObserver(function(e){
-    e.forEach(function(x){
-      sec.classList.toggle('a-la-vista', x.isIntersecting);
+  var modos   = document.querySelectorAll('.conc-modos button');
+  var rotulo  = document.getElementById('conc-auto-label');
+  var campo   = document.getElementById('conc-auto');
+  var modo    = 'busco';
+
+  var TEXTOS = {
+    busco:   { rotulo:'Auto que buscás',  hint:'Marca, modelo y año' },
+    ofrezco: { rotulo:'Auto que ofrecés', hint:'Marca, modelo, año y kilómetros' }
+  };
+
+  modos.forEach(function(b){
+    b.addEventListener('click', function(){
+      modo = b.dataset.modo;
+      modos.forEach(function(o){
+        o.setAttribute('aria-pressed', String(o === b));
+      });
+      rotulo.textContent = TEXTOS[modo].rotulo;
+      campo.placeholder  = TEXTOS[modo].hint;
     });
-  }, { threshold:0.01 }).observe(sec);
+  });
+
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    var nombre = form.nombre.value.trim();
+    var auto   = form.auto.value.trim();
+    if (!nombre || !auto){
+      (nombre ? campo : form.nombre).focus();
+      return;
+    }
+    var mensaje = modo === 'busco'
+      ? 'Hola, soy ' + nombre + '. Estoy buscando: ' + auto + '.'
+      : 'Hola, soy ' + nombre + '. Quiero ofrecerles mi auto: ' + auto + '.';
+    window.open('https://wa.me/' + WHATSAPP + '?text=' + encodeURIComponent(mensaje),
+                '_blank', 'noopener');
+  });
 })();
 </script>
 
@@ -5783,150 +5870,76 @@ var UNIDAD = null;
 })();
 </script>
 
-<!-- BLOQUE 5 — EL CONCIERGE.
+<!-- DÓNDE ESTAMOS.
 
-     El formulario del documento más la sección que pediste en el margen:
-     que puedan ofrecer su auto. Son las dos puntas del mismo negocio,
-     así que van en un solo formulario con un selector arriba. -->
-<section id="concierge">
-  <div class="conc-dos">
+     Toda la sección es un enlace: se pidió que tocar el mapa abra
+     Google Maps, así que el <a> envuelve todo en vez de haber un botón
+     chiquito en una esquina.
 
-  <!-- ══════════════════════════════════════════════════════════════
-       EDITORIAL. Va a la IZQUIERDA del concierge, no debajo: son las dos
-       cosas que se le pueden pedir al visitante al final de la página
-       —que lea o que escriba— y ponerlas lado a lado las presenta como
-       dos caminos en vez de como una cola.
+     El mapa es un dibujo con datos de OpenStreetMap, no un iframe de
+     Google. Los motivos, en el CSS de #donde. -->
+<a id="donde"
+   href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8"
+   target="_blank" rel="noopener"
+   aria-label="Pasaje Lanín 154, Barracas — abrir en Google Maps">
 
-       LA FOTO ES PRESTADA POR AHORA. Es la de la ciudad del collage,
-       puesta para que se vea la maqueta; hay que reemplazarla por la de
-       la nota. Igual que la ficha del destacado, esto está hecho para
-       que cambiar la nota sea cambiar el objeto NOTA del script y nada
-       más.
-       ══════════════════════════════════════════════════════════════ -->
-  <section class="edit" aria-labelledby="edit-titulo">
-    <article class="edit-nota">
-      <figure class="edit-foto">
-        <div class="edit-marco">
-          <img data-medio="editorial-principal" src="assets/collage/ciudad.webp" alt=""
-               loading="lazy" decoding="async" width="1200" height="800">
-          <div class="edit-tira">
-            <img data-medio="editorial-1" src="assets/social/ig-2.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
-            <img data-medio="editorial-2" src="assets/social/ig-5.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
-            <img data-medio="editorial-3" src="assets/social/ig-6.webp" alt="" loading="lazy" decoding="async" width="620" height="620">
-          </div>
-        </div>
-      </figure>
+  <!-- Dos dibujos, no dos tamaños del mismo. El SVG se ve a 1440 px de
+       ancho en computadora y a unos 560 en teléfono: con un solo
+       archivo, o los nombres de calle salen enormes en uno o ilegibles
+       en el otro. El de teléfono además abarca menos cuadras, porque en
+       una pantalla angosta entra menos.
 
-      <!-- ESTOS DOS SE CAMBIAN DESDE EL PANEL. El `data-texto` dice qué
-           lugar es cada uno; lo que está escrito acá es lo que se ve
-           mientras nadie lo haya cambiado, y lo que vuelve si en el
-           panel se borra el campo. Ver el script del final. -->
-      <!-- El rótulo dice de qué es esta columna. Sin él, un titular
-           suelto al lado de un formulario no se sabe si es una nota, un
-           anuncio o parte del mismo formulario. -->
-      <span class="edit-rotulo">Editorial</span>
-      <h2 class="edit-titular" id="edit-titulo" data-texto="editorial-titulo">El futuro del diseño: naturaleza y rendimiento</h2>
-      <p class="edit-copete" data-texto="editorial-copete">
-        Exploramos cómo la ingeniería y el diseño sustentable están
-        redefiniendo la próxima generación de vehículos.
-      </p>
+       Acá sí sirve <source media>: en <picture> lo respetan todos los
+       navegadores. Es dentro de <video> donde Safari lo ignora, que es
+       el motivo por el que los videos del sitio se eligen por script. -->
+  <picture>
+    <source media="(max-width:767px)" srcset="assets/mapa/barracas-movil.svg?v=2">
+    <img src="assets/mapa/barracas.svg?v=2"
+         alt="Mapa de Barracas con el Pasaje Lanín señalado"
+         loading="lazy" decoding="async" width="1000" height="1000">
+  </picture>
 
-      <!-- LLEVA AL GARAGE Y NO A UNA NOTA. Estuvo apagado, sin destino,
-           esperando una nota que escribir. Mientras tanto lo que sí
-           existe —y es a donde conviene mandar a alguien que llegó
-           hasta el final de la página— es el catálogo. -->
-      <a class="edit-boton" href="/garage/">Ir al garage</a>
-    </article>
-  </section>
+  <span class="donde-pin" aria-hidden="true"></span>
 
-  <div class="conc-caja">
-    <h2 class="conc-titulo">¿Buscás una pieza específica?<br>La encontramos.</h2>
-    <p class="conc-bajada">
-      Decinos qué estás buscando y lo rastreamos en el mercado global. Y
-      si lo que tenés es un auto para vender, también es acá.
-    </p>
-
-    <div class="conc-modos" role="group" aria-label="Qué querés hacer">
-      <button type="button" data-modo="busco"   aria-pressed="true">Busco un auto</button>
-      <button type="button" data-modo="ofrezco" aria-pressed="false">Ofrezco el mío</button>
-    </div>
-
-    <form class="conc-form" novalidate>
-      <div class="conc-campo">
-        <label for="conc-nombre">Tu nombre</label>
-        <input id="conc-nombre" name="nombre" type="text"
-               autocomplete="name" placeholder="Como querés que te llamemos" required>
-      </div>
-
-      <div class="conc-campo">
-        <label for="conc-auto" id="conc-auto-label">Auto que buscás</label>
-        <input id="conc-auto" name="auto" type="text"
-               placeholder="Marca, modelo y año" required>
-      </div>
-
-      <button type="submit" class="conc-enviar">Enviar por WhatsApp</button>
-    </form>
+  <div class="donde-caja">
+    <small>Dónde estamos</small>
+    <h2>Pasaje Lanín 154, Barracas.</h2>
+    <p>La calle de las casas pintadas: unas cuarenta fachadas
+       intervenidas por Marino Santa María en pintura y mosaico
+       veneciano, declarada Sitio de Interés Cultural por la
+       Legislatura porteña.</p>
+    <span class="donde-ir">
+      Abrir en Google Maps
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
+           aria-hidden="true">
+        <path d="M7 17 17 7M8 7h9v9"/>
+      </svg>
+    </span>
   </div>
-
-  </div>
-</section>
+</a>
 
 <script>
-/* EL FORMULARIO NO TIENE SERVIDOR, Y ES A PROPÓSITO.
+/* La deriva del mapa sólo corre cuando la sección está a la vista.
 
-   Un formulario común necesita algo que reciba el envío: un backend, o
-   un servicio de terceros con cuenta y tablero. Las dos cosas suman
-   piezas y ninguna resuelve lo que de verdad pasa después, que es
-   contestarle a la persona.
-
-   Acá el envío arma un mensaje de WhatsApp y lo abre. Sin backend, sin
-   base de datos, sin datos de nadie guardados en ningún lado — y el
-   pedido cae donde el negocio ya contesta todos los días.
-
-   EL NÚMERO VA SIN NADA MÁS QUE DÍGITOS: código de país, área y línea,
-   sin +, sin espacios y sin guiones. Es lo que pide wa.me y lo único
-   que hay que tocar acá si el número cambia. */
+   Una animación de transform es barata, pero mantiene viva una capa en
+   el compositor todo el tiempo aunque nadie la mire. Es la misma regla
+   que ya siguen la portada, el reel y el collage: nada trabaja de
+   fondo. Sin IntersectionObserver, corre siempre y listo. */
 (function(){
-  var WHATSAPP = '5491112345678';
+  var sec = document.getElementById('donde');
+  if (!sec) return;
 
-  var form = document.querySelector('.conc-form');
-  if (!form) return;
+  if (!('IntersectionObserver' in window)){
+    sec.classList.add('a-la-vista');
+    return;
+  }
 
-  var modos   = document.querySelectorAll('.conc-modos button');
-  var rotulo  = document.getElementById('conc-auto-label');
-  var campo   = document.getElementById('conc-auto');
-  var modo    = 'busco';
-
-  var TEXTOS = {
-    busco:   { rotulo:'Auto que buscás',  hint:'Marca, modelo y año' },
-    ofrezco: { rotulo:'Auto que ofrecés', hint:'Marca, modelo, año y kilómetros' }
-  };
-
-  modos.forEach(function(b){
-    b.addEventListener('click', function(){
-      modo = b.dataset.modo;
-      modos.forEach(function(o){
-        o.setAttribute('aria-pressed', String(o === b));
-      });
-      rotulo.textContent = TEXTOS[modo].rotulo;
-      campo.placeholder  = TEXTOS[modo].hint;
+  new IntersectionObserver(function(e){
+    e.forEach(function(x){
+      sec.classList.toggle('a-la-vista', x.isIntersecting);
     });
-  });
-
-  form.addEventListener('submit', function(e){
-    e.preventDefault();
-    var nombre = form.nombre.value.trim();
-    var auto   = form.auto.value.trim();
-    if (!nombre || !auto){
-      (nombre ? campo : form.nombre).focus();
-      return;
-    }
-    var mensaje = modo === 'busco'
-      ? 'Hola, soy ' + nombre + '. Estoy buscando: ' + auto + '.'
-      : 'Hola, soy ' + nombre + '. Quiero ofrecerles mi auto: ' + auto + '.';
-    window.open('https://wa.me/' + WHATSAPP + '?text=' + encodeURIComponent(mensaje),
-                '_blank', 'noopener');
-  });
+  }, { threshold:0.01 }).observe(sec);
 })();
 </script>
 
