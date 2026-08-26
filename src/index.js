@@ -49,7 +49,10 @@ const SECCIONES = [
   {
     clave: 'nota',
     titulo: 'La nota',
-    nota: 'La foto grande y la tira de tres que va al costado.',
+    nota: 'OJO: estas cuatro ya casi no se usan. La nota muestra un auto '
+        + 'del garage, distinto cada dia, y toma sus primeras cuatro '
+        + 'fotos. Lo que se cargue aca se ve solo si no hay ningun auto '
+        + 'publicado con al menos cuatro fotos.',
   },
 ];
 

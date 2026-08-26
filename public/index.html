@@ -5168,6 +5168,9 @@ window.RESPALDO = function(v, urlH264, rehacer){
   <section class="edit" aria-labelledby="edit-titulo">
     <article class="edit-nota">
       <figure class="edit-foto">
+        <!-- ACA VA UN AUTO DEL GARAGE, UNO DISTINTO POR DIA. Lo pone el
+             script del final; estas cuatro son las que se ven si no hay
+             ningun auto publicado con fotos suficientes. -->
         <div class="edit-marco">
           <img data-medio="editorial-principal" src="assets/collage/ciudad.webp" alt=""
                loading="lazy" decoding="async" width="1200" height="800">
@@ -6046,6 +6049,65 @@ var UNIDAD = null;
   </div>
 
 </footer>
+
+<script>
+/* LA NOTA MUESTRA UN AUTO DEL GARAGE, Y CAMBIA TODOS LOS DIAS.
+   ══════════════════════════════════════════════════════════════════
+
+   Las cuatro fotos que trae el HTML eran fijas. Ahora salen del
+   catalogo: la primera del auto va grande a la izquierda y las tres
+   siguientes en la tira del costado.
+
+   QUE AUTO TOCA NO ES AL AZAR, ES LA FECHA. Con `Math.random()` cada
+   visita mostraria uno distinto y la seccion se volveria ruido: alguien
+   que entra dos veces en la misma tarde ve dos autos y no entiende por
+   que. Con el dia como indice, todo el que entra hoy ve el mismo, y
+   manana ve otro. Y no hace falta guardar nada en ningun lado: la
+   cuenta da igual en cualquier maquina.
+
+   EL DIA SE MIDE EN LA HORA DEL VISITANTE y no en UTC, asi el cambio
+   pasa a la medianoche de aca y no a las nueve de la noche.
+
+   PIDE CUATRO FOTOS Y NO MENOS. Un auto con dos obligaria a repetirlas
+   para llenar los cuatro huecos, y dos veces la misma foto en un
+   collage se lee como un error. Si ningun auto llega a cuatro, no se
+   toca nada y quedan las de siempre.
+
+   SE PIDE `/api/autos`, QUE LA HOME NO PEDIA. Es el mismo endpoint que
+   usa el garage, o sea que ya esta cacheado para quien pasa por ahi, y
+   va al final del body: las cuatro fotos son `lazy` y estan lejos del
+   pliegue, asi que el cambio llega mucho antes de que nadie las vea. */
+(function(){
+  var grande = document.querySelector('[data-medio="editorial-principal"]');
+  var tira = [].slice.call(document.querySelectorAll('.edit-tira img'));
+  if (!grande || tira.length !== 3) return;
+
+  fetch('/api/autos')
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      var autos = ((d && d.autos) || []).filter(function(a){
+        return a.fotos && a.fotos.length >= 4;
+      });
+      if (!autos.length) return;
+
+      /* El numero de dia del calendario del visitante. */
+      var h = new Date();
+      var dia = Math.floor(Date.UTC(h.getFullYear(), h.getMonth(), h.getDate()) / 86400000);
+      var auto = autos[((dia % autos.length) + autos.length) % autos.length];
+      var nombre = auto.marca + ' ' + auto.modelo;
+
+      [grande, tira[0], tira[1], tira[2]].forEach(function(img, i){
+        /* La grande pide el archivo de 1600 y las tres chicas el de 640:
+           en la tira miden 130 px, pedir el grande ahi seria bajar diez
+           veces los pixeles que se van a ver. */
+        img.src = '/fotos/' + auto.fotos[i].clave + (i === 0 ? '-1600' : '-640') + '.webp';
+        img.removeAttribute('srcset');
+        img.alt = nombre;
+      });
+    })
+    .catch(function(){ /* se queda con las de siempre */ });
+})();
+</script>
 
 <script src="/ancla.js" defer></script>
 <script src="/pie.js" defer></script>
