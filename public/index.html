@@ -840,16 +840,28 @@ video::-webkit-media-controls{ display:none !important; }
   min-width:0;
 }
 
+/* SE LEE COMO TÍTULO, NO COMO ETIQUETA.
+
+   Estaba en gris al 42% y en la fuente monoespaciada, que es el trato
+   que el sitio le da a los rótulos chiquitos —esos que dicen de qué es
+   lo que viene abajo y no pretenden que los leas—. Pero éste encabeza
+   la columna entera, así que va en blanco y en la tipografía de los
+   títulos.
+
+   NO LLEGA AL PESO DEL NOMBRE DEL AUTO, y es a propósito: es más chico
+   y con más espacio entre letras. Si los dos pesaran igual, la columna
+   tendría dos títulos y ninguno mandaría. */
 .edit-rotulo{
   display:block;
-  font-family:var(--mono);
-  font-size:.56rem;
-  letter-spacing:.3em;
+  font-family:var(--display);
+  font-size:.7rem;
+  font-weight:700;
+  letter-spacing:.24em;
   text-transform:uppercase;
-  color:rgba(255,255,255,.42);
+  color:var(--chrome);
   /* Abre la columna, así que no lleva aire arriba: el de abajo es el
      que lo separa del collage. */
-  margin:0 0 clamp(.9rem,2vh,1.3rem);
+  margin:0 0 clamp(1rem,2.2vh,1.4rem);
 }
 
 .edit-foto{
