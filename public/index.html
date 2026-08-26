@@ -595,28 +595,6 @@ video::-webkit-media-controls{ display:none !important; }
 
    z-index 50 lo deja debajo de la barra (55) y del HUD (60), así el
    logo y el menú nunca quedan tapados. */
-#velo-alto{
-  position:fixed;
-  top:0; left:0; right:0;
-  /* 42vh y no 56: con más alto el velo se comía media pantalla y se
-     leía como una barra enorme en vez de como una transición. */
-  height:42vh;
-  z-index:50;
-  pointer-events:none;
-  opacity:var(--velo,0);
-  background:linear-gradient(to bottom,
-    rgba(0,0,0,.96) 0%,
-    rgba(0,0,0,.88) 30%,
-    rgba(0,0,0,.62) 55%,
-    rgba(0,0,0,.3) 76%,
-    rgba(0,0,0,.09) 90%,
-    rgba(0,0,0,0) 100%);
-}
-@media (prefers-reduced-motion:reduce){
-  /* Sigue existiendo: no es decoración, es lo que evita el corte. */
-  #velo-alto{ transition:none; }
-}
-
 /* ── LA LUZ DE AMBIENTE ────────────────────────────────────────────
 
    El sitio es negro de punta a punta y ese negro estaba PLANO: no un
@@ -649,8 +627,8 @@ video::-webkit-media-controls{ display:none !important; }
    que esto viene a resolver.
 
    z-index 40 la deja sobre todo el contenido —que no pasa de 5— y
-   debajo del velo (50), la barra (55) y el HUD (60): el logo y el menú
-   nunca se tiñen. */
+   debajo de la barra (55) y el HUD (60): el logo y el menú nunca se
+   tiñen. */
 #ambiente{
   position:fixed;
   inset:0;
@@ -3906,8 +3884,6 @@ window.RESPALDO = function(v, urlH264, rehacer){
        marca con data-claro en el HTML y acá se pregunta cuál tiene
        debajo. Agregar otra sección clara más abajo no pide tocar nada. */
     var claras = null;
-    /* El velo del Estándar y su último valor escrito. */
-    var velo = null, claras2 = [], veloPuesto = -1;
 
     /* LA FLOTACIÓN. El scroll no escribe --y directamente: fija un
        objetivo y un bucle lo persigue al 9% por cuadro.
@@ -4070,70 +4046,29 @@ window.RESPALDO = function(v, urlH264, rehacer){
       var sobreClaro = false;
       for (var n = 0; n < claras.length; n++){
         var rl = claras[n].getBoundingClientRect();
-        var desde = rl.top + rl.height * (parseFloat(claras[n].dataset.claroDesde) || 0);
-        if (desde <= LINEA && rl.bottom > LINEA){ sobreClaro = true; break; }
-      }
+        var ds = claras[n].dataset;
+        /* CADA SECCION DECLARA SU FRANJA CLARA, no solo desde donde.
 
-      /* EL VELO. Se enciende con lo que le falta al Estándar para
-         terminar de salir: 0 mientras su pie está en el borde de abajo
-         de la ventana o más allá, 1 cuando ya subió hasta el 32% de la
-         pantalla, que es cuando el video ocupa los dos tercios de
-         abajo. Para entonces la mitad de arriba ya está negra y no hay
-         corte que ver. */
-      if (!velo){
-        velo = document.getElementById('velo-alto');
-        /* SOLO EL ESTÁNDAR, Y EL REEL SE FUE DE ACÁ.
+           Antes habia un solo atributo, `data-claro-desde`, que corria
+           el ARRANQUE de la franja hacia abajo. Alcanzaba mientras el
+           degradado del puente fuera de negro a claro leido hacia abajo.
 
-           El velo existe para que una sección con luz no corte seco
-           contra lo que sigue. El reel estaba en la lista porque abajo
-           tenía el collage y el corte se notaba.
+           Cuando el puente se dio vuelta —ahora esta DEBAJO del Estandar
+           y va de claro arriba a negro abajo— ese atributo pasa a ser el
+           equivocado: lo que hay que declarar es hasta donde llega lo
+           claro, no desde donde. Sin poder decirlo, el puente quedo
+           afuera de la lista, y por eso el header se ponia blanco
+           mientras la parte clara del puente todavia le pasaba por
+           debajo.
 
-           Desde que el concierge quedó justo debajo del reel eso dejó de
-           ser cierto —un video oscuro entrando a una sección negra no
-           necesita ninguna ayuda— y encima empezó a molestar: el velo
-           tarda en apagarse, y esa cola caía ahora sobre la tarjeta
-           clara del formulario. Se veía como una sombra rara colgando
-           del header, tapando media pantalla.
-
-           El Estándar sí se queda: es blanco de verdad y sale contra el
-           negro del mapa. */
-        claras2 = [document.getElementById('estandar')].filter(Boolean);
-      }
-      if (velo && claras2.length){
-        var alto = window.innerHeight || 1;
-        /* ES UNA TRANSICIÓN, ASÍ QUE TIENE QUE APAGARSE. Antes esto era
-           una sola cuenta creciente, y una vez pasada la sección el
-           valor quedaba clavado en 1 para el resto de la página: el
-           editorial y el formulario del final aparecían con media
-           pantalla tapada de negro. El velo sólo tiene sentido mientras
-           quede algo claro a la vista.
-
-             pie por debajo de la ventana  → 0, todavía no empezó
-             subiendo hasta el 34%         → de 0 a 1, se va poniendo negro
-             del 34% hasta salir           → 1, tapando lo que queda
-             ya salió                      → de 1 a 0, se disuelve
-
-           Se toma el MAYOR de las dos secciones: nunca están saliendo
-           las dos a la vez, así que en la práctica manda la que esté en
-           transición, y con el máximo no hay que preguntarse cuál. */
-        var v = 0;
-        for (var q = 0; q < claras2.length; q++){
-          var b = claras2[q].getBoundingClientRect().bottom, vq;
-          if (b >= alto)            vq = 0;
-          else if (b >= alto * .34) vq = (alto - b) / (alto * .66);
-          else if (b >= 0)          vq = 1;
-          else                      vq = 1 + b / (alto * .35);
-          if (vq > v) v = vq;
-        }
-        v = v < 0 ? 0 : (v > 1 ? 1 : v);
-        /* Se escribe redondeado y sólo si cambió: son centésimas, más de
-           las que el ojo distingue, y así la mayoría de los cuadros no
-           tocan el DOM. */
-        var vp = Math.round(v * 100);
-        if (vp !== veloPuesto){
-          veloPuesto = vp;
-          velo.style.setProperty('--velo', (vp / 100).toFixed(2));
-        }
+           Con los dos atributos la franja se describe entera y cada
+           seccion dice lo suyo. Sin ninguno, la seccion cuenta como
+           clara de punta a punta, que es lo que hace el Estandar. */
+        var arriba = rl.top + rl.height * (parseFloat(ds.claroDesde) || 0);
+        var abajo  = ds.claroHasta
+                   ? rl.top + rl.height * parseFloat(ds.claroHasta)
+                   : rl.bottom;
+        if (arriba <= LINEA && abajo > LINEA){ sobreClaro = true; break; }
       }
 
       /* LA PÁGINA ES OSCURA SALVO PRUEBA EN CONTRARIO, y antes era al
@@ -4150,10 +4085,20 @@ window.RESPALDO = function(v, urlH264, rehacer){
          que existe justamente para esto. El Estándar sigue poniendo el
          header en negro cuando le toca; el resto de la página, blanco.
 
-         Con el velo encendido la barra queda sobre negro aunque el
-         Estándar siga contando como claro: si no, el logo se pintaría en
-         tinta oscura sobre el velo y desaparecería. */
-      var osc = !sobreClaro || veloPuesto > 45;
+         SE FUE EL VELO Y CON EL SU EXCEPCION. Habia una cortina negra
+         fija arriba de la ventana que se encendia a medida que el
+         Estandar salia, y esta cuenta la miraba: pasado el 45% de esa
+         cortina el header volvia a blanco, dando por hecho que arriba ya
+         estaba todo negro.
+
+         No lo estaba. El 45% se alcanzaba con el pie del Estandar
+         todavia al 70% de la pantalla —o sea con la seccion clara
+         ocupando de la barra para abajo— y el header se volvia blanco
+         encima de gris claro, con una banda oscura apareciendo detras.
+         Que es exactamente lo que se veia.
+
+         Ahora manda una sola pregunta y ninguna excepcion. */
+      var osc = !sobreClaro;
       if (osc !== oscuro){
         oscuro = osc;
         document.body.classList.toggle('is-dark', osc);
@@ -5579,10 +5524,6 @@ var UNIDAD = null;
 })();
 </script>
 
-<!-- La salida del negro. Está vacío a propósito: es la rampa de color y
-     nada más. El data-claro-desde le avisa al header a partir de qué
-     altura el fondo ya es claro, para que se pinte en negro antes de
-     quedar blanco sobre gris. -->
 <!-- La ruta. Tres planos montados en un solo archivo, corte seco, loop.
 
      El orden no es casual: viene de frente, pasa al lado, se va. Leído
@@ -5992,9 +5933,6 @@ var UNIDAD = null;
   </div>
 </section>
 
-<!-- El velo que oscurece la pantalla al salir del Estándar. Va suelto,
-     fuera de las secciones, porque es de la VENTANA y no de ninguna de
-     las dos. -->
 <!-- EL DEGRADADO, AHORA DEBAJO Y AL REVES.
 
      Estaba arriba del Estandar y hacia la entrada: del negro al hueso,
@@ -6008,16 +5946,24 @@ var UNIDAD = null;
      vuelta —`to top` en vez de `to bottom`— asi que arriba queda el
      hueso y abajo el negro.
 
-     SIN `data-claro`. Ese atributo le dice al header "de aca para abajo
-     considerame claro", y en un degradado invertido eso es al reves de
-     lo que pasa: lo claro esta arriba. Mientras la parte clara cruza la
-     barra manda el Estandar, que sigue teniendo el atributo. -->
-<div id="puente" aria-hidden="true"></div>
+     CUENTA COMO CLARO HASTA EL 45% DE SU ALTO, y de ahi para abajo no.
 
-<div id="velo-alto" aria-hidden="true"></div>
+     Al estar dado vuelta, lo claro del puente esta ARRIBA: arranca en el
+     mismo gris del Estandar y baja a negro. `data-claro-hasta` es lo que
+     le permite decirlo —antes solo se podia declarar desde donde, que
+     para este degradado es al reves— y sin poder decirlo el puente
+     quedaba afuera: apenas el pie del Estandar cruzaba la barra el
+     header se volvia blanco, con el gris del puente todavia debajo.
 
-<!-- La luz de ambiente. Misma idea que el velo y por eso viven juntos:
-     es de la VENTANA, no de una sección. Ver su bloque en el CSS. -->
+     El 48% sale del propio degradado. A esa altura la rampa pasa por
+     rgb(115 117 120), y ese es el punto exacto donde da lo mismo: tinta
+     negra y tinta blanca contrastan 4.6 a 1 las dos. Un poco mas arriba
+     gana la negra, un poco mas abajo la blanca, asi que el cambio de
+     color cae donde menos se nota. -->
+<div id="puente" aria-hidden="true" data-claro data-claro-hasta=".48"></div>
+
+<!-- La luz de ambiente. Es de la VENTANA, no de una sección, y por eso
+     vive suelta acá. Ver su bloque en el CSS. -->
 <div id="ambiente" aria-hidden="true"></div>
 
 
