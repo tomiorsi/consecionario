@@ -59,6 +59,13 @@
   --void:#000; --chrome:#fff; --hueso:#F4F1EA; --gris:#D1D5DB;
   --linea:rgba(255,255,255,.14);
   --apagado:rgba(255,255,255,.6);
+  /* El bloque claro. Mismo criterio que la home: el texto principal es
+     el negro de la pagina y los secundarios bajan de ahi, no grises
+     inventados aparte. */
+  --gris-claro:#E7E8E9;
+  --tinta:#000;
+  --tinta-2:#3F4650;
+  --tinta-3:#5A6673;
   --beam:214,232,255;
   --display:"Syncopate",ui-sans-serif,system-ui,sans-serif;
   --texto:"Montserrat",ui-sans-serif,system-ui,sans-serif;
@@ -94,12 +101,73 @@ a{color:inherit;text-decoration:none}
   letter-spacing:.26em; text-transform:uppercase; color:var(--apagado);
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   LOS DIBUJOS
+
+   Todo lo de esta pagina es texto. Sin una sola imagen se lee como un
+   documento, y el que entra a "por que elegirnos" ya viene con poca
+   paciencia. Pero meter fotos de autos seria repetir el garage, que
+   esta a un clic.
+
+   La salida son dibujos de LINEA: trazo fino, sin relleno, sobre
+   negro. Es el mismo lenguaje que el mapa de Barracas de la home —un
+   plano dibujado, no una foto— y es lo unico que puede entrar en una
+   pagina de puro texto sin ensuciarla ni competirle.
+
+   Todos comparten `.trazo`, que es lo que les da grosor y color. Si
+   algun dia hay que subir o bajar el peso de los dibujos, se toca una
+   sola linea de aca.
+
+   `vector-effect:non-scaling-stroke` deja el grosor del trazo fijo en
+   pixeles pase lo que pase con el tamano del dibujo: dos iconos de
+   distinto cuerpo se ven con la misma linea y no uno mas gordo que el
+   otro. */
+.trazo{
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.4;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  vector-effect:non-scaling-stroke;
+}
+
+/* ── APARECER AL LLEGAR ────────────────────────────────────────────
+
+   Cada bloque entra cuando le toca en vez de estar todo puesto de
+   antemano. Es la misma idea del collage de la home: no es una
+   animacion de entrada, es que la pagina se vaya armando a medida que
+   uno baja.
+
+   OJO CON EL ORDEN: el estado escondido cuelga de `.revelable`, una
+   clase que pone un script de dos lineas en el <head>. Si el JS no
+   corre —o falla— la clase nunca se agrega y el texto se ve igual. Al
+   reves —esconder por CSS y mostrar por JS— una pagina sin JS queda en
+   blanco, que es el peor final posible para una pagina que es toda
+   texto. */
+.revelable [data-revelar]{
+  opacity:0;
+  transform:translateY(14px);
+  transition:opacity .8s var(--ease), transform .8s var(--ease);
+}
+.revelable [data-revelar].visto{ opacity:1; transform:none }
+
+@media (prefers-reduced-motion:reduce){
+  .revelable [data-revelar]{ opacity:1; transform:none; transition:none }
+}
+
 /* ── LA ENTRADA ───────────────────────────────────────────────────
 
-   UN LUGAR RESERVADO PARA EL VIDEO. La sección ya tiene su alto y su
-   degradado propios, así que el día que haya un video de fondo entra
+   LA TESIS PRIMERO. El texto que llego venia con el bloque de contacto
+   arriba de todo y esta declaracion cuarta. Al derecho es al reves:
+   una pagina que se llama "por que elegirnos" tiene que abrir diciendo
+   por que, y terminar invitando a pasar. El contacto se fue al cierre,
+   que es donde uno ya leyo los motivos y recien ahi tiene sentido
+   ofrecerle la puerta.
+
+   UN LUGAR RESERVADO PARA EL VIDEO. La seccion ya tiene su alto y su
+   degradado propios, asi que el dia que haya un video de fondo entra
    como <video> adentro de .tapa-fondo y no hay que rehacer la maqueta:
-   el texto ya está por encima, con su velo, listo para leerse sobre
+   el texto ya esta por encima, con su velo, listo para leerse sobre
    imagen en movimiento. */
 .tapa{
   position:relative;
@@ -112,6 +180,19 @@ a{color:inherit;text-decoration:none}
   background:
     radial-gradient(120% 90% at 50% -10%, rgba(255,255,255,.07), transparent 62%),
     var(--void);
+}
+/* La cuadricula de plano. Va detras del texto y casi no se ve —alfa
+   .045— pero es lo que hace que el auto dibujado se lea como un plano
+   tecnico y no como un sticker. Se desvanece hacia abajo con una
+   mascara para que no choque contra el borde de la seccion. */
+.tapa-fondo::before{
+  content:''; position:absolute; inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+  background-size:clamp(38px,4.6vw,64px) clamp(38px,4.6vw,64px);
+  -webkit-mask-image:radial-gradient(120% 78% at 50% 34%, #000 12%, transparent 74%);
+          mask-image:radial-gradient(120% 78% at 50% 34%, #000 12%, transparent 74%);
 }
 .tapa-fondo::after{
   content:''; position:absolute; inset:0;
@@ -127,16 +208,61 @@ a{color:inherit;text-decoration:none}
   margin:clamp(1.1rem,2.6vh,1.7rem) auto 0; max-width:38rem;
   font-size:clamp(.9rem,1.15vw,1rem); line-height:1.8; color:var(--apagado);
 }
+/* El segundo parrafo es el personal —"el trabajo que nos gustaria que
+   hicieran por nosotros"— y va mas junto al primero: son la misma
+   idea dicha dos veces, de afuera y de adentro. */
+.tapa p + p{ margin-top:clamp(.7rem,1.6vh,1rem) }
 
-/* ── LOS PILARES ──────────────────────────────────────────────────
+/* ── LA FRANJA DEL MEDIO ────────────────────────────────────────
 
-   Numerados y en columnas. El número no es decoración: son pasos de un
+   El manifiesto: una sola frase, sin dibujo y con lineas arriba y
+   abajo. Despues del plano y antes de los cuatro pasos, es el unico
+   bloque de la pagina donde no pasa nada mas que leer. Ese silencio es
+   lo que la hace sonar. */
+.franja{
+  padding:clamp(1.9rem,4.6vh,2.9rem) var(--gut);
+  text-align:center;
+
+  /* EL UNICO BLOQUE CLARO DE LA PAGINA. Es el mismo recurso que el
+     Estandar de la home: una pagina entera de negro y una sola franja
+     de luz, que por contraste se lee como lo importante. Un gris y no
+     el hueso de la home —#F4F1EA, tibio— porque este es un corte, no un
+     bloque: mas frio y mas corto.
+
+     SIN LINEAS ARRIBA NI ABAJO. Las tenia cuando era negra sobre negro,
+     que era la unica forma de separarla. Un bloque de otro color se
+     separa solo, y las rayas ahi le dibujaban un marco. */
+  background:var(--gris-claro);
+  color:var(--tinta);
+}
+/* EL ROTULO SE DA VUELTA. Esta pintado con un blanco translucido
+   —`--apagado`— que sobre un gris claro directamente no existe. */
+.franja .rotulo{ color:var(--tinta-3) }
+.franja h2{
+  max-width:44rem; margin:clamp(.7rem,1.6vh,1rem) auto 0;
+  font-family:var(--display); font-weight:400; text-transform:uppercase;
+  font-size:clamp(1rem,2.3vw,1.55rem); letter-spacing:.08em; line-height:1.4;
+  color:var(--tinta);
+}
+.franja p{
+  max-width:38rem; margin:clamp(.7rem,1.6vh,1rem) auto 0;
+  font-size:clamp(.88rem,1.1vw,.97rem); line-height:1.7; color:var(--tinta-2);
+}
+
+/* ── LOS CUATRO PASOS ─────────────────────────────────────────────
+
+   Numerados y en columnas. El numero no es decoracion: son pasos de un
    proceso y el orden importa — nada se publica antes de pasar por los
-   cuatro. */
+   cuatro.
+
+   SON VERBOS: elegimos, revisamos, verificamos, buscamos. Lo que HACE
+   la casa. Los tres requisitos del auto —lo que TIENE— estaban abajo de
+   estos y decian casi lo mismo desde el otro lado; se mudaron al
+   Estandar de la home, que es donde esa lista ya vivia. */
 .pilares{
-  max-width:74rem; margin:0 auto;
-  padding:clamp(1rem,3vh,2rem) var(--gut) clamp(3rem,8vh,5rem);
-  display:grid; gap:clamp(1.6rem,3vw,2.6rem) clamp(1.6rem,4vw,3.5rem);
+  margin:0 auto;
+  padding:clamp(2.6rem,7vh,4.5rem) var(--gut) clamp(3rem,8vh,5rem);
+  display:grid; gap:clamp(2rem,3.6vw,3rem) clamp(1.6rem,4vw,3.5rem);
   /* DOS Y DOS, NO TRES Y UNO. Con `auto-fit` entraban tres arriba y el
      cuarto quedaba solo abajo, que se lee como si sobrara. Son cuatro
      pasos de un mismo proceso y en dos filas parejas se ven como un
@@ -148,41 +274,59 @@ a{color:inherit;text-decoration:none}
   .pilares{ grid-template-columns:1fr }
 }
 .pilar{
+  position:relative;
   border-top:1px solid var(--linea);
   padding-top:clamp(1.1rem,2.4vh,1.5rem);
 }
-.pilar .num{
-  display:block;
-  font-family:var(--display); font-size:.62rem; font-weight:700;
-  letter-spacing:.2em; color:rgba(255,255,255,.38);
+/* EL ICONO HACE DE NUMERO.
+
+   Los cuatro pasos tenian numero chico arriba y un numero gigante de
+   fondo. Se fueron los dos: cuatro bloques cortos con titulo propio ya
+   se leen como una lista, y el numero grande no aportaba mas que ruido
+   detras del texto.
+
+   Con los numeros afuera el icono quedo como unica marca del bloque, y
+   termino haciendo lo que hacia el numero grande: irse al fondo.
+   Grande, en la esquina y casi apagado. No se lee, se percibe, y le da
+   fondo a la tarjeta sin meterle un recuadro —que es lo que la casa
+   viene evitando en todas las listas. */
+.pilar .icono{
+  /* FUERA DEL FLUJO. En el flujo empujaba el titulo hacia abajo y le
+     comia un renglon a cada tarjeta; aca no ocupa lugar. */
+  position:absolute;
+  top:clamp(.5rem,1.6vh,1rem);
+  right:0;
+  width:clamp(46px,6vw,74px); height:auto;
+  /* EL ALFA NO ES EL DEL NUMERO QUE HABIA ANTES. Aquel era .045 sobre
+     una letra MACIZA; un icono es un contorno fino y con ese valor
+     directamente desaparece. .11 le da el mismo peso con mucha menos
+     tinta. */
+  color:rgba(255,255,255,.11);
+  pointer-events:none;
 }
+/* EL TEXTO VA ARRIBA DEL ICONO.
+
+   Un elemento posicionado se pinta DESPUES del contenido en flujo, asi
+   que el icono —absoluto— quedaba por encima del titulo y del parrafo
+   velandolos con su 11%. En la esquina, ademas, es justo donde llegan
+   los renglones largos.
+
+   Se sube el texto en vez de bajar el icono con un z-index negativo:
+   negativo lo mandaria detras del fondo de cualquier ancestro que
+   llegue a tener uno, y esto no depende de eso. */
+.pilar > :not(.icono){ position:relative; z-index:1 }
+
 .pilar h2{
-  margin:.7rem 0 .55rem;
+  margin:0 0 .55rem;
   font-family:var(--display); font-size:.78rem; font-weight:700;
   text-transform:uppercase; letter-spacing:.07em; line-height:1.45;
 }
 .pilar p{ font-size:.87rem; line-height:1.8; color:var(--apagado) }
 
-/* ── LA FRANJA DEL MEDIO ──────────────────────────────────────── */
-.franja{
-  border-top:1px solid var(--linea);
-  border-bottom:1px solid var(--linea);
-  padding:clamp(3rem,8vh,5rem) var(--gut);
-  text-align:center;
-  background:linear-gradient(180deg, rgba(255,255,255,.03), transparent);
-}
-.franja h2{
-  max-width:44rem; margin:clamp(.9rem,2vh,1.2rem) auto 0;
-  font-family:var(--display); font-weight:400; text-transform:uppercase;
-  font-size:clamp(1rem,2.3vw,1.55rem); letter-spacing:.08em; line-height:1.45;
-}
-.franja p{
-  max-width:38rem; margin:clamp(1.1rem,2.4vh,1.5rem) auto 0;
-  font-size:clamp(.88rem,1.1vw,.97rem); line-height:1.8; color:var(--apagado);
-}
-
 /* ── EL CIERRE ─────────────────────────────────────────────────── */
 .cierre{
+  position:relative;
+  border-top:1px solid var(--linea);
   padding:clamp(3rem,8vh,5rem) var(--gut) clamp(3.5rem,9vh,5.5rem);
   text-align:center;
 }
@@ -192,7 +336,7 @@ a{color:inherit;text-decoration:none}
   margin-top:clamp(.8rem,2vh,1.1rem);
 }
 .cierre p{
-  max-width:34rem; margin:clamp(1rem,2.2vh,1.3rem) auto clamp(1.6rem,3.4vh,2.2rem);
+  max-width:36rem; margin:clamp(1rem,2.2vh,1.3rem) auto clamp(1.6rem,3.4vh,2.2rem);
   font-size:clamp(.88rem,1.1vw,.97rem); line-height:1.8; color:var(--apagado);
 }
 .botones{ display:flex; gap:.6rem; justify-content:center; flex-wrap:wrap }
@@ -208,6 +352,18 @@ a{color:inherit;text-decoration:none}
 .boton--suave{ border-color:var(--linea); color:var(--chrome) }
 .boton--suave:hover{ border-color:rgba(255,255,255,.5) }
 </style>
+<!-- ESTA LINEA ES LA QUE HABILITA EL APARECER AL LLEGAR.
+
+     El CSS esconde los bloques SOLO debajo de `.revelable`. Si este
+     script no corre —JS apagado, un error antes, un navegador viejo— la
+     clase nunca se pone y la pagina se ve entera de una, que es
+     exactamente lo que tiene que pasar. Al reves —esconder siempre y
+     mostrar por JS— una pagina de puro texto quedaria en blanco.
+
+     Va inline y sin `defer` a proposito: tiene que estar puesta antes
+     del primer pintado, o los bloques se verian un instante y recien
+     despues desapareceran para volver a entrar. -->
+<script>document.documentElement.className += ' revelable';</script>
 </head>
 <body>
 
@@ -227,80 +383,130 @@ a{color:inherit;text-decoration:none}
 
 </header>
 
+<!-- ══════════════════════════════════════════════════════════════
+     1 · LA TESIS
+
+     El rotulo repite el nombre de la pagina a proposito: el que llego
+     por el menu tiene que ver que llego. Debajo, la frase que sostiene
+     todo lo demas y los dos parrafos que la explican, el segundo en
+     primera persona.
+
+     El plano del auto cierra la seccion. Se dibuja solo al cargar, de
+     adelante hacia atras, como lo haria alguien en una hoja. -->
 <section class="tapa">
-  <!-- Acá va el video el día que lo tengamos. Ver el comentario del CSS. -->
+  <!-- Aca va el video el dia que lo tengamos. Ver el comentario del CSS. -->
   <div class="tapa-fondo" aria-hidden="true"></div>
   <span class="rotulo">Por qué elegirnos</span>
-  <h1>No vendemos autos usados.<br>Vendemos autos revisados.</h1>
+  <h1>Cada auto tiene que <br>justificar su lugar.</h1>
   <p>
-    Cualquiera puede publicar una foto y un precio. Lo difícil —y lo que
-    hacemos nosotros— es responder por lo que hay detrás de esa foto:
-    de dónde viene el auto, qué le pasó, y qué papeles tiene.
+    Antes de publicar una unidad queremos entenderla: de dónde viene,
+    cómo fue mantenida, qué estado tiene y qué la hace una buena
+    elección.
   </p>
+  <p>
+    Antes de ofrecerte un auto, hacemos el trabajo que nos gustaría que
+    hicieran por nosotros: conocerlo, revisarlo y tener claro qué
+    estamos poniendo delante tuyo.
+  </p>
+
 </section>
 
-<section class="pilares" aria-label="Cómo trabajamos">
-  <article class="pilar">
-    <span class="num">01</span>
-    <h2>Elegimos primero</h2>
-    <p>
-      No entra todo lo que se ofrece. Miramos el historial, el uso que
-      tuvo y quién lo mantuvo, y la mayoría queda afuera antes de que
-      lleguemos a verlo en persona. Por eso el catálogo es corto.
-    </p>
-  </article>
+<!-- ══════════════════════════════════════════════════════════════
+     2 · EL MANIFIESTO
 
-  <article class="pilar">
-    <span class="num">02</span>
-    <h2>Inspección selecta</h2>
-    <p>
-      Estructura, pintura y motor, revisados por gente que hace esto
-      todos los días. Si algo aparece, se arregla antes de publicar o el
-      auto no se publica. Nunca se publica con la salvedad puesta en la
-      descripción.
-    </p>
-  </article>
-
-  <article class="pilar">
-    <span class="num">03</span>
-    <h2>Documentación al día</h2>
-    <p>
-      Verificación, deudas, multas e informe de dominio, resueltos de
-      antemano. Cuando dos personas se dan la mano, la transferencia ya
-      está lista para hacerse — no es una promesa para después.
-    </p>
-  </article>
-
-  <article class="pilar">
-    <span class="num">04</span>
-    <h2>Lo buscamos por vos</h2>
-    <p>
-      Si lo que querés no está en el garage, lo salimos a buscar. Nos
-      decís marca, modelo y año, y rastreamos el mercado hasta
-      encontrarlo con la misma vara que aplicamos a lo nuestro.
-    </p>
-  </article>
-</section>
-
-<section class="franja">
-  <span class="rotulo">Nuestra idea de esto</span>
+     Una sola frase, sin dibujo, entre dos rayas. Es el bloque mas
+     silencioso de la pagina y por eso es el que mas suena. -->
+<section class="franja" data-revelar>
+  <span class="rotulo">Nuestro criterio</span>
   <h2>Un auto bien elegido no necesita que lo defiendan.</h2>
   <p>
-    Preferimos tener pocas unidades y poder contar cada una de memoria,
-    antes que una lista larga donde nadie sabe bien qué está mirando. Si
-    algo no nos lo compraríamos nosotros, no está en el garage.
+    Preferimos pocas unidades y conocerlas bien. Si una no puede
+    justificar por qué está acá, no entra al garage.
   </p>
 </section>
 
-<section class="cierre">
+<!-- ══════════════════════════════════════════════════════════════
+     3 · LOS CUATRO PASOS
+
+     Que hace la casa, en orden. Sin titulo propio: el texto no traia
+     uno y ponerle uno inventado seria meterle palabras que nadie
+     escribio. La lista se explica sola. -->
+<section class="pilares" aria-label="Cómo trabajamos">
+  <article class="pilar" data-revelar>
+    <svg class="icono" viewBox="0 0 24 24" aria-hidden="true">
+      <path class="trazo" d="M3.5 5h17l-6.6 7.6V19l-3.8 2v-8.4z"/>
+    </svg>
+    <h2>Elegimos primero</h2>
+    <p>
+      No entra todo lo que se ofrece. Miramos historial, uso,
+      mantenimiento, estado, configuración y procedencia antes de
+      decidir si una unidad tiene lugar en Manna Selected.
+    </p>
+  </article>
+
+  <article class="pilar" data-revelar>
+    <svg class="icono" viewBox="0 0 24 24" aria-hidden="true">
+      <circle class="trazo" cx="10.8" cy="10.8" r="6.8"/>
+      <path class="trazo" d="m15.8 15.8 4.7 4.7"/>
+      <path class="trazo" d="m7.9 10.9 2 2 3.8-4"/>
+    </svg>
+    <h2>Revisamos antes de publicar</h2>
+    <p>
+      Estado general, estructura, mecánica, historial y puntos
+      relevantes. Queremos que, cuando preguntes por un auto, podamos
+      decirte qué tiene, qué vimos y qué tenés que saber.
+    </p>
+  </article>
+
+  <article class="pilar" data-revelar>
+    <svg class="icono" viewBox="0 0 24 24" aria-hidden="true">
+      <path class="trazo" d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/>
+      <path class="trazo" d="M14 3v5h5"/>
+      <path class="trazo" d="M8.5 13.5h7"/>
+      <path class="trazo" d="M8.5 17h4.5"/>
+    </svg>
+    <h2>Documentación clara</h2>
+    <p>
+      Dominio, deudas, multas y documentación se revisan antes de
+      avanzar. Queremos que las condiciones de la operación estén claras
+      antes de que llegue el momento de cerrar.
+    </p>
+  </article>
+
+  <article class="pilar" data-revelar>
+    <svg class="icono" viewBox="0 0 24 24" aria-hidden="true">
+      <circle class="trazo" cx="12" cy="12" r="8.2"/>
+      <circle class="trazo" cx="12" cy="12" r="3.2"/>
+      <path class="trazo" d="M12 1.6v3.2"/>
+      <path class="trazo" d="M12 19.2v3.2"/>
+      <path class="trazo" d="M1.6 12h3.2"/>
+      <path class="trazo" d="M19.2 12h3.2"/>
+    </svg>
+    <h2>Si no está, lo buscamos</h2>
+    <p>
+      Contanos qué estás buscando. Analizamos las opciones disponibles y
+      aplicamos el mismo criterio que usamos para elegir las unidades de
+      nuestro garage.
+    </p>
+  </article>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════
+     5 · EL CIERRE
+
+     El bloque de contacto venia primero en el texto original. Va al
+     final: recien despues de haber leido los motivos tiene sentido
+     invitar a pasar por Barracas. -->
+<section class="cierre" data-revelar>
   <span class="rotulo">Estamos en Barracas</span>
-  <h2>Vení a verlos, o escribinos.</h2>
+  <h2>Coordiná una visita, o escribinos.</h2>
   <p>
-    Pasaje Lanín 154, Buenos Aires. De lunes a viernes, de 10 a 19.
-    También podés decirnos qué estás buscando y nos ocupamos nosotros.
+    Pasaje Lanín 154, Buenos Aires. De lunes a sábados de 10 a 19 hs.
+    Si estás buscando una unidad en particular, contanos cuál. Nosotros
+    nos ocupamos del resto.
   </p>
   <div class="botones">
-    <a class="boton boton--fuerte" href="/#concierge">Escribinos</a>
+    <a class="boton boton--fuerte" href="/#concierge">Coordinar visita</a>
     <a class="boton boton--suave" href="/garage/">Ver el garage</a>
   </div>
 </section>
@@ -332,7 +538,7 @@ a{color:inherit;text-decoration:none}
       <h2 class="pie-rotulo" id="pie-nav">Navegación</h2>
       <ul>
         <li><a href="/garage/">Garage</a></li>
-        <li><a href="/#estandar">Estándar</a></li>
+        <li><a href="/#estandar">Criterio</a></li>
         <li><a href="/#donde">Dónde estamos</a></li>
         <li><a href="/#concierge">Contacto</a></li>
       </ul>
@@ -397,6 +603,70 @@ a{color:inherit;text-decoration:none}
 </footer>
 
 <div id="ambiente" aria-hidden="true"></div>
+
+<!-- EL OBSERVADOR QUE ENCIENDE CADA BLOQUE.
+
+     Un solo observador para todos los bloques, no uno por bloque. Se
+     desanota apenas enciende cada uno: la animacion es de entrada y no
+     tiene que volver a pasar si uno sube.
+
+     `rootMargin` negativo abajo: el bloque enciende cuando entro de
+     verdad en pantalla, no cuando asoma un pixel. -->
+<script>
+(function(){
+  var bloques = [].slice.call(document.querySelectorAll('[data-revelar]'));
+  if (!bloques.length) return;
+
+  // Sin IntersectionObserver —o con movimiento reducido— se muestran
+  // todos de una y listo. No hay degradado a mano ni scroll listeners:
+  // el efecto es un lujo, no la pagina.
+  var quieto = window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  if (!('IntersectionObserver' in window) || quieto){
+    bloques.forEach(function(b){ b.classList.add('visto'); });
+    return;
+  }
+
+  var ojo = new IntersectionObserver(function(entradas){
+    entradas.forEach(function(e){
+      if (!e.isIntersecting) return;
+      encender(e.target);
+    });
+  }, { rootMargin: '0px 0px -12% 0px', threshold: .12 });
+
+  function encender(b){
+    b.classList.add('visto');
+    ojo.unobserve(b);
+  }
+
+  bloques.forEach(function(b){ ojo.observe(b); });
+
+  /* LA RED DE SEGURIDAD.
+
+     Un navegador NO corre el paso de dibujado mientras la pagina esta
+     oculta —otra pestana al frente, la ventana minimizada— y las
+     entregas del observador salen justo de ese paso. O sea: con la
+     pagina oculta el observador existe, mira, y no avisa nunca.
+
+     Normalmente se arregla solo, porque al volver a la pestana el
+     dibujado se reanuda y el observador dispara. Pero si por lo que
+     fuera no dispara, la pagina queda EN BLANCO, que para una pagina
+     que es toda texto es el peor final posible.
+
+     Asi que cuando la pagina se vuelve visible se hace una pasada a
+     mano con las medidas crudas, que no dependen de que nadie avise.
+     Cuesta un rectangulo por bloque y solo corre al volver. */
+  function repasar(){
+    if (document.visibilityState !== 'visible') return;
+    bloques.forEach(function(b){
+      if (b.classList.contains('visto')) return;
+      var r = b.getBoundingClientRect();
+      if (r.top < innerHeight * .88 && r.bottom > 0) encender(b);
+    });
+  }
+  document.addEventListener('visibilitychange', repasar);
+  repasar();
+})();
+</script>
 
 <script src="/barra.js" defer></script>
 <script src="/ancla.js" defer></script>

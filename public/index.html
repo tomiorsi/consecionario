@@ -97,7 +97,7 @@
   },
   "openingHoursSpecification": [{
     "@type": "OpeningHoursSpecification",
-    "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday"],
+    "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],
     "opens": "10:00",
     "closes": "19:00"
   }],
@@ -1943,23 +1943,30 @@ video::-webkit-media-controls{ display:none !important; }
   color:var(--ink-3);
 }
 
-/* Syncopate: es un título corto, que es exactamente para lo que sirve. */
+/* SYNCOPATE, Y EL CUERPO MAS BAJO PORQUE AHORA ES UNA FRASE.
+
+   Decia "El Estandar Manna" —tres palabras— y a 2.3rem en 700
+   funcionaba como cartel. El texto nuevo es una oracion entera, y a ese
+   cuerpo ocupaba tres renglones de lado a lado: un muro de mayusculas
+   en una letra que ya es de por si muy ancha.
+
+   Se mantiene TODO lo demas —Syncopate, 700, mayusculas, el mismo
+   espaciado y el mismo color— y solo baja el tamano, con un ancho
+   maximo que la parte en dos renglones parejos. */
 .estandar-titulo{
   font-family:var(--display);
-  font-size:clamp(1.25rem,3.1vw,2.3rem);
+  font-size:clamp(1.05rem,2.5vw,1.7rem);
   font-weight:700;
   text-transform:uppercase;
   letter-spacing:.08em;
-  line-height:1.3;
-  margin:clamp(.9rem,2.2vh,1.4rem) 0 0;
-}
-
-.estandar-bajada{
-  margin:clamp(.7rem,1.6vh,1rem) auto 0;
-  max-width:34rem;
-  font-size:clamp(.95rem,1.3vw,1.1rem);
-  line-height:1.6;
-  color:var(--ink-2);
+  line-height:1.4;
+  /* 56rem y no 44: a 44 la frase caia en TRES renglones de 508, 535 y
+     623px —desparejos y demasiado alto para un titulo—. Con 896px de
+     ancho `balance` la reparte en dos parejos. El tope no molesta a la
+     caja, que mide 64rem. */
+  max-width:56rem;
+  margin:clamp(.9rem,2.2vh,1.4rem) auto 0;
+  text-wrap:balance;
 }
 
 .estandar-lista{
@@ -1994,23 +2001,6 @@ video::-webkit-media-controls{ display:none !important; }
   font-weight:600;
   letter-spacing:-.01em;
   line-height:1.3;
-}
-
-/* La marca de lo que todavía no está. Chiquita y al lado del título,
-   para que se lea como un estado y no como una promesa cumplida. */
-.estandar-lista h3 em{
-  display:inline-block;
-  margin-left:.5rem;
-  padding:.2em .55em;
-  border:1px solid var(--gris);
-  border-radius:2px;
-  font-style:normal;
-  font-size:.58rem;
-  font-weight:600;
-  letter-spacing:.14em;
-  text-transform:uppercase;
-  color:var(--ink-3);
-  vertical-align:middle;
 }
 
 .estandar-lista li p{
@@ -2134,7 +2124,18 @@ video::-webkit-media-controls{ display:none !important; }
   right:var(--gut);
   bottom:calc(var(--gut) + clamp(2.2rem,5vh,3.6rem));
   z-index:4;
-  width:min(36rem,78vw);
+  /* LA CAJA SE ENSANCHO POR EL TITULO NUEVO, EN LOS DOS EXTREMOS.
+
+     "Selectos con los autos. Cercanos con las personas." tiene un
+     segundo renglon mas largo que el titulo anterior, y con la caja de
+     antes —36rem, 78vw— no entraba ni en computadora ni en telefono:
+     "personas." caia sola a un tercer renglon (208px contra 380 en
+     1440, 110 contra 201 en un iPhone). Pegada al margen derecho, eso
+     se lee como un error de maqueta.
+
+     40rem le dan lugar al renglon largo —588px de texto en 640 de
+     caja— y 86vw hacen lo mismo en el telefono. */
+  width:min(40rem,86vw);
   text-align:right;
   /* Blanco, porque la portada es un estudio oscuro. Estuvo en tinta
      negra mientras el video de portada era claro. */
@@ -2168,8 +2169,24 @@ video::-webkit-media-controls{ display:none !important; }
    El limite de arriba lo pone el ancho: son dos renglones que no se
    pueden partir, y pasado 2,1rem el segundo toca el borde en una
    pantalla de 1440. */
+/* SIN <br>: EL CORTE LO REPARTE EL NAVEGADOR.
+
+   El titulo anterior venia cortado a mano porque eran dos frases de
+   largo parejo. Este no: partido a mano en la coma, el segundo pedazo
+   no entra y se vuelve a partir solo, y quedan tres renglones
+   desparejos.
+
+   `text-wrap:balance` reparte el texto en renglones del mismo largo, y
+   como el punto cae justo en el medio, el corte termina cayendo entre
+   las dos frases igual — pero sin forzarlo, asi que en una pantalla mas
+   angosta puede caer en otro lado sin dejar una palabra suelta.
+
+   Y donde `balance` no existe todavia —Safari viejo— el corte cae en el
+   mismo lugar por las malas: despues de "autos." ya no entra ninguna
+   palabra mas. */
 .cover-title{
   font-family:var(--display);
+  text-wrap:balance;
   font-size:clamp(.88rem,1.85vw,1.7rem);
   font-weight:400;
   text-transform:uppercase;
@@ -2420,7 +2437,6 @@ body.is-dark .menu a.menu-cta:focus-visible{
 .burger{ display:none; }
 
 @media (max-width:767px){
-
   .burger{
     display:grid;
     place-content:center;
@@ -4128,7 +4144,7 @@ window.RESPALDO = function(v, urlH264, rehacer){
        "hechastienden": el <br> corta la línea pero no separa palabras, y
        un lector de pantalla lee las dos pegadas. -->
   <div class="cover-copy">
-    <h1 class="cover-title">Las cosas bien hechas <br>tienden a encontrarse.</h1>
+    <h1 class="cover-title">Selectos con los autos. Cercanos con las personas.</h1>
   </div>
 
   <svg class="scroll-cue" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -5918,33 +5934,27 @@ var UNIDAD = null;
      corresponde, junto y con nombre. -->
 <section id="estandar" data-claro>
   <div class="estandar-caja">
-    <small class="estandar-eyebrow">La garantía</small>
-    <h2 class="estandar-titulo">El Estándar Manna</h2>
-    <p class="estandar-bajada">
-      Ninguna unidad se publica antes de pasar por acá.
-    </p>
+    <small class="estandar-eyebrow">Qué hace a un auto Selected</small>
+    <h2 class="estandar-titulo">Cada unidad tiene que pasar nuestro criterio antes de entrar al garage.</h2>
 
     <ul class="estandar-lista">
       <li>
         <span class="estandar-num">01</span>
-        <h3>Inspección Selecta</h3>
-        <p>Certificación de estructura, pintura y motor por expertos.</p>
+        <h3>Estado revisado</h3>
+        <p>Revisamos estado general, estructura, mecánica y los puntos
+           relevantes de cada unidad antes de presentarla.</p>
       </li>
       <li>
         <span class="estandar-num">02</span>
-        <h3>Documentación Perfecta</h3>
-        <p>Unidades 100% listas para transferir sin sorpresas legales en
-           Buenos Aires.</p>
+        <h3>Historia entendida</h3>
+        <p>Kilometraje, mantenimiento, uso y procedencia forman parte de
+           la decisión de aceptarla.</p>
       </li>
       <li>
-        <!-- El único de los tres que todavía no existe: el depósito en
-             línea es la Prioridad 1 del documento y necesita pasarela de
-             pago. Se deja a la vista para que se entienda la promesa
-             completa, pero marcado, que es lo honesto hasta que funcione. -->
         <span class="estandar-num">03</span>
-        <h3>Reserva Protegida <em>Próximamente</em></h3>
-        <p>Tu depósito de seguridad congelado bajo absoluta garantía de
-           reembolso.</p>
+        <h3>Documentación verificada</h3>
+        <p>Dominio, deudas, multas y documentación se revisan antes de
+           avanzar con una operación.</p>
       </li>
     </ul>
   </div>
@@ -6101,7 +6111,7 @@ var UNIDAD = null;
       <h2 class="pie-rotulo" id="pie-nav">Navegación</h2>
       <ul>
         <li><a href="/garage/">Garage</a></li>
-        <li><a href="/#estandar">Estándar</a></li>
+        <li><a href="/#estandar">Criterio</a></li>
         <li><a href="/#donde">Dónde estamos</a></li>
         <li><a href="/#concierge">Contacto</a></li>
       </ul>
