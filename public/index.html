@@ -847,7 +847,9 @@ video::-webkit-media-controls{ display:none !important; }
   letter-spacing:.3em;
   text-transform:uppercase;
   color:rgba(255,255,255,.42);
-  margin:clamp(1.1rem,2.6vh,1.7rem) 0 .6rem;
+  /* Abre la columna, así que no lleva aire arriba: el de abajo es el
+     que lo separa del collage. */
+  margin:0 0 clamp(.9rem,2vh,1.3rem);
 }
 
 .edit-foto{
@@ -5167,6 +5169,12 @@ window.RESPALDO = function(v, urlH264, rehacer){
        ══════════════════════════════════════════════════════════════ -->
   <section class="edit" aria-labelledby="edit-titulo">
     <article class="edit-nota">
+      <!-- ARRIBA DE LAS FOTOS Y NO ABAJO. El rótulo dice de qué es esta
+           columna, y eso hay que saberlo ANTES de mirar: puesto debajo
+           del collage llegaba tarde, cuando uno ya se pregunto que eran
+           esas cuatro fotos al lado de un formulario. -->
+      <span class="edit-rotulo">Editorial</span>
+
       <figure class="edit-foto">
         <!-- ACA VA UN AUTO DEL GARAGE, UNO DISTINTO POR DIA. Lo pone el
              script del final; estas cuatro son las que se ven si no hay
@@ -5186,10 +5194,6 @@ window.RESPALDO = function(v, urlH264, rehacer){
            lugar es cada uno; lo que está escrito acá es lo que se ve
            mientras nadie lo haya cambiado, y lo que vuelve si en el
            panel se borra el campo. Ver el script del final. -->
-      <!-- El rótulo dice de qué es esta columna. Sin él, un titular
-           suelto al lado de un formulario no se sabe si es una nota, un
-           anuncio o parte del mismo formulario. -->
-      <span class="edit-rotulo">Editorial</span>
       <h2 class="edit-titular" id="edit-titulo" data-texto="editorial-titulo">El futuro del diseño: naturaleza y rendimiento</h2>
       <p class="edit-copete" data-texto="editorial-copete">
         Exploramos cómo la ingeniería y el diseño sustentable están
@@ -6103,6 +6107,9 @@ var UNIDAD = null;
         img.src = '/fotos/' + auto.fotos[i].clave + (i === 0 ? '-1600' : '-640') + '.webp';
         img.removeAttribute('srcset');
         img.alt = nombre;
+        /* Queda marcado para que el script del panel no lo pise. Ver el
+           comentario alla. */
+        img.dataset.tomado = '1';
       });
     })
     .catch(function(){ /* se queda con las de siempre */ });
@@ -6163,6 +6170,21 @@ var UNIDAD = null;
       var esChico = matchMedia(CHICO).matches;
 
       lugares.forEach(function(img){
+        /* EL AUTO DEL DIA MANDA SOBRE LO QUE HAYA EN EL PANEL.
+
+           Los cuatro lugares de la nota los llena el script del auto del
+           dia, y los dos scripts escriben el MISMO elemento desde dos
+           fetch distintos: el que contesta ultimo gana. Sin esta marca,
+           que ganara uno u otro dependia de cual respuesta llegaba
+           primero — o sea, del azar de la red. Se veia justo asi: la
+           foto grande con lo del panel y las tres del costado con las
+           del auto.
+
+           Con la marca el orden deja de importar. Si el del auto llego
+           antes, esto no lo pisa; si llego despues, lo pisa el, que es
+           el que tiene que ganar. */
+        if (img.dataset.tomado) return;
+
         var puesto = mapa[img.dataset.medio];
         if (!puesto) return;
 
