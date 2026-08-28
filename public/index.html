@@ -2174,18 +2174,60 @@ video::-webkit-media-controls{ display:none !important; }
   display:inline-flex;
   align-items:center;
   gap:.7em;
-  padding-bottom:.55em;
-  border-bottom:1px solid rgba(255,255,255,.3);
   font-family:var(--display);
   font-size:clamp(.52rem,.72vw,.6rem);
   font-weight:700;
   letter-spacing:.2em;
   text-transform:uppercase;
   color:rgba(255,255,255,.82);
-  transition:color .35s var(--ease), border-color .35s var(--ease);
+  transition:color .35s var(--ease);
+}
+
+/* LA RAYA MIDE LO QUE MIDE EL TEXTO, no lo que mide el boton.
+
+   Estaba como `border-bottom` del boton entero, asi que seguia de largo
+   por debajo de la flecha. Y la flecha tiene su propio palo horizontal a
+   media altura: dos trazos casi paralelos, uno arriba del otro, que se
+   leian como dos rayas donde tenia que haber una.
+
+   Ahora el texto va en su propia caja y la raya es de ella. La flecha
+   queda suelta al costado, que es lo que es. */
+.cover-cta-txt{
+  position:relative;
+  padding-bottom:.55em;
+}
+/* La de reposo, apagada. */
+.cover-cta-txt::before{
+  content:'';
+  position:absolute; left:0; right:0; bottom:0; height:1px;
+  background:rgba(255,255,255,.3);
+}
+/* Y LA QUE SE DIBUJA AL PASAR, encima de la otra.
+
+   No es un cambio de color: es una raya blanca que se traza de
+   izquierda a derecha, como si alguien la subrayara. Se hace con
+   `scaleX` desde el borde izquierdo —una transformacion, o sea que la
+   corre la placa de video y no obliga a rehacer la maqueta en cada
+   cuadro— y queda apoyada justo arriba de la apagada.
+
+   Al salir se repliega hacia el mismo lado. Podria replegarse hacia la
+   derecha, que se ve mas prolijo todavia, pero pide un segundo origen y
+   una clase intermedia: para un solo boton, no paga. */
+.cover-cta-txt::after{
+  content:'';
+  position:absolute; left:0; right:0; bottom:0; height:1px;
+  background:var(--chrome);
+  transform:scaleX(0);
+  transform-origin:left center;
+  transition:transform .5s var(--ease);
 }
 .cover-cta svg{
   width:1.15em; height:1.15em;
+  /* El mismo bajo que la raya, para que la flecha no quede flotando
+     arriba del renglon: sin esto se centra contra la caja del texto
+     —que ahora incluye el espacio de la raya— y sube medio de ese
+     espacio. */
+  margin-bottom:.55em;
   transition:transform .35s var(--ease);
 }
 
@@ -2206,11 +2248,17 @@ video::-webkit-media-controls{ display:none !important; }
   top:-1.1rem; bottom:-.8rem;
 }
 @media (hover:hover){
-  .cover-cta:hover{ color:var(--chrome); border-color:var(--chrome) }
-  .cover-cta:hover svg{ transform:translateX(3px) }
+  .cover-cta:hover{ color:var(--chrome) }
+  .cover-cta:hover .cover-cta-txt::after{ transform:scaleX(1) }
+  .cover-cta:hover svg{ transform:translateX(4px) }
 }
+/* Con el teclado pasa lo mismo que con el puntero: quien llega hasta
+   aca tabulando tiene que ver que llego. */
+.cover-cta:focus-visible .cover-cta-txt::after{ transform:scaleX(1) }
+.cover-cta:focus-visible{ color:var(--chrome); outline:none }
+
 @media (prefers-reduced-motion:reduce){
-  .cover-cta, .cover-cta svg{ transition:none }
+  .cover-cta, .cover-cta svg, .cover-cta-txt::after{ transition:none }
 }
 
 /* SYNCOPATE, Y ACÁ ES DONDE CORRESPONDE.
@@ -4194,7 +4242,7 @@ window.RESPALDO = function(v, urlH264, rehacer){
          gesto; arriba entra en la lectura antes que la frase y no le
          pisa el remate. -->
     <a class="cover-cta" href="/garage/">
-      Ver nuestro stock
+      <span class="cover-cta-txt">Ver nuestro stock</span>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-7 7 7-7 7"/></svg>
     </a>
