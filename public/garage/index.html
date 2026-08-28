@@ -141,6 +141,9 @@ a{color:inherit;text-decoration:none}
 @media (hover:hover){
   .barra nav a:hover{ opacity:.55 }
 }
+@media (hover:hover){
+  #pie .pie-mapa:hover img{ opacity:1 }
+}
 /* El vidrio que aparece al bajar, en claro. Mismas opacidades que el
    oscuro de barra.css, con el gris de la pagina en vez del negro. */
 .barra.con-vidrio{
@@ -207,14 +210,34 @@ a{color:inherit;text-decoration:none}
 #pie .pie-col span{ color:var(--tinta-2) }
 #pie .pie-contacto svg{ color:var(--tinta); opacity:.72 }
 
-/* EL MAPA SIGUE SIENDO UN CUADRO OSCURO, y no es un olvido: es un
-   dibujo de trazo claro sobre negro, igual que las fotos de los autos
-   son imagenes con su propia luz. Aclararle el fondo lo dejaria sin
-   nada contra que dibujarse. Lo que si cambia es su borde, que antes
-   era un blanco al 14% —invisible sobre gris—, y el punto, que se queda
-   blanco porque esta sobre el mapa y no sobre el pie. */
-#pie .pie-mapa{ border-color:rgba(0,0,0,.2) }
-#pie .pie-pin{ background:#fff }
+/* EL MAPA, EN SU VERSION CLARA.
+
+   No se puede aclarar el cuadro y dejar el dibujo: el mapa trae su
+   propio rectangulo negro adentro del SVG y sus calles son lineas
+   CLARAS. Aclarar el marco lo dejaria igual de negro por dentro, y
+   pintarlo de gris por CSS le taparia el fondo pero dejaria las calles
+   claras sobre claro: invisibles.
+
+   Asi que hay un segundo archivo, `barracas-movil-claro.svg`, con la
+   escala de grises espejada sobre el gris del pie. Espejada y no
+   invertida a ojo: cada calle conserva exactamente la separacion que
+   tenia contra su fondo, y por lo tanto el mismo orden —las finas casi
+   no se ven, las avenidas pesan, y la calle marcada, que era la unica
+   blanca sobre negro, ahora es la unica negra sobre claro.
+
+   Y EL PUNTO SE DA VUELTA CON EL. Era blanco con un halo azulado, que
+   es lo que lo hacia aparecer sobre un mapa oscuro. Sobre el claro se
+   pierde: pasa a negro, con el halo tambien oscuro.
+
+   LA OPACIDAD SUBE. Estaba en .6 para apagar un dibujo que sobre negro
+   ya era fuerte; sobre claro, ese .6 lo mezcla con el fondo del cuadro
+   y lo deja lavado. */
+#pie .pie-mapa{ border-color:rgba(0,0,0,.2); background:#CFD2D5 }
+#pie .pie-mapa img{ opacity:.85 }
+#pie .pie-pin{
+  background:#000;
+  box-shadow:0 0 0 3px rgba(207,210,213,.9), 0 0 10px 2px rgba(0,0,0,.35);
+}
 
 /* ── grilla ── */
 .grilla{
@@ -651,8 +674,17 @@ a{color:inherit;text-decoration:none}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect
                x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/></svg>
-          <a class="pie-dato" href="mailto:hola@mannamotors.com"
-             data-copiar="hola@mannamotors.com">hola@mannamotors.com</a>
+          <!-- COPIA, NO ABRE EL CORREO. Y por eso es un <button> y no un
+               enlace: sin `mailto:` un <a> se queda sin destino, deja de
+               recibir foco con el teclado y deja de anunciarse como algo
+               que se puede accionar. Un boton es exactamente lo que esto
+               es —un gesto, no un destino— y lo dice solo.
+
+               El texto y `data-copiar` son el mismo dato a proposito: lo
+               que se lee es lo que se copia. -->
+          <button class="pie-dato" type="button"
+                  data-copiar="contacto@mannaselected.com.ar"
+                  aria-label="Copiar el mail: contacto@mannaselected.com.ar">contacto@mannaselected.com.ar</button>
         </li>
         <li>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
@@ -677,7 +709,7 @@ a{color:inherit;text-decoration:none}
       <a class="pie-mapa" href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8"
          target="_blank" rel="noopener"
          aria-label="Pasaje Lanín 154, Barracas — abrir en Google Maps">
-        <img src="/assets/mapa/barracas-movil.svg?v=2" alt=""
+        <img src="/assets/mapa/barracas-movil-claro.svg" alt=""
              loading="lazy" decoding="async" width="1000" height="1000">
         <span class="pie-pin" aria-hidden="true"></span>
       </a>

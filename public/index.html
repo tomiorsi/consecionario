@@ -82,7 +82,7 @@
   "logo": "https://www.mannaselected.com.ar/assets/logo/logo-horizontal-blanco.svg",
   "description": "Concesionario de autos seleccionados en Barracas, Buenos Aires. Cada unidad pasa por inspeccion y documentacion antes de publicarse.",
   "telephone": "+5491176703813",
-  "email": "hola@mannamotors.com",
+  "email": "contacto@mannaselected.com.ar",
   "address": {
     "@type": "PostalAddress",
     "streetAddress": "Pasaje Lanin 154",
@@ -2152,6 +2152,67 @@ video::-webkit-media-controls{ display:none !important; }
   color:var(--chrome);
 }
 
+/* ── EL BOTON DE LA PORTADA ───────────────────────────────────────
+
+   NO ES UNA CAJA, Y ESA ES LA DECISION. El sitio ya tiene dos botones
+   —el lleno y el de contorno— y los dos son rectangulos que reclaman
+   turno. Encima de la frase de la portada, un rectangulo mas seria un
+   tercer bloque peleando con el titulo y con la flecha de bajar en la
+   misma esquina.
+
+   Es texto con una raya abajo: pesa lo que pesa una palabra, no lo que
+   pesa un boton, y sin embargo se lee como algo que se toca —la raya y
+   la flecha lo dicen sin necesidad de encerrarlo—. Es el mismo idioma
+   que el resto (Syncopate chico, muy espaciado, mayusculas) en otro
+   formato.
+
+   ARRANCA APAGADO A PROPOSITO. Al 82% no compite con el titulo, que es
+   blanco pleno; al pasarle el puntero sube a blanco y la flecha se
+   corre. Esa es toda la animacion. */
+.cover-cta{
+  position:relative;
+  display:inline-flex;
+  align-items:center;
+  gap:.7em;
+  padding-bottom:.55em;
+  border-bottom:1px solid rgba(255,255,255,.3);
+  font-family:var(--display);
+  font-size:clamp(.52rem,.72vw,.6rem);
+  font-weight:700;
+  letter-spacing:.2em;
+  text-transform:uppercase;
+  color:rgba(255,255,255,.82);
+  transition:color .35s var(--ease), border-color .35s var(--ease);
+}
+.cover-cta svg{
+  width:1.15em; height:1.15em;
+  transition:transform .35s var(--ease);
+}
+
+/* EL DEDO NECESITA MAS DE LO QUE SE VE. En un telefono el boton mide 15
+   px de alto —es una linea de texto de 8, con su raya— y eso es un
+   tercio de lo que un dedo puede apuntar sin errar.
+
+   Se agranda la zona que responde, no el dibujo: una capa invisible que
+   se estira para arriba y para abajo. Llega a 45 px sin correr ni el
+   texto ni la raya un pixel.
+
+   Los 12.8 px de abajo caben en los 19 que hay hasta el titulo, asi que
+   no le roba el toque a nada. */
+.cover-cta::after{
+  content:'';
+  position:absolute;
+  left:0; right:0;
+  top:-1.1rem; bottom:-.8rem;
+}
+@media (hover:hover){
+  .cover-cta:hover{ color:var(--chrome); border-color:var(--chrome) }
+  .cover-cta:hover svg{ transform:translateX(3px) }
+}
+@media (prefers-reduced-motion:reduce){
+  .cover-cta, .cover-cta svg{ transition:none }
+}
+
 /* SYNCOPATE, Y ACÁ ES DONDE CORRESPONDE.
 
    Es una letra muy ancha: como cartel de una sola frase funciona, y es
@@ -2202,7 +2263,10 @@ video::-webkit-media-controls{ display:none !important; }
   text-transform:uppercase;
   letter-spacing:.1em;
   line-height:1.3;
-  margin:0;
+  /* EL HUECO LO ABRE EL TITULO, no el boton de arriba. El boton es
+     inline-flex, o sea una caja de linea: su margen de abajo no empuja
+     nada. El del titulo, que es un bloque, si. */
+  margin:clamp(.9rem,2.2vh,1.4rem) 0 0;
 }
 
 /* Señal de que abajo sigue habiendo página. Sin esto la portada se lee
@@ -4121,6 +4185,19 @@ window.RESPALDO = function(v, urlH264, rehacer){
        "hechastienden": el <br> corta la línea pero no separa palabras, y
        un lector de pantalla lee las dos pegadas. -->
   <div class="cover-copy">
+    <!-- LA UNICA PUERTA QUE HAY EN LA PORTADA. Hasta acá, de la primera
+         pantalla solo se salia scrolleando o por el menu de arriba. Este
+         manda directo a lo que la mayoria vino a ver.
+
+         VA ARRIBA DEL TITULO Y NO ABAJO. Debajo quedaria entre la frase
+         y la flecha de bajar, compitiendo con las dos por el mismo
+         gesto; arriba entra en la lectura antes que la frase y no le
+         pisa el remate. -->
+    <a class="cover-cta" href="/garage/">
+      Ver nuestro stock
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-7 7 7-7 7"/></svg>
+    </a>
     <h1 class="cover-title">Selectos con los autos, cercanos con las personas.</h1>
   </div>
 
@@ -6122,8 +6199,17 @@ var UNIDAD = null;
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect
                x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/></svg>
-          <a class="pie-dato" href="mailto:hola@mannamotors.com"
-             data-copiar="hola@mannamotors.com">hola@mannamotors.com</a>
+          <!-- COPIA, NO ABRE EL CORREO. Y por eso es un <button> y no un
+               enlace: sin `mailto:` un <a> se queda sin destino, deja de
+               recibir foco con el teclado y deja de anunciarse como algo
+               que se puede accionar. Un boton es exactamente lo que esto
+               es —un gesto, no un destino— y lo dice solo.
+
+               El texto y `data-copiar` son el mismo dato a proposito: lo
+               que se lee es lo que se copia. -->
+          <button class="pie-dato" type="button"
+                  data-copiar="contacto@mannaselected.com.ar"
+                  aria-label="Copiar el mail: contacto@mannaselected.com.ar">contacto@mannaselected.com.ar</button>
         </li>
         <li>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"

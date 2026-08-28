@@ -130,16 +130,31 @@
   gap:.58rem;
 }
 
+/* EL <button> ENTRA EN LA MISMA LISTA. El mail dejo de ser un enlace
+   —copia en vez de abrir el correo— y un boton trae de fabrica su
+   fondo, su borde, su relleno y su propia tipografia: sin resetear eso
+   se veria como un boton de formulario en medio de una lista de datos.
+   Lo que se ve tiene que seguir siendo el dato. */
 .pie-col a,
-.pie-col span{
+.pie-col span,
+.pie-col button{
   font-size:.74rem;
   line-height:1.45;
   color:rgba(255,255,255,.72);
   text-decoration:none;
   transition:color .3s var(--ease);
 }
+.pie-col button{
+  appearance:none;
+  border:0;
+  padding:0;
+  background:transparent;
+  font-family:inherit;
+  text-align:left;
+}
 @media (hover:hover){
-  .pie-col a:hover{ color:var(--chrome); }
+  .pie-col a:hover,
+  .pie-col button:hover{ color:var(--chrome); }
 }
 
 /* Cada dato de contacto lleva su ícono adelante, y la fila se alinea por

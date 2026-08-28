@@ -588,8 +588,17 @@ a{color:inherit;text-decoration:none}
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect
                x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/></svg>
-          <a class="pie-dato" href="mailto:hola@mannamotors.com"
-             data-copiar="hola@mannamotors.com">hola@mannamotors.com</a>
+          <!-- COPIA, NO ABRE EL CORREO. Y por eso es un <button> y no un
+               enlace: sin `mailto:` un <a> se queda sin destino, deja de
+               recibir foco con el teclado y deja de anunciarse como algo
+               que se puede accionar. Un boton es exactamente lo que esto
+               es —un gesto, no un destino— y lo dice solo.
+
+               El texto y `data-copiar` son el mismo dato a proposito: lo
+               que se lee es lo que se copia. -->
+          <button class="pie-dato" type="button"
+                  data-copiar="contacto@mannaselected.com.ar"
+                  aria-label="Copiar el mail: contacto@mannaselected.com.ar">contacto@mannaselected.com.ar</button>
         </li>
         <li>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
