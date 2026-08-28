@@ -819,92 +819,11 @@ async function volverOriginal(i) {
   } catch (err) { avisar(err.message, true); }
 }
 
-/* ── LOS TEXTOS EDITABLES ───────────────────────────────────────
-
-   Dos campos: el titular y la bajada de la nota. Mismo trato que las
-   imágenes — dejar el campo vacío y guardar es volver al original, no
-   dejar el lugar en blanco.
-
-   EL TEXTO ORIGINAL SE LEE DE LA PROPIA PÁGINA y no viene del Worker.
-   Es una sola copia: si mañana alguien reescribe el titular en el HTML,
-   el panel muestra ese, sin que haya que acordarse de tocar una segunda
-   lista en el servidor. Se pide la home una vez y se buscan los
-   `data-texto` ahí adentro. */
-
-let textos = [];
-let originales = {};
-
-async function cargarTextos() {
-  const [r, home] = await Promise.all([
-    api('/api/admin/textos'),
-    fetch('/').then((x) => x.text()).catch(() => ''),
-  ]);
-  textos = r.textos;
-
-  if (home) {
-    const doc = new DOMParser().parseFromString(home, 'text/html');
-    doc.querySelectorAll('[data-texto]').forEach((el) => {
-      /* El HTML trae el párrafo cortado en varios renglones con sangría;
-         eso en un campo se ve como espacios de más. */
-      originales[el.dataset.texto] = el.textContent.replace(/\s+/g, ' ').trim();
-    });
-  }
-  pintarTextos();
-}
-
-function pintarTextos() {
-  $('#textos').innerHTML = textos.map((t, i) => {
-    const valor = t.valor ?? originales[t.slot] ?? '';
-    return '<article class="texto" data-i="' + i + '">' +
-      '<h3>' + escapar(t.donde) + '</h3>' +
-      '<p class="pista">' + escapar(t.pista) + '</p>' +
-      '<textarea maxlength="' + t.tope + '">' + escapar(valor) + '</textarea>' +
-      '<div class="pie">' +
-        '<span class="cuenta"></span>' +
-        (t.valor ? '<button class="btn" data-volver type="button">Volver al original</button>' : '') +
-        '<button class="btn btn--fuerte" data-guardar type="button">Guardar</button>' +
-      '</div>' +
-    '</article>';
-  }).join('');
-
-  $$('#textos .texto').forEach((c) => {
-    const i = Number(c.dataset.i);
-    const campo = c.querySelector('textarea');
-    const cuenta = c.querySelector('.cuenta');
-    const tope = textos[i].tope;
-
-    const contar = () => {
-      cuenta.textContent = campo.value.trim().length + ' / ' + tope;
-      cuenta.dataset.pasado = campo.value.trim().length > tope ? 'si' : 'no';
-    };
-    contar();
-    campo.addEventListener('input', contar);
-
-    c.querySelector('[data-guardar]').addEventListener('click', () => guardarTexto(i, campo.value));
-    c.querySelector('[data-volver]')?.addEventListener('click', () => {
-      if (confirm('¿Volver al texto original?')) guardarTexto(i, '');
-    });
-  });
-}
-
-async function guardarTexto(i, valor) {
-  const t = textos[i];
-  try {
-    await api('/api/admin/textos/' + t.slot, {
-      method: 'PUT',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ valor }),
-    });
-    avisar(valor.trim() ? 'Guardado — ya se ve en la página' : 'Volvió al original');
-    await cargarTextos();
-  } catch (err) { avisar(err.message, true); }
-}
-
 /* ── las pestañas ───────────────────────────────────────────── */
 
 function verPestania(cual) {
   const autos = cual === 'autos';
-  [['autos', '#pesAutos'], ['medios', '#pesMedios'], ['textos', '#pesTextos']]
+  [['autos', '#pesAutos'], ['medios', '#pesMedios']]
     .forEach(([c, sel]) => $(sel).setAttribute('aria-pressed', String(cual === c)));
 
   $('#filtros').classList.toggle('oculto', !autos);
@@ -914,17 +833,14 @@ function verPestania(cual) {
   $('#guardarOrden').classList.toggle('oculto', !autos || !ordenando);
   $('#cancelarOrden').classList.toggle('oculto', !autos || !ordenando);
   $('#zonaMedios').classList.toggle('oculto', cual !== 'medios');
-  $('#zonaTextos').classList.toggle('oculto', cual !== 'textos');
   $('#sinAutos').classList.add('oculto');
 
   if (autos) pintarLista();
-  else if (cual === 'medios') cargarMedios();
-  else cargarTextos();
+  else cargarMedios();
 }
 
 $('#pesAutos').addEventListener('click', () => verPestania('autos'));
 $('#pesMedios').addEventListener('click', () => verPestania('medios'));
-$('#pesTextos').addEventListener('click', () => verPestania('textos'));
 
 /* ── arranque ───────────────────────────────────────────────────── */
 

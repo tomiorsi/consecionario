@@ -46,14 +46,6 @@ const SECCIONES = [
         + 'piezas se cambian desde acá; el video acepta .mp4 y también '
         + 'se lo puede reemplazar por una foto.',
   },
-  {
-    clave: 'nota',
-    titulo: 'La nota',
-    nota: 'OJO: estas cuatro ya casi no se usan. La nota muestra un auto '
-        + 'del garage, distinto cada dia, y toma sus primeras cuatro '
-        + 'fotos. Lo que se cargue aca se ve solo si no hay ningun auto '
-        + 'publicado con al menos cuatro fotos.',
-  },
 ];
 
 /* ── LOS LUGARES DE IMAGEN ────────────────────────────────────────
@@ -68,17 +60,14 @@ const SECCIONES = [
      collage — video       16:9 apaisado    │  4:5 VERTICAL
      collage — ciudad      3:2 apaisada     │  3:4 VERTICAL
      collage — interior    4:3 apaisada     │  1:1 cuadrada
-     nota — foto grande    1.14 casi cuadr. │  1.10 casi cuadr.
-     nota — tira (x3)      1.07 casi cuadr. │  1.20 casi cuadr.
 
-   Las tres del collage no son variaciones de una misma forma: son
-   formas OPUESTAS —dos de ellas se dan vuelta de apaisada a vertical—,
-   así que llevan un archivo por pantalla.
+   Las tres no son variaciones de una misma forma: son formas OPUESTAS
+   —dos de ellas se dan vuelta de apaisada a vertical— así que llevan un
+   archivo por pantalla.
 
-   Las de la nota no: esa sección usa la misma disposición en las dos
-   pantallas, sólo que más chica, y las formas quedan casi iguales.
-   Partirlas sería pedir dos veces el mismo archivo, así que llevan una
-   sola, `todo`.
+   ACA HABIA CUATRO LUGARES MAS, los de la nota de la home. Se fueron: la
+   nota muestra un auto del garage, distinto cada dia, y toma sus propias
+   fotos. Cargarle una a mano ya no cambiaba nada.
 
    LA GUÍA VA EN PROPORCIÓN Y NO EN PALABRAS. Decía "casi cuadrada" o
    "un poco más ancha que alta", que es lo que uno diría mirando, pero
@@ -123,62 +112,22 @@ const SLOTS = {
       celular: { lado: 1200, guia: '1:1 — cuadrada.' },
     },
   },
-  'editorial-principal': {
-    seccion: 'nota', donde: 'La nota — foto grande',
-    /* UNA SOLA, DESDE QUE LA NOTA SE VE IGUAL EN LAS DOS PANTALLAS.
-
-       Llevaba dos porque en el celular la maqueta se apilaba y la foto
-       pasaba a ser apaisada 3:2. Ahora el celular usa la misma
-       disposición que la compu —la grande a la izquierda, la tira al
-       costado— y medido queda en 1.10 contra 1.14: la misma foto. */
-    pantallas: { todo: { lado: 1600, guia: '1:1 — cuadrada.' } },
-  },
-  'editorial-1': {
-    seccion: 'nota', donde: 'La nota — tira, primera',
-    pantallas: { todo: { lado: 900, guia: '1:1 — cuadrada.' } },
-  },
-  'editorial-2': {
-    seccion: 'nota', donde: 'La nota — tira, segunda',
-    pantallas: { todo: { lado: 900, guia: '1:1 — cuadrada.' } },
-  },
-  'editorial-3': {
-    seccion: 'nota', donde: 'La nota — tira, tercera',
-    pantallas: { todo: { lado: 900, guia: '1:1 — cuadrada.' } },
-  },
 };
 
 const PANTALLAS = ['compu', 'celular', 'todo'];
 
-/* ── LOS TEXTOS QUE SE PUEDEN CAMBIAR ─────────────────────────────
+/* ── ACA VIVIAN LOS TEXTOS EDITABLES ──────────────────────────────
 
-   Lista blanca, igual que SLOTS y por el mismo motivo: sin esto
-   cualquiera con sesión llenaría la tabla de filas que ninguna página
-   lee.
+   Eran dos —el titular y la bajada de la nota— y los dos pasaron a
+   salir del auto del dia: el titular es su marca y modelo, la bajada el
+   primer parrafo de su descripcion. Editables no cambiaban nada, asi
+   que se fue la lista blanca, sus dos rutas de API y su pestania del
+   panel.
 
-   SON DOS Y NO TREINTA, A PROPÓSITO. Lo que se edita seguido va acá; el
-   resto del texto vive en el HTML, que es donde se lee junto al diseño
-   que lo rodea. Volver editable cada frase suena a favor y termina
-   siendo un sitio cuyo contenido no está en ningún lado.
-
-   `tope` es el largo máximo, y no es un capricho de base de datos: son
-   los caracteres que entran en ese lugar sin desarmar la maqueta. El
-   panel lo muestra como contador mientras se escribe. */
-const TEXTOS = {
-  'editorial-titulo': {
-    tope: 90,
-    donde: 'La nota — titular',
-    pista: 'OJO: ya casi no se usa. El titular lo pone el auto del dia '
-         + '—es su marca y modelo—. Esto se ve solo si no hay ningun auto '
-         + 'publicado con al menos cuatro fotos.',
-  },
-  'editorial-copete': {
-    tope: 220,
-    donde: 'La nota — bajada',
-    pista: 'OJO: ya casi no se usa. La bajada la pone el auto del dia: es '
-         + 'el primer parrafo de su descripcion. Esto se ve solo si no hay '
-         + 'ningun auto publicado con al menos cuatro fotos.',
-  },
-};
+   La tabla `textos` queda en la base, vacia. Borrarla es un cambio de
+   esquema por nada: no la lee nadie y no ocupa nada. Si algun dia hace
+   falta volver a tener un texto editable, esto esta entero en el
+   historial. */
 
 /* ── QUÉ SE PUEDE SUBIR ───────────────────────────────────────────
 
@@ -440,20 +389,21 @@ export default {
            extensión— así que la dirección es `/fotos/` + clave. */
         const mapa = {};
         for (const m of results) {
+          /* SOLO LOS LUGARES QUE SIGUEN EXISTIENDO.
+
+             Esto leia la tabla entera sin preguntarle nada a SLOTS: la
+             lista blanca mandaba al ESCRIBIR pero no al leer. Mientras
+             los lugares solo se agregaban daba igual; el dia que se
+             saco uno —los cuatro de la nota— su fila quedo en la tabla
+             y la pagina la seguia recibiendo, con un slot que ya no
+             existe en ningun lado.
+
+             Preguntando aca, sacar un lugar de SLOTS alcanza para que
+             deje de servirse, sin depender de que alguien se acuerde de
+             limpiar la base. */
+          if (!SLOTS[m.slot]) continue;
           (mapa[m.slot] ||= {})[m.variante] = { clave: m.clave, clase: m.clase };
         }
-        return json(mapa, 200, { 'cache-control': 'public, max-age=60' });
-      }
-
-      /* ── LOS TEXTOS EDITABLES ─────────────────────────────────────
-         Mismo trato que las imágenes: sólo los que TIENEN reemplazo. La
-         página ya trae los suyos escritos en el HTML; esto le dice
-         cuáles cambiar. */
-      if (ruta === '/api/textos' && metodo === 'GET') {
-        const { results } = await env.DB
-          .prepare('SELECT slot, valor FROM textos').all();
-        const mapa = {};
-        for (const t of results) mapa[t.slot] = t.valor;
         return json(mapa, 200, { 'cache-control': 'public, max-age=60' });
       }
 
@@ -703,61 +653,6 @@ async function admin(peticion, env, ruta, metodo) {
 
     await tocar(env, auto.id);
     return json({ id: meta.last_row_id, clave: base }, 201);
-  }
-
-  /* ── LOS TEXTOS EDITABLES ─────────────────────────────────────── */
-
-  if (ruta === '/api/admin/textos' && metodo === 'GET') {
-    const { results } = await env.DB
-      .prepare('SELECT slot, valor, editado FROM textos').all();
-    const puestos = new Map(results.map((t) => [t.slot, t]));
-    /* Van TODOS, tengan reemplazo o no, igual que los slots de imagen:
-       el panel necesita mostrar el lugar aunque siga con el original.
-       Pero el original NO viaja desde acá — lo trae el HTML, y el panel
-       lo lee de la propia página. Duplicarlo en el Worker sería una
-       segunda copia que se desincroniza sola. */
-    return json({
-      textos: Object.entries(TEXTOS).map(([slot, t]) => ({
-        slot, donde: t.donde, pista: t.pista, tope: t.tope,
-        valor: puestos.get(slot)?.valor ?? null,
-        editado: puestos.get(slot)?.editado || null,
-      })),
-    });
-  }
-
-  const texto = ruta.match(/^\/api\/admin\/textos\/([a-z0-9-]+)$/);
-
-  if (texto && metodo === 'PUT') {
-    const slot = texto[1];
-    const regla = TEXTOS[slot];
-    if (!regla) return error('Ese texto no existe', 404);
-
-    const cuerpo = await peticion.json().catch(() => null);
-    if (!cuerpo || typeof cuerpo.valor !== 'string') return error('Falta el texto');
-
-    /* SE GUARDA SIN LOS ESPACIOS DE LOS BORDES. Un renglón en blanco al
-       final no se ve al escribirlo pero sí se cuenta contra el tope, y
-       peor: hace que un campo vacío parezca lleno. */
-    const valor = cuerpo.valor.trim();
-    if (valor.length > regla.tope) {
-      return error(`No puede pasar de ${regla.tope} caracteres`);
-    }
-
-    /* VACÍO ES VOLVER AL ORIGINAL, no guardar un texto vacío. Borrar la
-       fila deja que valga el que trae el HTML; guardar '' dejaría el
-       lugar en blanco en la página, que nunca es lo que alguien quiso
-       al borrar el contenido de un campo. */
-    if (!valor) {
-      await env.DB.prepare('DELETE FROM textos WHERE slot = ?').bind(slot).run();
-      return json({ ok: true, valor: null });
-    }
-
-    await env.DB.prepare(
-      `INSERT INTO textos (slot, valor) VALUES (?, ?)
-       ON CONFLICT(slot) DO UPDATE SET valor = excluded.valor,
-                                       editado = datetime('now')`
-    ).bind(slot, valor).run();
-    return json({ ok: true, valor });
   }
 
   /* ── LAS IMÁGENES FIJAS DE LA HOME ────────────────────────────── */

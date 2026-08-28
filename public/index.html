@@ -5267,12 +5267,17 @@ window.RESPALDO = function(v, urlH264, rehacer){
         </div>
       </figure>
 
-      <!-- ESTOS DOS SE CAMBIAN DESDE EL PANEL. El `data-texto` dice qué
-           lugar es cada uno; lo que está escrito acá es lo que se ve
-           mientras nadie lo haya cambiado, y lo que vuelve si en el
-           panel se borra el campo. Ver el script del final. -->
-      <h2 class="edit-titular" id="edit-titulo" data-texto="editorial-titulo">El futuro del diseño: naturaleza y rendimiento</h2>
-      <p class="edit-copete" data-texto="editorial-copete">
+      <!-- LOS ESCRIBE EL AUTO DEL DIA: el titular es su marca y modelo,
+           la bajada el primer parrafo de su descripcion. Lo que esta acá
+           es lo que se ve si no hay ningun auto publicado con al menos
+           cuatro fotos.
+
+           TENIAN UN ATRIBUTO PARA CAMBIARLOS DESDE EL PANEL. Se fue con
+           la pestaña de Textos: eran los dos unicos textos editables del
+           sitio, y desde que los pone el auto del dia, cambiarlos a mano
+           no cambiaba nada. -->
+      <h2 class="edit-titular" id="edit-titulo">El futuro del diseño: naturaleza y rendimiento</h2>
+      <p class="edit-copete">
         Exploramos cómo la ingeniería y el diseño sustentable están
         redefiniendo la próxima generación de vehículos.
       </p>
@@ -6183,8 +6188,8 @@ var UNIDAD = null;
 (function(){
   var grande = document.querySelector('[data-medio="editorial-principal"]');
   var tira = [].slice.call(document.querySelectorAll('.edit-tira img'));
-  var titulo = document.querySelector('[data-texto="editorial-titulo"]');
-  var copete = document.querySelector('[data-texto="editorial-copete"]');
+  var titulo = document.querySelector('.edit-titular');
+  var copete = document.querySelector('.edit-copete');
   if (!grande || tira.length !== 3) return;
 
   fetch('/api/autos')
@@ -6392,47 +6397,6 @@ var UNIDAD = null;
       }
     })
     .catch(function(){ /* se queda con las de siempre */ });
-})();
-</script>
-
-<script>
-/* LOS TEXTOS QUE SE CAMBIAN DESDE EL PANEL.
-   ══════════════════════════════════════════════════════════════════
-
-   Mismo trato que las imágenes de arriba, y por los mismos motivos: el
-   texto ya está escrito en el HTML con un `data-texto` que dice qué
-   lugar es, y esto sólo reemplaza los que fueron cambiados. Si la
-   consulta falla, o la tabla está vacía, o no hay JavaScript, se lee el
-   original — no un hueco.
-
-   SE ESCRIBE CON `textContent` Y NO CON `innerHTML`. Lo que llega es lo
-   que alguien tipeó en un campo del panel: si eso pudiera traer
-   etiquetas, un `<script>` guardado ahí correría en la home de todos los
-   que entren. `textContent` lo pone como texto y listo.
-
-   VA CON LAS IMÁGENES AL FINAL DEL BODY aunque el titular esté en el
-   documento desde el principio: la nota está bien abajo del pliegue, así
-   que el cambio llega mucho antes de que nadie llegue a leerla, y no
-   retrasa el primer pintado. */
-(function(){
-  var lugares = document.querySelectorAll('[data-texto]');
-  if (!lugares.length) return;
-
-  fetch('/api/textos')
-    .then(function(r){ return r.ok ? r.json() : {}; })
-    .then(function(mapa){
-      lugares.forEach(function(el){
-        /* Mismo caso que las fotos: el titulo y la bajada de la nota los
-           escribe el auto del dia, y los dos scripts tocan el mismo
-           elemento desde dos fetch distintos. Sin la marca ganaba el que
-           contestaba ultimo. Ver el comentario en el script del panel de
-           imagenes. */
-        if (el.dataset.tomado) return;
-        var valor = mapa[el.dataset.texto];
-        if (valor) el.textContent = valor;
-      });
-    })
-    .catch(function(){ /* se queda con el de siempre */ });
 })();
 </script>
 

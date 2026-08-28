@@ -385,7 +385,6 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
       <div class="pestanias">
         <button class="pestania" type="button" id="pesAutos" aria-pressed="true">Autos</button>
         <button class="pestania" type="button" id="pesMedios" aria-pressed="false">Imágenes del sitio</button>
-        <button class="pestania" type="button" id="pesTextos" aria-pressed="false">Textos</button>
       </div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap">
         <button class="btn" id="ordenar" type="button">Ordenar</button>
@@ -415,15 +414,6 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
       </div>
       <div class="medios" id="medios"></div>
       <input type="file" id="archivoMedio" accept="image/*" hidden>
-    </section>
-
-    <!-- LOS TEXTOS EDITABLES -->
-    <section id="zonaTextos" class="oculto">
-      <p class="aclara">
-        El titular y la bajada de la nota de la página de inicio. Si
-        dejás un campo vacío y guardás, vuelve al texto original.
-      </p>
-      <div class="textos" id="textos"></div>
     </section>
   </main>
 
