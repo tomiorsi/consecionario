@@ -2173,7 +2173,6 @@ video::-webkit-media-controls{ display:none !important; }
   position:relative;
   display:inline-flex;
   align-items:center;
-  gap:.7em;
   font-family:var(--display);
   font-size:clamp(.52rem,.72vw,.6rem);
   font-weight:700;
@@ -2183,15 +2182,20 @@ video::-webkit-media-controls{ display:none !important; }
   transition:color .35s var(--ease);
 }
 
-/* LA RAYA MIDE LO QUE MIDE EL TEXTO, no lo que mide el boton.
+/* UNA SOLA RAYA, Y POR ESO NO HAY FLECHA.
 
-   Estaba como `border-bottom` del boton entero, asi que seguia de largo
-   por debajo de la flecha. Y la flecha tiene su propio palo horizontal a
-   media altura: dos trazos casi paralelos, uno arriba del otro, que se
-   leian como dos rayas donde tenia que haber una.
+   Esto paso por dos correcciones. Primero la raya era el
+   `border-bottom` del boton entero y seguia de largo por debajo de la
+   flecha; se paso a la caja del texto para que midiera lo que mide la
+   palabra. Seguian viendose dos.
 
-   Ahora el texto va en su propia caja y la raya es de ella. La flecha
-   queda suelta al costado, que es lo que es. */
+   La segunda era la flecha misma: un `→` es un palo horizontal con una
+   punta, o sea otra raya, a media altura y a un centimetro de la
+   primera. Dibujada al lado de un subrayado, el ojo lee dos trazos
+   paralelos y no "texto con una flecha".
+
+   Se fue. El subrayado solo ya dice que se toca —y lo termina de decir
+   el trazo que se dibuja al pasar. */
 .cover-cta-txt{
   position:relative;
   padding-bottom:.55em;
@@ -2221,26 +2225,15 @@ video::-webkit-media-controls{ display:none !important; }
   transform-origin:left center;
   transition:transform .5s var(--ease);
 }
-.cover-cta svg{
-  width:1.15em; height:1.15em;
-  /* El mismo bajo que la raya, para que la flecha no quede flotando
-     arriba del renglon: sin esto se centra contra la caja del texto
-     —que ahora incluye el espacio de la raya— y sube medio de ese
-     espacio. */
-  margin-bottom:.55em;
-  transition:transform .35s var(--ease);
-}
 
 /* EL DEDO NECESITA MAS DE LO QUE SE VE. En un telefono el boton mide 15
-   px de alto —es una linea de texto de 8, con su raya— y eso es un
-   tercio de lo que un dedo puede apuntar sin errar.
+   px de alto —una linea de texto de 8 con su raya— y eso es un tercio
+   de lo que un dedo puede apuntar sin errar.
 
    Se agranda la zona que responde, no el dibujo: una capa invisible que
-   se estira para arriba y para abajo. Llega a 45 px sin correr ni el
-   texto ni la raya un pixel.
-
-   Los 12.8 px de abajo caben en los 19 que hay hasta el titulo, asi que
-   no le roba el toque a nada. */
+   se estira para arriba y para abajo, hasta unos 45 px, sin correr ni
+   el texto ni la raya un pixel. Los 12.8 de abajo caben en los 19 que
+   hay hasta el titulo, asi que no le roba el toque a nada. */
 .cover-cta::after{
   content:'';
   position:absolute;
@@ -2250,7 +2243,6 @@ video::-webkit-media-controls{ display:none !important; }
 @media (hover:hover){
   .cover-cta:hover{ color:var(--chrome) }
   .cover-cta:hover .cover-cta-txt::after{ transform:scaleX(1) }
-  .cover-cta:hover svg{ transform:translateX(4px) }
 }
 /* Con el teclado pasa lo mismo que con el puntero: quien llega hasta
    aca tabulando tiene que ver que llego. */
@@ -2258,7 +2250,7 @@ video::-webkit-media-controls{ display:none !important; }
 .cover-cta:focus-visible{ color:var(--chrome); outline:none }
 
 @media (prefers-reduced-motion:reduce){
-  .cover-cta, .cover-cta svg, .cover-cta-txt::after{ transition:none }
+  .cover-cta, .cover-cta-txt::after{ transition:none }
 }
 
 /* SYNCOPATE, Y ACÁ ES DONDE CORRESPONDE.
@@ -4243,8 +4235,6 @@ window.RESPALDO = function(v, urlH264, rehacer){
          pisa el remate. -->
     <a class="cover-cta" href="/garage/">
       <span class="cover-cta-txt">Ver nuestro stock</span>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14m-6-7 7 7-7 7"/></svg>
     </a>
     <h1 class="cover-title">Selectos con los autos, cercanos con las personas.</h1>
   </div>
