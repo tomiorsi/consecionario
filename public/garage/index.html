@@ -39,7 +39,7 @@
 <meta name="twitter:description" content="Las unidades seleccionadas de Manna Motors. Cada auto, revisado y documentado antes de publicarse.">
 <meta name="twitter:image" content="https://www.mannaselected.com.ar/assets/video/portada-desktop-poster.jpg">
 
-<meta name="theme-color" content="#000000">
+<meta name="theme-color" content="#CFD2D5">
 
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png">
@@ -55,12 +55,37 @@
 /* Los mismos tokens que index.html. No se comparte una hoja porque el
    sitio entero vive en un solo archivo y partirlo ahora seria un cambio
    mas grande que esta pagina. Si algun dia se separa el CSS, este bloque
-   es lo primero que se va. */
+   es lo primero que se va.
+
+   ── EL GARAGE ES LA PAGINA CLARA DEL SITIO ──────────────────────
+
+   Fondo gris —el mismo #CFD2D5 de la franja de /por-que-elegirnos y del
+   Estandar de la home— y tinta negra. Contra un sitio negro de punta a
+   punta, la pagina donde estan los autos es la unica que se abre en
+   claro: las fotos son de un showroom blanco y sobre negro quedaban como
+   recortes pegados en el vacio.
+
+   `--void` Y `--chrome` NO SE TOCAN, y eso es a proposito. El pie
+   declara `background:var(--void)` y pinta su texto de blanco a mano;
+   si `--void` pasara a ser el gris, el pie quedaria blanco sobre gris
+   claro, ilegible, en esta pagina y solo en esta. El pie sigue siendo
+   negro, igual que en las otras dos.
+
+   Lo que si se da vuelta son los colores PROPIOS de esta pagina, que
+   viven en sus propios nombres. */
 :root{
   --void:#000; --chrome:#fff; --hueso:#F4F1EA; --gris:#D1D5DB;
   --linea:rgba(255,255,255,.14);
   --apagado:rgba(255,255,255,.6);
   --beam:214,232,255;
+
+  --fondo:#CFD2D5;            /* el fondo de la pagina */
+  --carta:#E5E7E9;            /* las tarjetas, un escalon mas claras */
+  --hueco:#DDE0E2;            /* lo que se ve mientras la foto no llego */
+  --tinta:#000;               /* la tinta principal */
+  --tinta-2:#3F4650;          /* la secundaria */
+  --tinta-3:rgba(0,0,0,.62);  /* la apagada */
+  --raya:rgba(0,0,0,.18);
   --display:"Syncopate",ui-sans-serif,system-ui,sans-serif;
   --texto:"Montserrat",ui-sans-serif,system-ui,sans-serif;
   --gut:clamp(1.6rem,4.4vw,4.5rem);
@@ -70,7 +95,7 @@
 html{scrollbar-width:none;-ms-overflow-style:none}
 html::-webkit-scrollbar{display:none}
 body{
-  background:var(--void); color:var(--chrome);
+  background:var(--fondo); color:var(--tinta);
   font-family:var(--texto); -webkit-font-smoothing:antialiased;
   min-height:100svh;
   /* Le deja el lugar a la barra, que salió del flujo al hacerse fija. */
@@ -79,22 +104,42 @@ body{
 img{display:block;max-width:100%}
 a{color:inherit;text-decoration:none}
 
-/* La misma luz de ambiente del sitio, con las mismas medidas. */
-#ambiente{
-  position:fixed; inset:0; z-index:40; pointer-events:none;
-  mix-blend-mode:screen;
-  background:
-    radial-gradient(92% 68% at 14% 10%, rgba(var(--beam),.055), transparent 72%),
-    radial-gradient(86% 66% at 88% 84%, rgba(var(--beam),.05), transparent 70%),
-    radial-gradient(150% 70% at 50% 114%, rgba(var(--beam),.055), transparent 64%);
-}
-@media (max-width:767px){
-  #ambiente{ background:radial-gradient(160% 55% at 50% 112%, rgba(var(--beam),.06), transparent 66%) }
-}
+/* SIN LUZ DE AMBIENTE. Las otras dos paginas llevan tres focos muy
+   suaves en `mix-blend-mode:screen` para que el negro no quede plano.
+   `screen` sobre un fondo claro no tiene nada que aclarar —da casi
+   exactamente el mismo color— asi que aca seria una capa fija de toda
+   la ventana que no dibuja nada. */
 
 .rotulo{
   font-family:var(--texto); font-size:.58rem; font-weight:600;
-  letter-spacing:.26em; text-transform:uppercase; color:var(--apagado);
+  letter-spacing:.26em; text-transform:uppercase; color:var(--tinta-3);
+}
+
+/* ── LA BARRA, EN TINTA ───────────────────────────────────────────
+
+   barra.css esta escrito contra los tokens del sitio: `--gris` para los
+   enlaces, `--chrome` para el hover y para las dos rayas del boton de
+   menu, `--linea` para el borde del panel. En vez de repetir sus reglas
+   con otros colores, se le dan vuelta los TOKENS y solo dentro de la
+   barra: la hoja compartida sigue igual y el pie —que usa los mismos
+   nombres— no se entera.
+
+   El logo se cambia en el marcado: el blanco no existe sobre gris. */
+.barra{
+  --gris:var(--tinta-2);
+  --chrome:var(--tinta);
+  --linea:var(--raya);
+}
+/* El vidrio que aparece al bajar, en claro. Mismas opacidades que el
+   oscuro de barra.css, con el gris de la pagina en vez del negro. */
+.barra.con-vidrio{
+  background:linear-gradient(180deg, rgba(214,217,220,.86), rgba(214,217,220,.32));
+}
+@media (max-width:860px){
+  .barra nav{ background:rgba(222,225,228,.96) }
+  body.menu-abierto .barra{
+    background:linear-gradient(180deg, rgba(222,225,228,.94), rgba(222,225,228,.78));
+  }
 }
 
 /* ── encabezado ── */
@@ -106,7 +151,7 @@ a{color:inherit;text-decoration:none}
 }
 .tapa p{
   margin:clamp(.9rem,2vh,1.3rem) auto 0; max-width:34rem;
-  font-size:clamp(.88rem,1.15vw,.98rem); line-height:1.75; color:var(--apagado);
+  font-size:clamp(.88rem,1.15vw,.98rem); line-height:1.75; color:var(--tinta-3);
 }
 
 /* ── filtros ── */
@@ -116,13 +161,13 @@ a{color:inherit;text-decoration:none}
 }
 .chip{
   appearance:none; cursor:pointer; font-family:inherit;
-  border:1px solid var(--linea); border-radius:100px; background:transparent;
-  color:var(--apagado); padding:.55em 1.15em;
+  border:1px solid var(--raya); border-radius:100px; background:transparent;
+  color:var(--tinta-3); padding:.55em 1.15em;
   font-size:.56rem; font-weight:600; letter-spacing:.16em; text-transform:uppercase;
   transition:color .3s var(--ease), border-color .3s var(--ease), background .3s var(--ease);
 }
-.chip:hover{ color:var(--chrome); border-color:rgba(255,255,255,.4) }
-.chip[aria-pressed="true"]{ background:var(--chrome); color:var(--void); border-color:var(--chrome) }
+.chip:hover{ color:var(--tinta); border-color:rgba(0,0,0,.4) }
+.chip[aria-pressed="true"]{ background:var(--tinta); color:var(--fondo); border-color:var(--tinta) }
 
 /* ── grilla ── */
 .grilla{
@@ -132,26 +177,29 @@ a{color:inherit;text-decoration:none}
   max-width:88rem; margin:0 auto;
 }
 .auto{
-  border:1px solid var(--linea); border-radius:3px; overflow:hidden;
-  background:#08080a; display:flex; flex-direction:column;
+  border:1px solid var(--raya); border-radius:3px; overflow:hidden;
+  /* Un escalon MAS CLARA que la pagina, que es lo que la levanta. En la
+     version oscura era al reves y por el mismo motivo: la tarjeta se
+     separa del fondo yendo hacia la luz. */
+  background:var(--carta); display:flex; flex-direction:column;
   transition:border-color .4s var(--ease), transform .4s var(--ease);
 }
-.auto:hover{ border-color:rgba(255,255,255,.34); transform:translateY(-3px) }
-.auto .lente{ aspect-ratio:16/10; overflow:hidden; background:#0b0b0d; position:relative }
+.auto:hover{ border-color:rgba(0,0,0,.34); transform:translateY(-3px) }
+.auto .lente{ aspect-ratio:16/10; overflow:hidden; background:var(--hueco); position:relative }
 .auto .lente img{ width:100%; height:100%; object-fit:cover; transition:transform .8s var(--ease) }
 .auto:hover .lente img{ transform:scale(1.05) }
 .auto .sinfoto{
   position:absolute; inset:0; display:grid; place-content:center;
-  color:rgba(255,255,255,.18); font-size:.58rem; letter-spacing:.2em; text-transform:uppercase;
+  color:rgba(0,0,0,.3); font-size:.58rem; letter-spacing:.2em; text-transform:uppercase;
 }
 .auto .cuerpo{ padding:1.1rem 1.2rem 1.3rem; display:grid; gap:.45rem }
 .auto h2{ font-size:1rem; font-weight:600; line-height:1.35 }
-.auto .ficha{ font-size:.76rem; color:var(--apagado) }
+.auto .ficha{ font-size:.76rem; color:var(--tinta-3) }
 .auto .precio{
   margin-top:.35rem; font-family:var(--display); font-size:.82rem;
   font-weight:700; letter-spacing:.04em;
 }
-.vacio{ padding:5rem var(--gut); text-align:center; color:var(--apagado); grid-column:1/-1 }
+.vacio{ padding:5rem var(--gut); text-align:center; color:var(--tinta-3); grid-column:1/-1 }
 
 /* ── EL DETALLE, EN UNA SOLA PANTALLA ──────────────────────────────
 
@@ -170,7 +218,7 @@ a{color:inherit;text-decoration:none}
    contenido, y sin eso la foto empuja la caja y vuelve a desbordar. */
 .detalle{
   position:fixed; inset:0; z-index:60;
-  background:rgba(0,0,0,.97); backdrop-filter:blur(10px);
+  background:rgba(207,210,213,.97); backdrop-filter:blur(10px);
   /* `minmax(0,1fr)` Y NO UNA COLUMNA `auto`. Sin esto la columna se
      mide por el contenido, y como el botón de consultar es una frase
      larga con mucho espaciado de letra, la caja pedía 524 px adentro de
@@ -208,7 +256,7 @@ a{color:inherit;text-decoration:none}
 .lado-foto .grande{
   position:relative;
   flex:1 1 auto; min-height:0;
-  overflow:hidden; border-radius:3px; background:#0b0b0d;
+  overflow:hidden; border-radius:3px; background:var(--hueco);
 }
 .lado-foto .grande img{ width:100%; height:100%; object-fit:cover }
 
@@ -218,7 +266,7 @@ a{color:inherit;text-decoration:none}
   border:1px solid transparent; cursor:pointer; opacity:.5;
   transition:opacity .3s var(--ease), border-color .3s var(--ease); flex:0 0 auto;
 }
-.tiras img[aria-current="true"]{ opacity:1; border-color:var(--chrome) }
+.tiras img[aria-current="true"]{ opacity:1; border-color:var(--tinta) }
 
 /* LA QUE SCROLLEA ES LA DESCRIPCIÓN, NO LA FICHA ENTERA.
 
@@ -263,20 +311,20 @@ a{color:inherit;text-decoration:none}
      el `break-word` es el respaldo para los que no lo entienden. */
   overflow-wrap:break-word;
   overflow-wrap:anywhere;
-  /* En blanco, como los valores de la grilla: es contenido, no un pie de
-     foto. En gris se leía como una aclaración de segunda. */
-  color:var(--chrome); white-space:pre-line;
+  /* En tinta plena, como los valores de la grilla: es contenido, no un
+     pie de foto. Apagada se leía como una aclaración de segunda. */
+  color:var(--tinta); white-space:pre-line;
   flex:1 1 auto; min-height:0; overflow:auto;
   padding-right:.4rem;
 }
 .consultar{
   display:block; text-align:center; margin-top:1.6rem; flex:0 0 auto; padding:1em 2em;
-  border:1px solid var(--chrome); border-radius:2px; background:var(--chrome); color:var(--void);
+  border:1px solid var(--tinta); border-radius:2px; background:var(--tinta); color:var(--fondo);
   font-family:var(--display); font-size:.58rem; font-weight:700;
   letter-spacing:.18em; text-transform:uppercase;
   transition:background .35s var(--ease), color .35s var(--ease);
 }
-.consultar:hover{ background:transparent; color:var(--chrome) }
+.consultar:hover{ background:transparent; color:var(--tinta) }
 
 /* VOLVER ES UNA FLECHA, NO UNA CRUZ.
 
@@ -291,14 +339,22 @@ a{color:inherit;text-decoration:none}
 
    Todas son redondas y del mismo tamaño para que se lean como los
    controles de la foto y no como botones sueltos. */
+/* ESTOS DOS SIGUEN SIENDO OSCUROS, Y ES LA UNICA EXCEPCION DE LA
+   PAGINA. No estan sobre el gris: estan sobre la FOTO, y las fotos son
+   de un showroom blanco. Un vidrio claro con una flecha negra encima de
+   una pared blanca no se ve; el vidrio oscuro con la flecha blanca se
+   lee sobre cualquier foto, clara u oscura.
+
+   Por eso el color va escrito a mano y no sale de `--tinta`: si tomara
+   el token de la pagina saldria negro sobre negro. */
 .cerrar,
 .paso{
   position:absolute; z-index:2;
   display:grid; place-items:center;
   width:2.4rem; height:2.4rem;
-  appearance:none; border:1px solid var(--linea); border-radius:100px;
+  appearance:none; border:1px solid rgba(255,255,255,.22); border-radius:100px;
   background:rgba(0,0,0,.55); backdrop-filter:blur(8px);
-  color:var(--chrome); cursor:pointer;
+  color:#fff; cursor:pointer;
   transition:background .3s var(--ease), border-color .3s var(--ease);
 }
 .cerrar svg,
@@ -349,13 +405,19 @@ a{color:inherit;text-decoration:none}
 /* Ya acercada, el dedo arrastra la foto; de lejos, arrastra la tira. */
 .zoom.cerca{ cursor:grab }
 
+/* EL VISOR SIGUE NEGRO Y SUS CONTROLES TAMBIEN. Una foto se mira sobre
+   negro: es lo que la deja ser lo unico en pantalla. Un visor gris claro
+   le compite a la foto y le lava los blancos.
+
+   Como el fondo de aca es negro y el de la pagina es gris, los controles
+   llevan sus colores escritos a mano en vez de tomar los tokens. */
 .zoom-paso{
   position:absolute; top:50%; transform:translateY(-50%); z-index:1;
   display:grid; place-items:center;
   width:2.4rem; height:2.4rem;
-  appearance:none; border:1px solid var(--linea); border-radius:100px;
+  appearance:none; border:1px solid rgba(255,255,255,.14); border-radius:100px;
   background:rgba(0,0,0,.55); backdrop-filter:blur(8px);
-  color:var(--chrome); cursor:pointer;
+  color:#fff; cursor:pointer;
 }
 .zoom-paso[hidden]{ display:none }
 .zoom-paso svg{ width:1.05rem; height:1.05rem }
@@ -368,9 +430,9 @@ a{color:inherit;text-decoration:none}
 .zoom-cuenta{
   position:absolute; left:50%; bottom:1.1rem; transform:translateX(-50%); z-index:1;
   font-family:var(--mono,inherit); font-size:.6rem; letter-spacing:.14em;
-  color:var(--chrome);
+  color:#fff;
   background:rgba(0,0,0,.55); backdrop-filter:blur(8px);
-  border:1px solid var(--linea); border-radius:100px;
+  border:1px solid rgba(255,255,255,.14); border-radius:100px;
   padding:.45em 1em;
   font-variant-numeric:tabular-nums;
 }
@@ -385,9 +447,9 @@ a{color:inherit;text-decoration:none}
   position:absolute; top:.9rem; right:.9rem; z-index:1;
   display:grid; place-items:center;
   width:2.4rem; height:2.4rem;
-  appearance:none; border:1px solid var(--linea); border-radius:100px;
+  appearance:none; border:1px solid rgba(255,255,255,.14); border-radius:100px;
   background:rgba(0,0,0,.55); backdrop-filter:blur(8px);
-  color:var(--chrome); cursor:pointer;
+  color:#fff; cursor:pointer;
 }
 .zoom-salir svg{ width:1.05rem; height:1.05rem }
 
@@ -438,7 +500,7 @@ a{color:inherit;text-decoration:none}
 
 <header class="barra">
   <a class="marca" href="/" aria-label="Manna Motors Selected — inicio">
-    <img src="/assets/logo/logo-horizontal-blanco.svg" alt="Manna Motors Selected">
+    <img src="/assets/logo/logo-horizontal-negro.svg" alt="Manna Motors Selected">
   </a>
   <nav>
     <a href="/">Inicio</a>
@@ -578,7 +640,6 @@ a{color:inherit;text-decoration:none}
 
 </footer>
 
-<div id="ambiente" aria-hidden="true"></div>
 
 <script src="/barra.js" defer></script>
 <script src="/ancla.js" defer></script>

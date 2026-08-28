@@ -32,6 +32,45 @@ const conPuntos = (n) => (n === null || n === undefined ? '' : n.toLocaleString(
 const precioDe = (a) =>
   a.precio === null || a.precio === undefined ? 'Consultar' : a.moneda + ' ' + conPuntos(a.precio);
 
+/* ── EL BOTON DE CONSULTAR ───────────────────────────────────────
+
+   ABRE WHATSAPP CON LA UNIDAD YA ESCRITA, no el formulario de la home.
+
+   Apuntaba a /#concierge: mandaba a otra pagina, obligaba a scrollear
+   hasta el formulario y ahi habia que volver a escribir de que auto se
+   trataba —el que consulta ya lo tenia en pantalla y el que atiende no
+   tenia como saberlo—. Ahora el chat abre con marca, modelo y los datos
+   que identifican la unidad, asi del otro lado se sabe exactamente cual
+   es sin preguntar.
+
+   VAN LOS TRES DATOS QUE LA VUELVEN UNICA: el ano, el kilometraje y el
+   precio. Puede haber dos del mismo modelo en el garage; dos del mismo
+   modelo, ano, km y precio no.
+
+   El numero va sin +, sin espacios y sin guiones, que es lo unico que
+   acepta wa.me.
+
+   `encodeURIComponent` alcanza para meterlo en el href: escapa tambien
+   las comillas simples y dobles, asi que no hace falta pasarlo por
+   `escapar` —y pasarlo lo romperia, porque un `&amp;` dentro de una
+   direccion ya codificada llegaria literal al chat. */
+const WHATSAPP = '5491176703813';
+
+function consultar(a) {
+  const senas = [
+    a.anio,
+    a.km !== null && a.km !== undefined ? conPuntos(a.km) + ' km' : null,
+    a.precio !== null && a.precio !== undefined ? precioDe(a) : null,
+  ].filter(Boolean).join(' · ');
+
+  const texto = 'Hola, me interesa el ' + [a.marca, a.modelo].filter(Boolean).join(' ')
+    + (senas ? ' (' + senas + ')' : '') + ' que vi en la web. ¿Sigue disponible?';
+
+  return '<a class="consultar" target="_blank" rel="noopener" href="https://wa.me/'
+    + WHATSAPP + '?text=' + encodeURIComponent(texto)
+    + '">Consultar por esta unidad</a>';
+}
+
 /* ── filtros ─────────────────────────────────────────────────────
    Sólo se muestran los grupos que TIENEN autos. Un filtro que devuelve
    una lista vacía es una promesa incumplida. */
@@ -154,7 +193,7 @@ function abrir(a) {
         ? '<div class="bloque-desc"><span class="rotulo">Descripción</span>' +
           '<p class="desc">' + escapar(a.descripcion) + '</p></div>'
         : '') +
-      '<a class="consultar" href="/#concierge">Consultar por esta unidad</a>' +
+      consultar(a) +
     '</div>' +
     '</div>';
 
