@@ -2173,6 +2173,17 @@ video::-webkit-media-controls{ display:none !important; }
   position:relative;
   display:inline-flex;
   align-items:center;
+  /* ACA ESTABA LA SEGUNDA RAYA, Y NO ERA MIA.
+
+     Es el subrayado que el navegador le pone a cualquier <a> por su
+     cuenta. Va a la altura de la base del texto; el de esta pieza va
+     mas abajo, al pie de la caja. Dos trazos casi paralelos.
+
+     Se busco en el CSS de esta pagina y no aparecia, justamente porque
+     no lo escribio nadie: las otras dos paginas del sitio arrancan con
+     un `a{text-decoration:none}` general y esta no lo tiene, asi que
+     cada enlace se lo apaga por su cuenta. Este quedaba sin apagar. */
+  text-decoration:none;
   font-family:var(--display);
   font-size:clamp(.52rem,.72vw,.6rem);
   font-weight:700;

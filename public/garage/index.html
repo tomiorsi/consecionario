@@ -206,8 +206,14 @@ a{color:inherit;text-decoration:none}
     transparent, rgba(0,0,0,.16) 22%, rgba(0,0,0,.16) 78%, transparent);
 }
 #pie .pie-rotulo{ color:var(--tinta-2) }
+/* EL <button> VA EN LA LISTA. El mail dejo de ser un enlace cuando paso
+   a copiarse en vez de abrir el correo, y esta regla —que da vuelta los
+   blancos de pie.css— nombraba solo `a` y `span`. El mail se quedaba
+   con el blanco al 72% de la hoja compartida: sobre el gris de esta
+   pagina, invisible. */
 #pie .pie-col a,
-#pie .pie-col span{ color:var(--tinta-2) }
+#pie .pie-col span,
+#pie .pie-col button{ color:var(--tinta-2) }
 #pie .pie-contacto svg{ color:var(--tinta); opacity:.72 }
 
 /* EL MAPA, EN SU VERSION CLARA.
