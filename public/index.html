@@ -3441,6 +3441,52 @@ body.cargando{ overflow:hidden; }
   }
 }
 
+/* ── EL REEL EN EL TELÉFONO: MÁS CORTO Y CON EL MANDO ABAJO ────────
+
+   En una pantalla de teléfono la seccion se sentia larguisima, y la
+   razon es que arriba no pasaba nada: el cuarto de arriba del cuadro es
+   fondo negro, el auto vive en la mitad de abajo, y el mando estaba
+   colgado en ese vacio, lejos de lo que mueve.
+
+   SE RECORTA EL CUARTO DE ARRIBA. La seccion pasa de 100svh a 75, y el
+   video se sigue dibujando a su alto de siempre —100svh— corrido 25
+   hacia arriba. Asi el recorte cae afuera de la caja, que tiene
+   `overflow:hidden`.
+
+   ESO ES DISTINTO DE ACHICAR EL VIDEO. Si se le diera al video el alto
+   nuevo, `object-fit:cover` volveria a recortar por su cuenta contra la
+   caja mas baja y el auto cambiaria de tamano y de lugar. Dibujandolo a
+   su alto original y corriendolo, lo que se ve abajo queda EXACTAMENTE
+   igual que antes: mismo auto, mismo tamano, misma distancia al pie.
+   Lo unico que desaparece es el negro de arriba.
+
+   Y EL MANDO BAJA A DONDE ESTA EL AUTO. Entre el pie del auto y la
+   flecha de bajar, que es el unico hueco de la composicion: se queda
+   junto a lo que mueve en vez de flotar arriba.
+
+   El `- 3rem` es la mitad del area de agarre, que en telefono mide 6:
+   el mando se posiciona por su borde de abajo, pero lo que tiene que
+   quedar a esa altura es el RIEL, que va en el medio.
+
+   En computadora no cambia nada. */
+@media (max-width:767px){
+  #reel{ height:75svh; }
+  .reel-stick{ height:75svh; }
+
+  #reelVid{
+    position:absolute;
+    left:0;
+    top:-25svh;
+    width:100%;
+    height:100svh;
+  }
+
+  .reel-mando{
+    top:auto;
+    bottom:calc(27% - 3rem);
+  }
+}
+
 /* LA SEÑAL DE QUE ABAJO SIGUE HABIENDO PÁGINA.
 
    Con el control arriba, el pie de la sección queda vacío, y una
