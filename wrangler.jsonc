@@ -25,7 +25,11 @@
     // tiene secretos y conviene que salga del disco cacheado. Solo
     // /admin —la pagina— pasa por el Worker, que es donde se avisa si
     // faltan los secretos.
-    "run_worker_first": ["/api/*", "/admin", "/fotos/*"],
+    // El .html de Google entra a esta lista por un motivo puntual:
+    // `auto-trailing-slash` le sacaria la extension y contestaria un
+    // 307 en la direccion exacta que Google pide. Pasando por el
+    // Worker, esa direccion devuelve 200 con el archivo.
+    "run_worker_first": ["/api/*", "/admin", "/fotos/*", "/googleecbc432f0d3bc834.html"],
     "binding": "ARCHIVOS"
   },
 

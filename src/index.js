@@ -258,6 +258,34 @@ export default {
     const metodo = peticion.method;
 
     try {
+      /* ── LA VERIFICACION DE GOOGLE SEARCH CONSOLE ─────────────────
+
+         El archivo esta en public/ como cualquier otro, pero la capa de
+         assets tiene `html_handling: auto-trailing-slash`: a todo .html
+         le saca la extension. O sea que el archivo se sirve bien en
+         /googleecbc432f0d3bc834 y la direccion QUE GOOGLE PIDE —la que
+         termina en .html— contesta un 307 hacia ella.
+
+         Google casi seguro sigue ese redirect. "Casi seguro" no alcanza
+         para una verificacion que, si falla, no dice por que: se
+         contesta 200 en la direccion exacta y listo.
+
+         Se lee del propio archivo en vez de escribir el texto aca: el
+         archivo es el que Google dio y sigue siendo el unico lugar
+         donde vive ese dato.
+
+         Va PRIMERO de todo y no mezclado con el resto de las rutas
+         porque no es parte de la API: es un archivo, y esta linea
+         existe solo para saltear el renombrado de la capa de assets. */
+      if (ruta === '/googleecbc432f0d3bc834.html') {
+        const archivo = new URL('/googleecbc432f0d3bc834', url);
+        const r = await env.ARCHIVOS.fetch(new Request(archivo, peticion));
+        return new Response(r.body, {
+          status: r.status,
+          headers: { 'content-type': 'text/html; charset=utf-8' },
+        });
+      }
+
       /* ── LAS FOTOS ────────────────────────────────────────────────
          Salen de R2 con cache eterno porque la llave lleva un
          identificador único: si la foto cambia, cambia la dirección, así
