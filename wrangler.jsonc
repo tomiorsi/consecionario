@@ -29,7 +29,7 @@
     // `auto-trailing-slash` le sacaria la extension y contestaria un
     // 307 en la direccion exacta que Google pide. Pasando por el
     // Worker, esa direccion devuelve 200 con el archivo.
-    "run_worker_first": ["/api/*", "/admin", "/fotos/*", "/googleecbc432f0d3bc834.html"],
+    "run_worker_first": ["/api/*", "/admin", "/fotos/*", "/google6c566cd3264b21dc.html"],
     "binding": "ARCHIVOS"
   },
 

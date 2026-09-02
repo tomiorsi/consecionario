@@ -274,11 +274,23 @@ export default {
          archivo es el que Google dio y sigue siendo el unico lugar
          donde vive ese dato.
 
+         LA REGLA NO NOMBRA UN TOKEN, RECONOCE LA FORMA. Google cambia
+         el archivo cada vez que uno vuelve a verificar, y con el token
+         escrito aca cada cambio pedia tocar el codigo. Asi, cambiar de
+         token es dejar el archivo nuevo en public/ y corregir una linea
+         en wrangler.jsonc, que es la unica que si tiene que nombrarlo.
+
+         Si el archivo no esta, `ARCHIVOS.fetch` contesta lo que
+         corresponde y no se inventa un 200: un token que no existe
+         tiene que dar 404, no una pagina en blanco que Google lea como
+         valida.
+
          Va PRIMERO de todo y no mezclado con el resto de las rutas
          porque no es parte de la API: es un archivo, y esta linea
          existe solo para saltear el renombrado de la capa de assets. */
-      if (ruta === '/googleecbc432f0d3bc834.html') {
-        const archivo = new URL('/googleecbc432f0d3bc834', url);
+      const verificacion = ruta.match(/^\/(google[a-z0-9]+)\.html$/);
+      if (verificacion) {
+        const archivo = new URL('/' + verificacion[1], url);
         const r = await env.ARCHIVOS.fetch(new Request(archivo, peticion));
         return new Response(r.body, {
           status: r.status,
