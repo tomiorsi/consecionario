@@ -268,6 +268,44 @@ a{color:inherit;text-decoration:none}
   position:absolute; inset:0; display:grid; place-content:center;
   color:rgba(0,0,0,.3); font-size:.58rem; letter-spacing:.2em; text-transform:uppercase;
 }
+/* ── EL SELLO DE VENDIDO ──────────────────────────────────────────
+
+   Cruzado sobre la foto y en rojo. Va sobre la FOTO y no en la ficha
+   porque es lo primero que hay que saber de esa tarjeta: leido despues
+   del modelo y del precio, ya se ilusiono.
+
+   LLEVA UN VELO OSCURO DETRAS, y no es decoracion. Las fotos son de un
+   showroom blanco: rojo sobre pared blanca es de los pares que peor se
+   leen —el rojo es oscuro en luminancia y el blanco lo tapa—. El velo
+   le da un fondo constante, asi el sello se lee igual sobre una foto
+   clara que sobre una oscura, y de paso apaga la foto, que es lo que
+   corresponde para algo que ya no esta.
+
+   El rojo es el unico color del sitio fuera del blanco y negro. Se lo
+   gana: es la unica informacion de la pagina que contradice a lo que
+   se esta mirando. */
+.sello-vendido{
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  background:rgba(0,0,0,.45);
+  color:#FF4A4A;
+  font-family:var(--display);
+  font-size:clamp(.78rem,2.4vw,1.05rem);
+  font-weight:700;
+  letter-spacing:.24em;
+  text-transform:uppercase;
+  text-shadow:0 2px 14px rgba(0,0,0,.55);
+  pointer-events:none;
+}
+
+/* La tarjeta entera baja el tono: no se ofrece, se muestra. La foto va
+   en escala de grises debajo del velo y el precio pierda peso —es un
+   dato historico, no una oferta. */
+.auto.es-vendido .lente img{ filter:grayscale(.55) }
+.auto.es-vendido .precio{ color:var(--tinta-3) }
+
 .auto .cuerpo{ padding:1.1rem 1.2rem 1.3rem; display:grid; gap:.45rem }
 .auto h2{ font-size:1rem; font-weight:600; line-height:1.35 }
 .auto .ficha{ font-size:.76rem; color:var(--tinta-3) }
@@ -335,6 +373,10 @@ a{color:inherit;text-decoration:none}
   overflow:hidden; border-radius:3px; background:var(--hueco);
 }
 .lado-foto .grande img{ width:100%; height:100%; object-fit:cover }
+
+/* En la ficha abierta el sello es mas grande, porque la foto es mas
+   grande: el mismo cuerpo que en la tarjeta se perderia. */
+.lado-foto .grande .sello-vendido{ font-size:clamp(1rem,3vw,1.6rem) }
 
 .tiras{ flex:0 0 auto; display:flex; gap:.45rem; overflow-x:auto; padding-bottom:.2rem }
 .tiras img{

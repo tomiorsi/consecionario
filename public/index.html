@@ -1060,9 +1060,12 @@ video::-webkit-media-controls{ display:none !important; }
      el cuerpo, baja el interlineado —1.4 en mayusculas es mucho aire— y
      vuelve a entrar en dos. */
   /* EL TOPE SALE DE UNA MEDICION, no de probar a ojo. Con el relleno de
-     la tarjeta quedan 510 px de ancho util a 1440, y "¿Buscás una pieza
-     específica?" —la línea más larga— mide 473 px a 20 px de cuerpo. Un
-     punto más y se parte en tres renglones. */
+     la tarjeta quedan 510 px de ancho util a 1440, y la primera linea
+     —la mas larga— tiene que entrar ahi. Cuando decia "una pieza
+     especifica" median 473 px a 20 px de cuerpo; "un vehiculo
+     especifico" es tres caracteres mas largo, asi que el tope se
+     recalculo midiendo de nuevo. Un punto de mas y se parte en tres
+     renglones. */
   font-size:clamp(1.05rem,1.9vw,1.4rem);
   font-weight:700;
   text-transform:uppercase;
@@ -5463,7 +5466,7 @@ window.RESPALDO = function(v, urlH264, rehacer){
   </section>
 
   <div class="conc-caja">
-    <h2 class="conc-titulo">¿Buscás una pieza específica?<br>La encontramos.</h2>
+    <h2 class="conc-titulo">¿Buscás un vehículo específico?<br>Lo encontramos.</h2>
     <p class="conc-bajada">
       Decinos qué estás buscando y lo rastreamos en el mercado global. Y
       si lo que tenés es un auto para vender, también es acá.

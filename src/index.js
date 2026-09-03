@@ -448,15 +448,27 @@ export default {
       }
 
       /* ── CATÁLOGO PÚBLICO ─────────────────────────────────────────
-         Sólo lo publicado. Un borrador o un vendido no salen de acá ni
-         aunque se pida el id derecho. */
+
+         LO PUBLICADO Y LO VENDIDO. Los vendidos salieron a la luz
+         cuando el garage sumo su propia solapa: ya no son unidades a la
+         venta, son la prueba de lo que paso por la casa.
+
+         EL BORRADOR SIGUE SIN SALIR, y esa distincion es la que importa:
+         un borrador es un auto a medio cargar —sin fotos, sin precio,
+         con datos que todavia se estan escribiendo— y mostrarlo seria
+         publicar por accidente. Un vendido, en cambio, esta completo;
+         lo unico que cambio es que ya no esta disponible.
+
+         El `estado` viaja en la respuesta porque quien la lee necesita
+         poder separarlos: el garage no mezcla vendidos con disponibles
+         en la misma lista. */
       if (ruta === '/api/autos' && metodo === 'GET') {
         const grupo = url.searchParams.get('grupo');
         if (grupo && !GRUPOS.includes(grupo)) return error('Grupo desconocido');
 
         const { results } = await env.DB.prepare(
           `SELECT * FROM autos
-            WHERE estado = 'publicado' ${grupo ? 'AND grupo = ?' : ''}
+            WHERE estado IN ('publicado', 'vendido') ${grupo ? 'AND grupo = ?' : ''}
             ORDER BY orden, creado DESC`
         ).bind(...(grupo ? [grupo] : [])).all();
 
@@ -467,8 +479,10 @@ export default {
 
       const unAuto = ruta.match(/^\/api\/autos\/(\d+)$/);
       if (unAuto && metodo === 'GET') {
+        /* Mismo criterio que la lista: si un vendido se muestra, su
+           ficha tiene que poder abrirse. El borrador no. */
         const fila = await env.DB
-          .prepare(`SELECT * FROM autos WHERE id = ? AND estado = 'publicado'`)
+          .prepare(`SELECT * FROM autos WHERE id = ? AND estado IN ('publicado', 'vendido')`)
           .bind(unAuto[1]).first();
         if (!fila) return error('No está', 404);
         return json({ auto: (await conFotos(env, [fila]))[0] });

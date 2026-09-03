@@ -19,10 +19,24 @@ const GRUPOS = {
   urbanos:      'Urbanos',
 };
 
+/* VENDIDOS NO ES UN GRUPO, ES UN ESTADO, y sin embargo viaja por el
+   mismo `?grupo=` de la direccion. Es a proposito: para quien lee la
+   barra son todos "que estoy mirando del garage", y un segundo
+   parametro solo para este caso obligaria a que cada lugar que arma un
+   enlace sepa cual de los dos usar. Lo unico que cambia es de donde
+   sale la lista. */
+const VENDIDOS = 'vendidos';
+
 const $ = (s) => document.querySelector(s);
 let autos = [];
 let filtro = new URLSearchParams(location.search).get('grupo') || 'todos';
-if (filtro !== 'todos' && !GRUPOS[filtro]) filtro = 'todos';
+if (filtro !== 'todos' && filtro !== VENDIDOS && !GRUPOS[filtro]) filtro = 'todos';
+
+/* Lo que se puede comprar y lo que ya no. La API manda las dos cosas en
+   una sola respuesta —el garage las separa aca— porque son dos vistas
+   de la misma lista y no valen dos viajes. */
+const disponibles = () => autos.filter((a) => a.estado !== 'vendido');
+const vendidos    = () => autos.filter((a) => a.estado === 'vendido');
 
 const escapar = (s) => String(s ?? '').replace(/[&<>"']/g,
   (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -63,20 +77,42 @@ function consultar(a) {
     a.precio !== null && a.precio !== undefined ? precioDe(a) : null,
   ].filter(Boolean).join(' · ');
 
-  const texto = 'Hola, me interesa el ' + [a.marca, a.modelo].filter(Boolean).join(' ')
-    + (senas ? ' (' + senas + ')' : '') + ' que vi en la web. ¿Sigue disponible?';
+  const nombre = [a.marca, a.modelo].filter(Boolean).join(' ')
+    + (senas ? ' (' + senas + ')' : '');
+
+  /* PREGUNTAR SI UNA UNIDAD VENDIDA SIGUE DISPONIBLE NO TIENE SENTIDO,
+     y dejar el boton igual haria que del otro lado llegue una consulta
+     que solo se puede contestar que no. Pero el que la abrio mostro
+     interes en ESE auto, que es lo mas parecido a un pedido que hay:
+     el mensaje pasa a pedir algo similar, y el boton lo dice. */
+  const vendido = a.estado === 'vendido';
+
+  const texto = vendido
+    ? 'Hola, vi el ' + nombre + ' en la web y ya está vendido. '
+      + '¿Tienen alguna unidad parecida?'
+    : 'Hola, me interesa el ' + nombre + ' que vi en la web. ¿Sigue disponible?';
 
   return '<a class="consultar" target="_blank" rel="noopener" href="https://wa.me/'
     + WHATSAPP + '?text=' + encodeURIComponent(texto)
-    + '">Consultar por esta unidad</a>';
+    + '">' + (vendido ? 'Consultar por una similar' : 'Consultar por esta unidad') + '</a>';
 }
 
 /* ── filtros ─────────────────────────────────────────────────────
    Sólo se muestran los grupos que TIENEN autos. Un filtro que devuelve
-   una lista vacía es una promesa incumplida. */
+   una lista vacía es una promesa incumplida.
+
+   Y por eso VENDIDOS tampoco aparece si no hay ninguno: una casa que
+   recien arranca no tiene por que mostrar una solapa vacia que dice
+   que no vendio nada.
+
+   Los grupos se cuentan sobre lo DISPONIBLE. Si un grupo se queda sin
+   autos porque se vendieron todos, su solapa se va con ellos: quedaria
+   prometiendo una linea que ya no se puede comprar. Los vendidos siguen
+   estando, pero en la suya. */
 function pintarFiltros() {
-  const conAutos = Object.keys(GRUPOS).filter((g) => autos.some((a) => a.grupo === g));
+  const conAutos = Object.keys(GRUPOS).filter((g) => disponibles().some((a) => a.grupo === g));
   const items = [['todos', 'Todos']].concat(conAutos.map((g) => [g, GRUPOS[g]]));
+  if (vendidos().length) items.push([VENDIDOS, 'Vendidos']);
 
   $('#filtros').innerHTML = items.map(([v, t]) =>
     '<button class="chip" type="button" data-grupo="' + v + '" aria-pressed="' +
@@ -95,10 +131,18 @@ function pintarFiltros() {
 }
 
 function pintarGrilla() {
-  const lista = filtro === 'todos' ? autos : autos.filter((a) => a.grupo === filtro);
+  /* LOS VENDIDOS NO SE MEZCLAN. Ni en "Todos" ni adentro de su linea:
+     quien esta mirando el garage esta mirando lo que puede comprar, y
+     una unidad vendida en el medio de esa lista es una promesa que no
+     se puede cumplir. Viven en su propia solapa. */
+  const lista = filtro === VENDIDOS ? vendidos()
+              : filtro === 'todos'  ? disponibles()
+              : disponibles().filter((a) => a.grupo === filtro);
 
   if (!lista.length) {
-    $('#grilla').innerHTML = '<p class="vacio">Todavía no hay unidades publicadas en esta línea.</p>';
+    $('#grilla').innerHTML = '<p class="vacio">' + (filtro === VENDIDOS
+      ? 'Todavía no hay unidades vendidas para mostrar.'
+      : 'Todavía no hay unidades publicadas en esta línea.') + '</p>';
     return;
   }
 
@@ -107,11 +151,18 @@ function pintarGrilla() {
       ? '<img src="/fotos/' + a.fotos[0].clave + '-640.webp" alt="' +
         escapar(a.marca + ' ' + a.modelo) + '" loading="lazy" decoding="async">'
       : '<span class="sinfoto">Sin fotos</span>';
+    /* EL SELLO VA SOBRE LA FOTO Y NO EN LA FICHA. Es lo primero que
+       hay que saber de esa tarjeta, antes que el modelo y antes que el
+       precio: si se lee despues, ya se ilusionó. */
+    const sello = a.estado === 'vendido'
+      ? '<span class="sello-vendido" aria-hidden="true">Vendido</span>' : '';
     const ficha = [a.anio, a.km !== null ? conPuntos(a.km) + ' km' : null, a.motor]
       .filter(Boolean).join(' · ');
 
-    return '<article class="auto" data-id="' + a.id + '" role="button" tabindex="0">' +
-      '<div class="lente">' + foto + '</div>' +
+    return '<article class="auto' + (a.estado === 'vendido' ? ' es-vendido' : '') +
+      '" data-id="' + a.id + '" role="button" tabindex="0"' +
+      (a.estado === 'vendido' ? ' aria-label="' + escapar(a.marca + ' ' + a.modelo) + ' — vendido"' : '') + '>' +
+      '<div class="lente">' + foto + sello + '</div>' +
       '<div class="cuerpo">' +
         '<h2>' + escapar(a.marca) + ' ' + escapar(a.modelo) + '</h2>' +
         (ficha ? '<span class="ficha">' + escapar(ficha) + '</span>' : '') +
@@ -170,6 +221,8 @@ function abrir(a) {
         '<div class="grande">' +
           '<img id="fotoGrande" src="/fotos/' + a.fotos[0].clave +
             '-1600.webp" alt="' + escapar(a.marca + ' ' + a.modelo) + '">' +
+          (a.estado === 'vendido'
+            ? '<span class="sello-vendido" aria-hidden="true">Vendido</span>' : '') +
           flechas + volver +
         '</div>' +
         (a.fotos.length > 1
@@ -566,8 +619,19 @@ $('#detalle').addEventListener('click', (e) => { if (e.target === $('#detalle'))
      las otras líneas.
 
      Se cae al listado completo y se limpia la dirección, así lo que se
-     ve y lo que dice la barra coinciden. */
-  if (filtro !== 'todos' && !autos.some((a) => a.grupo === filtro)) {
+     ve y lo que dice la barra coinciden.
+
+     VENDIDOS SE PREGUNTA APARTE, y esa es la correccion: no es un
+     grupo, asi que ningun auto tiene `grupo === 'vendidos'` y esta
+     guarda lo tiraba a "Todos" siempre. Un enlace a la solapa de
+     vendidos abria el listado completo, que es justo lo que esta guarda
+     existe para evitar en las otras. Lo que hay que preguntarle es si
+     hay algun VENDIDO. */
+  const vacia = filtro === VENDIDOS
+    ? !vendidos().length
+    : filtro !== 'todos' && !disponibles().some((a) => a.grupo === filtro);
+
+  if (vacia) {
     filtro = 'todos';
     const u = new URL(location);
     u.searchParams.delete('grupo');
