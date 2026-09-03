@@ -3,6 +3,32 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+
+<!-- ── GOOGLE TAG MANAGER — GTM-5DBPKWR4 ─────────────────────────────
+
+     Va lo mas arriba posible del <head>, que es como corresponde: es el
+     primer script del documento y lo unico que tiene delante son las
+     dos etiquetas que TIENEN que ir antes.
+
+     `charset` primero no es un capricho: el navegador arranca a leer el
+     archivo adivinando la codificacion y la declaracion tiene que caer
+     dentro del primer kilobyte, o se re-lee todo. Con GTM delante, un
+     script de mil y pico de caracteres la empuja fuera de ese margen y
+     los acentos del sitio quedan a merced de una adivinanza. El
+     `viewport` va con ella por lo mismo: llegar tarde le cuesta un
+     reacomodo de toda la maqueta en el telefono.
+
+     ES `async`, asi que no frena el dibujado: el navegador sigue con el
+     resto del <head> mientras lo baja. Lo que si hace es crear
+     `dataLayer` de inmediato, y por eso conviene que este arriba —
+     cualquier cosa que quiera empujar un evento mas abajo ya lo
+     encuentra. -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-5DBPKWR4');</script>
+<!-- ── FIN GOOGLE TAG MANAGER ────────────────────────────────────── -->
 <title>Garage — Manna Motors Selected</title>
 <meta name="description" content="Las unidades seleccionadas de Manna Motors. Cada auto, revisado y documentado antes de publicarse.">
 
@@ -615,6 +641,19 @@ a{color:inherit;text-decoration:none}
 </style>
 </head>
 <body>
+<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-5DBPKWR4"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->
+<!-- EL <noscript> ES LO PRIMERO DEL CUERPO, ANTES QUE ESTA NOTA.
+
+     Un comentario no es un elemento y no cambiaria nada, pero la
+     instalacion oficial dice "inmediatamente despues de la apertura de
+     <body>" y conviene que lo sea de forma literal: si manana alguien
+     audita la instalacion, no tiene que decidir si un comentario cuenta.
+
+     Es el respaldo para quien tenga el JavaScript apagado. Escondido,
+     no ocupa ni un pixel de la maqueta. -->
 
 <header class="barra">
   <a class="marca" href="/" aria-label="Manna Motors Selected — inicio">
