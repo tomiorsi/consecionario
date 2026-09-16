@@ -400,6 +400,26 @@ a{color:inherit;text-decoration:none}
 }
 .lado-foto .grande img{ width:100%; height:100%; object-fit:cover }
 
+/* LAS VERTICALES SE MUESTRAN ENTERAS Y LAS APAISADAS SE RECORTAN.
+
+   El hueco de la foto es más ancho que alto, así que `cover` —que llena
+   y recorta lo que sobra— es lo correcto para una foto apaisada: se
+   pierden unos centímetros de los costados y no se pierde el auto.
+
+   Con una foto vertical es al revés. Un 900×1600 adentro de un hueco
+   apaisado deja afuera más de la mitad de la altura, y lo que queda es
+   una franja del medio elegida por el navegador y no por quien sacó la
+   foto: en las del garage esa franja suele caer en el techo o en la
+   pared del fondo. La foto está bien sacada y se ve mal.
+
+   `contain` la muestra completa, apoyada sobre el color del hueco. Se
+   ve menos grande, pero se ve lo que hay.
+
+   La clase la pone garage.js al cargar cada foto, porque la orientación
+   no es algo que el CSS pueda preguntar: la sabe la imagen cuando llega
+   (`naturalWidth`/`naturalHeight`). */
+.lado-foto .grande img.vertical{ object-fit:contain }
+
 /* En la ficha abierta el sello es mas grande, porque la foto es mas
    grande: el mismo cuerpo que en la tarjeta se perderia. */
 .lado-foto .grande .sello-vendido{ font-size:clamp(1rem,3vw,1.6rem) }
@@ -535,13 +555,40 @@ a{color:inherit;text-decoration:none}
    imagen— no deja arrastrar: no hay nada que se mueva con el dedo, y el
    cambio aparece de golpe. */
 .zoom-tira{ display:flex; height:100%; will-change:transform }
+
+/* LA FOTO SE CENTRA ABSOLUTA Y NO CON UNA GRILLA, y acá está la
+   corrección de las fotos verticales.
+
+   Era `display:grid; place-items:center` con la foto en `max-height:100%`.
+   Con una foto apaisada andaba; con una vertical, no: el `100%` de una
+   caja de grilla se mide contra SU FILA, la fila se dimensiona sola
+   según lo que tiene adentro, y lo que tiene adentro es una foto que
+   sin límite mide lo que quiere. La fila crecía hasta los 1535 px de la
+   foto, el `max-height:100%` pasaba a significar "hasta 1535" —o sea,
+   nada— y la foto entraba entera en una hoja de 768 px de alto que la
+   recorta. Medido sobre el sitio publicado: la vertical del Golf salía
+   de 1024×1535 adentro de una pantalla de 1024×768, centrada en una
+   fila que sobresalía por abajo. Se veía el pedazo de arriba, corrido
+   al fondo de la pantalla.
+
+   Absoluta contra la hoja, los porcentajes se miden contra la hoja, que
+   mide exactamente la pantalla: `max-height:100%` vuelve a querer decir
+   "no más alta que la pantalla". `inset:0` con `margin:auto` la centra
+   en los dos ejes, y `width/height:auto` deja que la foto elija cuál de
+   los dos límites la frena, que es lo que la mantiene sin deformar.
+
+   La caja de la imagen sigue siendo EXACTAMENTE la foto —no hay hueco
+   transparente alrededor— y eso importa: los topes del arrastre en
+   garage.js se calculan midiendo esa caja. */
 .zoom-hoja{
   flex:0 0 100%;
-  display:grid; place-items:center;
+  position:relative;
   overflow:hidden;
 }
 .zoom-hoja img{
+  position:absolute; inset:0; margin:auto;
   max-width:100%; max-height:100%;
+  width:auto; height:auto;
   transform-origin:center;
   will-change:transform;
   -webkit-user-drag:none;

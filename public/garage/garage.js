@@ -318,6 +318,23 @@ function abrir(a, navegar = true) {
     previa.src = '/fotos/' + f.clave + '-1600.webp';
   });
 
+  /* ── VERTICAL O APAISADA ──────────────────────────────────────
+     Lo decide la foto, no el CSS: la proporción recién se sabe cuando la
+     imagen llegó. Con la clase puesta, una vertical se muestra entera en
+     vez de recortada a la franja del medio (ver `.grande img.vertical`).
+
+     Se pregunta en cada carga y también si la imagen YA estaba lista:
+     con las fotos precargadas más arriba, una que sale de la cache puede
+     estar completa antes de que este código llegue a escuchar nada, y
+     entonces el `load` no vuelve a dispararse. */
+  const grande = $('#fotoGrande');
+  if (grande) {
+    const orientar = () => grande.classList.toggle(
+      'vertical', grande.naturalHeight > grande.naturalWidth);
+    grande.addEventListener('load', orientar);
+    if (grande.complete && grande.naturalWidth) orientar();
+  }
+
   let cual = 0;
   const tiras = [].slice.call(d.querySelectorAll('.tiras img'));
 
