@@ -438,6 +438,107 @@ async function paginaDeAuto(peticion, env, url, a) {
   });
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   EL WEBHOOK DE META (WhatsApp e Instagram)
+   ══════════════════════════════════════════════════════════════════
+
+   Es la dirección a la que Meta avisa cada vez que llega un mensaje:
+   /api/meta/webhook. Una sola para los dos canales —la app de Meta es
+   una y el cuerpo de cada aviso dice de dónde viene (`object` vale
+   'whatsapp_business_account' o 'instagram')—.
+
+   POR AHORA SOLO ESCUCHA. Recibe, comprueba que el aviso sea de Meta y
+   lo deja en el log de Cloudflare. Contestar con la IA es el paso
+   siguiente; primero hay que ver llegar mensajes reales y saber qué
+   forma tienen.
+
+   DOS SECRETOS Y NO UNO, porque sirven para cosas distintas:
+
+     META_VERIFY_TOKEN   lo inventamos nosotros y se pega en el panel de
+                         Meta. Sólo sirve para el apretón de manos del
+                         alta: Meta lo manda una vez para comprobar que
+                         la dirección es nuestra.
+
+     META_APP_SECRET     lo da Meta (Configuración de la app → Básica →
+                         Clave secreta). Con él Meta firma CADA aviso,
+                         y es lo que impide que cualquiera que conozca
+                         la dirección nos mande mensajes inventados. */
+
+/* EL ALTA. Meta pide GET con tres parámetros y espera que le devolvamos
+   `hub.challenge` tal cual, en texto plano, sólo si el token coincide.
+   Cualquier otra respuesta —un JSON, un 200 vacío— y el panel de Meta
+   dice que no pudo verificar la dirección. */
+function verificarWebhook(url, env) {
+  if (!env.META_VERIFY_TOKEN) {
+    return new Response('Falta cargar META_VERIFY_TOKEN', { status: 503 });
+  }
+  const modo = url.searchParams.get('hub.mode');
+  const token = url.searchParams.get('hub.verify_token') || '';
+  const desafio = url.searchParams.get('hub.challenge') || '';
+
+  const a = textoABytes(token), b = textoABytes(env.META_VERIFY_TOKEN);
+  const coincide = a.length === b.length && crypto.subtle.timingSafeEqual(a, b);
+
+  if (modo !== 'subscribe' || !coincide) {
+    return new Response('No autorizado', { status: 403 });
+  }
+  return new Response(desafio, {
+    status: 200,
+    headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
+  });
+}
+
+/* LA FIRMA SE CALCULA SOBRE EL CUERPO CRUDO, byte por byte. Por eso se
+   lee como texto antes de interpretarlo: un JSON parseado y vuelto a
+   escribir puede cambiar espacios o el orden, y la firma ya no cierra.
+
+   Meta la manda como `sha256=` + el HMAC en hexadecimal. */
+async function firmaDeMetaValida(crudo, cabecera, secreto) {
+  if (!cabecera?.startsWith('sha256=')) return false;
+  const llaveMeta = await crypto.subtle.importKey(
+    'raw', textoABytes(secreto), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const firma = await crypto.subtle.sign('HMAC', llaveMeta, textoABytes(crudo));
+  const esperada = [...new Uint8Array(firma)]
+    .map((b) => b.toString(16).padStart(2, '0')).join('');
+  const a = textoABytes(cabecera.slice('sha256='.length).toLowerCase());
+  const b = textoABytes(esperada);
+  return a.length === b.length && crypto.subtle.timingSafeEqual(a, b);
+}
+
+/* SE CONTESTA 200 SIEMPRE QUE EL AVISO SEA DE META, y rápido. Si Meta
+   no recibe un 200 en unos segundos, reintenta el mismo aviso una y otra
+   vez, y si falla seguido termina desactivando la dirección. Lo que haya
+   que hacer con el mensaje no puede demorar esta respuesta.
+
+   MIENTRAS NO ESTÉ LA CLAVE SECRETA, se acepta y se anota como "sin
+   verificar". Así el botón "Probar" del panel de Meta funciona desde el
+   primer minuto; cuando se cargue META_APP_SECRET, lo que no venga
+   firmado se rechaza. Nada de lo que llega sin verificar se usa para
+   responder: por ahora sólo se anota. */
+async function recibirDeMeta(peticion, env) {
+  const crudo = await peticion.text();
+
+  let verificado = false;
+  if (env.META_APP_SECRET) {
+    verificado = await firmaDeMetaValida(
+      crudo, peticion.headers.get('x-hub-signature-256'), env.META_APP_SECRET
+    );
+    if (!verificado) return new Response('Firma inválida', { status: 401 });
+  }
+
+  let aviso = null;
+  try { aviso = JSON.parse(crudo); } catch { /* se anota igual, crudo */ }
+
+  console.log(JSON.stringify({
+    meta: verificado ? 'verificado' : 'sin verificar (falta META_APP_SECRET)',
+    canal: aviso?.object ?? 'desconocido',
+    aviso: aviso ?? crudo,
+  }));
+
+  return new Response('ok', { status: 200 });
+}
+
 /* ── el panel ────────────────────────────────────────────────────── */
 
 function pedirClave(env) {
@@ -778,6 +879,13 @@ export default {
           .bind(unAuto[1]).first();
         if (!fila) return error('No está', 404);
         return json({ auto: (await conFotos(env, [fila]))[0] });
+      }
+
+      /* ── EL WEBHOOK DE META ────────────────────────────────────── */
+      if (ruta === '/api/meta/webhook') {
+        if (metodo === 'GET') return verificarWebhook(url, env);
+        if (metodo === 'POST') return recibirDeMeta(peticion, env);
+        return error('Método no permitido', 405);
       }
 
       /* ── DE ACÁ PARA ABAJO, TODO PIDE SESIÓN ─────────────────── */
