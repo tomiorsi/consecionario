@@ -8,6 +8,11 @@ Allow: /
 # esto le ahorra el viaje al buscador.
 Disallow: /admin
 Disallow: /api/
-Disallow: /fotos/
+
+# LAS FOTOS SI SE MIRAN, y por eso ya no estan bloqueadas. Desde que
+# cada auto tiene su pagina, su primera foto es la que se muestra cuando
+# alguien pega el link en un chat y la que Google lee como la imagen de
+# esa unidad. Bloqueada, el buscador no puede ir a buscarla y la ficha
+# le queda sin foto.
 
 Sitemap: https://www.mannaselected.com.ar/sitemap.xml

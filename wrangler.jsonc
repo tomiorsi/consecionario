@@ -29,7 +29,15 @@
     // `auto-trailing-slash` le sacaria la extension y contestaria un
     // 307 en la direccion exacta que Google pide. Pasando por el
     // Worker, esa direccion devuelve 200 con el archivo.
-    "run_worker_first": ["/api/*", "/admin", "/fotos/*", "/google6c566cd3264b21dc.html"],
+    // /auto/* son las fichas: no hay ningun archivo en public/ con esa
+    // direccion. Las arma el Worker sirviendo /garage/index.html con el
+    // <head> reescrito, asi que tiene que pasar por codigo si o si.
+    //
+    // /sitemap.xml ESTABA EN public/ Y SE FUE. Ahora lista tambien cada
+    // auto, y eso sale de la base: escrito a mano quedaria viejo el dia
+    // que entre o salga una unidad.
+    "run_worker_first": ["/api/*", "/admin", "/auto/*", "/sitemap.xml",
+                         "/fotos/*", "/google6c566cd3264b21dc.html"],
     "binding": "ARCHIVOS"
   },
 

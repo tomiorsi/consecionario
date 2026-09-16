@@ -423,6 +423,10 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
       <h1 class="titulo" id="tituloFicha">Auto nuevo</h1>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap">
         <button class="btn" id="volver" type="button">Volver</button>
+        <!-- LA DIRECCION DE ESTE AUTO, PARA MANDARLA POR WHATSAPP. Solo
+             aparece cuando el auto ya existe y esta publicado o vendido:
+             la de un borrador no lleva a ningun lado todavia. -->
+        <button class="btn oculto" id="copiarLink" type="button">Copiar link</button>
         <button class="btn btn--peligro oculto" id="borrar" type="button">Borrar</button>
         <button class="btn btn--fuerte" id="guardar" type="button">Guardar</button>
       </div>

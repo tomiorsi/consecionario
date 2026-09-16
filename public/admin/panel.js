@@ -277,6 +277,10 @@ function abrir(auto) {
   }
 
   $('#borrar').classList.toggle('oculto', !auto);
+  /* El link existe desde que el auto está publicado. En un borrador el
+     botón no aparece: la dirección todavía no contesta. */
+  $('#copiarLink').classList.toggle('oculto',
+    !auto || !auto.enlace || auto.estado === 'borrador');
   pintarFotos();
 
   $('#vistaLista').classList.add('oculto');
@@ -292,6 +296,22 @@ function cerrarFicha() {
 
 $('#nuevo').addEventListener('click', () => abrir(null));
 $('#volver').addEventListener('click', cerrarFicha);
+
+/* COPIAR EL LINK DE ESTE AUTO.
+
+   `navigator.clipboard` necesita HTTPS y, en algunos navegadores, que el
+   permiso esté dado: si falla, se muestra la dirección para copiarla a
+   mano en vez de dejar un botón que no hace nada. */
+$('#copiarLink').addEventListener('click', async () => {
+  if (!actual?.enlace) return;
+  const direccion = location.origin + actual.enlace;
+  try {
+    await navigator.clipboard.writeText(direccion);
+    avisar('Link copiado');
+  } catch {
+    prompt('Copiá el link:', direccion);
+  }
+});
 
 $('#guardar').addEventListener('click', async () => {
   const f = $('#formAuto');

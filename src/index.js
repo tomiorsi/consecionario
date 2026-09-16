@@ -158,6 +158,35 @@ const EXTENSION = {
   'image/webp': 'webp', 'image/jpeg': 'jpg', 'image/png': 'png', 'video/mp4': 'mp4',
 };
 
+/* ── LA DIRECCIÓN PROPIA DE CADA AUTO ─────────────────────────────
+
+   /auto/mercedes-benz-gla-200-2018-12
+
+   NO SE GUARDA EN LA BASE: se calcula con lo que ya está en la ficha.
+   Un slug guardado es un dato más que puede quedar viejo —se corrige el
+   modelo y la dirección sigue diciendo lo anterior— y otro que hay que
+   completarles a mano a los autos que ya estaban cargados. Calculándolo,
+   los veinte autos de hoy tienen su dirección desde el primer despliegue
+   y el que se cargue mañana la tiene sola.
+
+   EL ID VA AL FINAL Y ES LO ÚNICO QUE SE LEE. El texto de adelante es
+   para el que mira la dirección y para Google; quien resuelve el pedido
+   es el número. Así, cambiarle el modelo a un auto no rompe el link que
+   alguien ya mandó por WhatsApp: la dirección vieja sigue encontrando el
+   auto y se contesta un 301 hacia la nueva.
+
+   Sin acentos ni eñes: `normalize('NFD')` los parte en letra + tilde y
+   el rango ̀-ͯ se queda con las tildes solas. */
+const SITIO = 'https://www.mannaselected.com.ar';
+
+const enTexto = (s) => String(s ?? '')
+  .normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+const enlaceDe = (a) => '/auto/' +
+  [enTexto([a.marca, a.modelo, a.anio].filter(Boolean).join(' ')), a.id]
+    .filter(Boolean).join('-');
+
 /* ── respuestas ──────────────────────────────────────────────────── */
 
 const json = (dato, estado = 200, cabeceras = {}) =>
@@ -232,7 +261,181 @@ async function conFotos(env, filas) {
 
   const porAuto = new Map(filas.map((f) => [f.id, []]));
   for (const f of fotos) porAuto.get(f.auto_id)?.push({ id: f.id, clave: f.clave });
-  return filas.map((a) => ({ ...a, fotos: porAuto.get(a.id) || [] }));
+  /* EL `enlace` VIAJA CON EL AUTO y no lo arma cada página por su cuenta.
+     Lo usan el garage —para cambiar la dirección al abrir una ficha— y el
+     panel —para el botón de copiar el link—; que los dos lo calcularan
+     por su lado sería tener la regla escrita en tres lugares y que el día
+     que cambie queden dos versiones conviviendo. Lo arma el mismo código
+     que después resuelve el pedido. */
+  return filas.map((a) => ({ ...a, enlace: enlaceDe(a), fotos: porAuto.get(a.id) || [] }));
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   LA PÁGINA DE UN AUTO
+   ══════════════════════════════════════════════════════════════════
+
+   NO ES UNA PÁGINA NUEVA: ES EL GARAGE CON OTRA CABECERA.
+
+   La tentación era escribir acá el HTML de la ficha. Sería una segunda
+   copia del mismo diseño —la galería, el zoom, los datos, el botón de
+   consultar— y a la primera corrección en el garage las dos empiezan a
+   separarse. En vez de eso se sirve el MISMO /garage/index.html, con dos
+   cambios: el <head> pasa a hablar de este auto, y se le deja dicho cuál
+   abrir. El resto —estilos, galería, zoom— es el que ya existe y sigue
+   habiendo uno solo.
+
+   EL <head> ES TODO EL PUNTO. Lo que ve una persona lo arma el script de
+   todos modos; lo que NO puede armar el script es lo que leen WhatsApp,
+   Google y las redes, porque miran el HTML antes de que corra nada. Sin
+   esto, los seis links de los seis autos comparten título, bajada y foto
+   de portada: pegados en un chat se ven todos iguales y no se sabe cuál
+   es cuál.
+
+   SE REESCRIBE CON HTMLRewriter Y NO CON REEMPLAZOS DE TEXTO. Streaming,
+   y sobre todo: entiende de etiquetas. Un `.replace()` sobre el HTML
+   depende de que las comillas y el orden de los atributos no cambien
+   nunca — la clase de código que se rompe en silencio el día que alguien
+   acomoda una línea del garage. */
+
+/* El texto de la bajada. La descripción del auto si la tiene —cortada,
+   porque WhatsApp y Google muestran unos 160 caracteres y el resto es
+   peso al pedo—; si no, los datos que la vuelven reconocible. */
+function bajadaDe(a) {
+  if (a.descripcion) {
+    const limpio = a.descripcion.replace(/\s+/g, ' ').trim();
+    return limpio.length > 160 ? limpio.slice(0, 157).trimEnd() + '…' : limpio;
+  }
+  const senas = [
+    a.anio,
+    a.km !== null && a.km !== undefined ? a.km.toLocaleString('es-AR') + ' km' : null,
+    a.motor, a.transmision, a.combustible,
+  ].filter(Boolean).join(' · ');
+  return [a.marca + ' ' + a.modelo, senas].filter(Boolean).join('. ') +
+    '. Unidad seleccionada de Manna Motors.';
+}
+
+/* LO QUE ENTIENDE GOOGLE DE UN AUTO EN VENTA. Sin esto, la página es
+   texto suelto; con esto, Google sabe que hay un vehículo, de qué año,
+   con cuántos kilómetros y a qué precio, y puede mostrarlo como tal.
+
+   El `<` se escapa: un `</script>` dentro de la descripción de un auto
+   cerraría la etiqueta antes de tiempo y el resto del JSON quedaría
+   escrito en la página. */
+function fichaParaGoogle(a, direccion) {
+  const dato = {
+    '@context': 'https://schema.org',
+    '@type': 'Car',
+    name: [a.marca, a.modelo, a.anio].filter(Boolean).join(' '),
+    brand: { '@type': 'Brand', name: a.marca },
+    model: a.modelo,
+    url: direccion,
+    image: a.fotos.map((f) => `${SITIO}/fotos/${f.clave}-1600.webp`),
+  };
+
+  if (a.descripcion) dato.description = a.descripcion;
+  if (a.anio) dato.vehicleModelDate = String(a.anio);
+  if (a.color) dato.color = a.color;
+  if (a.combustible) dato.fuelType = a.combustible;
+  if (a.transmision) dato.vehicleTransmission = a.transmision;
+  if (a.km !== null && a.km !== undefined) {
+    dato.mileageFromOdometer = { '@type': 'QuantitativeValue', value: a.km, unitCode: 'KMT' };
+  }
+  if (a.precio !== null && a.precio !== undefined) {
+    dato.offers = {
+      '@type': 'Offer',
+      price: a.precio,
+      priceCurrency: a.moneda === 'USD' ? 'USD' : 'ARS',
+      url: direccion,
+      availability: a.estado === 'vendido'
+        ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock',
+    };
+  }
+
+  return JSON.stringify(dato).replace(/</g, '\\u003c');
+}
+
+/* Cambia el contenido de una etiqueta suelta del <head>. */
+class Contenido {
+  constructor(valor) { this.valor = valor; }
+  element(el) { el.setAttribute('content', this.valor); }
+}
+
+class Atributo {
+  constructor(nombre, valor) { this.nombre = nombre; this.valor = valor; }
+  element(el) { el.setAttribute(this.nombre, this.valor); }
+}
+
+class Afuera {
+  element(el) { el.remove(); }
+}
+
+async function paginaDeAuto(peticion, env, url, a) {
+  const direccion = SITIO + enlaceDe(a);
+  const nombre = [a.marca, a.modelo, a.anio].filter(Boolean).join(' ');
+  const titulo = a.estado === 'vendido'
+    ? `${nombre} (vendido) — Manna Motors Selected`
+    : `${nombre} — Manna Motors Selected`;
+  const bajada = bajadaDe(a);
+
+  /* LA FOTO DEL AUTO, O LA DE PORTADA SI TODAVÍA NO TIENE NINGUNA. Un
+     og:image vacío no deja "sin foto": deja a WhatsApp mostrando un
+     rectángulo gris con la dirección, que se ve peor que la portada. */
+  const foto = a.fotos[0]
+    ? `${SITIO}/fotos/${a.fotos[0].clave}-1600.webp`
+    : `${SITIO}/assets/video/portada-desktop-poster.jpg`;
+
+  const pagina = await env.ARCHIVOS.fetch(
+    new Request(new URL('/garage/', url), { method: 'GET', headers: peticion.headers })
+  );
+  if (!pagina.ok) return pagina;
+
+  const armada = new HTMLRewriter()
+    .on('title', { element(el) { el.setInnerContent(titulo); } })
+    .on('meta[name="description"]', new Contenido(bajada))
+    .on('link[rel="canonical"]', new Atributo('href', direccion))
+    .on('meta[property="og:type"]', new Contenido('product'))
+    .on('meta[property="og:url"]', new Contenido(direccion))
+    .on('meta[property="og:title"]', new Contenido(titulo))
+    .on('meta[property="og:description"]', new Contenido(bajada))
+    .on('meta[property="og:image"]', new Contenido(foto))
+    .on('meta[property="og:image:alt"]', new Contenido(nombre))
+    /* LAS MEDIDAS DE LA PORTADA NO SON LAS DE ESTA FOTO. Las del garage
+       están escritas a mano en el HTML y acá no se sabe cuánto mide la
+       foto del auto: se guarda achicada en el navegador y el alto depende
+       de cómo venía. Declarar una medida falsa es peor que no declarar
+       ninguna —WhatsApp reserva ese hueco y después entra otra cosa—, así
+       que se van. */
+    .on('meta[property="og:image:width"]', new Afuera())
+    .on('meta[property="og:image:height"]', new Afuera())
+    .on('meta[name="twitter:title"]', new Contenido(titulo))
+    .on('meta[name="twitter:description"]', new Contenido(bajada))
+    .on('meta[name="twitter:image"]', new Contenido(foto))
+    /* EL ID VA EN EL HTML Y NO SE DEDUCE DE LA DIRECCIÓN. El script
+       podría leerlo del propio `location`, pero entonces la regla de qué
+       forma tiene una dirección de auto viviría en dos lados. Acá el
+       Worker ya la resolvió —y ya sabe que ese auto existe y está
+       publicado—; lo que queda es pasarle el número. */
+    .on('head', {
+      element(el) {
+        el.append(`<script>window.__AUTO=${a.id};</script>` +
+          `<script type="application/ld+json">${fichaParaGoogle(a, direccion)}</script>`,
+          { html: true });
+      },
+    })
+    .transform(pagina);
+
+  return new Response(armada.body, {
+    status: 200,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      /* El mismo criterio que /garage/ en _headers: la página reparte
+         las direcciones de las fotos, así que se pregunta siempre. Esas
+         reglas son para los archivos del disco y esto lo arma el Worker,
+         por eso van escritas acá. */
+      'cache-control': 'no-cache',
+      'cdn-cache-control': 'no-store',
+    },
+  });
 }
 
 /* ── el panel ────────────────────────────────────────────────────── */
@@ -362,6 +565,95 @@ export default {
             etag: obj.httpEtag,
           },
         });
+      }
+
+      /* ── LA PÁGINA DE UN AUTO ─────────────────────────────────────
+
+         El id es lo último de la dirección, después del último guión.
+         Todo lo de adelante es texto para leer: no se compara para
+         resolver el pedido, pero sí para corregirlo. */
+      const pedidoDeAuto = ruta.match(/^\/auto\/(.+)$/);
+      if (pedidoDeAuto) {
+        if (metodo !== 'GET' && metodo !== 'HEAD') return error('Método no permitido', 405);
+
+        const partes = decodeURIComponent(pedidoDeAuto[1]).split('-');
+        const id = partes.pop();
+        if (!/^\d+$/.test(id)) return Response.redirect(new URL('/garage/', url), 302);
+
+        const fila = await env.DB
+          .prepare(`SELECT * FROM autos WHERE id = ? AND estado IN ('publicado', 'vendido')`)
+          .bind(id).first();
+
+        /* UN AUTO QUE YA NO ESTÁ MANDA AL GARAGE Y NO A UN 404.
+           Estas direcciones se comparten por WhatsApp y sobreviven al
+           auto: el que la abre tres meses después es alguien que quiere
+           comprar. Dejarlo en una página de error es perderlo; dejarlo
+           en el listado es la respuesta útil. Va como 302 —"por ahora
+           está acá"— porque el borrador de hoy puede publicarse mañana
+           en esta misma dirección. */
+        if (!fila) return Response.redirect(new URL('/garage/', url), 302);
+
+        const auto = (await conFotos(env, [fila]))[0];
+
+        /* LA DIRECCIÓN BUENA ES UNA SOLA. Si el texto no coincide —le
+           cambiaron el modelo al auto, o alguien recortó el link— se
+           contesta un 301 hacia la que corresponde. Sin esto, la misma
+           ficha existiría en infinitas direcciones y Google las trataría
+           como copias compitiendo entre sí. */
+        const canonica = enlaceDe(auto);
+        if (ruta !== canonica) {
+          return Response.redirect(new URL(canonica, url), 301);
+        }
+
+        return paginaDeAuto(peticion, env, url, auto);
+      }
+
+      /* ── EL MAPA DEL SITIO ────────────────────────────────────────
+
+         SE ARMA ACÁ Y YA NO ES UN ARCHIVO. Era una lista de tres
+         páginas escrita a mano, con una nota que decía que el día que
+         cada auto tuviera dirección propia iban a ir ahí. Ese día es
+         hoy, y mantenerla a mano sería acordarse de tocar un archivo
+         cada vez que entra o sale un auto. Sale de la base, así que
+         siempre dice la verdad.
+
+         LOS VENDIDOS VAN, CON MENOS PRIORIDAD. Son páginas reales que
+         alguien puede tener guardadas, pero no es lo que queremos que
+         Google muestre primero. */
+      if (ruta === '/sitemap.xml') {
+        if (metodo !== 'GET' && metodo !== 'HEAD') return error('Método no permitido', 405);
+
+        const { results } = await env.DB.prepare(
+          `SELECT id, marca, modelo, anio, estado, editado FROM autos
+            WHERE estado IN ('publicado', 'vendido')
+            ORDER BY orden, creado DESC`
+        ).all();
+
+        const fijas = [
+          ['/', 'weekly', '1.0'],
+          ['/garage/', 'daily', '0.9'],
+          ['/por-que-elegirnos/', 'monthly', '0.6'],
+        ].map(([donde, cada, peso]) =>
+          `  <url>\n    <loc>${SITIO}${donde}</loc>\n` +
+          `    <changefreq>${cada}</changefreq>\n    <priority>${peso}</priority>\n  </url>`);
+
+        const autos = results.map((a) =>
+          `  <url>\n    <loc>${SITIO}${enlaceDe(a)}</loc>\n` +
+          (a.editado ? `    <lastmod>${String(a.editado).slice(0, 10)}</lastmod>\n` : '') +
+          `    <changefreq>weekly</changefreq>\n` +
+          `    <priority>${a.estado === 'vendido' ? '0.3' : '0.8'}</priority>\n  </url>`);
+
+        return new Response(
+          '<?xml version="1.0" encoding="UTF-8"?>\n' +
+          '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+          fijas.concat(autos).join('\n') + '\n</urlset>\n',
+          {
+            headers: {
+              'content-type': 'application/xml; charset=utf-8',
+              'cache-control': 'public, max-age=3600',
+            },
+          }
+        );
       }
 
       /* ── EL PANEL ─────────────────────────────────────────────── */

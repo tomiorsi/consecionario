@@ -29,6 +29,37 @@ const VENDIDOS = 'vendidos';
 
 const $ = (s) => document.querySelector(s);
 let autos = [];
+
+/* ── CADA AUTO TIENE SU DIRECCIÓN ────────────────────────────────
+
+   /auto/mercedes-benz-gla-200-2018-12
+
+   La ficha se sigue abriendo encima del listado —no se recarga nada—
+   pero la barra del navegador pasa a mostrar la dirección de ESE auto.
+   Antes decía siempre /garage/: copiarla y mandarla por WhatsApp llevaba
+   al listado entero y del otro lado había que buscar de cuál se hablaba.
+
+   LA DIRECCIÓN LA MANDA LA API, en `auto.enlace`. Acá no se arma nada:
+   la regla de cómo se escribe vive en el Worker, que es el que después
+   tiene que resolver el pedido. */
+const enlaceDe = (a) => a.enlace || null;
+
+/* La vuelta: el número final de una dirección de auto. */
+function idEnLaDireccion() {
+  const m = location.pathname.match(/^\/auto\/.*?(\d+)$/);
+  return m ? Number(m[1]) : null;
+}
+
+/* A DÓNDE SE VUELVE AL CERRAR LA FICHA, con el filtro que estaba puesto:
+   cerrar no puede perder la línea que la persona venía mirando. */
+const direccionDelGarage = () =>
+  '/garage/' + (filtro !== 'todos' ? '?grupo=' + filtro : '');
+
+/* Si la ficha abierta la puso este navegador, cerrarla es volver atrás y
+   la dirección anterior se recupera sola. Si se entró DIRECTO al link del
+   auto, atrás es el sitio de donde vino —o nada— así que en ese caso la
+   dirección se reemplaza por la del garage. */
+let empujado = false;
 let filtro = new URLSearchParams(location.search).get('grupo') || 'todos';
 if (filtro !== 'todos' && filtro !== VENDIDOS && !GRUPOS[filtro]) filtro = 'todos';
 
@@ -182,9 +213,22 @@ function pintarGrilla() {
 /* ── el detalle ──────────────────────────────────────────────────
    Se abre encima y no en otra página: son pocos datos y así no se pierde
    el lugar en la grilla al volver. */
-function abrir(a) {
+function abrir(a, navegar = true) {
   if (!a) return;
   const d = $('#detalle');
+
+  /* La dirección se cambia ACÁ ARRIBA y no al final: si algo del armado
+     de la galería falla, la ficha igual quedó abierta y lo que se ve y lo
+     que dice la barra tienen que seguir coincidiendo.
+
+     `navegar` es false cuando la dirección ya es la de este auto: al
+     entrar directo por el link, y al volver atrás con el botón del
+     navegador. Empujar ahí dejaría la misma dirección dos veces en el
+     historial y "atrás" no haría nada visible. */
+  if (navegar && enlaceDe(a) && location.pathname !== enlaceDe(a)) {
+    history.pushState({ auto: a.id }, '', enlaceDe(a));
+    empujado = true;
+  }
 
   const datos = [
     ['Año', a.anio], ['Kilómetros', a.km !== null ? conPuntos(a.km) + ' km' : null],
@@ -583,18 +627,44 @@ function cerrarZoom() {
   if (zoomFuera) { zoomFuera(); zoomFuera = null; }
 }
 
-function cerrar() {
+function cerrar(navegar = true) {
   /* Si estaba mirando una foto de cerca, el primer volver la cierra a
      ella y no toda la ficha: cerrar dos cosas de un toque siempre se
      siente como que se perdió un paso. */
   if (zoomFuera) { cerrarZoom(); return; }
+  if ($('#detalle').hidden) return;
   $('#detalle').hidden = true;
   document.body.style.overflow = '';
   if (pasoTeclado) { removeEventListener('keydown', pasoTeclado); pasoTeclado = null; }
+
+  if (!navegar || !location.pathname.startsWith('/auto/')) return;
+  if (empujado) {
+    /* Volver atrás dispara `popstate`, que encuentra la ficha ya cerrada
+       y no hace nada. Es a propósito: así el botón de atrás del teléfono
+       y la flecha de la ficha terminan en el mismo lugar. */
+    empujado = false;
+    history.back();
+  } else {
+    history.replaceState(null, '', direccionDelGarage());
+  }
 }
 
 addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrar(); });
 $('#detalle').addEventListener('click', (e) => { if (e.target === $('#detalle')) cerrar(); });
+
+/* EL BOTÓN DE ATRÁS DEL NAVEGADOR HACE LO MISMO QUE LA FLECHA de la
+   ficha, y el de adelante la vuelve a abrir. En el teléfono el gesto de
+   volver es lo primero que uno intenta para salir de una foto abierta; si
+   eso saca del sitio en vez de cerrar la ficha, la visita se terminó.
+
+   La dirección se lee del `state` cuando está —es lo que se guardó al
+   abrir— y de la barra cuando no, que es el caso de una recarga. */
+addEventListener('popstate', (e) => {
+  const id = e.state?.auto ?? idEnLaDireccion();
+  const a = id ? autos.find((x) => x.id === Number(id)) : null;
+  if (a) { empujado = false; abrir(a, false); }
+  else cerrar(false);
+});
 
 /* La barra —su alto y el vidrio al bajar— vive en /barra.js, que
    comparte con /por-que-elegirnos. */
@@ -640,4 +710,25 @@ $('#detalle').addEventListener('click', (e) => { if (e.target === $('#detalle'))
 
   pintarFiltros();
   pintarGrilla();
+
+  /* ── SE ENTRÓ DIRECTO AL LINK DE UN AUTO ────────────────────────
+     El Worker ya sirvió esta página con el <head> de ese auto y dejó el
+     número en `window.__AUTO`. Acá sólo hay que abrir la ficha, sin
+     tocar la dirección: ya es la correcta.
+
+     `idEnLaDireccion()` es el respaldo para el caso de volver adelante
+     con el botón del navegador hacia una ficha, donde el HTML es el que
+     ya estaba cargado y `__AUTO` puede ser de otro auto.
+
+     Si ese auto no está en la lista —se vendió y se borró mientras el
+     link daba vueltas por un chat— queda el garage entero a la vista,
+     que es a dónde manda el Worker en ese caso. */
+  const inicial = idEnLaDireccion() ?? window.__AUTO ?? null;
+  const auto = inicial ? autos.find((a) => a.id === Number(inicial)) : null;
+  if (auto) {
+    if (enlaceDe(auto)) history.replaceState({ auto: auto.id }, '', enlaceDe(auto));
+    abrir(auto, false);
+  } else if (inicial) {
+    history.replaceState(null, '', direccionDelGarage());
+  }
 })();
