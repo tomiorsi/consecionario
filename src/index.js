@@ -734,6 +734,7 @@ export default {
           ['/', 'weekly', '1.0'],
           ['/garage/', 'daily', '0.9'],
           ['/por-que-elegirnos/', 'monthly', '0.6'],
+          ['/privacidad/', 'yearly', '0.2'],
         ].map(([donde, cada, peso]) =>
           `  <url>\n    <loc>${SITIO}${donde}</loc>\n` +
           `    <changefreq>${cada}</changefreq>\n    <priority>${peso}</priority>\n  </url>`);
