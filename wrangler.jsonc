@@ -56,5 +56,21 @@
     }
   ],
 
+  // WHATSAPP: LOS DOS IDENTIFICADORES VAN ACA Y NO COMO SECRETOS. No
+  // dan acceso a nada por si solos —sin el token no sirven— y tenerlos
+  // escritos deja claro con que numero habla el sitio.
+  //
+  // HOY ES EL NUMERO DE PRUEBA DE META, +1 555 182 6499. El numero real
+  // del negocio (+54 9 11 7670-3813) se usa en la app WhatsApp Business
+  // con catalogo; conectarlo a la API por la via comun lo saca de la app.
+  // No se cambia hasta confirmar si la cuenta tiene "coexistencia".
+  //
+  // El token (WHATSAPP_TOKEN) SI es secreto: se carga con
+  // `wrangler secret put`, nunca aca.
+  "vars": {
+    "WHATSAPP_PHONE_ID": "1303028729561183",
+    "WHATSAPP_CUENTA_ID": "2223250614899939"
+  },
+
   "observability": { "enabled": true }
 }
