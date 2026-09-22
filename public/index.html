@@ -6418,8 +6418,19 @@ var UNIDAD = null;
   fetch('/api/autos')
     .then(function(r){ return r.ok ? r.json() : null; })
     .then(function(d){
+      /* LOS VENDIDOS NO ENTRAN EN LA NOTA.
+
+         La API manda lo publicado Y lo vendido en la misma lista —el
+         garage los necesita a los dos, porque tiene su solapa de
+         vendidos—, y esto se quedaba con cualquiera de los dos. El
+         resultado era la portada del sitio dedicandole la nota del dia
+         a un auto que ya no se puede comprar, con el sello encima.
+
+         Es el mismo criterio que la grilla del garage: lo vendido vive
+         en su solapa, no en el lugar donde alguien viene a mirar que
+         hay para comprar. */
       var autos = ((d && d.autos) || []).filter(function(a){
-        return a.fotos && a.fotos.length >= 4;
+        return a.estado !== "vendido" && a.fotos && a.fotos.length >= 4;
       });
       if (!autos.length) return;
 
