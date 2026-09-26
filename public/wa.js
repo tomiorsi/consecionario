@@ -11,12 +11,15 @@
    escrito cinco veces son cinco lugares donde corregir el número el día
    que cambie. Un archivo, una línea por página.
 
-   VA DEBAJO DE LAS CAPAS DEL GARAGE (z-index 50 contra 60 y 80). Cuando
-   alguien abre la ficha de un auto o mira una foto en grande, el botón
-   desaparece: ahí ya hay un "Consultar por esta unidad" que manda un
-   mensaje con el auto escrito, que es mucho mejor que este genérico.
-   Dos botones de WhatsApp en la misma pantalla es una duda, no una
-   comodidad.
+   ESTA SIEMPRE, TAMBIEN CON LA FICHA DE UN AUTO ABIERTA (z-index 70
+   contra los 60 de la ficha). La ficha ya tiene su "Consultar por esta
+   unidad", que manda el mensaje con la unidad escrita; este sigue
+   estando igual, porque el que decide escribir no tiene que buscar donde
+   hacerlo.
+
+   LA UNICA CAPA QUE SI LO TAPA ES EL ZOOM DE LAS FOTOS (80). Ahi la
+   pantalla es negra de punta a punta, con sus flechas y su cruz, y un
+   circulo verde encima seria un boton mas para errarle al cerrar.
 
    EL TEXTO DEL MENSAJE DICE DE DÓNDE VIENE. "Hola, los encontré en la
    web" no es decoración: del otro lado, saber si la consulta llegó por
@@ -37,7 +40,7 @@
   var estilo = document.createElement('style');
   estilo.textContent =
     '.wa-flotante{' +
-      'position:fixed; z-index:50;' +
+      'position:fixed; z-index:70;' +
       /* `env(safe-area-inset-*)` es el borde que se come el iPhone con la
          barra de gestos. Sin esto, en pantalla completa el botón queda
          pegado al borde y medio tapado. */
