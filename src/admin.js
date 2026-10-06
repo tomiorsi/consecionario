@@ -117,7 +117,9 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
    —autos, imagenes, textos— y estas cambian el punto de vista sobre lo
    mismo. Dos filas de pestañas iguales se leerian como cuatro secciones
    sueltas. */
-.pastillas{ display:flex; gap:.4rem; margin:0 0 2rem }
+/* Envuelve: con dos pastillas entran siempre, pero los cuatro canales
+   de la bandeja no entran en un celular y se salían de la pantalla. */
+.pastillas{ display:flex; flex-wrap:wrap; gap:.4rem; margin:0 0 2rem }
 .pastilla{
   border:1px solid var(--linea); border-radius:100px; background:transparent;
   color:var(--apagado); padding:.5em 1.2em; font-family:inherit; font-size:.56rem;
@@ -367,17 +369,28 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .bandeja{ display:grid; gap:.5rem; max-width:52rem }
 /* Es un <button> y no un <div> con click: se abre con el teclado y el
    lector de pantalla lo anuncia como algo que se puede abrir. */
+/* EL min-width:0 NO ES DECORATIVO: adentro de una grilla, una pieza no
+   se achica por debajo de lo que mide su contenido, así que un nombre
+   largo más la marca de "espera a una persona" empujaban la tarjeta
+   fuera de la pantalla del celular en vez de cortarse. */
 .chat{
-  appearance:none; width:100%; font-family:inherit; color:inherit;
+  appearance:none; width:100%; min-width:0; font-family:inherit; color:inherit;
   border:1px solid var(--linea); border-radius:3px; background:var(--panel);
   padding:.8rem .95rem; display:grid; gap:.3rem; text-align:left; cursor:pointer;
   transition:border-color .3s var(--ease);
 }
 .chat:hover{ border-color:var(--chrome) }
-.chat .arriba{ display:flex; align-items:baseline; gap:.6rem }
+.chat .arriba{ display:flex; align-items:baseline; gap:.6rem; min-width:0 }
 /* Un span y no un h3: adentro de un <button> sólo entra texto, y un
-   título ahí es HTML inválido aunque el navegador lo dibuje igual. */
-.chat .nombre{ font-size:.82rem; font-weight:600; margin-right:auto }
+   título ahí es HTML inválido aunque el navegador lo dibuje igual.
+
+   Se corta en un renglón en vez de partirse en dos: en el celular, al
+   lado de la marca de "espera a una persona", un nombre largo empujaba
+   la fila al doble de alto y la lista se leía despareja. */
+.chat .nombre{
+  font-size:.82rem; font-weight:600; margin-right:auto; min-width:0;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
 /* El adelanto es una línea y se corta: la bandeja sirve para elegir a
    quién contestar, no para leer la conversación por encima. */
 .chat .adelanto{
