@@ -70,6 +70,11 @@ async function api(ruta, opciones = {}) {
 function mostrarEntrar() {
   $('#pantallaEntrar').classList.remove('oculto');
   $('#pantallaPanel').classList.add('oculto');
+  /* AL SALIR SE VACÍA LA BANDEJA. Si la sesión se corta con un chat
+     abierto, los mensajes de esa persona quedarían escritos en la
+     página de quien ya no tiene sesión: esconderlos no es borrarlos.
+     Se van del documento y hay que volver a pedirlos. */
+  vaciarBandeja();
 }
 
 function mostrarPanel() {
@@ -839,11 +844,273 @@ async function volverOriginal(i) {
   } catch (err) { avisar(err.message, true); }
 }
 
+/* ── la bandeja ──────────────────────────────────────────────────
+   ══════════════════════════════════════════════════════════════════
+
+   Los mensajes de WhatsApp, Instagram y Messenger.
+
+   TODO LO QUE SE DIBUJA ACÁ VIENE DE AFUERA: el nombre, el texto, el
+   usuario, los puso alguien que nos escribió. Pasa entero por
+   `escapar()`, sin excepciones.
+
+   NINGUNA DIRECCIÓN LLEVA UN TELÉFONO NI UN USUARIO. Se abre un chat
+   por su id interno; el dato de contacto llega en la respuesta y se
+   muestra en pantalla, pero no viaja en la URL ni queda en el historial
+   del navegador. Lo mismo del otro lado, en src/index.js. */
+
+const CANALES = {
+  whatsapp:   'WhatsApp',
+  instagram:  'Instagram',
+  messenger:  'Messenger',
+};
+
+/* UN MENSAJE QUE NO ES TEXTO. No guardamos el archivo —bajarlo sería
+   guardar más de lo necesario para atender una consulta— así que acá
+   dice qué llegó y dónde se abre, y nada más. */
+const ADJUNTOS = {
+  imagen:    'Una foto',
+  audio:     'Un audio',
+  video:     'Un video',
+  documento: 'Un archivo',
+  ubicacion: 'Una ubicación',
+  otro:      'Algo que no es texto',
+};
+
+let chats = [];
+let canal = 'todos';
+let chatActual = null;      /* el chat abierto, con sus mensajes */
+
+/* LAS FECHAS VIENEN DE SQLITE: "2026-10-05 18:22:11", en UTC y sin la T
+   ni la Z. Así como están, cada navegador las interpreta a su manera
+   —algunos como hora local, que las corre tres horas— así que se
+   arreglan antes de parsearlas. */
+const aFecha = (s) => new Date(String(s ?? '').replace(' ', 'T') + 'Z');
+
+/* SIEMPRE EN 24 HORAS. Sin `hour12:false`, es-AR devuelve "01:41 p. m.",
+   que acá nadie escribe y encima ocupa el doble en una lista angosta. */
+const RELOJ = { hour: '2-digit', minute: '2-digit', hour12: false };
+
+/* En la lista alcanza la hora si fue hoy y el día si fue antes: lo que
+   importa ahí es si está fresco. */
+function cuandoCorto(s) {
+  const d = aFecha(s);
+  if (isNaN(d)) return '';
+  return d.toDateString() === new Date().toDateString()
+    ? d.toLocaleTimeString('es-AR', RELOJ)
+    : d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+}
+
+const cuandoLargo = (s) => {
+  const d = aFecha(s);
+  return isNaN(d) ? '' : d.toLocaleString('es-AR',
+    { day: '2-digit', month: '2-digit', ...RELOJ });
+};
+
+async function cargarChats() {
+  const { chats: lista } = await api('/api/admin/chats');
+  chats = lista;
+  pintarChats();
+}
+
+function pintarChats() {
+  const lista = canal === 'todos' ? chats : chats.filter((c) => c.canal === canal);
+  $('#sinChats').classList.toggle('oculto', lista.length > 0);
+
+  $('#chats').innerHTML = lista.map((c) => {
+    /* Sin nombre se muestra el canal y no el teléfono: el teléfono ya
+       está en la línea de abajo y repetirlo arriba no agrega nada. */
+    const quien = c.nombre || CANALES[c.canal] || c.canal;
+    const adelanto = c.adelanto
+      ? escapar(c.adelanto)
+      : '<em>' + (c.cantidad ? 'Mandó algo que no es texto' : 'Sin mensajes') + '</em>';
+
+    return '<button class="chat" type="button" data-id="' + c.id + '">' +
+      '<span class="arriba">' +
+        '<span class="nombre">' + escapar(quien) + '</span>' +
+        (c.humano ? '<span class="espera">Espera a una persona</span>' : '') +
+        '<span class="canal">' + escapar(CANALES[c.canal] || c.canal) + '</span>' +
+        '<span class="cuando">' + cuandoCorto(c.ultimo) + '</span>' +
+      '</span>' +
+      '<span class="adelanto">' + adelanto + '</span>' +
+    '</button>';
+  }).join('');
+
+  $$('#chats .chat').forEach((f) =>
+    f.addEventListener('click', () => abrirChat(Number(f.dataset.id))));
+}
+
+function pintarCanales() {
+  $$('#canales .pastilla').forEach((p) =>
+    p.setAttribute('aria-pressed', String(p.dataset.canal === canal)));
+}
+
+$$('#canales .pastilla').forEach((p) => p.addEventListener('click', () => {
+  canal = p.dataset.canal;
+  pintarCanales();
+  pintarChats();
+}));
+
+/* ── un chat abierto ────────────────────────────────────────────── */
+
+async function abrirChat(id) {
+  try {
+    chatActual = await api('/api/admin/chats/' + id);
+  } catch (err) { avisar(err.message, true); return; }
+
+  const { chat, mensajes } = chatActual;
+
+  $('#tituloChat').textContent = chat.nombre || CANALES[chat.canal] || chat.canal;
+  $('#quienChat').textContent =
+    (CANALES[chat.canal] || chat.canal) + ' · ' + chat.externo_id;
+
+  /* El botón dice en qué estado está, y además se llena cuando está
+     prendido: en este panel lo relleno es lo activo. El aria-pressed va
+     igual, que es lo que lo anuncia como un interruptor y no como una
+     acción más. */
+  $('#aHumano').textContent = chat.humano
+    ? 'Ya la sigue una persona'
+    : 'Que siga una persona';
+  $('#aHumano').setAttribute('aria-pressed', String(!!chat.humano));
+  $('#aHumano').classList.toggle('btn--fuerte', !!chat.humano);
+
+  $('#notaChat').classList.toggle('oculto', !chat.nota);
+  if (chat.nota) $('#notaChat').textContent = chat.nota;
+
+  pintarHilo(chat, mensajes);
+
+  $('#vistaLista').classList.add('oculto');
+  $('#vistaChat').classList.remove('oculto');
+  scrollTo(0, 0);
+}
+
+function pintarHilo(chat, mensajes) {
+  if (!mensajes.length) {
+    $('#hilo').innerHTML = '<div class="vacio">Esta conversación no tiene mensajes.</div>';
+    return;
+  }
+
+  $('#hilo').innerHTML = mensajes.map((m) => {
+    const mio = m.direccion === 'saliente';
+
+    /* QUIÉN ESCRIBIÓ CADA COSA. Que diga IA cuando contestó la IA es
+       parte de lo que declaramos: tiene que poder verse después. */
+    const firma = mio
+      ? (m.autor === 'ia' ? 'IA' : 'Manna')
+      : escapar(chat.nombre || CANALES[chat.canal] || chat.canal);
+
+    const cuerpo = m.tipo === 'texto'
+      ? '<p>' + escapar(m.texto) + '</p>'
+      : '<span class="adjunto">' + (ADJUNTOS[m.tipo] || ADJUNTOS.otro) +
+        ' · se abre en ' + escapar(CANALES[chat.canal] || chat.canal) + '</span>';
+
+    return '<article class="globo' + (mio ? ' globo--saliente' : '') + '">' +
+      cuerpo +
+      '<span class="firma"><span>' + firma + '</span>' +
+        '<span>' + cuandoLargo(m.creado) + '</span></span>' +
+    '</article>';
+  }).join('');
+}
+
+function cerrarChat() {
+  $('#vistaChat').classList.add('oculto');
+  $('#vistaLista').classList.remove('oculto');
+  $('#hilo').innerHTML = '';
+  chatActual = null;
+}
+
+/* Deja la bandeja como recién cargada: sin chat abierto, sin lista y
+   sin nada de nadie en memoria ni en el documento. */
+function vaciarBandeja() {
+  chats = [];
+  chatActual = null;
+  $('#vistaChat').classList.add('oculto');
+  $('#vistaLista').classList.remove('oculto');
+  $('#hilo').innerHTML = '';
+  $('#chats').innerHTML = '';
+  $('#notaChat').classList.add('oculto');
+  $('#notaChat').textContent = '';
+  $('#quienChat').textContent = '';
+}
+
+$('#volverChat').addEventListener('click', cerrarChat);
+
+/* QUE LA SIGA UNA PERSONA.
+   Cubre los dos casos que nos comprometimos a atender: alguien que pide
+   hablar con una persona, y alguien que pide que borremos sus datos.
+   Mientras está prendido, la IA no contesta en ese chat.
+
+   La nota se vuelve a mandar siempre, incluso al apagar: el endpoint
+   escribe `nota` sin preguntar, así que no mandarla la borraría. */
+$('#aHumano').addEventListener('click', async () => {
+  if (!chatActual) return;
+  const { chat } = chatActual;
+  const prendiendo = !chat.humano;
+
+  let nota = chat.nota ?? null;
+  if (prendiendo) {
+    const escrita = prompt('¿Por qué la sigue una persona? (opcional)', nota || '');
+    if (escrita === null) return;
+    nota = escrita.trim() || null;
+  }
+
+  try {
+    await api('/api/admin/chats/' + chat.id + '/humano', {
+      method: 'POST',
+      body: JSON.stringify({ humano: prendiendo, nota }),
+    });
+    avisar(prendiendo ? 'La sigue una persona' : 'Vuelve a contestar la IA');
+    await abrirChat(chat.id);
+    await cargarChats();
+  } catch (err) { avisar(err.message, true); }
+});
+
+/* ── el borrado a pedido ─────────────────────────────────────────
+   Diez días hábiles es el plazo que declaramos, y lo que se borra es
+   todo: la conversación y los mensajes, en los tres canales, buscando
+   por teléfono o usuario porque así llega el pedido.
+
+   NO SE PUEDE DESHACER y por eso pregunta dos veces: una vez por qué
+   dato se borra y otra para confirmarlo escrito. El dato viaja en el
+   cuerpo del pedido, nunca en la dirección. */
+
+async function olvidar(externo) {
+  if (!externo) return;
+  if (!confirm(
+    'Se va a borrar TODO lo que tengamos de "' + externo + '" en WhatsApp, ' +
+    'Instagram y Messenger: la conversación y todos los mensajes.\n\n' +
+    'No se puede deshacer. ¿Seguimos?'
+  )) return;
+
+  try {
+    const { borradas } = await api('/api/admin/olvidar', {
+      method: 'POST',
+      body: JSON.stringify({ externo }),
+    });
+    avisar(borradas
+      ? 'Borrado: ' + borradas + (borradas === 1 ? ' conversación' : ' conversaciones')
+      : 'No había nada guardado de esa persona');
+    if (!$('#vistaChat').classList.contains('oculto')) cerrarChat();
+    await cargarChats();
+  } catch (err) { avisar(err.message, true); }
+}
+
+$('#olvidar').addEventListener('click', () => {
+  const externo = prompt(
+    'Teléfono o usuario de quien pidió que borremos sus datos.\n' +
+    'El teléfono va como lo manda WhatsApp, sin + ni espacios: 5491122334455'
+  );
+  olvidar(String(externo ?? '').trim());
+});
+
+$('#borrarChat').addEventListener('click', () => {
+  if (chatActual) olvidar(chatActual.chat.externo_id);
+});
+
 /* ── las pestañas ───────────────────────────────────────────── */
 
 function verPestania(cual) {
   const autos = cual === 'autos';
-  [['autos', '#pesAutos'], ['medios', '#pesMedios']]
+  [['autos', '#pesAutos'], ['medios', '#pesMedios'], ['bandeja', '#pesBandeja']]
     .forEach(([c, sel]) => $(sel).setAttribute('aria-pressed', String(cual === c)));
 
   $('#filtros').classList.toggle('oculto', !autos);
@@ -853,14 +1120,18 @@ function verPestania(cual) {
   $('#guardarOrden').classList.toggle('oculto', !autos || !ordenando);
   $('#cancelarOrden').classList.toggle('oculto', !autos || !ordenando);
   $('#zonaMedios').classList.toggle('oculto', cual !== 'medios');
+  $('#zonaBandeja').classList.toggle('oculto', cual !== 'bandeja');
   $('#sinAutos').classList.add('oculto');
+  $('#sinChats').classList.add('oculto');
 
   if (autos) pintarLista();
-  else cargarMedios();
+  else if (cual === 'medios') cargarMedios();
+  else cargarChats().catch((err) => avisar(err.message, true));
 }
 
 $('#pesAutos').addEventListener('click', () => verPestania('autos'));
 $('#pesMedios').addEventListener('click', () => verPestania('medios'));
+$('#pesBandeja').addEventListener('click', () => verPestania('bandeja'));
 
 /* ── arranque ───────────────────────────────────────────────────── */
 

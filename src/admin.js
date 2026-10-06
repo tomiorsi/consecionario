@@ -353,6 +353,94 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .aviso.se-ve{ opacity:1 }
 .aviso.mal{ background:#ff6b6b; color:#fff }
 
+/* ── la bandeja ──
+   Las conversaciones de WhatsApp, Instagram y Messenger.
+
+   ACÁ SE VEN DATOS DE PERSONAS, así que la pantalla muestra lo mínimo
+   que declaramos en /privacidad/: con quién se habla, por qué canal y
+   qué se dijo. No hay lugar para nada más, y si alguna vez hiciera
+   falta un dato de más, primero se cambia la política.
+
+   El teléfono y el usuario se muestran —hay que poder reconocer a quien
+   escribió— pero no viajan en ninguna dirección: la lista y el chat se
+   navegan por el id interno. */
+.bandeja{ display:grid; gap:.5rem; max-width:52rem }
+/* Es un <button> y no un <div> con click: se abre con el teclado y el
+   lector de pantalla lo anuncia como algo que se puede abrir. */
+.chat{
+  appearance:none; width:100%; font-family:inherit; color:inherit;
+  border:1px solid var(--linea); border-radius:3px; background:var(--panel);
+  padding:.8rem .95rem; display:grid; gap:.3rem; text-align:left; cursor:pointer;
+  transition:border-color .3s var(--ease);
+}
+.chat:hover{ border-color:var(--chrome) }
+.chat .arriba{ display:flex; align-items:baseline; gap:.6rem }
+/* Un span y no un h3: adentro de un <button> sólo entra texto, y un
+   título ahí es HTML inválido aunque el navegador lo dibuje igual. */
+.chat .nombre{ font-size:.82rem; font-weight:600; margin-right:auto }
+/* El adelanto es una línea y se corta: la bandeja sirve para elegir a
+   quién contestar, no para leer la conversación por encima. */
+.chat .adelanto{
+  font-size:.74rem; line-height:1.5; color:var(--apagado);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+/* De qué canal vino. Va en texto y no en un logo de colores porque son
+   tres marcas ajenas y el panel es en blanco y negro. */
+.canal{
+  font-size:.46rem; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+  border:1px solid var(--linea); border-radius:100px; padding:.3em .6em;
+  color:var(--apagado); white-space:nowrap;
+}
+.cuando{
+  font-size:.56rem; letter-spacing:.1em; color:var(--apagado);
+  font-variant-numeric:tabular-nums; white-space:nowrap;
+}
+/* LA MARCA DE "ACÁ CONTESTA UNA PERSONA". Va llena y no apagada a
+   propósito: mientras está prendida la IA no responde, y eso es algo
+   que tiene que saltar a la vista en la lista sin abrir el chat. */
+.espera{
+  background:var(--chrome); color:var(--void);
+  font-size:.46rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+  padding:.3em .6em; border-radius:100px; white-space:nowrap;
+}
+
+/* ── un chat abierto ── */
+.hilo{ display:grid; gap:.5rem; max-width:44rem; margin:1.8rem 0 0 }
+.globo{
+  border:1px solid var(--linea); border-radius:3px; background:var(--panel);
+  padding:.65rem .8rem; display:grid; gap:.3rem; max-width:min(31rem,88%);
+}
+/* Lo que mandamos nosotros va a la derecha. Es la única señal de
+   dirección que hay: no hay color que distinga, así que la posición
+   tiene que alcanzar. */
+.globo--saliente{ margin-left:auto; background:#101014 }
+.globo p{ font-size:.82rem; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere }
+/* Un mensaje que no es texto. No guardamos el archivo —solo que llegó y
+   de qué tipo— así que esto dice exactamente eso y no finge una vista
+   previa que no tenemos. */
+.globo .adjunto{ font-size:.78rem; line-height:1.5; color:var(--apagado) }
+/* QUIÉN ESCRIBIÓ Y CUÁNDO. Que diga "IA" cuando contestó la IA no es un
+   detalle: nos comprometimos a que se pueda ver después quién respondió
+   cada cosa. */
+.globo .firma{
+  display:flex; gap:.5rem; align-items:baseline;
+  font-size:.46rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+  color:rgba(255,255,255,.34);
+}
+/* DE QUIÉN ES ESTA CONVERSACIÓN: el canal y el teléfono o usuario.
+   Tiene el tamaño de un .rotulo pero NO va en mayúsculas: un usuario de
+   Instagram en mayúsculas es otro texto del que escribió la persona, y
+   un dato de contacto hay que poder leerlo tal como es para reconocerlo
+   y para buscarlo cuando pide que lo borremos. */
+.quien{
+  font-size:.62rem; letter-spacing:.06em; color:var(--apagado);
+  font-variant-numeric:tabular-nums;
+}
+.nota{
+  border-left:2px solid var(--linea); padding-left:.7rem; margin:1.2rem 0 0;
+  max-width:44rem; font-size:.74rem; line-height:1.6; color:var(--apagado);
+}
+
 .oculto{ display:none !important }
 .vacio{ padding:4rem 1rem; text-align:center; color:var(--apagado); font-size:.85rem }
 </style>
@@ -385,6 +473,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
       <div class="pestanias">
         <button class="pestania" type="button" id="pesAutos" aria-pressed="true">Autos</button>
         <button class="pestania" type="button" id="pesMedios" aria-pressed="false">Imágenes del sitio</button>
+        <button class="pestania" type="button" id="pesBandeja" aria-pressed="false">Mensajes</button>
       </div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap">
         <button class="btn" id="ordenar" type="button">Ordenar</button>
@@ -414,6 +503,41 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
       </div>
       <div class="medios" id="medios"></div>
       <input type="file" id="archivoMedio" accept="image/*" hidden>
+    </section>
+
+    <!-- LOS MENSAJES DE WHATSAPP, INSTAGRAM Y MESSENGER -->
+    <section id="zonaBandeja" class="oculto">
+      <p class="aclara">
+        Todo lo que entra por WhatsApp, Instagram y Messenger, lo último
+        arriba. Abrí una conversación para leerla y para marcar que la
+        sigue una persona: mientras esté marcada, la IA no contesta ahí.
+        Las conversaciones se borran solas a los doce meses del último
+        mensaje.
+      </p>
+
+      <div class="pastillas" id="canales">
+        <button class="pastilla" type="button" data-canal="todos" aria-pressed="true">Todos</button>
+        <button class="pastilla" type="button" data-canal="whatsapp" aria-pressed="false">WhatsApp</button>
+        <button class="pastilla" type="button" data-canal="instagram" aria-pressed="false">Instagram</button>
+        <button class="pastilla" type="button" data-canal="messenger" aria-pressed="false">Messenger</button>
+      </div>
+
+      <div class="bandeja" id="chats"></div>
+      <div class="vacio oculto" id="sinChats">Todavía no entró ningún mensaje.</div>
+
+      <!-- EL BORRADO A PEDIDO.
+           Está acá y no escondido en la ficha de cada chat porque el
+           pedido llega por afuera —alguien escribe pidiendo que borremos
+           sus datos— y hay que poder cumplirlo buscando por telefono o
+           usuario, sin tener que encontrar primero la conversación. -->
+      <p class="nota">
+        Si alguien pide que borremos sus datos, hay diez días hábiles
+        para hacerlo. Se borra todo lo que tengamos de esa persona en los
+        tres canales, y no se puede deshacer.
+      </p>
+      <div style="margin-top:.9rem">
+        <button class="btn btn--peligro" id="olvidar" type="button">Borrar los datos de una persona</button>
+      </div>
     </section>
   </main>
 
@@ -480,6 +604,27 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
       <div class="fotos" id="fotos"></div>
       <input type="file" id="archivo" accept="image/*" multiple hidden>
     </section>
+  </main>
+
+  <!-- UNA CONVERSACIÓN -->
+  <main class="hoja oculto" id="vistaChat">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
+      <div>
+        <h1 class="titulo" id="tituloChat">Conversación</h1>
+        <!-- El canal y el teléfono o usuario. Van acá, en el cuerpo de la
+             página, y nunca en la dirección: la URL de este chat es su
+             id interno y nada más. -->
+        <p class="quien" id="quienChat" style="margin-top:.5rem"></p>
+      </div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <button class="btn" id="volverChat" type="button">Volver</button>
+        <button class="btn" id="aHumano" type="button">Que siga una persona</button>
+        <button class="btn btn--peligro" id="borrarChat" type="button">Borrar</button>
+      </div>
+    </div>
+
+    <p class="nota oculto" id="notaChat"></p>
+    <div class="hilo" id="hilo"></div>
   </main>
 </div>
 
