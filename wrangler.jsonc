@@ -72,5 +72,16 @@
     "WHATSAPP_CUENTA_ID": "2223250614899939"
   },
 
+  // LA LIMPIEZA DE LAS CONVERSACIONES, UNA VEZ POR DIA.
+  //
+  // 04:30 UTC es la 01:30 de Argentina: nadie escribiendo y nadie
+  // mirando el panel. Lo que hace esta corrida esta en el `scheduled`
+  // de src/index.js y el plazo —12 meses— esta explicado en
+  // esquema/008-conversaciones.sql.
+  //
+  // EL PLAZO ESTA DECLARADO ANTE META Y PUBLICADO EN /privacidad/. Si
+  // alguna vez cambia, se cambian los tres lugares el mismo dia.
+  "triggers": { "crons": ["30 4 * * *"] },
+
   "observability": { "enabled": true }
 }

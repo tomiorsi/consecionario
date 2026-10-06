@@ -506,6 +506,111 @@ async function firmaDeMetaValida(crudo, cabecera, secreto) {
   return a.length === b.length && crypto.subtle.timingSafeEqual(a, b);
 }
 
+/* QUÉ MANDA CADA CANAL, PUESTO EN UNA SOLA FORMA.
+
+   Los tres avisos de Meta tienen cuerpos distintos y hay que leerlos
+   distinto:
+
+     WhatsApp   entry[].changes[].value.messages[]  — el teléfono viene
+                en `from` y el nombre en `contacts[]`, aparte.
+     Instagram  entry[].messaging[]                 — el IGSID en
+     Messenger  entry[].messaging[]                   `sender.id`.
+
+   `object` vale 'whatsapp_business_account', 'instagram' o —ojo— 'page'
+   para Messenger, que no se llama 'messenger' en ningún lado.
+
+   SE IGNORAN DOS COSAS a propósito: los avisos de estado de WhatsApp
+   (entregado, leído) porque no son mensajes de nadie, y los `is_echo` de
+   Instagram y Messenger, que son nuestras propias respuestas volviendo.
+   Guardar un eco sería guardar dos veces lo que ya escribimos nosotros. */
+function mensajesDelAviso(aviso) {
+  const salida = [];
+  if (!aviso?.entry) return salida;
+
+  const canalDe = (obj) =>
+    obj === 'whatsapp_business_account' ? 'whatsapp'
+    : obj === 'instagram' ? 'instagram'
+    : obj === 'page' ? 'messenger'
+    : null;
+
+  const canal = canalDe(aviso.object);
+  if (!canal) return salida;
+
+  for (const entrada of aviso.entry) {
+    if (canal === 'whatsapp') {
+      for (const cambio of entrada.changes ?? []) {
+        const valor = cambio.value ?? {};
+        /* El nombre llega en una lista aparte, emparejada por wa_id. */
+        const nombres = {};
+        for (const c of valor.contacts ?? []) {
+          if (c?.wa_id) nombres[c.wa_id] = c?.profile?.name ?? null;
+        }
+        for (const m of valor.messages ?? []) {
+          salida.push({
+            canal,
+            externo_id: m.from,
+            nombre: nombres[m.from] ?? null,
+            mensaje_id: m.id,
+            tipo: tipoConocido(m.type),
+            texto: m.text?.body ?? null,
+          });
+        }
+      }
+    } else {
+      for (const ev of entrada.messaging ?? []) {
+        if (!ev?.message || ev.message.is_echo) continue;
+        salida.push({
+          canal,
+          externo_id: ev.sender?.id,
+          nombre: null,
+          mensaje_id: ev.message.mid,
+          tipo: ev.message.text ? 'texto' : 'otro',
+          texto: ev.message.text ?? null,
+        });
+      }
+    }
+  }
+  return salida.filter((m) => m.externo_id);
+}
+
+const TIPOS_MENSAJE = ['texto','imagen','audio','video','documento','ubicacion'];
+const tipoConocido = (t) => {
+  const mapa = { image: 'imagen', audio: 'audio', video: 'video',
+                 document: 'documento', location: 'ubicacion', text: 'texto' };
+  const v = mapa[t] ?? t;
+  return TIPOS_MENSAJE.includes(v) ? v : 'otro';
+};
+
+/* GUARDAR, SIN DUPLICAR.
+
+   Meta reintenta el mismo aviso si no le contestamos 200 a tiempo, y
+   reintentar es lo normal. Por eso el id de mensaje de Meta es UNIQUE en
+   la tabla y acá se inserta con OR IGNORE: el segundo intento no escribe
+   nada y no rompe.
+
+   `ultimo` se pisa en cada mensaje porque es el reloj de los 12 meses de
+   conservación. */
+async function guardarEntrantes(env, lista) {
+  for (const m of lista) {
+    const conv = await env.DB.prepare(
+      `INSERT INTO conversaciones (canal, externo_id, nombre)
+            VALUES (?, ?, ?)
+       ON CONFLICT (canal, externo_id) DO UPDATE SET
+            ultimo = datetime('now'),
+            nombre = COALESCE(excluded.nombre, conversaciones.nombre)
+         RETURNING id`
+    ).bind(m.canal, m.externo_id, m.nombre).first();
+
+    if (!conv?.id) continue;
+
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO mensajes
+         (conversacion_id, externo_id, direccion, tipo, texto)
+       VALUES (?, ?, 'entrante', ?, ?)`
+    ).bind(conv.id, m.mensaje_id ?? null, m.tipo, m.texto).run();
+  }
+}
+
 /* SE CONTESTA 200 SIEMPRE QUE EL AVISO SEA DE META, y rápido. Si Meta
    no recibe un 200 en unos segundos, reintenta el mismo aviso una y otra
    vez, y si falla seguido termina desactivando la dirección. Lo que haya
@@ -515,7 +620,18 @@ async function firmaDeMetaValida(crudo, cabecera, secreto) {
    verificar". Así el botón "Probar" del panel de Meta funciona desde el
    primer minuto; cuando se cargue META_APP_SECRET, lo que no venga
    firmado se rechaza. Nada de lo que llega sin verificar se usa para
-   responder: por ahora sólo se anota. */
+   responder.
+
+   EL CONTENIDO DE LOS MENSAJES NO VA AL LOG. Antes se anotaba el aviso
+   entero porque no se guardaba en ningún lado y era la única forma de
+   ver qué llegaba. Ahora se guarda en la base, con plazo y con borrado,
+   y el log de Cloudflare no tiene ninguna de las dos cosas: queda solo
+   el recuento, que alcanza para saber si el webhook anda.
+
+   SI FALLA LA BASE SE CONTESTA 200 IGUAL. Un 500 acá hace que Meta
+   reintente, y si el problema persiste termina dando de baja la
+   dirección. El reintento no pierde nada —el id de mensaje es único— así
+   que conviene aceptar y anotar el error. */
 async function recibirDeMeta(peticion, env) {
   const crudo = await peticion.text();
 
@@ -528,12 +644,23 @@ async function recibirDeMeta(peticion, env) {
   }
 
   let aviso = null;
-  try { aviso = JSON.parse(crudo); } catch { /* se anota igual, crudo */ }
+  try { aviso = JSON.parse(crudo); } catch { /* cuerpo ilegible */ }
+
+  let guardados = 0;
+  try {
+    const lista = mensajesDelAviso(aviso);
+    if (lista.length) {
+      await guardarEntrantes(env, lista);
+      guardados = lista.length;
+    }
+  } catch (e) {
+    console.error('No se pudo guardar el aviso de Meta:', e?.message ?? e);
+  }
 
   console.log(JSON.stringify({
     meta: verificado ? 'verificado' : 'sin verificar (falta META_APP_SECRET)',
     canal: aviso?.object ?? 'desconocido',
-    aviso: aviso ?? crudo,
+    mensajes: guardados,
   }));
 
   return new Response('ok', { status: 200 });
@@ -904,6 +1031,30 @@ export default {
       return error('Algo falló del lado del servidor', 500);
     }
   },
+
+  /* ── LA LIMPIEZA DE LOS 12 MESES ───────────────────────────────
+
+     Corre sola una vez por día (ver `triggers` en wrangler.jsonc).
+
+     EL PLAZO ESTÁ DECLARADO ANTE META Y PUBLICADO EN /privacidad/. No es
+     una decisión técnica que se pueda cambiar acá sin más: si cambia el
+     número, cambia también la política y las respuestas en Meta el mismo
+     día.
+
+     SE CUENTA DESDE EL ÚLTIMO MENSAJE, no desde el primero: una
+     conversación viva sigue sirviendo para la consulta en curso, y una
+     que murió hace un año no le sirve a nadie.
+
+     El CASCADE de la tabla se lleva los mensajes. */
+  async scheduled(_evento, env, _ctx) {
+    const r = await env.DB.prepare(
+      `DELETE FROM conversaciones WHERE ultimo < datetime('now','-12 months')`
+    ).run();
+    console.log(JSON.stringify({
+      limpieza: 'conversaciones +12 meses',
+      borradas: r.meta?.changes ?? 0,
+    }));
+  },
 };
 
 /* ══════════════════════════════════════════════════════════════════
@@ -958,6 +1109,99 @@ function limpiar(cuerpo) {
 }
 
 async function admin(peticion, env, ruta, metodo) {
+  /* ══════════════════════════════════════════════════════════════
+     LA BANDEJA DE MENSAJES
+     ══════════════════════════════════════════════════════════════
+
+     NINGUNA DE ESTAS DIRECCIONES LLEVA UN TELÉFONO NI UN USUARIO. Se
+     navega por el `id` interno de la conversación, que no dice nada de
+     nadie. El dato personal viaja en el cuerpo de la respuesta —sobre
+     HTTPS y detrás de la sesión— y nunca en la URL, que termina en el
+     log de Cloudflare y en el historial del navegador. */
+
+  /* La lista: lo último arriba, con una línea de adelanto. */
+  if (ruta === '/api/admin/chats' && metodo === 'GET') {
+    const { results } = await env.DB.prepare(
+      `SELECT c.id, c.canal, c.externo_id, c.nombre, c.humano, c.nota, c.ultimo,
+              (SELECT m.texto FROM mensajes m
+                WHERE m.conversacion_id = c.id
+                ORDER BY m.creado DESC LIMIT 1) AS adelanto,
+              (SELECT COUNT(*) FROM mensajes m
+                WHERE m.conversacion_id = c.id) AS cantidad
+         FROM conversaciones c
+        ORDER BY c.ultimo DESC
+        LIMIT 200`
+    ).all();
+    return json({ chats: results });
+  }
+
+  /* Un chat con su historial. */
+  const unChat = ruta.match(/^\/api\/admin\/chats\/(\d+)$/);
+  if (unChat && metodo === 'GET') {
+    const chat = await env.DB
+      .prepare('SELECT * FROM conversaciones WHERE id = ?')
+      .bind(unChat[1]).first();
+    if (!chat) return error('No está', 404);
+
+    const { results } = await env.DB.prepare(
+      `SELECT id, direccion, autor, tipo, texto, creado
+         FROM mensajes WHERE conversacion_id = ?
+        ORDER BY creado, id`
+    ).bind(unChat[1]).all();
+
+    return json({ chat, mensajes: results });
+  }
+
+  /* PASAR UNA CONVERSACIÓN A UNA PERSONA.
+
+     Son los dos casos que nos comprometimos a atender: alguien que pide
+     hablar con una persona, y alguien que pide que le borremos los
+     datos. Con `humano` en 1 la IA deja de contestar ese chat y la nota
+     deja asentado por qué. */
+  const aHumano = ruta.match(/^\/api\/admin\/chats\/(\d+)\/humano$/);
+  if (aHumano && metodo === 'POST') {
+    const cuerpo = await peticion.json().catch(() => ({}));
+    const prendido = cuerpo?.humano === false ? 0 : 1;
+    const nota = texto(cuerpo?.nota, 200);
+
+    const r = await env.DB.prepare(
+      'UPDATE conversaciones SET humano = ?, nota = ? WHERE id = ?'
+    ).bind(prendido, nota, aHumano[1]).run();
+
+    if (!r.meta.changes) return error('No está', 404);
+    return json({ ok: true, humano: prendido });
+  }
+
+  /* EL BORRADO A PEDIDO.
+
+     El compromiso publicado dice: todo lo que se guarde de una persona
+     tiene que poder borrarse entero —conversaciones y datos de
+     contacto—, buscándolo por teléfono o usuario, dentro de los 10 días
+     hábiles.
+
+     EL IDENTIFICADOR VA EN EL CUERPO Y NO EN LA DIRECCIÓN, por lo mismo
+     de arriba: un teléfono en la URL queda escrito en los logs.
+
+     BORRA EN LOS TRES CANALES de una. Si la misma persona escribió por
+     WhatsApp y por Instagram con el mismo identificador, se va todo.
+     El CASCADE se lleva los mensajes. */
+  if (ruta === '/api/admin/olvidar' && metodo === 'POST') {
+    const cuerpo = await peticion.json().catch(() => ({}));
+    const externo = String(cuerpo?.externo ?? '').trim();
+    if (!externo) return error('Falta el teléfono o usuario');
+
+    const r = await env.DB
+      .prepare('DELETE FROM conversaciones WHERE externo_id = ?')
+      .bind(externo).run();
+
+    /* Queda asentado que se cumplió, sin anotar de quién: el pedido se
+       registra, el dato borrado no vuelve a escribirse en ningún lado. */
+    console.log(JSON.stringify({
+      borrado_a_pedido: true, conversaciones: r.meta.changes,
+    }));
+
+    return json({ ok: true, borradas: r.meta.changes });
+  }
   /* ── el listado del panel: TODO, no sólo lo publicado ── */
   if (ruta === '/api/admin/autos' && metodo === 'GET') {
     /* MISMO ORDEN QUE EL SITIO, y no por fecha de edición como antes.
