@@ -167,9 +167,6 @@ a{color:inherit;text-decoration:none}
 @media (hover:hover){
   .barra nav a:hover{ opacity:.55 }
 }
-@media (hover:hover){
-  #pie .pie-mapa:hover img{ opacity:1 }
-}
 /* El vidrio que aparece al bajar, en claro. Mismas opacidades que el
    oscuro de barra.css, con el gris de la pagina en vez del negro. */
 .barra.con-vidrio{
@@ -241,35 +238,6 @@ a{color:inherit;text-decoration:none}
 #pie .pie-col span,
 #pie .pie-col button{ color:var(--tinta-2) }
 #pie .pie-contacto svg{ color:var(--tinta); opacity:.72 }
-
-/* EL MAPA, EN SU VERSION CLARA.
-
-   No se puede aclarar el cuadro y dejar el dibujo: el mapa trae su
-   propio rectangulo negro adentro del SVG y sus calles son lineas
-   CLARAS. Aclarar el marco lo dejaria igual de negro por dentro, y
-   pintarlo de gris por CSS le taparia el fondo pero dejaria las calles
-   claras sobre claro: invisibles.
-
-   Asi que hay un segundo archivo, `barracas-movil-claro.svg`, con la
-   escala de grises espejada sobre el gris del pie. Espejada y no
-   invertida a ojo: cada calle conserva exactamente la separacion que
-   tenia contra su fondo, y por lo tanto el mismo orden —las finas casi
-   no se ven, las avenidas pesan, y la calle marcada, que era la unica
-   blanca sobre negro, ahora es la unica negra sobre claro.
-
-   Y EL PUNTO SE DA VUELTA CON EL. Era blanco con un halo azulado, que
-   es lo que lo hacia aparecer sobre un mapa oscuro. Sobre el claro se
-   pierde: pasa a negro, con el halo tambien oscuro.
-
-   LA OPACIDAD SUBE. Estaba en .6 para apagar un dibujo que sobre negro
-   ya era fuerte; sobre claro, ese .6 lo mezcla con el fondo del cuadro
-   y lo deja lavado. */
-#pie .pie-mapa{ border-color:rgba(0,0,0,.2); background:#CFD2D5 }
-#pie .pie-mapa img{ opacity:.85 }
-#pie .pie-pin{
-  background:#000;
-  box-shadow:0 0 0 3px rgba(207,210,213,.9), 0 0 10px 2px rgba(0,0,0,.35);
-}
 
 /* ── grilla ── */
 .grilla{
@@ -710,7 +678,7 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <a href="/">Inicio</a>
     <a href="/por-que-elegirnos/">Por qué elegirnos</a>
     <!-- AL PIE Y NO AL FORMULARIO DE LA HOME. Los datos de contacto
-         —telefono, mail, direccion y mapa— estan abajo de esta misma
+         —telefono, mail y redes— estan abajo de esta misma
          pagina; mandar a otra pagina a alguien que ya esta mirando el
          catalogo es hacerle perder lo que estaba viendo. -->
     <a href="#pie">Contacto</a>
@@ -781,7 +749,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       <ul>
         <li><a href="/garage/">Garage</a></li>
         <li><a href="/#estandar">Criterio</a></li>
-        <li><a href="/#donde">Dónde estamos</a></li>
         <li><a href="/#concierge">Contacto</a></li>
       </ul>
     </nav>
@@ -822,14 +789,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
         </li>
         <li>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path
-               d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-          <a href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8" target="_blank" rel="noopener">
-            Pasaje Lanín 154, Barracas<br>Buenos Aires, Argentina
-          </a>
-        </li>
-        <li>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect
                x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle
                cx="17.1" cy="6.9" r="1.1" fill="currentColor" stroke="none"/></svg>
@@ -838,16 +797,6 @@ height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
       </ul>
     </div>
 
-    <div class="pie-col pie-col--mapa" aria-labelledby="pie-map">
-      <h2 class="pie-rotulo" id="pie-map">Encontranos</h2>
-      <a class="pie-mapa" href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8"
-         target="_blank" rel="noopener"
-         aria-label="Pasaje Lanín 154, Barracas — abrir en Google Maps">
-        <img src="/assets/mapa/barracas-movil-claro.svg" alt=""
-             loading="lazy" decoding="async" width="1000" height="1000">
-        <span class="pie-pin" aria-hidden="true"></span>
-      </a>
-    </div>
 
   </div>
 

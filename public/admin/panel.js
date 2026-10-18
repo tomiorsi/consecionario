@@ -928,6 +928,8 @@ function pintarChats() {
       '<span class="arriba">' +
         '<span class="nombre">' + escapar(quien) + '</span>' +
         (c.humano ? '<span class="espera">Espera a una persona</span>' : '') +
+        (c.etapa ? '<span class="etapa-marca' + (c.perdido ? ' etapa-marca--perdido' : '') + '">' +
+          escapar(ETAPAS[c.etapa] || c.etapa) + '</span>' : '') +
         '<span class="canal">' + escapar(CANALES[c.canal] || c.canal) + '</span>' +
         '<span class="cuando">' + cuandoCorto(c.ultimo) + '</span>' +
       '</span>' +
@@ -975,6 +977,10 @@ async function abrirChat(id) {
 
   $('#notaChat').classList.toggle('oculto', !chat.nota);
   if (chat.nota) $('#notaChat').textContent = chat.nota;
+
+  $('#tipoChat').value = chat.tipo || '';
+  $('#etapaChat').value = chat.etapa || '';
+  $('#perdidoChat').checked = !!chat.perdido;
 
   pintarHilo(chat, mensajes);
 
@@ -1030,9 +1036,104 @@ function vaciarBandeja() {
   $('#notaChat').classList.add('oculto');
   $('#notaChat').textContent = '';
   $('#quienChat').textContent = '';
+  $('#tablaEmbudo').innerHTML = '';
 }
 
 $('#volverChat').addEventListener('click', cerrarChat);
+
+/* ── el embudo ──────────────────────────────────────────────────────
+   Qué vino a hacer cada uno y hasta dónde llegó. Los nombres de acá
+   son solo para mostrar: lo que viaja y se guarda son las claves, que
+   tienen que coincidir con las listas de src/index.js y los CHECK de
+   esquema/009-embudo.sql. Las etapas van en orden. */
+const ETAPAS = {
+  consulta: 'Consultó',
+  charla:   'Charla real',
+  precio:   'Tiene el número',
+  visita:   'Visita agendada',
+  vino:     'Vino',
+  cerrado:  'Cerró',
+};
+const TIPOS = { comprador: 'Compran', vendedor: 'Venden su auto', permuta: 'Cambian el suyo' };
+
+/* Se guarda apenas cambia cualquiera de los tres: no hay botón de
+   guardar porque es una marca rápida mientras se lee el chat. */
+async function guardarEmbudo() {
+  if (!chatActual) return;
+  const { chat } = chatActual;
+  const cuerpo = {
+    tipo: $('#tipoChat').value || null,
+    etapa: $('#etapaChat').value || null,
+    perdido: $('#perdidoChat').checked,
+  };
+  try {
+    await api('/api/admin/chats/' + chat.id + '/embudo', {
+      method: 'POST', body: JSON.stringify(cuerpo),
+    });
+    Object.assign(chat, cuerpo, { perdido: cuerpo.perdido ? 1 : 0 });
+    const enLista = chats.find((c) => c.id === chat.id);
+    if (enLista) Object.assign(enLista, chat);
+    avisar('Marcado');
+  } catch (err) { avisar(err.message, true); }
+}
+['#tipoChat', '#etapaChat', '#perdidoChat'].forEach((s) =>
+  $(s).addEventListener('change', guardarEmbudo));
+
+/* El mes en curso, en hora local: "2026-10". */
+const mesDeHoy = () => {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+};
+
+/* UNA FILA POR TIPO Y UNA COLUMNA POR ETAPA, ACUMULADA: la columna
+   "Vino" cuenta a todos los que llegaron por lo menos a venir, aunque
+   después hayan cerrado. Así cada número se lee como "llegaron hasta
+   acá", y el porcentaje de abajo es contra la columna anterior, que es
+   donde se ve en qué paso se escapa la gente. */
+async function cargarEmbudo() {
+  const mes = $('#mesEmbudo').value || mesDeHoy();
+  $('#mesEmbudo').value = mes;
+  let datos;
+  try {
+    datos = await api('/api/admin/embudo?mes=' + encodeURIComponent(mes));
+  } catch (err) { avisar(err.message, true); return; }
+
+  const orden = datos.etapas;
+  const conteo = (tipo, i) => datos.filas
+    .filter((f) => f.tipo === tipo && f.etapa && orden.indexOf(f.etapa) >= i)
+    .reduce((s, f) => s + f.cantidad, 0);
+  const perdidos = (tipo) => datos.filas
+    .filter((f) => f.tipo === tipo && f.perdido)
+    .reduce((s, f) => s + f.cantidad, 0);
+  const suelto = (cond) => datos.filas.filter(cond).reduce((s, f) => s + f.cantidad, 0);
+
+  const cabeza = '<tr><th></th>' +
+    orden.map((e) => '<th>' + escapar(ETAPAS[e] || e) + '</th>').join('') +
+    '<th>Se perdieron</th></tr>';
+
+  const filas = Object.entries(TIPOS).map(([tipo, nombre]) => {
+    let anterior = null;
+    const celdas = orden.map((e, i) => {
+      const n = conteo(tipo, i);
+      const pct = anterior ? Math.round((n / anterior) * 100) + '%' : '';
+      anterior = n;
+      return '<td>' + n + (pct ? '<span class="pct">' + pct + '</span>' : '') + '</td>';
+    }).join('');
+    return '<tr><td>' + nombre + '</td>' + celdas + '<td>' + perdidos(tipo) + '</td></tr>';
+  }).join('');
+
+  const ruido = suelto((f) => f.tipo === 'ruido');
+  const sinMarcar = suelto((f) => !f.tipo);
+
+  $('#tablaEmbudo').innerHTML =
+    '<table><thead>' + cabeza + '</thead><tbody>' + filas + '</tbody></table>' +
+    '<p class="aclara" style="margin:.8rem 0 0">' +
+      'Ruido: ' + ruido + ' · Sin marcar: ' + sinMarcar +
+      '. Cuenta las conversaciones que empezaron en el mes.' +
+    '</p>';
+}
+
+$('#mesEmbudo').addEventListener('change', cargarEmbudo);
 
 /* QUE LA SIGA UNA PERSONA.
    Cubre los dos casos que nos comprometimos a atender: alguien que pide
@@ -1126,7 +1227,10 @@ function verPestania(cual) {
 
   if (autos) pintarLista();
   else if (cual === 'medios') cargarMedios();
-  else cargarChats().catch((err) => avisar(err.message, true));
+  else {
+    cargarChats().catch((err) => avisar(err.message, true));
+    cargarEmbudo();
+  }
 }
 
 $('#pesAutos').addEventListener('click', () => verPestania('autos'));

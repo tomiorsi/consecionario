@@ -90,10 +90,12 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
 <!-- LA FICHA DEL NEGOCIO, EN EL FORMATO QUE GOOGLE ENTIENDE.
 
-     Es lo que le permite mostrar la direccion, el telefono y el horario
-     en el costado de los resultados, y lo que lo ayuda a ubicar el local
-     en Maps. Son los MISMOS datos que estan en el pie: si cambia uno,
-     cambian los dos.
+     Es lo que le permite mostrar el telefono y el horario en el costado
+     de los resultados.
+
+     NO LLEVA DIRECCION NI COORDENADAS A PROPOSITO. El salon es con cita
+     y la direccion no se publica: si se agrega `address` o `geo` aca,
+     Google la muestra en los resultados y la carga en Maps.
 
      `AutoDealer` y no `LocalBusiness` a secas: es un tipo que Google
      conoce, y decirle exactamente que clase de negocio es vale mas que
@@ -106,21 +108,9 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
   "url": "https://www.mannaselected.com.ar",
   "image": "https://www.mannaselected.com.ar/assets/video/portada-desktop-poster.jpg",
   "logo": "https://www.mannaselected.com.ar/assets/logo/logo-horizontal-blanco.svg",
-  "description": "Concesionario de autos seleccionados en Barracas, Buenos Aires. Cada unidad pasa por inspeccion y documentacion antes de publicarse.",
+  "description": "Concesionario de autos seleccionados en Buenos Aires. Cada unidad pasa por inspeccion y documentacion antes de publicarse.",
   "telephone": "+5491176703813",
   "email": "contacto@mannaselected.com.ar",
-  "address": {
-    "@type": "PostalAddress",
-    "streetAddress": "Pasaje Lanin 154",
-    "addressLocality": "Barracas",
-    "addressRegion": "Ciudad Autonoma de Buenos Aires",
-    "addressCountry": "AR"
-  },
-  "geo": {
-    "@type": "GeoCoordinates",
-    "latitude": -34.640427,
-    "longitude": -58.379223
-  },
   "openingHoursSpecification": [{
     "@type": "OpeningHoursSpecification",
     "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],
@@ -2770,214 +2760,6 @@ body.cargando{ overflow:hidden; }
 
 @media (prefers-reduced-motion:reduce){
   .loader-marca svg{ animation:none; opacity:1; }
-}
-
-/* ══════════════════════════════════════════════════════════════════
-   DÓNDE ESTAMOS — el mapa
-
-   POR QUÉ EL MAPA ESTÁ DIBUJADO Y NO ES UN GOOGLE MAPS EMBEBIDO.
-   Se pidió que tocar el mapa abra Google Maps, y un iframe se traga
-   los clics: adentro de un iframe, el clic es del iframe. Con eso solo
-   ya quedaba descartado. Además no se puede pintar oscuro sin la API
-   con clave y facturación, y son cientos de KB más una conexión a
-   Google en cada visita.
-
-   Dibujado con datos de OpenStreetMap son 18 KB del color exacto del
-   sitio, sin clave, sin pedido a nadie y sin nada que se trague el
-   clic: la sección entera es un enlace.
-
-   Y hace algo que un mapa comprado no puede: el Pasaje Lanín va en
-   blanco y el resto del barrio en gris. La calle de la que habla el
-   texto es la única que se ve.
-   ══════════════════════════════════════════════════════════════════ */
-#donde{
-  position:relative;
-  display:block;
-  height:50svh;
-  overflow:hidden;
-  background:var(--void);
-  text-decoration:none;
-  color:inherit;
-}
-
-#donde img{
-  position:absolute;
-  inset:0;
-  width:100%;
-  height:100%;
-  object-fit:cover;
-  object-position:center;
-  opacity:.9;
-  transition:opacity .5s var(--ease);
-
-  /* LA DERIVA. El mapa se mueve siempre, no cuando pasa el mouse: en
-     el teléfono no hay mouse, así que un efecto de hover ahí no existe.
-     Además un mapa quieto se lee como una captura de pantalla; uno que
-     respira se lee como algo vivo.
-
-     Arranca en pausa y corre sólo cuando la sección está a la vista.
-     Es la misma regla del resto del sitio: nada trabaja de fondo. */
-  animation:deriva 34s ease-in-out infinite;
-  animation-play-state:paused;
-}
-
-#donde.a-la-vista img{ animation-play-state:running; }
-
-/* POR QUÉ LA ESCALA NUNCA BAJA DE 1.05.
-
-   En computadora el mapa es cuadrado dentro de una franja apaisada:
-   con object-fit:cover entra JUSTO de ancho y sobra de alto. O sea que
-   a escala 1 no hay ni un píxel de sobra a los costados, y correrlo
-   aunque sea un poco mostraría el borde.
-
-   Con 1.05 sobra un 2,5% de cada lado, y la deriva no pasa del 1,1%.
-   Por eso la escala se mueve entre 1.05 y 1.09 en vez de arrancar en 1:
-   no es gusto, es el margen que necesita para no despegarse. */
-@keyframes deriva{
-  0%   { transform:scale(1.05) translate(0, 0) }
-  25%  { transform:scale(1.08) translate(-1.1%, .8%) }
-  50%  { transform:scale(1.06) translate(.9%, -.6%) }
-  75%  { transform:scale(1.09) translate(-.6%, -1%) }
-  100% { transform:scale(1.05) translate(0, 0) }
-}
-
-@media (hover:hover){
-  #donde:hover img{ opacity:1; }
-}
-
-/* El velo. En computadora va de izquierda a derecha —el texto ocupa la
-   izquierda y el mapa respira a la derecha— y en teléfono de arriba
-   abajo, que es como se apilan ahí. */
-#donde::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  pointer-events:none;
-  background:linear-gradient(to right,
-    rgba(0,0,0,.94) 0%,
-    rgba(0,0,0,.86) 26%,
-    rgba(0,0,0,.42) 58%,
-    rgba(0,0,0,.28) 100%);
-}
-
-.donde-caja{
-  position:absolute;
-  z-index:2;
-  left:var(--gut);
-  right:var(--gut);
-  top:50%;
-  transform:translateY(-50%);
-  max-width:30rem;
-}
-
-.donde-caja small{
-  display:block;
-  font-family:var(--mono);
-  font-size:.66rem;
-  letter-spacing:.28em;
-  text-transform:uppercase;
-  color:var(--steel);
-  margin-bottom:clamp(.7rem,1.6vh,1.1rem);
-}
-
-.donde-caja h2{
-  margin:0;
-  font-size:clamp(1.5rem,3vw,2.4rem);
-  font-weight:500;
-  letter-spacing:-.02em;
-  line-height:1.15;
-  color:var(--chrome);
-}
-
-.donde-caja p{
-  margin:clamp(.6rem,1.4vh,1rem) 0 0;
-  font-size:clamp(.9rem,1.15vw,1.02rem);
-  line-height:1.5;
-  color:var(--steel);
-}
-
-/* El renglón de abajo dice qué pasa si tocás. Sin esto, un mapa quieto
-   no se lee como algo en lo que se pueda hacer clic. */
-.donde-ir{
-  display:inline-flex;
-  align-items:center;
-  gap:.5rem;
-  margin-top:clamp(.9rem,2vh,1.4rem);
-  font-family:var(--mono);
-  font-size:.68rem;
-  letter-spacing:.2em;
-  text-transform:uppercase;
-  color:var(--chrome);
-}
-.donde-ir svg{ width:.8em; height:.8em; transition:transform .3s var(--ease); }
-@media (hover:hover){
-  #donde:hover .donde-ir svg{ transform:translate(2px,-2px); }
-}
-
-/* LA CHINCHE. Va justo en el centro porque el mapa está centrado en el
-   pasaje: con object-fit:cover el centro sigue siendo el centro en
-   cualquier proporción de pantalla. */
-.donde-pin{
-  position:absolute;
-  z-index:2;
-  left:50%;
-  top:50%;
-  width:12px;
-  height:12px;
-  margin:-6px 0 0 -6px;
-  border-radius:50%;
-  background:var(--chrome);
-  box-shadow:0 0 0 1px rgba(242,244,248,.55);
-}
-
-/* El halo. Una sola onda lenta: es una señal de "acá", no un aviso. */
-.donde-pin::after{
-  content:"";
-  position:absolute;
-  inset:-6px;
-  border-radius:50%;
-  border:1px solid rgba(242,244,248,.5);
-  animation:onda 3.4s ease-out infinite;
-}
-
-@keyframes onda{
-  0%   { transform:scale(.6); opacity:.85 }
-  70%  { transform:scale(2.6); opacity:0 }
-  100% { transform:scale(2.6); opacity:0 }
-}
-
-@media (max-width:767px){
-  #donde::after{
-    background:linear-gradient(to bottom,
-      rgba(0,0,0,.34) 0%,
-      rgba(0,0,0,.14) 30%,
-      rgba(0,0,0,.88) 70%,
-      rgba(0,0,0,.97) 100%);
-  }
-  .donde-caja{
-    top:auto;
-    bottom:clamp(1.6rem,4vh,2.6rem);
-    transform:none;
-    max-width:none;
-  }
-
-  /* SUBE EL MAPA, NO SÓLO LA CHINCHE.
-
-     En el teléfono el texto ocupa la mitad de abajo, así que el pasaje
-     tiene que quedar en la mitad de arriba. Mover sólo la chinche la
-     dejaba señalando una calle cualquiera.
-
-     No alcanza con object-position: el recorte de cover acá sobra a lo
-     ancho y no a lo alto, así que verticalmente no tiene nada que
-     correr. Se agranda la imagen y se la sube: alto 130% arrancando en
-     −30% deja su centro —y por lo tanto el pasaje— en el 35%. */
-  #donde img{ height:130%; top:-30%; }
-  .donde-pin{ top:35%; }
-}
-
-@media (prefers-reduced-motion:reduce){
-  .donde-pin::after{ animation:none; opacity:.5 }
-  #donde img{ animation:none; transform:scale(1.05); transition:none }
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -6186,78 +5968,6 @@ var UNIDAD = null;
 <div id="ambiente" aria-hidden="true"></div>
 
 
-<!-- DÓNDE ESTAMOS.
-
-     Toda la sección es un enlace: se pidió que tocar el mapa abra
-     Google Maps, así que el <a> envuelve todo en vez de haber un botón
-     chiquito en una esquina.
-
-     El mapa es un dibujo con datos de OpenStreetMap, no un iframe de
-     Google. Los motivos, en el CSS de #donde. -->
-<a id="donde"
-   href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8"
-   target="_blank" rel="noopener"
-   aria-label="Pasaje Lanín 154, Barracas — abrir en Google Maps">
-
-  <!-- Dos dibujos, no dos tamaños del mismo. El SVG se ve a 1440 px de
-       ancho en computadora y a unos 560 en teléfono: con un solo
-       archivo, o los nombres de calle salen enormes en uno o ilegibles
-       en el otro. El de teléfono además abarca menos cuadras, porque en
-       una pantalla angosta entra menos.
-
-       Acá sí sirve <source media>: en <picture> lo respetan todos los
-       navegadores. Es dentro de <video> donde Safari lo ignora, que es
-       el motivo por el que los videos del sitio se eligen por script. -->
-  <picture>
-    <source media="(max-width:767px)" srcset="assets/mapa/barracas-movil.svg?v=2">
-    <img src="assets/mapa/barracas.svg?v=2"
-         alt="Mapa de Barracas con el Pasaje Lanín señalado"
-         loading="lazy" decoding="async" width="1000" height="1000">
-  </picture>
-
-  <span class="donde-pin" aria-hidden="true"></span>
-
-  <div class="donde-caja">
-    <small>Dónde estamos</small>
-    <h2>Pasaje Lanín 154, Barracas.</h2>
-    <p>La calle de las casas pintadas: unas cuarenta fachadas
-       intervenidas por Marino Santa María en pintura y mosaico
-       veneciano, declarada Sitio de Interés Cultural por la
-       Legislatura porteña.</p>
-    <span class="donde-ir">
-      Abrir en Google Maps
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-           stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"
-           aria-hidden="true">
-        <path d="M7 17 17 7M8 7h9v9"/>
-      </svg>
-    </span>
-  </div>
-</a>
-
-<script>
-/* La deriva del mapa sólo corre cuando la sección está a la vista.
-
-   Una animación de transform es barata, pero mantiene viva una capa en
-   el compositor todo el tiempo aunque nadie la mire. Es la misma regla
-   que ya siguen la portada, el reel y el collage: nada trabaja de
-   fondo. Sin IntersectionObserver, corre siempre y listo. */
-(function(){
-  var sec = document.getElementById('donde');
-  if (!sec) return;
-
-  if (!('IntersectionObserver' in window)){
-    sec.classList.add('a-la-vista');
-    return;
-  }
-
-  new IntersectionObserver(function(e){
-    e.forEach(function(x){
-      sec.classList.toggle('a-la-vista', x.isIntersecting);
-    });
-  }, { threshold:0.01 }).observe(sec);
-})();
-</script>
 
 <!-- BLOQUE 6, PRIMERA PARTE — INSTAGRAM.
 
@@ -6309,7 +6019,6 @@ var UNIDAD = null;
       <ul>
         <li><a href="/garage/">Garage</a></li>
         <li><a href="/#estandar">Criterio</a></li>
-        <li><a href="/#donde">Dónde estamos</a></li>
         <li><a href="/#concierge">Contacto</a></li>
       </ul>
     </nav>
@@ -6350,14 +6059,6 @@ var UNIDAD = null;
         </li>
         <li>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path
-               d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-          <a href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8" target="_blank" rel="noopener">
-            Pasaje Lanín 154, Barracas<br>Buenos Aires, Argentina
-          </a>
-        </li>
-        <li>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect
                x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle
                cx="17.1" cy="6.9" r="1.1" fill="currentColor" stroke="none"/></svg>
@@ -6366,16 +6067,6 @@ var UNIDAD = null;
       </ul>
     </div>
 
-    <div class="pie-col pie-col--mapa" aria-labelledby="pie-map">
-      <h2 class="pie-rotulo" id="pie-map">Encontranos</h2>
-      <a class="pie-mapa" href="https://maps.app.goo.gl/JjD8GeLjMNhKZ34i8"
-         target="_blank" rel="noopener"
-         aria-label="Pasaje Lanín 154, Barracas — abrir en Google Maps">
-        <img src="/assets/mapa/barracas-movil.svg?v=2" alt=""
-             loading="lazy" decoding="async" width="1000" height="1000">
-        <span class="pie-pin" aria-hidden="true"></span>
-      </a>
-    </div>
 
   </div>
 

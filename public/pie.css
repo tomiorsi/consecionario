@@ -75,13 +75,13 @@
   max-width:82rem;
   margin:0 auto;
   display:grid;
-  grid-template-columns:1.1fr 1fr 1.35fr 1.05fr;
+  grid-template-columns:1.1fr 1fr 1.35fr;
   gap:clamp(1.4rem,3vw,2.6rem);
-  /* CENTRADAS Y NO ARRIBA. Las cuatro columnas miden distinto —la marca
-     es un logo, contacto son cuatro renglones, el mapa es un cuadro— y
-     alineadas arriba cada una dejaba su propio hueco abajo: el pie se
-     leia como cuatro bloques sueltos de alturas distintas en vez de como
-     una franja. Centradas comparten eje y el hueco se reparte. */
+  /* CENTRADAS Y NO ARRIBA. Las tres columnas miden distinto —la marca es
+     un logo, contacto son tres renglones— y alineadas arriba cada una
+     dejaba su propio hueco abajo: el pie se leia como bloques sueltos de
+     alturas distintas en vez de como una franja. Centradas comparten eje
+     y el hueco se reparte. */
   align-items:center;
 }
 
@@ -208,41 +208,6 @@
    archivo nuevo: el mismo trazo, en chico. Se usa la versión de
    TELÉFONO —abarca menos cuadras y trae los nombres más grandes— porque
    este cuadro mide lo que mide un teléfono, no lo que mide la sección. */
-/* MAS CHICO, PORQUE ERA EL QUE MANDABA EL ALTO. Con 1.35 de proporcion
-   el mapa medía casi el doble que la columna de contacto y estiraba la
-   fila entera: de ahi el aire muerto debajo del logo y de los datos.
-   Apaisado y con tope, ocupa lo que le corresponde. */
-.pie-mapa{
-  display:block;
-  position:relative;
-  max-width:15rem;
-  aspect-ratio:1.7;
-  overflow:hidden;
-  border:1px solid rgba(209,213,219,.14);
-  border-radius:3px;
-  background:#07080A;
-}
-.pie-mapa img{
-  display:block;
-  width:100%;
-  height:100%;
-  object-fit:cover;
-  opacity:.6;
-  transition:opacity .45s var(--ease);
-}
-@media (hover:hover){
-  .pie-mapa:hover img{ opacity:.85; }
-}
-.pie-pin{
-  position:absolute;
-  left:50%; top:50%;
-  width:9px; height:9px;
-  margin:-4.5px 0 0 -4.5px;
-  border-radius:50%;
-  background:var(--chrome);
-  box-shadow:0 0 0 4px rgba(var(--beam),.18), 0 0 14px 3px rgba(var(--beam),.5);
-}
-
 /* ── EL PIE EN ANGOSTO ──────────────────────────────────────────────
 
    Cuatro columnas de 130 px parten cada dato en renglones sueltos, así
@@ -250,27 +215,16 @@
 
      la marca            a lo ancho, arriba de todo
      navegación | contacto   una al lado de la otra
-     encontranos         a lo ancho, centrado
 
    NAVEGACIÓN Y CONTACTO VAN JUNTAS PORQUE SON LISTAS CORTAS: cuatro
    renglones de una palabra y cuatro datos de una línea entran de sobra
    en media pantalla, y apiladas dejaban el pie larguísimo.
 
-   EL MAPA NO: es un cuadro, y en media pantalla queda del tamaño de un
-   sello. Va a lo ancho y con un tope, para que no se estire de lado a
-   lado en una tableta. */
+   */
 @media (max-width:900px){
   .pie-caja{
     grid-template-columns:1fr 1fr;
     gap:clamp(1.8rem,4.5vh,2.6rem) clamp(1.2rem,4vw,2rem);
   }
   .pie-col--marca{ grid-column:1 / -1; }
-  .pie-col--mapa{
-    grid-column:1 / -1;
-    text-align:center;
-  }
-  .pie-col--mapa .pie-mapa{
-    max-width:22rem;
-    margin-inline:auto;
-  }
 }
