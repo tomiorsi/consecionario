@@ -1556,8 +1556,23 @@ async function borradorDeRespuesta(env, conversacionId) {
    Y una más: siempre por privado, nunca contestando en el comentario a
    la vista de todos. Una respuesta equivocada en un privado la lee una
    persona; abajo de la publicación, la lee cualquiera. */
+/* APAGADA. Lo pidió Tomás: contesta él, a mano, todo.
+
+   NO SE BORRÓ EL CÓDIGO, SE CORTÓ LA SALIDA, y es la diferencia que
+   importa: mientras esto esté en false no sale un solo mensaje solo, y
+   el día que se quiera volver a prender se cambia esta palabra y nada
+   más. Borrarlo obligaría a rehacer los frenos —el de ráfaga, el de un
+   privado por publicación, el de no contestarse a sí mismo—, que son
+   justamente la parte que costó.
+
+   LO QUE SIGUE ANDANDO es todo lo que no manda nada: el botón "Que
+   escriba la IA" del panel, que arma un borrador para que lo mande una
+   persona, y el de "Probar la IA sin mandar nada". */
+const CONTESTA_SOLA = false;
+
 async function contestarSolo(env, conversacionId) {
   try {
+    if (!CONTESTA_SOLA) return;
     if (!env.ANTHROPIC_API_KEY || !env.META_IG_TOKEN) return;
 
     const chat = await env.DB.prepare(
