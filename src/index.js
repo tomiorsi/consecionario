@@ -627,6 +627,16 @@ const tipoConocido = (t) => {
    `ultimo` se pisa en cada mensaje porque es el reloj de los 12 meses de
    conservación. */
 async function guardarEntrantes(env, lista) {
+  /* LAS CONVERSACIONES QUE HAY QUE CONTESTAR, y sólo ésas. Devuelve los
+     ids donde entró un mensaje NUEVO de la otra persona.
+
+     "Nuevo" es literal: Meta reintenta el mismo aviso, y un reintento
+     que vuelva a disparar al bot le manda dos veces lo mismo al cliente.
+     El INSERT OR IGNORE ya lo frena en la base, así que acá se mira si
+     escribió algo (`changes`); si no escribió, el mensaje ya estaba y no
+     hay nada que contestar. */
+  const paraContestar = new Set();
+
   for (const m of lista) {
     const conv = await env.DB.prepare(
       `INSERT INTO conversaciones (canal, externo_id, nombre)
@@ -642,7 +652,7 @@ async function guardarEntrantes(env, lista) {
     /* `direccion` puede venir en el aviso: un comentario nuestro es
        saliente aunque llegue por el mismo webhook que los entrantes.
        Lo que no la trae es entrante, que es el caso normal. */
-    await env.DB.prepare(
+    const escrito = await env.DB.prepare(
       `INSERT OR IGNORE INTO mensajes
          (conversacion_id, externo_id, direccion, tipo, texto, clase, media_id)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
@@ -650,7 +660,14 @@ async function guardarEntrantes(env, lista) {
       conv.id, m.mensaje_id ?? null, m.direccion ?? 'entrante',
       m.tipo, m.texto, m.clase ?? 'mensaje', m.media_id ?? null
     ).run();
+
+    const esNuevo = (escrito?.meta?.changes ?? 0) > 0;
+    if (esNuevo && (m.direccion ?? 'entrante') === 'entrante') {
+      paraContestar.add(conv.id);
+    }
   }
+
+  return [...paraContestar];
 }
 
 /* ── INSTAGRAM: CONTESTAR ────────────────────────────────────────
@@ -1144,7 +1161,7 @@ const MODELO = 'claude-haiku-5-5';
    LA PERMUTA SE TOMA, Y ESO ANTES ESTABA MAL ESCRITO. Lo que el bot no
    puede hacer es decir cuánto vale: junta los datos y las fotos, y la
    diferencia la pasa una persona. */
-function instruccionesDelBot({ autos, posteo }) {
+function instruccionesDelBot({ autos, posteo, decidiendo = false, esComentario = false }) {
   const stock = autos.map((a) => {
     const precio = a.precio === null ? 'a consultar' : `${a.moneda} ${a.precio}`;
     return `- ${a.marca} ${a.modelo} ${a.anio ?? ''} · ${a.km ?? '?'} km · ${precio}` +
@@ -1186,23 +1203,86 @@ Si dudás entre dos autos, preguntá cuál.
 Si no sabés algo, decí que se lo confirma una persona.
 
 Castellano rioplatense, de vos. Dos o tres renglones. Sin emojis, sin
-signos de exclamación, sin vender humo.`;
+signos de exclamación, sin vender humo.${decidiendo ? decidir(esComentario) : ''}`;
 }
 
-/* Arma el borrador para una conversación. No manda nada. */
-async function borradorDeRespuesta(env, conversacionId) {
+/* ── A QUIÉN SE LE ESCRIBE ───────────────────────────────────────
+   ══════════════════════════════════════════════════════════════════
+
+   Esto es lo único que el bot decide por su cuenta, y es la diferencia
+   entre atender y ser spam.
+
+   UN MENSAJE PRIVADO SE CONTESTA SIEMPRE. Alguien se tomó el trabajo de
+   escribirnos: dejarlo sin respuesta es el peor resultado posible.
+
+   UN COMENTARIO, CASI NUNCA. Mandarle un privado a cada uno que comenta
+   "qué lindo" es spam, lo vive como spam y además Instagram lo mide como
+   spam. El privado se gana con una pregunta concreta sobre un auto, y
+   ante la duda no se escribe: un interesado que no recibió el privado
+   vuelve a preguntar, y un privado a quien no preguntó nada no se
+   deshace.
+
+   POR QUÉ SE LE PIDE EL TEXTO AUNQUE DIGA QUE NO. Porque sin el texto no
+   hay cómo revisar la decisión: en el log queda qué hubiera contestado y
+   se puede ver si se está callando donde debería hablar. */
+function decidir(esComentario) {
+  const cuando = esComentario
+    ? `ESTO ES UN COMENTARIO EN UNA PUBLICACIÓN NUESTRA. Nadie te escribió:
+le vas a escribir vos primero, por privado. Así que escribile SÓLO si hay
+algo concreto que contestar de un auto.
+
+responder: false si
+- la publicación no es de un auto de la lista
+- opinó y nada más: "qué lindo", "tremendo", un emoji, una puteada, un
+  chiste, etiquetar a un amigo
+- le habla a otro que comentó, no a nosotros
+- no se entiende qué quiere
+
+responder: true sólo si pregunta algo de un auto: precio, kilómetros,
+año, si está disponible, si lo puede ver, si tomamos permuta.
+
+ANTE LA DUDA, false.`
+    : `ESTO ES UN MENSAJE PRIVADO: te escribió. responder va true siempre.`;
+
+  return `
+
+${cuando}
+
+Devolvé SÓLO este JSON, sin una palabra antes ni después:
+{"responder": true, "derivar": false, "texto": "..."}
+
+responder — si le escribimos o no.
+derivar — si de acá sigue una persona.
+texto — lo que le escribimos. Escribilo siempre, incluso si responder es
+false: si derivás, que sea que ya le pasás con alguien del equipo.`;
+}
+
+/* PIENSA LA RESPUESTA. NO MANDA NADA: eso lo decide quien la llama.
+
+   `decidiendo` cambia lo que se le pide a Claude. Sin eso devuelve un
+   texto y se terminó — es el borrador que escribe el botón del panel.
+   Con eso devuelve además si hay que escribirle y si de ahí sigue una
+   persona, que es lo que hace falta cuando contesta solo.
+
+   ES UNA SOLA FUNCIÓN PARA LOS DOS CASOS A PROPÓSITO. El contexto que
+   junta —el stock, el texto del posteo, el hilo— es idéntico, y tener dos
+   copias garantiza que el día que se arregle una, la otra quede vieja.
+   Lo único que cambia son las instrucciones y qué se lee de la vuelta. */
+async function pensarRespuesta(env, conversacionId, { decidiendo = false } = {}) {
   if (!env.ANTHROPIC_API_KEY) {
     throw new Error('Falta cargar ANTHROPIC_API_KEY en Cloudflare');
   }
 
   const { results: mensajes } = await env.DB.prepare(
-    `SELECT direccion, autor, texto, clase, media_id
+    `SELECT direccion, autor, texto, clase, media_id, externo_id
        FROM mensajes WHERE conversacion_id = ?
       ORDER BY creado, id`
   ).bind(conversacionId).all();
 
   const conTexto = (mensajes ?? []).filter((m) => m.texto);
   if (!conTexto.length) throw new Error('No hay nada que contestar todavía');
+
+  const ultimo = conTexto[conTexto.length - 1];
 
   const { results: autos } = await env.DB.prepare(
     `SELECT marca, modelo, anio, km, precio, moneda, color, estado
@@ -1230,18 +1310,137 @@ async function borradorDeRespuesta(env, conversacionId) {
        problema difícil. Subirlo acá es pagar de más por pensar algo
        que no lo necesita. */
     output_config: { effort: 'low' },
-    system: instruccionesDelBot({ autos: autos ?? [], posteo }),
+    system: instruccionesDelBot({
+      autos: autos ?? [], posteo, decidiendo,
+      esComentario: ultimo.clase === 'comentario',
+    }),
     messages: conTexto.map((m) => ({
       role: m.direccion === 'entrante' ? 'user' : 'assistant',
       content: m.texto,
     })),
   });
 
-  const texto = (respuesta.content ?? [])
+  const crudo = (respuesta.content ?? [])
     .filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
 
-  if (!texto) throw new Error('Claude no devolvió una respuesta');
-  return { texto, conPosteo: Boolean(posteo) };
+  if (!crudo) throw new Error('Claude no devolvió una respuesta');
+  if (!decidiendo) return { texto: crudo, conPosteo: Boolean(posteo), ultimo };
+
+  /* TOLERANTE AL LEER, ESTRICTO AL DECIDIR.
+     Claude puede envolver el JSON en un "acá va:" o en un bloque de
+     código, y eso no es motivo para no contestarle a un cliente: se
+     busca de la primera llave a la última. Lo que no se perdona es que
+     adentro falte algo — ahí tira, y quien llama no manda nada. */
+  const abre = crudo.indexOf('{');
+  const cierra = crudo.lastIndexOf('}');
+  if (abre < 0 || cierra < abre) throw new Error('Claude no devolvió una decisión');
+
+  const d = JSON.parse(crudo.slice(abre, cierra + 1));
+  const texto = typeof d?.texto === 'string' ? d.texto.trim() : '';
+  if (!texto) throw new Error('La decisión vino sin texto');
+
+  return {
+    texto, conPosteo: Boolean(posteo), ultimo,
+    responder: d.responder === true,
+    derivar: d.derivar === true,
+  };
+}
+
+/* El botón del panel. Devuelve el borrador y nada más: lo de adentro no
+   le sirve a la pantalla. */
+async function borradorDeRespuesta(env, conversacionId) {
+  const { texto, conPosteo } = await pensarRespuesta(env, conversacionId);
+  return { texto, conPosteo };
+}
+
+/* ── CONTESTAR SOLO ──────────────────────────────────────────────
+   ══════════════════════════════════════════════════════════════════
+
+   DE ACÁ EN ADELANTE EL BOT MANDA SIN QUE NADIE MIRE. Eso no se
+   deshace: un mensaje enviado ya está en el teléfono del cliente. Así
+   que hay cuatro frenos, y ninguno es decorativo.
+
+   1. SI FALLA ALGO, NO MANDA. Si Claude no contesta, si la respuesta no
+      se entiende, si se rompe una consulta — silencio. El error cae del
+      lado de no escribir, nunca del lado de escribir cualquier cosa.
+
+   2. NUNCA SE CONTESTA A SÍ MISMO. Sólo si el último mensaje del hilo es
+      de la otra persona. Sin esto, nuestra propia respuesta vuelve por
+      el webhook y arranca una conversación del bot consigo mismo.
+
+   3. CUANDO PIDEN UNA PERSONA, SE CALLA PARA SIEMPRE EN ESE CHAT. Deja
+      la conversación marcada y no vuelve a escribir ahí. Es el
+      compromiso asumido ante Meta y es el que más importa.
+
+   4. NO LE ESCRIBE A TODO EL QUE COMENTA. Lo decide `decidir()` más
+      arriba, y por defecto decide que no.
+
+   Y una más: siempre por privado, nunca contestando en el comentario a
+   la vista de todos. Una respuesta equivocada en un privado la lee una
+   persona; abajo de la publicación, la lee cualquiera. */
+async function contestarSolo(env, conversacionId) {
+  try {
+    if (!env.ANTHROPIC_API_KEY || !env.META_IG_TOKEN) return;
+
+    const chat = await env.DB.prepare(
+      'SELECT id, canal, externo_id, humano FROM conversaciones WHERE id = ?'
+    ).bind(conversacionId).first();
+
+    /* Marcada para una persona: acá el bot no escribe más. */
+    if (!chat || chat.humano) return;
+    if (chat.canal !== 'instagram') return;
+
+    const d = await pensarRespuesta(env, conversacionId, { decidiendo: true });
+
+    /* El último con texto no es de la otra persona: o ya le contestaron,
+       o lo que entró es nuestro. En los dos casos no hay nada que decir. */
+    if (d.ultimo?.direccion !== 'entrante') return;
+
+    if (d.derivar) {
+      await env.DB.prepare(
+        `UPDATE conversaciones
+            SET humano = 1,
+                nota = COALESCE(nota, 'La IA lo pasó a una persona')
+          WHERE id = ?`
+      ).bind(conversacionId).run();
+    }
+
+    if (!d.responder && !d.derivar) {
+      /* Queda el texto que hubiera mandado, para poder revisar si se
+         está callando donde debería hablar. Es nuestro propio borrador,
+         no lo que escribió el cliente. */
+      console.log(JSON.stringify({
+        bot: 'no le escribe', chat: conversacionId, hubiera_dicho: d.texto,
+      }));
+      return;
+    }
+
+    /* UN COMENTARIO SE CONTESTA POR EL ID DEL COMENTARIO, no por el de
+       la persona: a alguien que nunca nos escribió no se le puede abrir
+       un privado, y la respuesta privada a un comentario es la única
+       puerta que da Instagram. Dura 7 días y se usa una sola vez. */
+    const porComentario = d.ultimo.clase === 'comentario' && d.ultimo.externo_id;
+
+    const envio = await mandarPorInstagram(
+      env,
+      porComentario ? d.ultimo.externo_id : chat.externo_id,
+      d.texto,
+      { esComentario: Boolean(porComentario) }
+    );
+
+    await guardarSaliente(env, conversacionId, d.texto, 'ia', envio?.message_id);
+
+    console.log(JSON.stringify({
+      bot: d.derivar ? 'derivó' : 'contestó',
+      chat: conversacionId,
+      por: porComentario ? 'comentario' : 'privado',
+    }));
+  } catch (e) {
+    /* NO SE PROPAGA. Esto corre colgado del webhook: si tira, Meta
+       nunca se enteraría igual, pero un error sin atrapar se lleva
+       puesto el resto de las conversaciones de la misma tanda. */
+    console.error('El bot no pudo contestar:', e?.message ?? e);
+  }
 }
 
 /* SE CONTESTA 200 SIEMPRE QUE EL AVISO SEA DE META, y rápido. Si Meta
@@ -1282,7 +1481,7 @@ async function borradorDeRespuesta(env, conversacionId) {
    Por eso ahora: se prueba contra las dos claves que estén cargadas, y
    SI NINGUNA DA, SE ANOTA. El rechazo tiene que dejar rastro, porque es
    justo el caso que uno necesita ver. */
-async function recibirDeMeta(peticion, env) {
+async function recibirDeMeta(peticion, env, ctx) {
   const crudo = await peticion.text();
   const firma = peticion.headers.get('x-hub-signature-256');
 
@@ -1314,11 +1513,31 @@ async function recibirDeMeta(peticion, env) {
   try { aviso = JSON.parse(crudo); } catch { /* cuerpo ilegible */ }
 
   let guardados = 0;
+  let contestando = 0;
   try {
     const lista = mensajesDelAviso(aviso);
     if (lista.length) {
-      await guardarEntrantes(env, lista);
+      const chats = await guardarEntrantes(env, lista);
       guardados = lista.length;
+
+      /* CONTESTAR VA COLGADO, NO ANTES DEL 200.
+         Pensar la respuesta son unos segundos de Claude y uno más de
+         Instagram, y Meta no espera: si el 200 tarda, reintenta el mismo
+         aviso y a la larga desactiva la dirección. Así que se contesta
+         200 ya, y el bot sigue trabajando después con `waitUntil`, que
+         es lo que mantiene vivo al Worker un rato más.
+
+         UNA POR VEZ. En paralelo serían varias llamadas a Claude y
+         varias a Instagram desde la misma invocación, y Cloudflare corta
+         por cantidad de pedidos salientes. Son conversaciones distintas:
+         que una espere a la otra no se nota. */
+      if (chats.length && env.ANTHROPIC_API_KEY) {
+        contestando = chats.length;
+        const trabajo = (async () => {
+          for (const id of chats) await contestarSolo(env, id);
+        })();
+        if (ctx?.waitUntil) ctx.waitUntil(trabajo); else await trabajo;
+      }
     }
   } catch (e) {
     console.error('No se pudo guardar el aviso de Meta:', e?.message ?? e);
@@ -1334,6 +1553,7 @@ async function recibirDeMeta(peticion, env) {
     meta: verificado ? `verificado (${verificado})` : 'sin verificar (no hay claves cargadas)',
     canal,
     mensajes: guardados,
+    contestando,
   }));
 
   return new Response('ok', { status: 200 });
@@ -1356,7 +1576,7 @@ function pedirClave(env) {
 /* ══════════════════════════════════════════════════════════════════ */
 
 export default {
-  async fetch(peticion, env) {
+  async fetch(peticion, env, ctx) {
     const url = new URL(peticion.url);
     const ruta = url.pathname.replace(/\/+$/, '') || '/';
     const metodo = peticion.method;
@@ -1686,7 +1906,7 @@ export default {
       /* ── EL WEBHOOK DE META ────────────────────────────────────── */
       if (ruta === '/api/meta/webhook') {
         if (metodo === 'GET') return verificarWebhook(url, env);
-        if (metodo === 'POST') return recibirDeMeta(peticion, env);
+        if (metodo === 'POST') return recibirDeMeta(peticion, env, ctx);
         return error('Método no permitido', 405);
       }
 
@@ -1903,6 +2123,55 @@ async function admin(peticion, env, ruta, metodo) {
     } catch (e) {
       return error(e?.message || 'No se pudo escribir la respuesta', 502);
     }
+  }
+
+  /* ── PROBAR LA DECISIÓN SIN MANDAR NADA ──────────────────────────
+
+     El bot ya contesta solo, y lo único que no se puede revisar después
+     de que mandó es lo que mandó. Esto corre la misma decisión sobre las
+     conversaciones que YA están guardadas y devuelve qué haría con cada
+     una: a quién le escribiría, a quién no y con qué texto.
+
+     Es la única forma honesta de mirarlo: son comentarios y mensajes
+     reales de gente real, no ejemplos inventados por mí que el bot va a
+     acertar porque los escribí pensando en él.
+
+     NO MANDA. Ni marca nada. Se puede correr las veces que haga falta.
+     Cuesta una llamada a Claude por conversación, así que de a diez. */
+  if (ruta === '/api/admin/chats/probar' && metodo === 'POST') {
+    const pedido = await peticion.json().catch(() => ({}));
+    const cuantas = Math.min(Number(pedido?.cuantas) || 10, 25);
+
+    const { results: chats } = await env.DB.prepare(
+      `SELECT c.id, c.nombre, m.clase, m.texto
+         FROM conversaciones c
+         JOIN mensajes m ON m.id = (
+              SELECT id FROM mensajes
+               WHERE conversacion_id = c.id AND texto IS NOT NULL
+               ORDER BY creado DESC, id DESC LIMIT 1)
+        WHERE c.humano = 0 AND m.direccion = 'entrante'
+        ORDER BY c.ultimo DESC
+        LIMIT ?`
+    ).bind(cuantas).all();
+
+    const salida = [];
+    for (const c of chats ?? []) {
+      try {
+        const d = await pensarRespuesta(env, c.id, { decidiendo: true });
+        salida.push({
+          chat: c.id, nombre: c.nombre, clase: c.clase,
+          le_dijo: c.texto, responder: d.responder,
+          derivar: d.derivar, texto: d.texto,
+        });
+      } catch (e) {
+        salida.push({
+          chat: c.id, nombre: c.nombre, clase: c.clase,
+          le_dijo: c.texto, falla: e?.message ?? String(e),
+        });
+      }
+    }
+
+    return json({ probadas: salida.length, decisiones: salida });
   }
 
   /* CONTESTAR DESDE EL PANEL.
