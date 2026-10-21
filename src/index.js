@@ -631,16 +631,50 @@ async function guardarEntrantes(env, lista) {
    SI FALLA LA BASE SE CONTESTA 200 IGUAL. Un 500 acá hace que Meta
    reintente, y si el problema persiste termina dando de baja la
    dirección. El reintento no pierde nada —el id de mensaje es único— así
-   que conviene aceptar y anotar el error. */
+   que conviene aceptar y anotar el error.
+
+   HAY DOS CLAVES SECRETAS, NO UNA, Y ESTO COSTÓ UNA TARDE.
+   ──────────────────────────────────────────────────────────────────
+   WhatsApp y Messenger firman con la clave de la app de Facebook
+   (`META_APP_SECRET`). Instagram, cuando se conecta por "inicio de
+   sesión de Instagram", es otra app con su propio identificador y su
+   PROPIA clave: en el panel aparece como "Clave secreta de la app de
+   Instagram", separada de la otra.
+
+   Con una sola clave cargada, todo aviso de Instagram fallaba la firma
+   y se iba en un 401 antes de llegar a guardarse. Y el 401 no anotaba
+   nada, así que desde afuera era idéntico a que no llegara nada: no
+   había forma de distinguir "Meta no mandó" de "llegó y lo rechacé".
+
+   Por eso ahora: se prueba contra las dos claves que estén cargadas, y
+   SI NINGUNA DA, SE ANOTA. El rechazo tiene que dejar rastro, porque es
+   justo el caso que uno necesita ver. */
 async function recibirDeMeta(peticion, env) {
   const crudo = await peticion.text();
+  const firma = peticion.headers.get('x-hub-signature-256');
 
-  let verificado = false;
-  if (env.META_APP_SECRET) {
-    verificado = await firmaDeMetaValida(
-      crudo, peticion.headers.get('x-hub-signature-256'), env.META_APP_SECRET
-    );
-    if (!verificado) return new Response('Firma inválida', { status: 401 });
+  /* Las que estén cargadas. Cada canal firma con la suya y acá no se
+     sabe cuál es sin parsear el cuerpo, que todavía no es de fiar. */
+  const claves = [
+    ['facebook',  env.META_APP_SECRET],
+    ['instagram', env.META_IG_APP_SECRET],
+  ].filter(([, valor]) => valor);
+
+  let verificado = null;
+  for (const [cual, valor] of claves) {
+    if (await firmaDeMetaValida(crudo, firma, valor)) { verificado = cual; break; }
+  }
+
+  if (claves.length && !verificado) {
+    /* SIN NADA DEL CUERPO: no está verificado, así que no se anota ni
+       una letra de lo que trajo. Sólo que hubo un rechazo y si venía
+       firmado, que es lo único que hace falta para diagnosticar. */
+    console.log(JSON.stringify({
+      meta: 'firma inválida',
+      traia_firma: Boolean(firma),
+      claves_probadas: claves.map(([cual]) => cual),
+    }));
+    return new Response('Firma inválida', { status: 401 });
   }
 
   let aviso = null;
@@ -657,9 +691,15 @@ async function recibirDeMeta(peticion, env) {
     console.error('No se pudo guardar el aviso de Meta:', e?.message ?? e);
   }
 
+  /* El `object` sale de un cuerpo que puede venir de cualquiera, así que
+     al log va sólo si es uno de los tres que conocemos. Pegar texto
+     ajeno en el log es ensuciarlo con lo que el otro quiera escribir. */
+  const CANALES_META = ['whatsapp_business_account', 'instagram', 'page'];
+  const canal = CANALES_META.includes(aviso?.object) ? aviso.object : 'desconocido';
+
   console.log(JSON.stringify({
-    meta: verificado ? 'verificado' : 'sin verificar (falta META_APP_SECRET)',
-    canal: aviso?.object ?? 'desconocido',
+    meta: verificado ? `verificado (${verificado})` : 'sin verificar (no hay claves cargadas)',
+    canal,
     mensajes: guardados,
   }));
 
@@ -1108,6 +1148,13 @@ function limpiar(cuerpo) {
   return salida;
 }
 
+/* Las listas cerradas del embudo. Tienen que coincidir con los CHECK de
+   esquema/009-embudo.sql: si se agrega una acá y no allá, la base la
+   rechaza. Las etapas van EN ORDEN, porque de ese orden salen los
+   acumulados del panel. */
+const TIPOS_EMBUDO = ['comprador', 'vendedor', 'permuta', 'ruido'];
+const ETAPAS = ['consulta', 'charla', 'precio', 'visita', 'vino', 'cerrado'];
+
 async function admin(peticion, env, ruta, metodo) {
   /* ══════════════════════════════════════════════════════════════
      LA BANDEJA DE MENSAJES
@@ -1123,6 +1170,7 @@ async function admin(peticion, env, ruta, metodo) {
   if (ruta === '/api/admin/chats' && metodo === 'GET') {
     const { results } = await env.DB.prepare(
       `SELECT c.id, c.canal, c.externo_id, c.nombre, c.humano, c.nota, c.ultimo,
+              c.tipo, c.etapa, c.perdido,
               (SELECT m.texto FROM mensajes m
                 WHERE m.conversacion_id = c.id
                 ORDER BY m.creado DESC LIMIT 1) AS adelanto,
@@ -1170,6 +1218,51 @@ async function admin(peticion, env, ruta, metodo) {
 
     if (!r.meta.changes) return error('No está', 404);
     return json({ ok: true, humano: prendido });
+  }
+
+  /* EL EMBUDO DE UNA CONVERSACIÓN: qué vino a hacer, hasta dónde llegó
+     y si se perdió. Solo valores de una lista cerrada —ver
+     esquema/009-embudo.sql—: lo que no está en la lista se rechaza en
+     vez de guardarse a medias. Mandar null en `tipo` o `etapa` los
+     vuelve a "sin marcar", para poder corregir un error. */
+  const embudoDe = ruta.match(/^\/api\/admin\/chats\/(\d+)\/embudo$/);
+  if (embudoDe && metodo === 'POST') {
+    const cuerpo = await peticion.json().catch(() => ({}));
+    const tipo = cuerpo?.tipo ?? null;
+    const etapa = cuerpo?.etapa ?? null;
+    if (tipo !== null && !TIPOS_EMBUDO.includes(tipo)) return error('Tipo desconocido');
+    if (etapa !== null && !ETAPAS.includes(etapa)) return error('Etapa desconocida');
+    const perdido = cuerpo?.perdido ? 1 : 0;
+
+    const r = await env.DB.prepare(
+      `UPDATE conversaciones
+          SET tipo = ?, etapa = ?, perdido = ?, etapa_cambio = datetime('now')
+        WHERE id = ?`
+    ).bind(tipo, etapa, perdido, embudoDe[1]).run();
+
+    if (!r.meta.changes) return error('No está', 404);
+    return json({ ok: true });
+  }
+
+  /* LOS NÚMEROS DEL MES. Cuenta las conversaciones que EMPEZARON ese mes
+     —no las que se movieron—, así cada mes es una camada que se puede
+     seguir hasta el final. Devuelve los conteos crudos; los acumulados
+     ("cuántos llegaron al menos a la visita") se arman en el panel.
+
+     El mes va en la dirección y está bien: "2026-10" no dice nada de
+     nadie. */
+  if (ruta === '/api/admin/embudo' && metodo === 'GET') {
+    const mes = new URL(peticion.url).searchParams.get('mes') ?? '';
+    if (!/^\d{4}-\d{2}$/.test(mes)) return error('El mes va como 2026-10');
+
+    const { results } = await env.DB.prepare(
+      `SELECT tipo, etapa, perdido, COUNT(*) AS cantidad
+         FROM conversaciones
+        WHERE substr(creado, 1, 7) = ?
+        GROUP BY tipo, etapa, perdido`
+    ).bind(mes).all();
+
+    return json({ mes, filas: results, etapas: ETAPAS, tipos: TIPOS_EMBUDO });
   }
 
   /* EL BORRADO A PEDIDO.
