@@ -726,6 +726,21 @@ async function mandarPorInstagram(env, destino, texto, { esComentario = false } 
   });
 }
 
+/* DAR ME GUSTA A UN COMENTARIO.
+
+   Meta lo habilitó el 22 de abril de 2026 y pide su propio permiso,
+   `instagram_manage_engagement`: si no está en el token, esto falla con
+   un error de permisos y no con otra cosa.
+
+   ES SECUNDARIO Y FALLA SOLO. Un me gusta que no sale no es motivo para
+   no contestarle a alguien, así que quien llama lo envuelve y sigue. */
+async function megustaEnInstagram(env, comentarioId) {
+  return igLlamar(env, '/me/likes', {
+    method: 'POST',
+    body: JSON.stringify({ comment_id: comentarioId }),
+  });
+}
+
 /* Deja asentado lo que mandamos, en la misma conversación.
    `autor` separa lo que escribió una persona de lo que escribió la IA:
    es el compromiso de que después se pueda ver quién respondió qué. */
@@ -1161,7 +1176,9 @@ const MODELO = 'claude-haiku-5-5';
    LA PERMUTA SE TOMA, Y ESO ANTES ESTABA MAL ESCRITO. Lo que el bot no
    puede hacer es decir cuánto vale: junta los datos y las fotos, y la
    diferencia la pasa una persona. */
-function instruccionesDelBot({ autos, posteo, decidiendo = false, esComentario = false }) {
+function instruccionesDelBot({
+  autos, posteo, nuestro = null, decidiendo = false, esComentario = false,
+}) {
   /* CADA AUTO CON SU DIRECCIÓN PROPIA, y no la del garage entero.
      Cuando piden fotos, el link es la respuesta: la ficha las tiene
      todas. Mandar el garage entero es hacerle buscar de nuevo el auto
@@ -1180,9 +1197,17 @@ function instruccionesDelBot({ autos, posteo, decidiendo = false, esComentario =
            `  fotos y ficha: ${SITIO}${enlaceDe(a)}`;
   }).join('\n') || '(no hay autos publicados)';
 
+  /* DE DÓNDE SALE ESTO, y qué pusimos nosotros ahí.
+     Es lo que deja al bot atar cabos: si la publicación habla de un auto,
+     el que comenta "cuánto" pregunta por ESE y no hay que preguntarle
+     cuál. Sin esto, cada comentario arranca de cero. */
+  const nuestroTexto = nuestro
+    ? `\n\nY esto lo pusimos nosotros en el primer comentario:\n<<<\n${nuestro}\n>>>`
+    : '';
+
   const deDonde = posteo
-    ? `ESTE MENSAJE ES UN COMENTARIO debajo de esta publicación nuestra:\n<<<\n${posteo}\n>>>\nSi habla de un auto de la lista, preguntan por ese. Si habla de otra\ncosa, contestá sobre eso y no ofrezcas un auto.`
-    : `ESTE MENSAJE NO VIENE DE NINGUNA PUBLICACIÓN. Si no queda claro por\nqué auto preguntan, preguntá cuál antes de dar datos.`;
+    ? `DE DÓNDE SALE ESTO. Lo escribimos nosotros al publicar:\n<<<\n${posteo}\n>>>${nuestroTexto}\n\nATÁ CABOS CON ESO. Si ahí se habla de un auto de la lista, están\npreguntando por ESE: no les preguntes cuál. Si la publicación no es de\nun auto, contestá sobre lo que dice y no ofrezcas ninguno.`
+    : `ESTO NO VIENE DE NINGUNA PUBLICACIÓN. Si no queda claro por qué auto\npreguntan, preguntá cuál antes de dar datos.`;
 
   return `Sos el asistente automático de Manna Motors Selected, concesionaria de
 autos seleccionados en Buenos Aires. Atendés por Instagram.
@@ -1274,7 +1299,17 @@ responder: false si
 responder: true sólo si pregunta algo de un auto: precio, kilómetros,
 año, si está disponible, si lo puede ver, si tomamos permuta.
 
-ANTE LA DUDA, false.`
+ANTE LA DUDA, false.
+
+ME GUSTA. Va en true si el comentario es bueno con nosotros o con el
+auto: un elogio, un "qué máquina", aplausos, un corazón, una pregunta
+hecha de buen modo. Eso se agradece aunque no le contestemos.
+
+Va en false, y ahí no se hace nada de nada —ni me gusta, ni respuesta,
+ni derivar—, si es una crítica, una cargada, un insulto, una queja, un
+chiste a costa nuestra, o si le parece caro o un robo. A eso se lo deja
+pasar: ponerle me gusta a quien nos pegó es ridículo, y contestarle es
+darle cuerda adelante de todos.`
     : `ESTO ES UN MENSAJE PRIVADO: te escribió. responder va true siempre.`;
 
   return `
@@ -1282,10 +1317,11 @@ ANTE LA DUDA, false.`
 ${cuando}
 
 Devolvé SÓLO este JSON, sin una palabra antes ni después:
-{"responder": true, "derivar": false, "texto": "..."}
+{"responder": true, "derivar": false, "megusta": false, "texto": "..."}
 
 responder — si le escribimos o no.
 derivar — si de acá sigue una persona.
+megusta — si le ponemos me gusta al comentario.
 texto — lo que le escribimos. Escribilo siempre, incluso si responder es
 false: si derivás, que sea que ya le pasás con alguien del equipo.`;
 }
@@ -1312,26 +1348,90 @@ async function pensarRespuesta(env, conversacionId, { decidiendo = false } = {})
       ORDER BY creado, id`
   ).bind(conversacionId).all();
 
-  const conTexto = (mensajes ?? []).filter((m) => m.texto);
-  if (!conTexto.length) throw new Error('No hay nada que contestar todavía');
+  const todos = (mensajes ?? []).filter((m) => m.texto);
+  if (!todos.length) throw new Error('No hay nada que contestar todavía');
 
-  const ultimo = conTexto[conTexto.length - 1];
+  const ultimo = todos[todos.length - 1];
+  const esComentario = ultimo.clase === 'comentario';
+
+  /* ── EL CONTEXTO DE UN COMENTARIO NO ES EL HILO ──────────────────
+
+     Acá estaba el ruido. Una "conversación" es una persona, no una
+     charla: si alguien comentó cuarenta y seis veces en dieciséis
+     publicaciones distintas a lo largo de meses, las cuarenta y seis
+     entraban juntas como si fueran un diálogo seguido — y encima con el
+     texto de UNA sola de las dieciséis. El modelo tenía que adivinar de
+     qué se estaba hablando entre pedazos de dieciséis temas.
+
+     UN COMENTARIO SE MIRA SOLO, contra su publicación. Lo que entra es
+     lo que esa persona escribió EN ESA publicación y nada más. Si
+     comentó tres veces abajo del mismo posteo, las tres: eso sí es un
+     hilo. Lo que dijo en otro posteo hace dos meses, no.
+
+     UN PRIVADO SÍ ES UNA CHARLA, pero sólo con los privados: los
+     comentarios viejos no son parte de ella. Y los últimos veinte, que
+     más atrás ya no se está hablando de lo mismo. */
+  const privados = todos.filter((m) => m.clase !== 'comentario').slice(-20);
+
+  const hilo = esComentario
+    ? todos.filter((m) => m.clase === 'comentario' && m.media_id === ultimo.media_id)
+    : (privados.length ? privados : [ultimo]);
 
   const { results: autos } = await env.DB.prepare(
     `SELECT id, marca, modelo, anio, km, precio, moneda, color, estado
        FROM autos WHERE estado = 'publicado' ORDER BY marca, modelo`
   ).all();
 
-  /* EL TEXTO DEL POSTEO, DEL ÚLTIMO COMENTARIO QUE HAYA.
-     Sale de las estadísticas que ya guardamos, así que no cuesta una
-     llamada a Instagram. Si todavía no se leyeron, el bot se arregla
-     sin eso y sus instrucciones ya le dicen qué hacer en ese caso. */
+  /* DE QUÉ PUBLICACIÓN SALE ESTO.
+     En un comentario, la suya. En un privado, la del comentario que lo
+     originó — pero sólo si fue lo último que pasó: si hay que irse diez
+     mensajes atrás para encontrarlo, ya no es de eso que están
+     hablando, y arrastrarlo confunde más de lo que ayuda. */
+  const origen = esComentario
+    ? ultimo
+    : [...todos].slice(-4).reverse().find((m) => m.media_id);
+
   let posteo = null;
-  const conPosteo = [...conTexto].reverse().find((m) => m.media_id);
-  if (conPosteo) {
+  let nuestro = null;
+
+  if (origen?.media_id) {
+    /* El texto sale de las estadísticas que ya tenemos guardadas, así
+       que no cuesta una llamada a Instagram. Si todavía no se leyeron,
+       el bot se arregla sin eso. */
     const guardado = (await leerEstado(env, 'instagram_numeros'))?.valor;
     posteo = (guardado?.publicaciones ?? [])
-      .find((p) => p.id === conPosteo.media_id)?.texto ?? null;
+      .find((p) => p.id === origen.media_id)?.texto ?? null;
+
+    /* Y SI NO ESTÁ GUARDADA, SE PREGUNTA.
+       Acá se rompía de verdad. Lo guardado son las publicaciones que
+       entraron en la última lectura, y la gente comenta en posteos de
+       hace meses: el comentario que destapó esto colgaba de uno que no
+       estaba. Sin el texto el bot queda ciego y termina preguntando "de
+       cuál auto" abajo de una publicación que dice cuál.
+
+       Es una sola llamada y sólo cuando falta. Si tampoco sale, se sigue
+       sin ella: las instrucciones ya dicen qué hacer a oscuras. */
+    if (!posteo) {
+      try {
+        const m = await igLlamar(env, `/${origen.media_id}?fields=caption`);
+        posteo = m?.caption ?? null;
+      } catch (e) {
+        console.error('No se pudo leer la publicación:', e?.message ?? e);
+      }
+    }
+
+    /* Y EL COMENTARIO QUE PONEMOS NOSOTROS ABAJO, si hay.
+       No las respuestas a la gente —esas arrancan con la arroba— sino
+       lo que escribimos al publicar, que es donde suelen ir los datos
+       que no entraron en la descripción. */
+    const propio = await env.DB.prepare(
+      `SELECT texto FROM mensajes
+        WHERE media_id = ? AND clase = 'comentario' AND direccion = 'saliente'
+          AND texto IS NOT NULL AND texto NOT LIKE '@%'
+        ORDER BY creado, id LIMIT 1`
+    ).bind(origen.media_id).first();
+
+    nuestro = propio?.texto ?? null;
   }
 
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
@@ -1344,10 +1444,9 @@ async function pensarRespuesta(env, conversacionId, { decidiendo = false } = {})
        que no lo necesita. */
     output_config: { effort: 'low' },
     system: instruccionesDelBot({
-      autos: autos ?? [], posteo, decidiendo,
-      esComentario: ultimo.clase === 'comentario',
+      autos: autos ?? [], posteo, nuestro, decidiendo, esComentario,
     }),
-    messages: conTexto.map((m) => ({
+    messages: hilo.map((m) => ({
       role: m.direccion === 'entrante' ? 'user' : 'assistant',
       content: m.texto,
     })),
@@ -1376,6 +1475,7 @@ async function pensarRespuesta(env, conversacionId, { decidiendo = false } = {})
     texto, conPosteo: Boolean(posteo), ultimo,
     responder: d.responder === true,
     derivar: d.derivar === true,
+    megusta: d.megusta === true,
   };
 }
 
@@ -1438,12 +1538,29 @@ async function contestarSolo(env, conversacionId) {
       ).bind(conversacionId).run();
     }
 
+    /* EL ME GUSTA VA PRIMERO Y VA APARTE.
+       A un comentario amable se le pone me gusta aunque no haya nada que
+       contestarle — es el caso más común y el que más se nota. Y va
+       envuelto porque es lo secundario: si falla el me gusta, la
+       respuesta tiene que salir igual. */
+    const esUnComentario = d.ultimo.clase === 'comentario' && d.ultimo.externo_id;
+
+    if (d.megusta && esUnComentario) {
+      try {
+        await megustaEnInstagram(env, d.ultimo.externo_id);
+      } catch (e) {
+        console.error('No se pudo dar me gusta:', e?.message ?? e);
+      }
+    }
+
     if (!d.responder && !d.derivar) {
       /* Queda el texto que hubiera mandado, para poder revisar si se
          está callando donde debería hablar. Es nuestro propio borrador,
          no lo que escribió el cliente. */
       console.log(JSON.stringify({
-        bot: 'no le escribe', chat: conversacionId, hubiera_dicho: d.texto,
+        bot: 'no le escribe', chat: conversacionId,
+        megusta: Boolean(d.megusta && esUnComentario),
+        hubiera_dicho: d.texto,
       }));
       return;
     }
@@ -1452,13 +1569,11 @@ async function contestarSolo(env, conversacionId) {
        la persona: a alguien que nunca nos escribió no se le puede abrir
        un privado, y la respuesta privada a un comentario es la única
        puerta que da Instagram. Dura 7 días y se usa una sola vez. */
-    const porComentario = d.ultimo.clase === 'comentario' && d.ultimo.externo_id;
-
     const envio = await mandarPorInstagram(
       env,
-      porComentario ? d.ultimo.externo_id : chat.externo_id,
+      esUnComentario ? d.ultimo.externo_id : chat.externo_id,
       d.texto,
-      { esComentario: Boolean(porComentario) }
+      { esComentario: Boolean(esUnComentario) }
     );
 
     await guardarSaliente(env, conversacionId, d.texto, 'ia', envio?.message_id);
@@ -1466,7 +1581,8 @@ async function contestarSolo(env, conversacionId) {
     console.log(JSON.stringify({
       bot: d.derivar ? 'derivó' : 'contestó',
       chat: conversacionId,
-      por: porComentario ? 'comentario' : 'privado',
+      por: esUnComentario ? 'comentario' : 'privado',
+      megusta: Boolean(d.megusta && esUnComentario),
     }));
   } catch (e) {
     /* NO SE PROPAGA. Esto corre colgado del webhook: si tira, Meta
