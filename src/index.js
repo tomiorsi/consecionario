@@ -741,15 +741,51 @@ async function megustaEnInstagram(env, comentarioId) {
   });
 }
 
+/* CONTESTAR ABAJO DE LA PUBLICACIÓN, a la vista de todos.
+
+   No es la respuesta: la respuesta va al privado. Esto es el aviso de
+   que fuimos al privado, que es lo que ya se hacía a mano —"Te
+   escribimos por privado"— y sirve para dos cosas. El que comentó ve
+   que le contestamos aunque todavía no haya abierto los mensajes, y el
+   que pasa por el comentario ve que acá se contesta.
+
+   EL TEXTO NO LO ESCRIBE EL MODELO, y es a propósito: abajo de la
+   publicación lo lee cualquiera, así que lo único que puede decir es
+   que le escribimos. Un precio o un dato suelto en público es
+   justamente lo que no queremos, y la forma de que no pase es que no
+   tenga manera de ponerlo.
+
+   SE ELIGE UNA DE VARIAS porque repetir el mismo renglón cincuenta
+   veces abajo de cincuenta publicaciones se lee como un robot, y de
+   hecho lo es.
+
+   `message` va en la dirección y no en el cuerpo porque así lo pide la
+   API. Es texto nuestro y público: no hay nada de nadie ahí. */
+const AVISOS = [
+  'Te escribimos por privado.',
+  'Te acabamos de escribir al privado.',
+  'Listo, te mandamos un privado.',
+  'Te hablamos por privado.',
+];
+
+async function avisarEnElComentario(env, comentarioId) {
+  const texto = AVISOS[Math.floor(Math.random() * AVISOS.length)];
+  return igLlamar(
+    env,
+    `/${comentarioId}/replies?message=${encodeURIComponent(texto)}`,
+    { method: 'POST' }
+  );
+}
+
 /* Deja asentado lo que mandamos, en la misma conversación.
    `autor` separa lo que escribió una persona de lo que escribió la IA:
    es el compromiso de que después se pueda ver quién respondió qué. */
-async function guardarSaliente(env, conversacionId, texto, autor, mensajeId) {
+async function guardarSaliente(env, conversacionId, texto, autor, mensajeId, mediaId) {
   await env.DB.prepare(
     `INSERT OR IGNORE INTO mensajes
-       (conversacion_id, externo_id, direccion, autor, tipo, texto)
-     VALUES (?, ?, 'saliente', ?, 'texto', ?)`
-  ).bind(conversacionId, mensajeId ?? null, autor, texto).run();
+       (conversacion_id, externo_id, direccion, autor, tipo, texto, media_id)
+     VALUES (?, ?, 'saliente', ?, 'texto', ?, ?)`
+  ).bind(conversacionId, mensajeId ?? null, autor, texto, mediaId ?? null).run();
 
   await env.DB.prepare(
     `UPDATE conversaciones SET ultimo = datetime('now') WHERE id = ?`
@@ -1206,7 +1242,7 @@ function instruccionesDelBot({
     : '';
 
   const deDonde = posteo
-    ? `DE DÓNDE SALE ESTO. Lo escribimos nosotros al publicar:\n<<<\n${posteo}\n>>>${nuestroTexto}\n\nATÁ CABOS CON ESO. Si ahí se habla de un auto de la lista, están\npreguntando por ESE: no les preguntes cuál. Si la publicación no es de\nun auto, contestá sobre lo que dice y no ofrezcas ninguno.`
+    ? `DE DÓNDE SALE ESTO. Lo escribimos nosotros al publicar:\n<<<\n${posteo}\n>>>${nuestroTexto}\n\nATÁ CABOS CON ESO: si ahí se habla de un auto de la lista, están\npreguntando por ESE y no les preguntes cuál. Si la publicación no es de\nun auto, contestá sobre lo que dice y no ofrezcas ninguno.\n\nPERO LOS DATOS NO SALEN DE AHÍ. La publicación sirve para saber DE QUÉ\nAUTO hablan, nada más. El precio, los kilómetros y si está disponible\nsalen SÓLO de la lista de arriba, que es la que está al día. Un posteo o\nun comentario de hace meses puede tener un precio viejo: no lo repitas\nnunca, ni aunque lo hayamos escrito nosotros.`
     : `ESTO NO VIENE DE NINGUNA PUBLICACIÓN. Si no queda claro por qué auto\npreguntan, preguntá cuál antes de dar datos.`;
 
   return `Sos el asistente automático de Manna Motors Selected, concesionaria de
@@ -1523,6 +1559,28 @@ async function contestarSolo(env, conversacionId) {
     if (!chat || chat.humano) return;
     if (chat.canal !== 'instagram') return;
 
+    /* ── EL FRENO DE RÁFAGA ──────────────────────────────────────────
+       Nadie necesita cinco mensajes nuestros en diez minutos, y Meta
+       menos: los límites de Instagram se cuentan por cuenta y por hora,
+       y una cuenta que dispara seguido termina con la dirección cortada.
+
+       Esto no es el límite de Meta —con ochocientos seguidores no se
+       llega ni cerca—, es el freno de que algo nuestro se vuelva loco:
+       un bucle, una tanda de avisos repetidos, un error que reintenta.
+       Cinco en diez minutos no lo alcanza nadie atendiendo bien. */
+    const recientes = await env.DB.prepare(
+      `SELECT COUNT(*) n FROM mensajes
+        WHERE conversacion_id = ? AND direccion = 'saliente'
+          AND creado > datetime('now', '-10 minutes')`
+    ).bind(conversacionId).first();
+
+    if ((recientes?.n ?? 0) >= 5) {
+      console.log(JSON.stringify({
+        bot: 'frenado por ráfaga', chat: conversacionId, salientes: recientes.n,
+      }));
+      return;
+    }
+
     const d = await pensarRespuesta(env, conversacionId, { decidiendo: true });
 
     /* El último con texto no es de la otra persona: o ya le contestaron,
@@ -1569,6 +1627,30 @@ async function contestarSolo(env, conversacionId) {
        la persona: a alguien que nunca nos escribió no se le puede abrir
        un privado, y la respuesta privada a un comentario es la única
        puerta que da Instagram. Dura 7 días y se usa una sola vez. */
+    /* UN PRIVADO POR PUBLICACIÓN, Y NO UNO POR COMENTARIO.
+       Meta deja una respuesta privada por comentario, así que alguien
+       que comenta cinco veces abajo del mismo posteo habilita cinco
+       privados. Que esté permitido no lo hace sensato: son cinco
+       mensajes nuestros por una sola consulta, y así es como la gente
+       marca una cuenta como spam.
+
+       Ya le escribimos por esta publicación: el me gusta ya se puso más
+       arriba, y con eso alcanza. */
+    if (esUnComentario && d.ultimo.media_id) {
+      const yaFuimos = await env.DB.prepare(
+        `SELECT 1 FROM mensajes
+          WHERE conversacion_id = ? AND direccion = 'saliente'
+            AND media_id = ? LIMIT 1`
+      ).bind(conversacionId, d.ultimo.media_id).first();
+
+      if (yaFuimos) {
+        console.log(JSON.stringify({
+          bot: 'ya le escribió por esta publicación', chat: conversacionId,
+        }));
+        return;
+      }
+    }
+
     const envio = await mandarPorInstagram(
       env,
       esUnComentario ? d.ultimo.externo_id : chat.externo_id,
@@ -1576,7 +1658,23 @@ async function contestarSolo(env, conversacionId) {
       { esComentario: Boolean(esUnComentario) }
     );
 
-    await guardarSaliente(env, conversacionId, d.texto, 'ia', envio?.message_id);
+    await guardarSaliente(
+      env, conversacionId, d.texto, 'ia', envio?.message_id,
+      esUnComentario ? d.ultimo.media_id : null
+    );
+
+    /* Y EL AVISO ABAJO DE LA PUBLICACIÓN, después de que el privado
+       salió. En ese orden: avisar que escribimos antes de haber escrito
+       es mentirle a todo el que lo lea. Envuelto, porque no se puede
+       responder abajo de una respuesta a otro comentario y eso no es
+       motivo para dar por fallado un privado que ya salió bien. */
+    if (esUnComentario) {
+      try {
+        await avisarEnElComentario(env, d.ultimo.externo_id);
+      } catch (e) {
+        console.error('No se pudo avisar en el comentario:', e?.message ?? e);
+      }
+    }
 
     console.log(JSON.stringify({
       bot: d.derivar ? 'derivó' : 'contestó',
