@@ -1054,8 +1054,15 @@ $('#traerIG').addEventListener('click', async () => {
   boton.disabled = true;
   boton.textContent = 'Trayendo…';
   try {
-    const { nuevos } = await api('/api/admin/instagram/traer', { method: 'POST' });
-    avisar(nuevos ? 'Entraron ' + nuevos + ' mensajes' : 'No había nada nuevo');
+    const { vistas, leidos, guardados } = await api('/api/admin/instagram/traer', { method: 'POST' });
+    /* Cada caso dice algo distinto y por eso no comparten mensaje:
+       sin conversaciones el problema está en Instagram, y con
+       conversaciones pero sin nada nuevo, no hay problema. */
+    avisar(
+      guardados ? 'Entraron ' + guardados + ' mensajes'
+      : !vistas  ? 'Instagram no devolvió ninguna conversación'
+      :            vistas + ' conversaciones, ' + leidos + ' mensajes, nada nuevo'
+    );
     await cargarChats();
   } catch (err) {
     avisar(err.message, true);

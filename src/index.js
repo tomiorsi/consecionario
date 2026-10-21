@@ -702,6 +702,13 @@ async function traerDeInstagram(env, { limite = 25 } = {}) {
   const conv = await igLlamar(env,
     `/me/conversations?platform=instagram&fields=id,updated_time&limit=${limite}`);
 
+  /* CUÁNTAS VIO Y CUÁNTAS GUARDÓ, POR SEPARADO.
+     "No entró nada" tiene dos causas muy distintas: que Instagram no
+     devuelva ninguna conversación, o que las devuelva y ya las
+     tengamos. Un solo número no las distingue, y entonces hay que
+     adivinar. */
+  const vistas = (conv?.data ?? []).length;
+  let leidos = 0;
   let guardados = 0;
 
   for (const c of conv?.data ?? []) {
@@ -709,6 +716,7 @@ async function traerDeInstagram(env, { limite = 25 } = {}) {
       `/${c.id}?fields=messages.limit(25){id,created_time,from,to,message}`);
 
     for (const m of detalle?.messages?.data ?? []) {
+      leidos++;
       const mio = Boolean(m.from?.id) && m.from.id === yo;
       const otro = mio ? (m.to?.data?.[0]) : m.from;
       if (!otro?.id) continue;
@@ -722,23 +730,32 @@ async function traerDeInstagram(env, { limite = 25 } = {}) {
       ).bind(otro.id, otro.username ?? null).first();
       if (!fila?.id) continue;
 
-      const r = await env.DB.prepare(
-        `INSERT OR IGNORE INTO mensajes
-           (conversacion_id, externo_id, direccion, autor, tipo, texto, creado)
-         VALUES (?, ?, ?, ?, 'texto', ?, ?)`
-      ).bind(
+      /* LA FECHA SÓLO SI VINO.
+         `creado` es NOT NULL con un valor por defecto, y pasarle NULL a
+         mano NO usa ese valor por defecto: rompe la consulta entera. Así
+         que cuando Instagram no manda la fecha, la columna no se nombra
+         y la pone la base. */
+      const cuando = (m.created_time || '').replace('T', ' ').slice(0, 19);
+      const campos = ['conversacion_id', 'externo_id', 'direccion', 'autor', 'tipo', 'texto'];
+      const valores = [
         fila.id, m.id,
         mio ? 'saliente' : 'entrante',
         mio ? 'persona' : null,
+        'texto',
         m.message ?? null,
-        (m.created_time || '').replace('T', ' ').slice(0, 19) || null
-      ).run();
+      ];
+      if (cuando) { campos.push('creado'); valores.push(cuando); }
+
+      const r = await env.DB.prepare(
+        `INSERT OR IGNORE INTO mensajes (${campos.join(', ')})
+         VALUES (${campos.map(() => '?').join(', ')})`
+      ).bind(...valores).run();
 
       guardados += r.meta?.changes ?? 0;
     }
   }
 
-  return guardados;
+  return { vistas, leidos, guardados };
 }
 
 /* SE CONTESTA 200 SIEMPRE QUE EL AVISO SEA DE META, y rápido. Si Meta
@@ -1395,8 +1412,8 @@ async function admin(peticion, env, ruta, metodo) {
      de `traerDeInstagram`— y se dispara desde un botón del panel. */
   if (ruta === '/api/admin/instagram/traer' && metodo === 'POST') {
     try {
-      const nuevos = await traerDeInstagram(env);
-      return json({ ok: true, nuevos });
+      const r = await traerDeInstagram(env);
+      return json({ ok: true, ...r });
     } catch (e) {
       return error(e?.message || 'No se pudo consultar a Instagram', 502);
     }
