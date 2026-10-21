@@ -1033,7 +1033,17 @@ async function actualizarNumeros(env, { desde = 0, porTanda = 6 } = {}) {
 
     const nuevo = { perfil, cuenta, publico, publicaciones };
     await guardarEstado(env, 'instagram_numeros', nuevo);
-    return { ...nuevo, total: publicaciones.length, hechas: 0, siguiente: 0 };
+    /* `siguiente: 1` Y NO 0. Las tandas de métricas arrancan en 1 —el 0
+       es esta primera, la de los datos de cuenta— y devolver 0 hacía
+       que el panel volviera a pedir ESTA tanda para siempre: nunca
+       llegaba a las métricas de cada publicación, y la tabla quedaba
+       con los títulos y sin un solo número. Un cero donde iba un uno. */
+    return {
+      ...nuevo,
+      total: publicaciones.length,
+      hechas: 0,
+      siguiente: publicaciones.length ? 1 : null,
+    };
   }
 
   /* Y acá las métricas de cada publicación, de a poco. */
@@ -1731,14 +1741,44 @@ export default {
      que murió hace un año no le sirve a nadie.
 
      El CASCADE de la tabla se lleva los mensajes. */
-  async scheduled(_evento, env, _ctx) {
-    const r = await env.DB.prepare(
-      `DELETE FROM conversaciones WHERE ultimo < datetime('now','-12 months')`
-    ).run();
-    console.log(JSON.stringify({
-      limpieza: 'conversaciones +12 meses',
-      borradas: r.meta?.changes ?? 0,
-    }));
+  /* DOS TAREAS Y UN SOLO DISPARADOR, QUE SE REPARTEN POR LA HORA.
+
+     La limpieza es diaria y corre de madrugada. Las estadísticas se
+     refrescan cada media hora para que el panel esté al día sin que
+     nadie entre: antes sólo se actualizaban cuando alguien abría la
+     pestaña, así que el primero del día siempre veía datos de ayer.
+
+     UNA TANDA POR VUELTA, Y NO TODO. Son treinta y pico de consultas y
+     Cloudflare corta antes; además Instagram limita a 200 por hora.
+     Avanzando de a poco, el recorrido completo se da solo en un par de
+     horas y no se gasta casi nada. Dónde quedó se guarda, así que cada
+     vuelta sigue por donde iba. */
+  async scheduled(evento, env, _ctx) {
+    const hora = new Date(evento.scheduledTime ?? Date.now()).getUTCHours();
+
+    if (hora === 4) {
+      const r = await env.DB.prepare(
+        `DELETE FROM conversaciones WHERE ultimo < datetime('now','-12 months')`
+      ).run();
+      console.log(JSON.stringify({
+        limpieza: 'conversaciones +12 meses',
+        borradas: r.meta?.changes ?? 0,
+      }));
+    }
+
+    if (!env.META_IG_TOKEN) return;
+    try {
+      const cursor = (await leerEstado(env, 'instagram_cursor'))?.valor ?? 0;
+      const r = await actualizarNumeros(env, { desde: cursor });
+      /* Al terminar la vuelta se arranca de nuevo desde el principio:
+         los números de las publicaciones viejas también cambian. */
+      await guardarEstado(env, 'instagram_cursor', r.siguiente ?? 0);
+      console.log(JSON.stringify({
+        estadisticas: 'actualizadas', desde: cursor, hasta: r.hechas, de: r.total,
+      }));
+    } catch (e) {
+      console.error('No se pudieron refrescar las estadísticas:', e?.message ?? e);
+    }
   },
 };
 

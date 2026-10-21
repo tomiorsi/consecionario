@@ -81,7 +81,11 @@
   //
   // EL PLAZO ESTA DECLARADO ANTE META Y PUBLICADO EN /privacidad/. Si
   // alguna vez cambia, se cambian los tres lugares el mismo dia.
-  "triggers": { "crons": ["30 4 * * *"] },
+  // Cada media hora: refresca las estadisticas de Instagram de a tandas,
+  // para que el panel este al dia sin que nadie entre. La limpieza de
+  // conversaciones sigue siendo diaria y el propio codigo la corre solo
+  // en la vuelta de las 4 (ver `scheduled` en src/index.js).
+  "triggers": { "crons": ["0,30 * * * *"] },
 
   "observability": { "enabled": true }
 }
