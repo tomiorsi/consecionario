@@ -611,6 +611,136 @@ async function guardarEntrantes(env, lista) {
   }
 }
 
+/* ── INSTAGRAM: CONTESTAR ────────────────────────────────────────
+   ══════════════════════════════════════════════════════════════════
+
+   Hasta acá el Worker sólo escuchaba. Esto es lo que habla.
+
+   OTRA DIRECCIÓN Y OTRA LLAVE QUE LAS DE FACEBOOK. Instagram conectado
+   por "inicio de sesión de Instagram" vive en graph.instagram.com y usa
+   su propio token (`META_IG_TOKEN`), no el de la página.
+
+   LAS 24 HORAS MANDAN. Se puede escribir libre sólo dentro de las 24
+   horas desde el último mensaje de esa persona. Pasado ese plazo la API
+   contesta un error, y acá ese error se devuelve tal cual al panel en
+   vez de tragárselo: el que está atendiendo tiene que entender por qué
+   no salió, y "falló" no se lo explica. */
+
+const IG_API = 'https://graph.instagram.com/v23.0';
+
+async function igLlamar(env, camino, opciones = {}) {
+  if (!env.META_IG_TOKEN) throw new Error('Falta cargar META_IG_TOKEN');
+
+  const url = new URL(IG_API + camino);
+  const r = await fetch(url, {
+    ...opciones,
+    headers: {
+      authorization: `Bearer ${env.META_IG_TOKEN}`,
+      ...(opciones.body ? { 'content-type': 'application/json' } : {}),
+      ...opciones.headers,
+    },
+  });
+
+  const dato = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    /* El mensaje de Meta es más útil que un código: dice si se venció la
+       ventana, si falta un permiso o si el token murió. */
+    throw new Error(dato?.error?.message || `Instagram contestó ${r.status}`);
+  }
+  return dato;
+}
+
+/* MANDAR UN MENSAJE.
+   `destino` es el id de la persona (para un DM) o el id de un comentario
+   (para una respuesta privada). Son el mismo endpoint y cambia una sola
+   clave adentro de `recipient`, así que es una sola función. */
+async function mandarPorInstagram(env, destino, texto, { esComentario = false } = {}) {
+  return igLlamar(env, '/me/messages', {
+    method: 'POST',
+    body: JSON.stringify({
+      recipient: esComentario ? { comment_id: destino } : { id: destino },
+      message: { text: texto },
+    }),
+  });
+}
+
+/* Deja asentado lo que mandamos, en la misma conversación.
+   `autor` separa lo que escribió una persona de lo que escribió la IA:
+   es el compromiso de que después se pueda ver quién respondió qué. */
+async function guardarSaliente(env, conversacionId, texto, autor, mensajeId) {
+  await env.DB.prepare(
+    `INSERT OR IGNORE INTO mensajes
+       (conversacion_id, externo_id, direccion, autor, tipo, texto)
+     VALUES (?, ?, 'saliente', ?, 'texto', ?)`
+  ).bind(conversacionId, mensajeId ?? null, autor, texto).run();
+
+  await env.DB.prepare(
+    `UPDATE conversaciones SET ultimo = datetime('now') WHERE id = ?`
+  ).bind(conversacionId).run();
+}
+
+/* ── TRAER LO QUE HAY EN INSTAGRAM ───────────────────────────────
+
+   MIENTRAS LA APP NO ESTÉ PUBLICADA, META NO AVISA. El webhook está
+   programado y probado, pero Instagram no manda nada hasta que la app
+   pase la revisión. Así que mientras tanto se pregunta.
+
+   ESTO NO ES EL MODO DEFINITIVO y no debería quedar corriendo solo:
+   preguntar cada tanto llega tarde, y para un bot que atiende, llegar
+   tarde se nota. Es para probar hoy y para poder grabar el video que
+   pide la revisión. Cuando el webhook se encienda, esto sobra. */
+async function traerDeInstagram(env, { limite = 25 } = {}) {
+  /* QUIÉNES SOMOS, PRIMERO. Cada mensaje trae un `from`, y para saber si
+     lo mandamos nosotros o la otra persona hay que comparar contra el id
+     de NUESTRA cuenta. No sirve el id de la conversación: es otra cosa
+     —identifica al hilo, no a un participante— y comparar contra él daba
+     siempre "no es mío", con lo que nuestras propias respuestas entraban
+     como si las hubiera escrito el cliente. */
+  const yo = (await igLlamar(env, '/me?fields=id'))?.id;
+  if (!yo) throw new Error('Instagram no devolvió el id de la cuenta');
+
+  const conv = await igLlamar(env,
+    `/me/conversations?platform=instagram&fields=id,updated_time&limit=${limite}`);
+
+  let guardados = 0;
+
+  for (const c of conv?.data ?? []) {
+    const detalle = await igLlamar(env,
+      `/${c.id}?fields=messages.limit(25){id,created_time,from,to,message}`);
+
+    for (const m of detalle?.messages?.data ?? []) {
+      const mio = Boolean(m.from?.id) && m.from.id === yo;
+      const otro = mio ? (m.to?.data?.[0]) : m.from;
+      if (!otro?.id) continue;
+
+      const fila = await env.DB.prepare(
+        `INSERT INTO conversaciones (canal, externo_id, nombre) VALUES ('instagram', ?, ?)
+         ON CONFLICT (canal, externo_id) DO UPDATE SET
+              ultimo = datetime('now'),
+              nombre = COALESCE(excluded.nombre, conversaciones.nombre)
+           RETURNING id`
+      ).bind(otro.id, otro.username ?? null).first();
+      if (!fila?.id) continue;
+
+      const r = await env.DB.prepare(
+        `INSERT OR IGNORE INTO mensajes
+           (conversacion_id, externo_id, direccion, autor, tipo, texto, creado)
+         VALUES (?, ?, ?, ?, 'texto', ?, ?)`
+      ).bind(
+        fila.id, m.id,
+        mio ? 'saliente' : 'entrante',
+        mio ? 'persona' : null,
+        m.message ?? null,
+        (m.created_time || '').replace('T', ' ').slice(0, 19) || null
+      ).run();
+
+      guardados += r.meta?.changes ?? 0;
+    }
+  }
+
+  return guardados;
+}
+
 /* SE CONTESTA 200 SIEMPRE QUE EL AVISO SEA DE META, y rápido. Si Meta
    no recibe un 200 en unos segundos, reintenta el mismo aviso una y otra
    vez, y si falla seguido termina desactivando la dirección. Lo que haya
@@ -1218,6 +1348,58 @@ async function admin(peticion, env, ruta, metodo) {
 
     if (!r.meta.changes) return error('No está', 404);
     return json({ ok: true, humano: prendido });
+  }
+
+  /* CONTESTAR DESDE EL PANEL.
+
+     EL ERROR DE META VUELVE TAL CUAL. Si se venció la ventana de 24
+     horas, si falta un permiso o si el token murió, la API lo dice con
+     todas las letras y eso es lo que tiene que leer el que está
+     atendiendo. Un "no se pudo enviar" lo deja adivinando.
+
+     SE GUARDA DESPUÉS DE QUE META CONFIRMA, no antes: si se guardara
+     primero, un envío fallido quedaría en la conversación como si la
+     persona lo hubiera recibido, y en una semana nadie se acuerda. */
+  const responderA = ruta.match(/^\/api\/admin\/chats\/(\d+)\/responder$/);
+  if (responderA && metodo === 'POST') {
+    const cuerpo = await peticion.json().catch(() => ({}));
+    const mensaje = texto(cuerpo?.texto, 1000);
+    if (!mensaje) return error('Falta el texto');
+
+    const chat = await env.DB
+      .prepare('SELECT id, canal, externo_id FROM conversaciones WHERE id = ?')
+      .bind(responderA[1]).first();
+    if (!chat) return error('No está', 404);
+    if (chat.canal !== 'instagram') {
+      return error('Por ahora sólo se puede contestar por Instagram', 400);
+    }
+
+    let envio;
+    try {
+      envio = await mandarPorInstagram(env, chat.externo_id, mensaje);
+    } catch (e) {
+      return error(e?.message || 'Instagram no aceptó el mensaje', 502);
+    }
+
+    /* `autor: persona` porque esto lo escribió alguien del equipo en el
+       panel. Cuando conteste la IA, va a escribir 'ia' y se va a poder
+       distinguir una de otra mirando la conversación. */
+    await guardarSaliente(env, chat.id, mensaje, 'persona', envio?.message_id);
+    return json({ ok: true });
+  }
+
+  /* TRAER LO QUE HAY EN INSTAGRAM, a mano.
+
+     Es el puente hasta que la app esté publicada: mientras Meta no
+     avise, esto pregunta. No corre solo a propósito —ver el comentario
+     de `traerDeInstagram`— y se dispara desde un botón del panel. */
+  if (ruta === '/api/admin/instagram/traer' && metodo === 'POST') {
+    try {
+      const nuevos = await traerDeInstagram(env);
+      return json({ ok: true, nuevos });
+    } catch (e) {
+      return error(e?.message || 'No se pudo consultar a Instagram', 502);
+    }
   }
 
   /* EL EMBUDO DE UNA CONVERSACIÓN: qué vino a hacer, hasta dónde llegó

@@ -983,11 +983,87 @@ async function abrirChat(id) {
   $('#perdidoChat').checked = !!chat.perdido;
 
   pintarHilo(chat, mensajes);
+  prepararRespuesta(chat, mensajes);
 
   $('#vistaLista').classList.add('oculto');
   $('#vistaChat').classList.remove('oculto');
   scrollTo(0, 0);
 }
+
+/* EL CUADRO PARA CONTESTAR, Y EL RELOJ DE LAS 24 HORAS.
+
+   Instagram deja escribir libre sólo dentro de las 24 horas desde el
+   último mensaje de la persona. Pasado ese plazo el envío falla, así
+   que conviene decirlo ANTES de que escriba —no después— y por eso el
+   aviso se calcula acá y no cuando Meta devuelve el error.
+
+   El cuadro sólo aparece en Instagram: es el único canal con el envío
+   programado. Mostrarlo en los otros sería ofrecer un botón que falla. */
+function prepararRespuesta(chat, mensajes) {
+  const form = $('#responder');
+  const puede = chat.canal === 'instagram';
+  form.classList.toggle('oculto', !puede);
+  $('#respuesta').value = '';
+  if (!puede) return;
+
+  const ultimoDeEl = [...mensajes].reverse().find((m) => m.direccion === 'entrante');
+  const horas = ultimoDeEl
+    ? (Date.now() - aFecha(ultimoDeEl.creado)) / 3600000
+    : Infinity;
+
+  const plazo = $('#plazo');
+  if (!isFinite(horas)) {
+    plazo.textContent = 'Esta persona todavía no escribió, así que Instagram no deja escribirle primero.';
+  } else if (horas >= 24) {
+    plazo.textContent = 'Pasaron más de 24 horas desde su último mensaje. Instagram va a rechazar el envío.';
+  } else {
+    plazo.textContent = 'Quedan ' + Math.max(0, Math.floor(24 - horas)) + ' h para contestar libremente.';
+  }
+  $('#enviar').disabled = !isFinite(horas) || horas >= 24;
+}
+
+$('#responder').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!chatActual) return;
+  const mensaje = $('#respuesta').value.trim();
+  if (!mensaje) return;
+
+  const boton = $('#enviar');
+  boton.disabled = true;
+  try {
+    await api('/api/admin/chats/' + chatActual.chat.id + '/responder', {
+      method: 'POST',
+      body: JSON.stringify({ texto: mensaje }),
+    });
+    avisar('Enviado');
+    await abrirChat(chatActual.chat.id);
+    await cargarChats();
+  } catch (err) {
+    /* El error viene de Meta con todas las letras —ventana vencida,
+       permiso que falta, token muerto— y se muestra tal cual. */
+    avisar(err.message, true);
+    boton.disabled = false;
+  }
+});
+
+/* TRAER DE INSTAGRAM. Puente hasta que la app esté publicada: mientras
+   Meta no avise, se le pregunta. */
+$('#traerIG').addEventListener('click', async () => {
+  const boton = $('#traerIG');
+  const antes = boton.textContent;
+  boton.disabled = true;
+  boton.textContent = 'Trayendo…';
+  try {
+    const { nuevos } = await api('/api/admin/instagram/traer', { method: 'POST' });
+    avisar(nuevos ? 'Entraron ' + nuevos + ' mensajes' : 'No había nada nuevo');
+    await cargarChats();
+  } catch (err) {
+    avisar(err.message, true);
+  } finally {
+    boton.disabled = false;
+    boton.textContent = antes;
+  }
+});
 
 function pintarHilo(chat, mensajes) {
   if (!mensajes.length) {

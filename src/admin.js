@@ -454,6 +454,56 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   max-width:44rem; font-size:.74rem; line-height:1.6; color:var(--apagado);
 }
 
+/* ── contestar ──
+   Va pegado abajo del hilo y no flotando: la conversación se lee de
+   arriba abajo y el cuadro para escribir es el final de esa lectura,
+   no un elemento aparte. */
+.responder{
+  display:grid; gap:.6rem; max-width:44rem; margin:1.4rem 0 0;
+}
+.responder textarea{
+  width:100%; resize:vertical; min-height:4.4rem;
+  background:var(--void); border:1px solid var(--linea); border-radius:3px;
+  color:inherit; font:inherit; font-size:.85rem; line-height:1.6; padding:.7rem .8rem;
+}
+.responder textarea:focus{ outline:0; border-color:var(--chrome) }
+.responder .pie{ display:flex; align-items:center; gap:.8rem; flex-wrap:wrap }
+/* El aviso de las 24 horas. No es decorativo: pasado ese plazo Instagram
+   rechaza el mensaje, y conviene saberlo ANTES de escribir tres
+   renglones, no después de que falle el envío. */
+.responder .plazo{
+  font-size:.66rem; line-height:1.5; color:var(--apagado); margin-right:auto;
+}
+
+/* ── el embudo ──
+   Hasta dónde llega la gente, por mes. Es una tabla y no un gráfico:
+   son pocos números, y lo que importa es poder leer "de 40 visitas, 6
+   cerraron" sin interpretar barras. */
+.embudo{ max-width:52rem; margin:0 0 2.4rem; overflow-x:auto }
+.embudo-cabeza{ display:flex; align-items:center; gap:.8rem; flex-wrap:wrap; margin-bottom:.9rem }
+.embudo-cabeza input{ font:inherit; font-size:.74rem; padding:.35em .6em;
+  background:var(--panel); color:var(--chrome); border:1px solid var(--linea); border-radius:3px }
+.embudo table{ width:100%; border-collapse:collapse; font-size:.74rem; font-variant-numeric:tabular-nums }
+.embudo th, .embudo td{ padding:.5rem .6rem; border-bottom:1px solid var(--linea); text-align:right; white-space:nowrap }
+.embudo th:first-child, .embudo td:first-child{ text-align:left }
+.embudo th{ font-size:.5rem; font-weight:600; letter-spacing:.18em; text-transform:uppercase; color:var(--apagado) }
+/* El porcentaje es contra el paso anterior, que es donde se ve la fuga. */
+.embudo .pct{ display:block; font-size:.6rem; color:var(--apagado) }
+
+/* LA MARCA DE LA ETAPA EN LA LISTA. Apagada a propósito: la que tiene
+   que saltar a la vista es la de "espera a una persona". */
+.etapa-marca{
+  font-size:.46rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--apagado); white-space:nowrap;
+}
+.etapa-marca--perdido{ text-decoration:line-through }
+
+/* Los mandos del embudo adentro de un chat. */
+.marcar{ display:flex; gap:1rem 1.4rem; flex-wrap:wrap; align-items:end; margin:1.4rem 0 0; max-width:44rem }
+.marcar select{ font:inherit; font-size:.78rem; padding:.4em .6em;
+  background:var(--panel); color:var(--chrome); border:1px solid var(--linea); border-radius:3px }
+.marcar label.tilde{ display:flex; gap:.45rem; align-items:center; font-size:.78rem }
+
 .oculto{ display:none !important }
 .vacio{ padding:4rem 1rem; text-align:center; color:var(--apagado); font-size:.85rem }
 </style>
@@ -533,6 +583,27 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
         <button class="pastilla" type="button" data-canal="whatsapp" aria-pressed="false">WhatsApp</button>
         <button class="pastilla" type="button" data-canal="instagram" aria-pressed="false">Instagram</button>
         <button class="pastilla" type="button" data-canal="messenger" aria-pressed="false">Messenger</button>
+      </div>
+
+      <!-- EL EMBUDO DEL MES. Cuenta las conversaciones que empezaron ese
+           mes, según cómo se fueron marcando adentro de cada chat. -->
+      <div class="embudo" id="embudo">
+        <div class="embudo-cabeza">
+          <h2 class="rotulo">Embudo</h2>
+          <input type="month" id="mesEmbudo" aria-label="Mes">
+        </div>
+        <div id="tablaEmbudo"></div>
+      </div>
+
+      <!-- TRAER DE INSTAGRAM, A MANO.
+           Mientras la app no esté publicada Meta no avisa cuando entra
+           un mensaje, así que hay que preguntarle. Cuando la revisión
+           salga, los mensajes entran solos y este botón se va. -->
+      <div style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;margin:0 0 1.2rem">
+        <button class="btn" id="traerIG" type="button">Traer de Instagram</button>
+        <span class="rotulo" style="letter-spacing:.1em;text-transform:none">
+          Hasta que Meta apruebe la app, los mensajes no entran solos.
+        </span>
       </div>
 
       <div class="bandeja" id="chats"></div>
@@ -636,8 +707,44 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
       </div>
     </div>
 
+    <!-- HASTA DÓNDE LLEGÓ. La etapa es la más alta que alcanzó y no se
+         baja si después se enfría: para eso está "se perdió". -->
+    <div class="marcar">
+      <label class="campo"><span class="rotulo">Qué vino a hacer</span>
+        <select id="tipoChat">
+          <option value="">Sin marcar</option>
+          <option value="comprador">Comprar</option>
+          <option value="vendedor">Vender su auto</option>
+          <option value="permuta">Cambiar el suyo</option>
+          <option value="ruido">Ruido</option>
+        </select></label>
+      <label class="campo"><span class="rotulo">Hasta dónde llegó</span>
+        <select id="etapaChat">
+          <option value="">Sin marcar</option>
+          <option value="consulta">Consultó</option>
+          <option value="charla">Charla real</option>
+          <option value="precio">Tiene el número por escrito</option>
+          <option value="visita">Visita agendada</option>
+          <option value="vino">Vino al salón</option>
+          <option value="cerrado">Cerró (seña o consignación)</option>
+        </select></label>
+      <label class="tilde"><input type="checkbox" id="perdidoChat"> Se perdió</label>
+    </div>
+
     <p class="nota oculto" id="notaChat"></p>
     <div class="hilo" id="hilo"></div>
+
+    <!-- CONTESTAR. Sólo aparece en Instagram: es el único canal con el
+         envío programado. En WhatsApp y Messenger el cuadro no se
+         muestra, en vez de mostrarlo y fallar al apretar. -->
+    <form class="responder oculto" id="responder" autocomplete="off">
+      <textarea id="respuesta" rows="3"
+                placeholder="Escribí tu respuesta"></textarea>
+      <div class="pie">
+        <span class="plazo" id="plazo"></span>
+        <button class="btn btn--fuerte" type="submit" id="enviar">Enviar</button>
+      </div>
+    </form>
   </main>
 </div>
 
