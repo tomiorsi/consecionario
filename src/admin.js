@@ -504,6 +504,102 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   background:var(--panel); color:var(--chrome); border:1px solid var(--linea); border-radius:3px }
 .marcar label.tilde{ display:flex; gap:.45rem; align-items:center; font-size:.78rem }
 
+/* ── los números de Instagram ──
+   ══════════════════════════════════════════════════════════════════
+
+   Tres bloques y en este orden: la cuenta, el público, las
+   publicaciones. Es el orden en el que se pregunta —cómo vengo, a quién
+   le llego, qué funcionó— y no el orden en el que la API los devuelve. */
+
+.seccion-rotulo{
+  font-family:var(--display); font-size:.72rem; font-weight:700;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--chrome);
+  margin:2.6rem 0 1rem;
+}
+.seccion-rotulo:first-of-type{ margin-top:1.4rem }
+.seccion-nota{
+  margin:-.6rem 0 1.2rem; max-width:44rem;
+  font-size:.72rem; line-height:1.6; color:var(--apagado);
+}
+
+/* LOS NÚMEROS GRANDES. Pocos y grandes: son los que se miran de reojo
+   para saber si la semana viene bien. */
+.cifras{
+  display:grid; gap:.6rem;
+  grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));
+}
+.cifra{
+  border:1px solid var(--linea); border-radius:3px; background:var(--panel);
+  padding:1rem 1.1rem; display:grid; gap:.3rem;
+}
+.cifra .n{
+  font-family:var(--display); font-size:1.5rem; font-weight:700;
+  letter-spacing:.02em; color:var(--chrome); font-variant-numeric:tabular-nums;
+}
+.cifra .q{
+  font-size:.5rem; font-weight:700; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--apagado);
+}
+
+/* EL PÚBLICO, EN BARRAS Y NO EN TORTA. Lo que importa es comparar
+   tramos entre sí —cuánto pesa 45-54 contra 25-34— y una barra se
+   compara de un vistazo; una torta hay que descifrarla. */
+.publico{ display:grid; gap:2rem; grid-template-columns:repeat(auto-fit,minmax(16rem,1fr)) }
+.publico h3{
+  font-size:.5rem; font-weight:700; letter-spacing:.16em;
+  text-transform:uppercase; color:var(--apagado); margin:0 0 .8rem;
+}
+.barra-fila{ display:grid; gap:.35rem; margin-bottom:.6rem }
+.barra-fila .arriba{
+  display:flex; justify-content:space-between; gap:.8rem;
+  font-size:.72rem; color:var(--chrome);
+}
+.barra-fila .arriba b{ font-weight:600; font-variant-numeric:tabular-nums; color:var(--apagado) }
+.barra-riel{ height:4px; background:rgba(255,255,255,.07); border-radius:100px; overflow:hidden }
+.barra-fill{ height:100%; background:var(--chrome); border-radius:100px }
+
+/* LA TABLA DE PUBLICACIONES.
+   Tabla y no tarjetas: son veinte filas de los mismos siete números, y
+   lo que se hace con eso es COMPARAR. En tarjetas, comparar la columna
+   de envíos entre dos reels obliga a buscarla en cada una. */
+.tabla-envoltura{ overflow-x:auto; margin-top:.4rem }
+.tabla{ width:100%; border-collapse:collapse; min-width:46rem }
+.tabla th{
+  text-align:right; padding:.5rem .6rem; border-bottom:1px solid var(--linea);
+  font-size:.46rem; font-weight:700; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--apagado); white-space:nowrap;
+}
+.tabla th:first-child{ text-align:left }
+.tabla td{
+  padding:.7rem .6rem; border-bottom:1px solid rgba(255,255,255,.06);
+  text-align:right; font-size:.8rem; font-variant-numeric:tabular-nums;
+  color:var(--chrome); white-space:nowrap;
+}
+.tabla td:first-child{ text-align:left; white-space:normal }
+.tabla tr:hover td{ background:rgba(255,255,255,.025) }
+/* Un número que no vino no es un cero: es que Instagram no lo da para
+   ese tipo de publicación. Se dibuja distinto para no leerlo mal. */
+.tabla .nada{ color:rgba(255,255,255,.2) }
+
+/* LOS ENVÍOS VAN DESTACADOS. De todas las columnas, es la que decide a
+   quién le llega el reel — y es la que nadie mira. */
+.tabla .envios{ color:var(--chrome); font-weight:600 }
+.tabla th.envios{ color:var(--chrome) }
+
+.pieza{ display:flex; align-items:center; gap:.7rem; min-width:16rem }
+.pieza img{
+  width:3rem; height:3rem; object-fit:cover; border-radius:3px;
+  background:#08080a; flex:none;
+}
+.pieza .texto{ display:grid; gap:.2rem; min-width:0 }
+.pieza .texto a{
+  color:var(--chrome); text-decoration:none; font-size:.76rem; line-height:1.35;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.pieza .texto a:hover{ text-decoration:underline }
+.pieza .texto small{ font-size:.56rem; letter-spacing:.1em; color:var(--apagado) }
+
 .oculto{ display:none !important }
 .vacio{ padding:4rem 1rem; text-align:center; color:var(--apagado); font-size:.85rem }
 </style>

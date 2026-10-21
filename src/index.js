@@ -553,6 +553,8 @@ function mensajesDelAviso(aviso) {
             mensaje_id: m.id,
             tipo: tipoConocido(m.type),
             texto: m.text?.body ?? null,
+            clase: 'mensaje',
+            media_id: null,
           });
         }
       }
@@ -566,6 +568,39 @@ function mensajesDelAviso(aviso) {
           mensaje_id: ev.message.mid,
           tipo: ev.message.text ? 'texto' : 'otro',
           texto: ev.message.text ?? null,
+          clase: 'mensaje',
+          media_id: null,
+        });
+      }
+
+      /* LOS COMENTARIOS VIENEN POR OTRA PUERTA.
+         Los privados llegan en `messaging`; los comentarios en
+         `changes`, con otra forma. Van a la misma bandeja igual: para
+         el negocio los dos son alguien preguntando.
+
+         SE GUARDA DE QUÉ PUBLICACIÓN VINO. Es lo que después le permite
+         a la IA saber que el "¿cuánto sale?" es por la Hilux y no por
+         un auto cualquiera. */
+      for (const cambio of entrada.changes ?? []) {
+        if (cambio?.field !== 'comments') continue;
+        const v = cambio.value ?? {};
+        if (!v.from?.id) continue;
+
+        /* Un comentario nuestro no es una consulta entrante: es una
+           respuesta. Se reconoce porque viene de la misma cuenta que
+           recibe el aviso. */
+        const propio = v.from.id === entrada.id;
+
+        salida.push({
+          canal,
+          externo_id: propio ? (v.parent_id ? null : v.from.id) : v.from.id,
+          nombre: v.from.username ?? null,
+          mensaje_id: v.id,
+          tipo: 'texto',
+          texto: v.text ?? null,
+          clase: 'comentario',
+          media_id: v.media?.id ?? null,
+          direccion: propio ? 'saliente' : 'entrante',
         });
       }
     }
@@ -603,11 +638,17 @@ async function guardarEntrantes(env, lista) {
 
     if (!conv?.id) continue;
 
+    /* `direccion` puede venir en el aviso: un comentario nuestro es
+       saliente aunque llegue por el mismo webhook que los entrantes.
+       Lo que no la trae es entrante, que es el caso normal. */
     await env.DB.prepare(
       `INSERT OR IGNORE INTO mensajes
-         (conversacion_id, externo_id, direccion, tipo, texto)
-       VALUES (?, ?, 'entrante', ?, ?)`
-    ).bind(conv.id, m.mensaje_id ?? null, m.tipo, m.texto).run();
+         (conversacion_id, externo_id, direccion, tipo, texto, clase, media_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      conv.id, m.mensaje_id ?? null, m.direccion ?? 'entrante',
+      m.tipo, m.texto, m.clase ?? 'mensaje', m.media_id ?? null
+    ).run();
   }
 }
 
@@ -631,7 +672,10 @@ const IG_API = 'https://graph.instagram.com/v23.0';
 async function igLlamar(env, camino, opciones = {}) {
   if (!env.META_IG_TOKEN) throw new Error('Falta cargar META_IG_TOKEN');
 
-  const url = new URL(IG_API + camino);
+  /* `camino` puede ser un pedazo ("/me/conversations") o una dirección
+     entera: las de paginado vienen completas desde Meta y se siguen tal
+     cual en vez de rearmarlas a mano. */
+  const url = new URL(camino.startsWith('http') ? camino : IG_API + camino);
   const r = await fetch(url, {
     ...opciones,
     headers: {
@@ -690,35 +734,52 @@ async function guardarSaliente(env, conversacionId, texto, autor, mensajeId) {
    tarde se nota. Es para probar hoy y para poder grabar el video que
    pide la revisión. Cuando el webhook se encienda, esto sobra. */
 async function traerDeInstagram(env, { limite = 25 } = {}) {
-  /* QUIÉNES SOMOS, PRIMERO. Cada mensaje trae un `from`, y para saber si
-     lo mandamos nosotros o la otra persona hay que comparar contra el id
-     de NUESTRA cuenta. No sirve el id de la conversación: es otra cosa
-     —identifica al hilo, no a un participante— y comparar contra él daba
-     siempre "no es mío", con lo que nuestras propias respuestas entraban
-     como si las hubiera escrito el cliente. */
-  const yo = (await igLlamar(env, '/me?fields=id'))?.id;
-  if (!yo) throw new Error('Instagram no devolvió el id de la cuenta');
+  /* QUIÉNES SOMOS, POR NOMBRE DE USUARIO Y NO POR ID.
+     Instagram tiene DOS identificadores para la misma cuenta: el que
+     devuelve /me (39325821240366178) y el de la cuenta de empresa
+     (17841427397601747), y los mensajes vienen con el segundo. Comparar
+     contra el de /me daba siempre "no es mío", así que nuestras propias
+     respuestas se guardaban como si las hubiera escrito el cliente.
+     El usuario es uno solo y no se presta a confusión. */
+  const miUsuario = (await igLlamar(env, '/me?fields=username'))?.username;
+  if (!miUsuario) throw new Error('Instagram no devolvió el usuario de la cuenta');
 
-  const conv = await igLlamar(env,
-    `/me/conversations?platform=instagram&fields=id,updated_time&limit=${limite}`);
+  /* HAY QUE SEGUIR EL PAGINADO, Y ESTO COSTÓ UN RATO.
+     La primera página vuelve con `data: []` pero CON cursor `next`. No
+     quiere decir que no haya conversaciones: Meta filtra después de
+     armar la página, así que las primeras pueden salir vacías y lo que
+     buscás está más atrás. Quedarse en la primera y contestar "no hay
+     nada" era el error.
+
+     Con tope, igual: sin un límite, una cuenta con mucho historial deja
+     al Worker dando vueltas hasta que lo cortan. */
+  const paginas = [];
+  let siguiente = `/me/conversations?fields=id,updated_time&limit=${limite}`;
+  for (let i = 0; i < 10 && siguiente; i++) {
+    const pagina = await igLlamar(env, siguiente);
+    paginas.push(...(pagina?.data ?? []));
+    siguiente = pagina?.paging?.next ?? null;
+  }
 
   /* CUÁNTAS VIO Y CUÁNTAS GUARDÓ, POR SEPARADO.
      "No entró nada" tiene dos causas muy distintas: que Instagram no
      devuelva ninguna conversación, o que las devuelva y ya las
      tengamos. Un solo número no las distingue, y entonces hay que
      adivinar. */
-  const vistas = (conv?.data ?? []).length;
+  const vistas = paginas.length;
   let leidos = 0;
   let guardados = 0;
 
-  for (const c of conv?.data ?? []) {
+  for (const c of paginas) {
     const detalle = await igLlamar(env,
-      `/${c.id}?fields=messages.limit(25){id,created_time,from,to,message}`);
+      `/${c.id}?fields=messages.limit(25){id,created_time,from{id,username},to{id,username},message}`);
 
     for (const m of detalle?.messages?.data ?? []) {
       leidos++;
-      const mio = Boolean(m.from?.id) && m.from.id === yo;
+      const mio = m.from?.username === miUsuario;
       const otro = mio ? (m.to?.data?.[0]) : m.from;
+      /* Si el que no somos nosotros tampoco trae usuario, no hay con qué
+         identificar la conversación y se saltea en vez de inventar. */
       if (!otro?.id) continue;
 
       const fila = await env.DB.prepare(
@@ -756,6 +817,117 @@ async function traerDeInstagram(env, { limite = 25 } = {}) {
   }
 
   return { vistas, leidos, guardados };
+}
+
+/* ── INSTAGRAM: LOS NÚMEROS ──────────────────────────────────────
+   ══════════════════════════════════════════════════════════════════
+
+   NO SE DA POR SENTADO QUÉ MÉTRICAS EXISTEN. Los nombres cambiaron
+   entre versiones de la API —`impressions` desapareció, `plays` pasó a
+   `views`— y además dependen del tipo de publicación: un reel tiene
+   `shares` y `views`, una foto no. Pedir una lista fija hace que la
+   llamada entera falle por una métrica que no aplica, y se pierden
+   todas las demás.
+
+   Por eso se pide de a grupos y lo que no entra se descarta solo. Se
+   guarda lo que vino, y el panel dibuja lo que haya en vez de esperar
+   un juego fijo de números. */
+
+/* Pide un grupo de métricas; si Instagram lo rechaza, prueba de a una y
+   se queda con las que pasan. Un nombre inválido no tiene que llevarse
+   puestas a las válidas. */
+async function igMetricas(env, camino, metricas, extra = '') {
+  const pedir = async (lista) =>
+    igLlamar(env, `${camino}?metric=${lista.join(',')}${extra}`);
+
+  try {
+    const r = await pedir(metricas);
+    return r?.data ?? [];
+  } catch {
+    const salieron = [];
+    for (const m of metricas) {
+      try {
+        const r = await pedir([m]);
+        salieron.push(...(r?.data ?? []));
+      } catch { /* esa métrica no aplica acá */ }
+    }
+    return salieron;
+  }
+}
+
+/* Aplana lo que devuelve Instagram —que viene como lista de objetos con
+   `values` o `total_value`— a un objeto plano {metrica: numero}, que es
+   lo que el panel necesita para dibujar. */
+function aplanarMetricas(lista) {
+  const salida = {};
+  for (const m of lista ?? []) {
+    if (!m?.name) continue;
+    if (typeof m?.total_value?.value === 'number') {
+      salida[m.name] = m.total_value.value;
+    } else if (Array.isArray(m.values) && m.values.length) {
+      /* El último tramo es el más reciente. */
+      salida[m.name] = m.values[m.values.length - 1]?.value ?? null;
+    }
+  }
+  return salida;
+}
+
+async function instagramNumeros(env, { cuantas = 24 } = {}) {
+  const perfil = await igLlamar(env,
+    '/me?fields=id,username,name,followers_count,follows_count,media_count,profile_picture_url');
+
+  /* De la cuenta. `day` y no `lifetime`: lo que importa es si se está
+     moviendo, no el acumulado histórico. */
+  const cuenta = aplanarMetricas(await igMetricas(env, '/me/insights',
+    ['reach', 'profile_views', 'accounts_engaged', 'total_interactions'],
+    '&period=day'));
+
+  /* El público. Es lo que Tomás venía mirando a mano en la app, y es lo
+     que dice si un reel le llegó a quien tenía que llegarle. */
+  const publico = {};
+  for (const corte of ['age', 'gender', 'country']) {
+    const r = await igMetricas(env, '/me/insights', ['follower_demographics'],
+      `&period=lifetime&metric_type=total_value&breakdown=${corte}`);
+    const dims = r?.[0]?.total_value?.breakdowns?.[0]?.results ?? [];
+    if (dims.length) {
+      publico[corte] = dims
+        .map((d) => ({ valor: d.dimension_values?.[0], cuantos: d.value }))
+        .sort((a, b) => b.cuantos - a.cuantos);
+    }
+  }
+
+  /* Y las publicaciones, una por una. Las métricas por publicación son
+     las que sirven para medir el método del feed: los ENVÍOS sobre todo,
+     que es el número que mueve a quién le llega. */
+  const media = await igLlamar(env,
+    `/me/media?fields=id,caption,media_type,media_product_type,permalink,` +
+    `thumbnail_url,media_url,timestamp,like_count,comments_count&limit=${cuantas}`);
+
+  const publicaciones = [];
+  for (const p of media?.data ?? []) {
+    const n = aplanarMetricas(await igMetricas(env, `/${p.id}/insights`,
+      ['reach', 'views', 'shares', 'saved', 'total_interactions', 'likes', 'comments']));
+    publicaciones.push({
+      id: p.id,
+      texto: p.caption ?? null,
+      tipo: p.media_product_type || p.media_type || null,
+      enlace: p.permalink ?? null,
+      imagen: p.thumbnail_url || p.media_url || null,
+      cuando: p.timestamp ?? null,
+      /* like_count y comments_count vienen del objeto y son más
+         confiables que las métricas homónimas, que no todas las
+         publicaciones tienen. */
+      likes: p.like_count ?? n.likes ?? null,
+      comentarios: p.comments_count ?? n.comments ?? null,
+      alcance: n.reach ?? null,
+      reproducciones: n.views ?? null,
+      envios: n.shares ?? null,
+      guardados: n.saved ?? null,
+      interacciones: n.total_interactions ?? null,
+    });
+  }
+
+  return { perfil, cuenta, publico, publicaciones };
 }
 
 /* SE CONTESTA 200 SIEMPRE QUE EL AVISO SEA DE META, y rápido. Si Meta
@@ -1320,7 +1492,13 @@ async function admin(peticion, env, ruta, metodo) {
               c.tipo, c.etapa, c.perdido,
               (SELECT m.texto FROM mensajes m
                 WHERE m.conversacion_id = c.id
-                ORDER BY m.creado DESC LIMIT 1) AS adelanto,
+                ORDER BY m.creado DESC, m.id DESC LIMIT 1) AS adelanto,
+              /* De qué clase fue lo último. La lista marca si lo que
+                 quedó sin contestar es un comentario público o un
+                 privado: no se atienden igual ni se contestan igual. */
+              (SELECT m.clase FROM mensajes m
+                WHERE m.conversacion_id = c.id
+                ORDER BY m.creado DESC, m.id DESC LIMIT 1) AS clase,
               (SELECT COUNT(*) FROM mensajes m
                 WHERE m.conversacion_id = c.id) AS cantidad
          FROM conversaciones c
@@ -1403,6 +1581,64 @@ async function admin(peticion, env, ruta, metodo) {
        distinguir una de otra mirando la conversación. */
     await guardarSaliente(env, chat.id, mensaje, 'persona', envio?.message_id);
     return json({ ok: true });
+  }
+
+  /* QUÉ CONTESTA INSTAGRAM, CRUDO.
+
+     Para cuando "no devuelve nada" y hay que saber si el problema es el
+     token, un permiso o el parámetro con el que se pregunta. Prueba las
+     mismas llamadas que usa la sincronización y devuelve lo que vino,
+     sin interpretarlo: interpretar es justo lo que falla cuando uno no
+     entiende qué está pasando.
+
+     NO ES PARA DEJAR PUESTO. Devuelve nombres de usuario y debería irse
+     cuando Instagram entre solo. */
+  if (ruta === '/api/admin/instagram/diagnostico' && metodo === 'GET') {
+    const pruebas = {};
+    const probar = async (nombre, camino) => {
+      try { pruebas[nombre] = await igLlamar(env, camino); }
+      catch (e) { pruebas[nombre] = { fallo: e?.message ?? String(e) }; }
+    };
+
+    await probar('quien_soy', '/me?fields=id,username,followers_count,media_count');
+
+    /* QUÉ MÉTRICAS EXISTEN DE VERDAD. Los nombres cambiaron entre
+       versiones de la API —`impressions` se fue, `plays` pasó a
+       `views`— así que en vez de suponer, se piden y el que no exista
+       contesta con su propio error diciendo cuáles valen. */
+    await probar('cuenta_dia',
+      '/me/insights?metric=reach,profile_views,accounts_engaged,total_interactions&period=day');
+    await probar('cuenta_publico',
+      '/me/insights?metric=follower_demographics&period=lifetime' +
+      '&metric_type=total_value&breakdown=age,gender');
+
+    /* Y las de UNA publicación: las de arriba son de la cuenta entera y
+       lo que importa para medir un reel es el reel. Se toma la última
+       en vez de una fija, para que esto siga sirviendo mañana. */
+    const ultimas = await igLlamar(env, '/me/media?fields=id,media_type,timestamp&limit=1')
+      .catch(() => null);
+    const unaMedia = ultimas?.data?.[0];
+    pruebas.media_probada = unaMedia ?? null;
+
+    if (unaMedia?.id) {
+      await probar('metricas_de_esa_publicacion',
+        `/${unaMedia.id}/insights?metric=reach,likes,comments,shares,saved,views,total_interactions`);
+    }
+
+    return json(pruebas);
+  }
+
+  /* LOS NÚMEROS DE INSTAGRAM.
+
+     Tarda: son muchas llamadas —una por publicación— y Instagram no es
+     rápido. Por eso el panel lo pide cuando se abre la pestaña y no en
+     cada vista. */
+  if (ruta === '/api/admin/instagram/numeros' && metodo === 'GET') {
+    try {
+      return json(await instagramNumeros(env));
+    } catch (e) {
+      return error(e?.message || 'No se pudieron leer las estadísticas', 502);
+    }
   }
 
   /* TRAER LO QUE HAY EN INSTAGRAM, a mano.
