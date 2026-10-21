@@ -397,6 +397,20 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   font-size:.74rem; line-height:1.5; color:var(--apagado);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
+/* COMENTARIO O PRIVADO. Va al lado del canal porque responde a lo
+   mismo —por dónde llegó esto— pero es la distinción que más cambia
+   qué hacer: un comentario lo lee cualquiera. */
+.clase{
+  font-size:.46rem; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+  border-radius:100px; padding:.3em .6em; white-space:nowrap;
+  border:1px solid var(--linea); color:var(--apagado);
+}
+/* El público va marcado y el privado no: lo que necesita un cuidado
+   extra es lo que se ve, y marcar los dos es no marcar ninguno. */
+.clase--comentario{
+  border-color:rgba(255,255,255,.4); color:var(--chrome);
+}
+
 /* De qué canal vino. Va en texto y no en un logo de colores porque son
    tres marcas ajenas y el panel es en blanco y negro. */
 .canal{
@@ -633,6 +647,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
         <button class="pestania" type="button" id="pesAutos" aria-pressed="true">Autos</button>
         <button class="pestania" type="button" id="pesMedios" aria-pressed="false">Imágenes del sitio</button>
         <button class="pestania" type="button" id="pesBandeja" aria-pressed="false">Mensajes</button>
+        <button class="pestania" type="button" id="pesNumeros" aria-pressed="false">Instagram</button>
       </div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap">
         <button class="btn" id="ordenar" type="button">Ordenar</button>
@@ -662,6 +677,39 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
       </div>
       <div class="medios" id="medios"></div>
       <input type="file" id="archivoMedio" accept="image/*" hidden>
+    </section>
+
+    <!-- LOS NUMEROS DE INSTAGRAM.
+         Tres bloques, en el orden en que uno pregunta: como vengo, a
+         quien le llego, que funciono. No en el orden en que la API los
+         devuelve. -->
+    <section id="zonaNumeros" class="oculto">
+      <p class="aclara">
+        Lo que Instagram sabe de la cuenta, leido directo de su API.
+        Tarda unos segundos: son muchas consultas, una por publicacion.
+      </p>
+
+      <h2 class="seccion-rotulo">La cuenta</h2>
+      <div class="cifras" id="cifras"></div>
+
+      <h2 class="seccion-rotulo">Tu publico</h2>
+      <p class="seccion-nota">
+        Quienes te siguen. Es contra esto que se mide si un reel le llego
+        a quien tenia que llegarle.
+      </p>
+      <div class="publico" id="publico"></div>
+
+      <h2 class="seccion-rotulo">Las publicaciones</h2>
+      <p class="seccion-nota">
+        De todas las columnas, mira <strong>envios</strong>: es la que
+        decide a quien le llega el reel, y es la que nadie mira. Las
+        celdas apagadas son metricas que Instagram no da para ese tipo de
+        publicacion, no ceros.
+      </p>
+      <div class="tabla-envoltura">
+        <table class="tabla" id="tablaMedia"></table>
+      </div>
+      <div class="vacio oculto" id="sinNumeros">No se pudieron leer las estadisticas.</div>
     </section>
 
     <!-- LOS MENSAJES DE WHATSAPP, INSTAGRAM Y MESSENGER -->

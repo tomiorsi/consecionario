@@ -74,6 +74,7 @@ function mostrarEntrar() {
      abierto, los mensajes de esa persona quedarían escritos en la
      página de quien ya no tiene sesión: esconderlos no es borrarlos.
      Se van del documento y hay que volver a pedirlos. */
+  clearInterval(relojBandeja);
   vaciarBandeja();
 }
 
@@ -930,6 +931,9 @@ function pintarChats() {
         (c.humano ? '<span class="espera">Espera a una persona</span>' : '') +
         (c.etapa ? '<span class="etapa-marca' + (c.perdido ? ' etapa-marca--perdido' : '') + '">' +
           escapar(ETAPAS[c.etapa] || c.etapa) + '</span>' : '') +
+        (c.clase === 'comentario'
+          ? '<span class="clase clase--comentario">Comentario</span>'
+          : '<span class="clase">Privado</span>') +
         '<span class="canal">' + escapar(CANALES[c.canal] || c.canal) + '</span>' +
         '<span class="cuando">' + cuandoCorto(c.ultimo) + '</span>' +
       '</span>' +
@@ -1044,6 +1048,152 @@ $('#responder').addEventListener('submit', async (e) => {
     avisar(err.message, true);
     boton.disabled = false;
   }
+});
+
+/* ── LOS NÚMEROS DE INSTAGRAM ────────────────────────────────────
+   ══════════════════════════════════════════════════════════════════
+
+   SE DIBUJA LO QUE VINO, NO UN JUEGO FIJO DE NÚMEROS. Instagram no da
+   las mismas métricas para un reel que para una foto, y los nombres
+   cambiaron entre versiones. Esperar una lista fija hace que falte
+   media tabla el día que cambie algo; así, lo que no vino se marca
+   como ausente y lo demás se muestra igual. */
+
+let numeros = null;
+
+const CORTES = { age: 'Edad', gender: 'Género', country: 'País' };
+const GENEROS = { M: 'Hombres', F: 'Mujeres', U: 'Sin declarar' };
+
+/* Un número que no vino NO es un cero: es que Instagram no lo da para
+   ese tipo de publicación. Mostrarlo como 0 sería decir una mentira
+   —"este reel no se compartió"— en vez de "esto no se sabe". */
+const cifra = (n) => (n === null || n === undefined
+  ? '<span class="nada">—</span>'
+  : conPuntos(n));
+
+async function cargarNumeros() {
+  const tabla = $('#tablaMedia');
+  tabla.innerHTML = '<tbody><tr><td>Leyendo Instagram…</td></tr></tbody>';
+  $('#sinNumeros').classList.add('oculto');
+
+  try {
+    numeros = await api('/api/admin/instagram/numeros');
+  } catch (err) {
+    tabla.innerHTML = '';
+    $('#sinNumeros').textContent = err.message;
+    $('#sinNumeros').classList.remove('oculto');
+    return;
+  }
+  pintarNumeros();
+}
+
+function pintarNumeros() {
+  const { perfil = {}, cuenta = {}, publico = {}, publicaciones = [] } = numeros ?? {};
+
+  /* Arriba, lo poco que se mira de reojo. */
+  const tarjetas = [
+    ['Seguidores', perfil.followers_count],
+    ['Publicaciones', perfil.media_count],
+    ['Alcance (hoy)', cuenta.reach],
+    ['Visitas al perfil', cuenta.profile_views],
+    ['Cuentas que interactuaron', cuenta.accounts_engaged],
+    ['Interacciones', cuenta.total_interactions],
+  ].filter(([, v]) => v !== null && v !== undefined);
+
+  $('#cifras').innerHTML = tarjetas.map(([q, n]) =>
+    '<div class="cifra"><span class="n">' + conPuntos(n) + '</span>' +
+    '<span class="q">' + q + '</span></div>').join('');
+
+  /* El público, en barras relativas al tramo más grande: lo que se
+     compara es el peso de un tramo contra otro, no el porcentaje
+     exacto sobre el total. */
+  $('#publico').innerHTML = Object.entries(publico).map(([corte, filas]) => {
+    const tope = Math.max(...filas.map((f) => f.cuantos), 1);
+    return '<div><h3>' + (CORTES[corte] || corte) + '</h3>' +
+      filas.slice(0, 8).map((f) => {
+        const nombre = corte === 'gender' ? (GENEROS[f.valor] || f.valor) : f.valor;
+        return '<div class="barra-fila">' +
+          '<span class="arriba"><span>' + escapar(nombre) + '</span>' +
+            '<b>' + conPuntos(f.cuantos) + '</b></span>' +
+          '<span class="barra-riel"><span class="barra-fill" style="width:' +
+            Math.round((f.cuantos / tope) * 100) + '%"></span></span>' +
+        '</div>';
+      }).join('') + '</div>';
+  }).join('') || '<p class="seccion-nota">Instagram todavía no devuelve datos del público.</p>';
+
+  /* Y la tabla. Lo más nuevo arriba, que es como uno la lee. */
+  $('#tablaMedia').innerHTML =
+    '<thead><tr>' +
+      '<th>Publicación</th><th>Alcance</th><th>Repr.</th>' +
+      '<th class="envios">Envíos</th><th>Guardados</th>' +
+      '<th>Me gusta</th><th>Coment.</th>' +
+    '</tr></thead><tbody>' +
+    publicaciones.map((p) => {
+      const foto = p.imagen
+        ? '<img src="' + escapar(p.imagen) + '" alt="" loading="lazy">'
+        : '<img alt="">';
+      const titulo = (p.texto || '(sin texto)').split('\n')[0];
+      const enlace = p.enlace
+        ? '<a href="' + escapar(p.enlace) + '" target="_blank" rel="noopener">' +
+          escapar(titulo) + '</a>'
+        : escapar(titulo);
+
+      return '<tr>' +
+        '<td><span class="pieza">' + foto + '<span class="texto">' + enlace +
+          '<small>' + cuandoLargo(p.cuando) + ' · ' + escapar(p.tipo || '') + '</small>' +
+        '</span></span></td>' +
+        '<td>' + cifra(p.alcance) + '</td>' +
+        '<td>' + cifra(p.reproducciones) + '</td>' +
+        '<td class="envios">' + cifra(p.envios) + '</td>' +
+        '<td>' + cifra(p.guardados) + '</td>' +
+        '<td>' + cifra(p.likes) + '</td>' +
+        '<td>' + cifra(p.comentarios) + '</td>' +
+      '</tr>';
+    }).join('') + '</tbody>';
+}
+
+/* ── QUE SE ACTUALICE SOLO ───────────────────────────────────────
+   ══════════════════════════════════════════════════════════════════
+
+   SE LE PREGUNTA A NUESTRA BASE, NO A INSTAGRAM. El webhook ya trae
+   todo al instante y lo guarda; lo único que faltaba era que la
+   pantalla releyera. Preguntarle a Meta cada cinco minutos sería
+   gastar llamadas para enterarse de algo que ya tenemos.
+
+   NO CORRE SI LA PESTAÑA NO SE VE. Un panel abierto de fondo tres días
+   son mil pedidos para nadie. Y al volver a la pestaña refresca en el
+   acto, que es justo cuando a uno le importa estar al día.
+
+   LO QUE ESTÁS ESCRIBIENDO NO SE PIERDE. Si hay un chat abierto con
+   media respuesta tipeada, el refresco la devuelve a su lugar: que la
+   pantalla se actualice sola no puede costarte lo que ibas a mandar. */
+
+const CADA = 5 * 60 * 1000;
+let relojBandeja = null;
+
+async function refrescarBandeja() {
+  if (document.hidden) return;
+  if ($('#pantallaPanel').classList.contains('oculto')) return;
+  if ($('#zonaBandeja').classList.contains('oculto')) return;
+
+  try {
+    if (chatActual && !$('#vistaChat').classList.contains('oculto')) {
+      const borrador = $('#respuesta').value;
+      await abrirChat(chatActual.chat.id);
+      $('#respuesta').value = borrador;
+    }
+    await cargarChats();
+  } catch { /* si falla, se reintenta en el próximo tic */ }
+}
+
+function arrancarRefresco() {
+  clearInterval(relojBandeja);
+  relojBandeja = setInterval(refrescarBandeja, CADA);
+}
+
+/* Al volver a la pestaña, al instante. */
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) refrescarBandeja();
 });
 
 /* TRAER DE INSTAGRAM. Puente hasta que la app esté publicada: mientras
@@ -1294,7 +1444,8 @@ $('#borrarChat').addEventListener('click', () => {
 
 function verPestania(cual) {
   const autos = cual === 'autos';
-  [['autos', '#pesAutos'], ['medios', '#pesMedios'], ['bandeja', '#pesBandeja']]
+  [['autos', '#pesAutos'], ['medios', '#pesMedios'],
+   ['bandeja', '#pesBandeja'], ['numeros', '#pesNumeros']]
     .forEach(([c, sel]) => $(sel).setAttribute('aria-pressed', String(cual === c)));
 
   $('#filtros').classList.toggle('oculto', !autos);
@@ -1305,20 +1456,24 @@ function verPestania(cual) {
   $('#cancelarOrden').classList.toggle('oculto', !autos || !ordenando);
   $('#zonaMedios').classList.toggle('oculto', cual !== 'medios');
   $('#zonaBandeja').classList.toggle('oculto', cual !== 'bandeja');
+  $('#zonaNumeros').classList.toggle('oculto', cual !== 'numeros');
   $('#sinAutos').classList.add('oculto');
   $('#sinChats').classList.add('oculto');
 
   if (autos) pintarLista();
   else if (cual === 'medios') cargarMedios();
+  else if (cual === 'numeros') cargarNumeros();
   else {
     cargarChats().catch((err) => avisar(err.message, true));
     cargarEmbudo();
+    arrancarRefresco();
   }
 }
 
 $('#pesAutos').addEventListener('click', () => verPestania('autos'));
 $('#pesMedios').addEventListener('click', () => verPestania('medios'));
 $('#pesBandeja').addEventListener('click', () => verPestania('bandeja'));
+$('#pesNumeros').addEventListener('click', () => verPestania('numeros'));
 
 /* ── arranque ───────────────────────────────────────────────────── */
 
