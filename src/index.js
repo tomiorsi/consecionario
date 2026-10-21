@@ -819,6 +819,86 @@ async function traerDeInstagram(env, { limite = 25 } = {}) {
   return { vistas, leidos, guardados };
 }
 
+/* ── TRAER EL PASADO ─────────────────────────────────────────────
+
+   EL WEBHOOK SÓLO TRAE EL PRESENTE. Avisa de lo que pasa de ahora en
+   adelante, y todo lo que ya estaba —meses de comentarios— queda
+   invisible. Eso no es un detalle: la mayor parte de lo que la gente
+   preguntó ya pasó.
+
+   Así que se recorren las publicaciones y se bajan sus comentarios.
+   Esto es para ponerse al día una vez; lo nuevo sigue entrando solo
+   por el webhook y no hace falta repetirlo.
+
+   CADA COMENTARIO ES UNA CONVERSACIÓN DE SU AUTOR, no de la
+   publicación. Si la misma persona comentó en tres reels, es una sola
+   conversación con tres mensajes: lo que se atiende es a la persona.
+   Y cada mensaje se queda con el `media_id` de donde salió, que es lo
+   que después le dice a la IA de qué auto están hablando. */
+async function traerComentariosDeInstagram(env, { publicaciones = 25 } = {}) {
+  const miUsuario = (await igLlamar(env, '/me?fields=username'))?.username;
+
+  const media = await igLlamar(env,
+    `/me/media?fields=id&limit=${publicaciones}`);
+
+  let vistos = 0;
+  let guardados = 0;
+
+  for (const p of media?.data ?? []) {
+    const com = await igLlamar(env,
+      `/${p.id}/comments?fields=id,text,timestamp,username,from&limit=50`
+    ).catch(() => null);
+
+    for (const c of com?.data ?? []) {
+      vistos++;
+      const quien = c.from?.id || c.username;
+      if (!quien) continue;
+
+      /* Los comentarios propios se guardan como salientes: son
+         respuestas nuestras, no consultas. */
+      const propio = (c.from?.username || c.username) === miUsuario;
+
+      const fila = await env.DB.prepare(
+        `INSERT INTO conversaciones (canal, externo_id, nombre) VALUES ('instagram', ?, ?)
+         ON CONFLICT (canal, externo_id) DO UPDATE SET
+              nombre = COALESCE(excluded.nombre, conversaciones.nombre)
+           RETURNING id`
+      ).bind(String(quien), c.from?.username || c.username || null).first();
+      if (!fila?.id) continue;
+
+      const cuando = (c.timestamp || '').replace('T', ' ').slice(0, 19);
+      const campos = ['conversacion_id', 'externo_id', 'direccion', 'tipo',
+                      'texto', 'clase', 'media_id'];
+      const valores = [
+        fila.id, c.id, propio ? 'saliente' : 'entrante', 'texto',
+        c.text ?? null, 'comentario', p.id,
+      ];
+      if (propio) { campos.push('autor'); valores.push('persona'); }
+      if (cuando) { campos.push('creado'); valores.push(cuando); }
+
+      const r = await env.DB.prepare(
+        `INSERT OR IGNORE INTO mensajes (${campos.join(', ')})
+         VALUES (${campos.map(() => '?').join(', ')})`
+      ).bind(...valores).run();
+
+      guardados += r.meta?.changes ?? 0;
+    }
+  }
+
+  /* EL RELOJ DE CADA CONVERSACIÓN SE REACOMODA AL FINAL.
+     Las filas se fueron creando con la hora de ahora, pero un
+     comentario de hace dos meses no es actividad de hoy: sin esto, la
+     bandeja mostraría todo el historial como si acabara de pasar. */
+  await env.DB.prepare(
+    `UPDATE conversaciones SET ultimo = COALESCE(
+       (SELECT MAX(m.creado) FROM mensajes m WHERE m.conversacion_id = conversaciones.id),
+       ultimo)
+     WHERE canal = 'instagram'`
+  ).run();
+
+  return { vistos, guardados };
+}
+
 /* ── INSTAGRAM: LOS NÚMEROS ──────────────────────────────────────
    ══════════════════════════════════════════════════════════════════
 
@@ -1648,8 +1728,12 @@ async function admin(peticion, env, ruta, metodo) {
      de `traerDeInstagram`— y se dispara desde un botón del panel. */
   if (ruta === '/api/admin/instagram/traer' && metodo === 'POST') {
     try {
+      /* Las dos cosas de una. Separarlas en dos botones obliga a saber
+         que existen dos puertas —privados y comentarios— y eso es
+         nuestro problema, no de quien usa el panel. */
       const r = await traerDeInstagram(env);
-      return json({ ok: true, ...r });
+      const c = await traerComentariosDeInstagram(env);
+      return json({ ok: true, ...r, comentarios: c });
     } catch (e) {
       return error(e?.message || 'No se pudo consultar a Instagram', 502);
     }

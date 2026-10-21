@@ -744,9 +744,9 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
            un mensaje, así que hay que preguntarle. Cuando la revisión
            salga, los mensajes entran solos y este botón se va. -->
       <div style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;margin:0 0 1.2rem">
-        <button class="btn" id="traerIG" type="button">Traer de Instagram</button>
+        <button class="btn" id="traerIG" type="button">Traer el historial de Instagram</button>
         <span class="rotulo" style="letter-spacing:.1em;text-transform:none">
-          Hasta que Meta apruebe la app, los mensajes no entran solos.
+          Lo nuevo entra solo. Esto trae los mensajes y comentarios de antes.
         </span>
       </div>
 
