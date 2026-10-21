@@ -965,6 +965,101 @@ function aplanarMetricas(lista) {
   return salida;
 }
 
+/* Lo último que sabemos, para mostrarlo mientras se busca lo nuevo. */
+async function leerEstado(env, clave) {
+  const f = await env.DB.prepare('SELECT valor, cuando FROM estado WHERE clave = ?')
+    .bind(clave).first();
+  if (!f) return null;
+  try { return { valor: JSON.parse(f.valor), cuando: f.cuando }; }
+  catch { return null; }
+}
+
+async function guardarEstado(env, clave, valor) {
+  await env.DB.prepare(
+    `INSERT INTO estado (clave, valor, cuando) VALUES (?, ?, datetime('now'))
+     ON CONFLICT (clave) DO UPDATE SET valor = excluded.valor, cuando = excluded.cuando`
+  ).bind(clave, JSON.stringify(valor)).run();
+}
+
+/* ACTUALIZAR DE A TANDAS, Y GUARDANDO EN CADA UNA.
+   Son treinta y pico de consultas —una por publicación— y Cloudflare
+   corta antes. Cada pedido hace un pedazo y lo guarda; si se corta, lo
+   guardado sirve igual y la próxima sigue donde iba.
+
+   La primera tanda trae lo barato y lo más mirado —seguidores,
+   alcance, público— para que la pantalla tenga algo bueno enseguida,
+   y las publicaciones van después. */
+async function actualizarNumeros(env, { desde = 0, porTanda = 6 } = {}) {
+  const guardado = (await leerEstado(env, 'instagram_numeros'))?.valor ?? {};
+
+  if (desde === 0) {
+    const perfil = await igLlamar(env,
+      '/me?fields=id,username,name,followers_count,follows_count,media_count,profile_picture_url');
+
+    const cuenta = aplanarMetricas(await igMetricas(env, '/me/insights',
+      ['reach', 'profile_views', 'accounts_engaged', 'total_interactions'],
+      '&period=day'));
+
+    const publico = {};
+    for (const corte of ['age', 'gender', 'country']) {
+      const r = await igMetricas(env, '/me/insights', ['follower_demographics'],
+        `&period=lifetime&metric_type=total_value&breakdown=${corte}`);
+      const dims = r?.[0]?.total_value?.breakdowns?.[0]?.results ?? [];
+      if (dims.length) {
+        publico[corte] = dims
+          .map((d) => ({ valor: d.dimension_values?.[0], cuantos: d.value }))
+          .sort((a, b) => b.cuantos - a.cuantos);
+      }
+    }
+
+    const media = await igLlamar(env,
+      '/me/media?fields=id,caption,media_type,media_product_type,permalink,' +
+      'thumbnail_url,media_url,timestamp,like_count,comments_count&limit=24');
+
+    /* Las publicaciones entran sin sus métricas: las trae la tanda
+       siguiente. Así la pantalla ya muestra cuáles son y cuándo, y los
+       números van apareciendo. */
+    const publicaciones = (media?.data ?? []).map((p) => ({
+      id: p.id,
+      texto: p.caption ?? null,
+      tipo: p.media_product_type || p.media_type || null,
+      enlace: p.permalink ?? null,
+      imagen: p.thumbnail_url || p.media_url || null,
+      cuando: p.timestamp ?? null,
+      likes: p.like_count ?? null,
+      comentarios: p.comments_count ?? null,
+    }));
+
+    const nuevo = { perfil, cuenta, publico, publicaciones };
+    await guardarEstado(env, 'instagram_numeros', nuevo);
+    return { ...nuevo, total: publicaciones.length, hechas: 0, siguiente: 0 };
+  }
+
+  /* Y acá las métricas de cada publicación, de a poco. */
+  const publicaciones = guardado.publicaciones ?? [];
+  const tanda = publicaciones.slice(desde - 1, desde - 1 + porTanda);
+
+  for (const p of tanda) {
+    const n = aplanarMetricas(await igMetricas(env, `/${p.id}/insights`,
+      ['reach', 'views', 'shares', 'saved', 'total_interactions']));
+    p.alcance = n.reach ?? null;
+    p.reproducciones = n.views ?? null;
+    p.envios = n.shares ?? null;
+    p.guardados = n.saved ?? null;
+    p.interacciones = n.total_interactions ?? null;
+  }
+
+  await guardarEstado(env, 'instagram_numeros', guardado);
+
+  const hechas = Math.min(desde - 1 + porTanda, publicaciones.length);
+  return {
+    ...guardado,
+    total: publicaciones.length,
+    hechas,
+    siguiente: hechas < publicaciones.length ? hechas + 1 : null,
+  };
+}
+
 async function instagramNumeros(env, { cuantas = 24 } = {}) {
   const perfil = await igLlamar(env,
     '/me?fields=id,username,name,followers_count,follows_count,media_count,profile_picture_url');
@@ -1726,9 +1821,20 @@ async function admin(peticion, env, ruta, metodo) {
      Tarda: son muchas llamadas —una por publicación— y Instagram no es
      rápido. Por eso el panel lo pide cuando se abre la pestaña y no en
      cada vista. */
+  /* LO GUARDADO, AL INSTANTE. No consulta a Instagram: devuelve lo
+     último que se leyó y de cuándo es. Un dato viejo a la vista le gana
+     a uno nuevo dentro de quince segundos, siempre que se diga la
+     fecha. */
   if (ruta === '/api/admin/instagram/numeros' && metodo === 'GET') {
+    const g = await leerEstado(env, 'instagram_numeros');
+    return json(g ? { ...g.valor, leido: g.cuando } : { vacio: true });
+  }
+
+  /* Y la actualización, una tanda por pedido. */
+  if (ruta === '/api/admin/instagram/numeros' && metodo === 'POST') {
+    const cuerpo = await peticion.json().catch(() => ({}));
     try {
-      return json(await instagramNumeros(env));
+      return json(await actualizarNumeros(env, { desde: Number(cuerpo?.desde) || 0 }));
     } catch (e) {
       return error(e?.message || 'No se pudieron leer las estadísticas', 502);
     }

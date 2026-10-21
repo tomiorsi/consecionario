@@ -208,30 +208,6 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   .grilla.ordenando .ficha{ animation:none; outline:1px dashed var(--linea) }
 }
 
-/* ── los textos editables ── */
-.textos{ display:grid; gap:1.4rem; max-width:44rem }
-.texto{
-  border:1px solid var(--linea); border-radius:3px;
-  background:var(--panel); padding:1rem 1.1rem 1.1rem; display:grid; gap:.55rem;
-}
-.texto h3{ font-size:.8rem; font-weight:600 }
-.texto .pista{ font-size:.7rem; color:var(--apagado); line-height:1.5 }
-.texto textarea{
-  width:100%; resize:vertical; min-height:4.2rem;
-  background:var(--void); border:1px solid var(--linea); border-radius:3px;
-  color:inherit; font:inherit; font-size:.82rem; line-height:1.6; padding:.6rem .7rem;
-}
-.texto textarea:focus{ outline:0; border-color:var(--chrome) }
-.texto .pie{ display:flex; align-items:center; gap:.6rem; flex-wrap:wrap }
-/* El contador va con tabular-nums porque cambia con cada tecla: sin
-   eso el número baila de ancho y se lee como un parpadeo. */
-.texto .cuenta{
-  font-family:var(--mono); font-size:.56rem; letter-spacing:.1em;
-  color:var(--apagado); font-variant-numeric:tabular-nums; margin-right:auto;
-}
-.texto .cuenta[data-pasado="si"]{ color:var(--alerta) }
-.texto .btn{ padding:.55em 1.1em; font-size:.5rem }
-
 /* ── lista ── */
 .filtros{ display:flex; flex-wrap:wrap; gap:.4rem; margin:1.4rem 0 }
 .chip{
@@ -581,8 +557,15 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   font-size:.72rem; color:var(--chrome);
 }
 .barra-fila .arriba b{ font-weight:600; font-variant-numeric:tabular-nums; color:var(--apagado) }
-.barra-riel{ height:4px; background:rgba(255,255,255,.07); border-radius:100px; overflow:hidden }
-.barra-fill{ height:100%; background:var(--chrome); border-radius:100px }
+/* EL display:block EN LOS DOS NO ES DECORATIVO. Son <span>, o sea
+   elementos en línea, y a un elemento en línea el alto y el ancho no le
+   aplican: la barra existía en el marcado y no se dibujaba. El riel se
+   salvaba por ser hijo de una grilla; el relleno no. */
+.barra-riel{
+  display:block; height:4px; background:rgba(255,255,255,.07);
+  border-radius:100px; overflow:hidden;
+}
+.barra-fill{ display:block; height:100%; background:var(--chrome); border-radius:100px }
 
 /* LA TABLA DE PUBLICACIONES.
    Tabla y no tarjetas: son veinte filas de los mismos siete números, y
@@ -619,9 +602,10 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .tabla th.envios{ color:var(--chrome) }
 
 .pieza{ display:flex; align-items:center; gap:.7rem; min-width:16rem }
-.pieza img{
+.pieza img,
+.pieza .sinfoto{
   width:3rem; height:3rem; object-fit:cover; border-radius:3px;
-  background:#08080a; flex:none;
+  background:#08080a; flex:none; border:1px solid var(--linea);
 }
 .pieza .texto{ display:grid; gap:.2rem; min-width:0 }
 .pieza .texto a{
@@ -631,6 +615,23 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 }
 .pieza .texto a:hover{ text-decoration:underline }
 .pieza .texto small{ font-size:.56rem; letter-spacing:.1em; color:var(--apagado) }
+
+/* ── la barra de progreso ──
+   Lo que tarda tiene que decir que esta trabajando y cuanto falta. Una
+   pantalla quieta diez segundos se lee como rota, y el que mira
+   recarga o aprieta de nuevo — que es justo lo que no hay que hacer. */
+.barra-estado{ display:grid; gap:.45rem; max-width:30rem; margin:0 0 1.4rem }
+.barra-estado-texto{
+  font-size:.56rem; font-weight:600; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--apagado);
+}
+.barra-estado .barra-fill{ transition:width .4s var(--ease) }
+/* De cuando es lo que se esta viendo. Un dato viejo a la vista le gana
+   a uno nuevo dentro de quince segundos, pero solo si dice su fecha. */
+.leido{
+  font-size:.56rem; letter-spacing:.1em; color:var(--apagado);
+  margin:-.6rem 0 1.4rem;
+}
 
 .oculto{ display:none !important }
 .vacio{ padding:4rem 1rem; text-align:center; color:var(--apagado); font-size:.85rem }
@@ -707,6 +708,12 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
         Tarda unos segundos: son muchas consultas, una por publicacion.
       </p>
 
+      <div class="barra-estado oculto" id="progresoNum">
+        <span class="barra-estado-texto" id="progresoNumTexto"></span>
+        <span class="barra-riel"><span class="barra-fill" id="progresoNumFill" style="width:0%"></span></span>
+      </div>
+      <p class="leido oculto" id="leidoNum"></p>
+
       <h2 class="seccion-rotulo">La cuenta</h2>
       <div class="cifras" id="cifras"></div>
 
@@ -740,40 +747,24 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 
     <!-- LOS MENSAJES DE WHATSAPP, INSTAGRAM Y MESSENGER -->
     <section id="zonaBandeja" class="oculto">
-      <p class="aclara">
-        Todo lo que entra por WhatsApp, Instagram y Messenger, lo último
-        arriba. Abrí una conversación para leerla y para marcar que la
-        sigue una persona: mientras esté marcada, la IA no contesta ahí.
-        Las conversaciones se borran solas a los doce meses del último
-        mensaje.
-      </p>
+      <!-- SIN EXPLICACION NI FILTROS NI EMBUDO.
+           Esto era una parrafada, cuatro pastillas de canal y una tabla
+           de embudo. Se fue todo: lo unico que se hace en esta pantalla
+           es leer lo que entro y contestarlo, y cada cosa de mas en el
+           camino es una cosa de mas que leer antes de llegar ahi.
 
-      <div class="pastillas" id="canales">
-        <button class="pastilla" type="button" data-canal="todos" aria-pressed="true">Todos</button>
-        <button class="pastilla" type="button" data-canal="whatsapp" aria-pressed="false">WhatsApp</button>
-        <button class="pastilla" type="button" data-canal="instagram" aria-pressed="false">Instagram</button>
-        <button class="pastilla" type="button" data-canal="messenger" aria-pressed="false">Messenger</button>
-      </div>
+           El embudo se saco porque medía un pedazo: las ventas se
+           cierran por WhatsApp, asi que contar etapas sobre lo que pasa
+           en Instagram daba un numero que parecia el embudo y no lo era.
+           Un dato parcial leido como total confunde mas que no tenerlo.
 
-      <!-- EL EMBUDO DEL MES. Cuenta las conversaciones que empezaron ese
-           mes, según cómo se fueron marcando adentro de cada chat. -->
-      <div class="embudo" id="embudo">
-        <div class="embudo-cabeza">
-          <h2 class="rotulo">Embudo</h2>
-          <input type="month" id="mesEmbudo" aria-label="Mes">
-        </div>
-        <div id="tablaEmbudo"></div>
-      </div>
+           Y el boton de traer el historial tambien: lo nuevo entra solo
+           por el webhook y lo viejo se trae por detras sin que nadie
+           apriete nada. -->
 
-      <!-- TRAER DE INSTAGRAM, A MANO.
-           Mientras la app no esté publicada Meta no avisa cuando entra
-           un mensaje, así que hay que preguntarle. Cuando la revisión
-           salga, los mensajes entran solos y este botón se va. -->
-      <div style="display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;margin:0 0 1.2rem">
-        <button class="btn" id="traerIG" type="button">Traer el historial de Instagram</button>
-        <span class="rotulo" style="letter-spacing:.1em;text-transform:none">
-          Lo nuevo entra solo. Esto trae los mensajes y comentarios de antes.
-        </span>
+      <div class="barra-estado oculto" id="progreso">
+        <span class="barra-estado-texto" id="progresoTexto"></span>
+        <span class="barra-riel"><span class="barra-fill" id="progresoFill" style="width:0%"></span></span>
       </div>
 
       <div class="bandeja" id="chats"></div>

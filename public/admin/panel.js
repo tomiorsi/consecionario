@@ -878,7 +878,6 @@ const ADJUNTOS = {
 };
 
 let chats = [];
-let canal = 'todos';
 let chatActual = null;      /* el chat abierto, con sus mensajes */
 
 /* LAS FECHAS VIENEN DE SQLITE: "2026-10-05 18:22:11", en UTC y sin la T
@@ -914,7 +913,7 @@ async function cargarChats() {
 }
 
 function pintarChats() {
-  const lista = canal === 'todos' ? chats : chats.filter((c) => c.canal === canal);
+  const lista = chats;
   $('#sinChats').classList.toggle('oculto', lista.length > 0);
 
   $('#chats').innerHTML = lista.map((c) => {
@@ -929,8 +928,6 @@ function pintarChats() {
       '<span class="arriba">' +
         '<span class="nombre">' + escapar(quien) + '</span>' +
         (c.humano ? '<span class="espera">Espera a una persona</span>' : '') +
-        (c.etapa ? '<span class="etapa-marca' + (c.perdido ? ' etapa-marca--perdido' : '') + '">' +
-          escapar(ETAPAS[c.etapa] || c.etapa) + '</span>' : '') +
         (c.clase === 'comentario'
           ? '<span class="clase clase--comentario">Comentario</span>'
           : '<span class="clase">Privado</span>') +
@@ -945,16 +942,6 @@ function pintarChats() {
     f.addEventListener('click', () => abrirChat(Number(f.dataset.id))));
 }
 
-function pintarCanales() {
-  $$('#canales .pastilla').forEach((p) =>
-    p.setAttribute('aria-pressed', String(p.dataset.canal === canal)));
-}
-
-$$('#canales .pastilla').forEach((p) => p.addEventListener('click', () => {
-  canal = p.dataset.canal;
-  pintarCanales();
-  pintarChats();
-}));
 
 /* ── un chat abierto ────────────────────────────────────────────── */
 
@@ -1074,20 +1061,55 @@ const cifra = (n) => (n === null || n === undefined
   ? '<span class="nada">—</span>'
   : conPuntos(n));
 
+/* LO GUARDADO PRIMERO, SIEMPRE. Leer Instagram entero tarda quince
+   segundos, y durante esos quince segundos una pantalla en blanco se
+   lee como rota. Se muestra lo último que sabemos —diciendo de cuándo
+   es— y lo nuevo va reemplazándolo por detrás. */
 async function cargarNumeros() {
-  const tabla = $('#tablaMedia');
-  tabla.innerHTML = '<tbody><tr><td>Leyendo Instagram…</td></tr></tbody>';
   $('#sinNumeros').classList.add('oculto');
 
   try {
-    numeros = await api('/api/admin/instagram/numeros');
+    const g = await api('/api/admin/instagram/numeros');
+    if (!g.vacio) {
+      numeros = g;
+      pintarNumeros();
+      $('#leidoNum').textContent = 'Lo que se ve es de ' + cuandoLargo(g.leido);
+      $('#leidoNum').classList.remove('oculto');
+    }
+  } catch { /* si no hay nada guardado, se busca igual abajo */ }
+
+  await actualizarNumeros();
+}
+
+async function actualizarNumeros() {
+  let desde = 0;
+  let vueltas = 0;
+
+  try {
+    while (desde !== null && vueltas < 20) {
+      const r = await api('/api/admin/instagram/numeros', {
+        method: 'POST', body: JSON.stringify({ desde }),
+      });
+      numeros = r;
+      pintarNumeros();
+      progreso('progresoNum', 'Leyendo Instagram', r.hechas || 0, r.total || 1);
+      desde = r.siguiente ?? null;
+      vueltas++;
+    }
+    progreso('progresoNum', null);
+    $('#leidoNum').textContent = 'Actualizado recién';
+    $('#leidoNum').classList.remove('oculto');
   } catch (err) {
-    tabla.innerHTML = '';
-    $('#sinNumeros').textContent = err.message;
-    $('#sinNumeros').classList.remove('oculto');
-    return;
+    progreso('progresoNum', null);
+    /* Si falla la actualización queda lo guardado, que es mejor que
+       nada y además dice su fecha. */
+    if (!numeros) {
+      $('#sinNumeros').textContent = err.message;
+      $('#sinNumeros').classList.remove('oculto');
+    } else {
+      avisar(err.message, true);
+    }
   }
-  pintarNumeros();
 }
 
 function pintarNumeros() {
@@ -1171,9 +1193,12 @@ function pintarNumeros() {
       if (y === null || y === undefined) return -1;
       return x > y ? -1 : 1;
     }).map((p) => {
+      /* Sin foto va un hueco y no un <img> vacío: un <img> sin src lo
+         dibuja cada navegador a su manera, casi siempre con el ícono de
+         imagen rota. */
       const foto = p.imagen
         ? '<img src="' + escapar(p.imagen) + '" alt="" loading="lazy">'
-        : '<img alt="">';
+        : '<span class="sinfoto"></span>';
       const titulo = (p.texto || '(sin texto)').split('\n')[0];
       const enlace = p.enlace
         ? '<a href="' + escapar(p.enlace) + '" target="_blank" rel="noopener">' +
@@ -1198,6 +1223,63 @@ function pintarNumeros() {
     if (th.dataset.orden === ordenMedia) th.setAttribute('aria-sort', 'descending');
     th.addEventListener('click', () => { ordenMedia = th.dataset.orden; pintarNumeros(); });
   });
+}
+
+/* ── PONERSE AL DÍA SOLO ─────────────────────────────────────────
+   ══════════════════════════════════════════════════════════════════
+
+   ANTES ESTO ERA UN BOTÓN Y AHORA NO LO ES. El webhook trae lo nuevo,
+   pero lo viejo —meses de comentarios— hay que ir a buscarlo. Pedirle
+   a alguien que apriete un botón para eso es pedirle que sepa que
+   existen dos puertas; eso es problema nuestro.
+
+   DE A TANDAS PORQUE NO QUEDA OTRA: Cloudflare limita cuántas llamadas
+   externas hace un Worker por pedido. Y con barra, porque esto tarda y
+   una pantalla quieta diez segundos se lee como rota. */
+
+function progreso(cual, texto, hechas, total) {
+  const caja = $('#' + cual);
+  if (texto === null) { caja.classList.add('oculto'); return; }
+  caja.classList.remove('oculto');
+  $('#' + cual + 'Texto').textContent = texto;
+  $('#' + cual + 'Fill').style.width =
+    (total ? Math.round((hechas / total) * 100) : 0) + '%';
+}
+
+/* Una sola vez por sesión: el historial no cambia, y repetirlo cada vez
+   que se entra a la pestaña sería gastar llamadas al pedo. */
+let alDia = false;
+
+async function ponerseAlDia() {
+  if (alDia) return;
+  alDia = true;
+
+  let desde = 0;
+  let total = 0;
+  let vueltas = 0;
+
+  try {
+    while (desde !== null && vueltas < 40) {
+      const r = await api('/api/admin/instagram/traer', {
+        method: 'POST', body: JSON.stringify({ desde }),
+      });
+      total += (r.guardados || 0) + (r.comentarios?.guardados || 0);
+
+      const c = r.comentarios ?? {};
+      progreso('progreso', 'Trayendo el historial', c.hechas || 0, c.publicaciones || 1);
+      desde = c.siguiente ?? null;
+      vueltas++;
+      await cargarChats();
+    }
+    progreso('progreso', null);
+    if (total) avisar('Entraron ' + total + ' mensajes y comentarios');
+  } catch (err) {
+    progreso('progreso', null);
+    /* Que falle la puesta al día no puede tapar la bandeja: lo que ya
+       estaba se sigue viendo. Se avisa y se sigue. */
+    avisar(err.message, true);
+    alDia = false;
+  }
 }
 
 /* ── QUE SE ACTUALICE SOLO ───────────────────────────────────────
@@ -1244,59 +1326,6 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) refrescarBandeja();
 });
 
-/* TRAER DE INSTAGRAM. Puente hasta que la app esté publicada: mientras
-   Meta no avise, se le pregunta. */
-$('#traerIG').addEventListener('click', async () => {
-  const boton = $('#traerIG');
-  const antes = boton.textContent;
-  boton.disabled = true;
-  boton.textContent = 'Trayendo…';
-  try {
-    /* EL IMPORTADOR VIENE DE A TANDAS Y ACÁ SE LO LLAMA HASTA QUE
-       TERMINA. Cloudflare limita cuántas llamadas externas hace un
-       Worker por pedido, así que el servidor toma unas pocas
-       publicaciones y dice por dónde quedó.
-
-       SE MUESTRA EL AVANCE porque esto tarda: un botón que se queda
-       pensando medio minuto sin decir nada parece colgado, y el que
-       mira lo aprieta de nuevo. */
-    let desde = 0;
-    let total = 0;
-    let vistas = 0;
-    let leidos = 0;
-    let vueltas = 0;
-
-    while (desde !== null && vueltas < 30) {
-      const r = await api('/api/admin/instagram/traer', {
-        method: 'POST',
-        body: JSON.stringify({ desde }),
-      });
-      total += (r.guardados || 0) + (r.comentarios?.guardados || 0);
-      if (desde === 0) { vistas = r.vistas || 0; leidos = r.leidos || 0; }
-
-      const c = r.comentarios ?? {};
-      if (c.publicaciones) {
-        boton.textContent = 'Trayendo… ' + (c.hechas || 0) + '/' + c.publicaciones;
-      }
-      desde = c.siguiente ?? null;
-      vueltas++;
-    }
-    /* Cada caso dice algo distinto y por eso no comparten mensaje:
-       sin conversaciones el problema está en Instagram, y con
-       conversaciones pero sin nada nuevo, no hay problema. */
-    avisar(
-      total      ? 'Entraron ' + total + ' mensajes y comentarios'
-      : !vistas  ? 'Instagram no devolvió ninguna conversación'
-      :            vistas + ' conversaciones, ' + leidos + ' mensajes, nada nuevo'
-    );
-    await cargarChats();
-  } catch (err) {
-    avisar(err.message, true);
-  } finally {
-    boton.disabled = false;
-    boton.textContent = antes;
-  }
-});
 
 function pintarHilo(chat, mensajes) {
   if (!mensajes.length) {
@@ -1345,104 +1374,10 @@ function vaciarBandeja() {
   $('#notaChat').classList.add('oculto');
   $('#notaChat').textContent = '';
   $('#quienChat').textContent = '';
-  $('#tablaEmbudo').innerHTML = '';
 }
 
 $('#volverChat').addEventListener('click', cerrarChat);
 
-/* ── el embudo ──────────────────────────────────────────────────────
-   Qué vino a hacer cada uno y hasta dónde llegó. Los nombres de acá
-   son solo para mostrar: lo que viaja y se guarda son las claves, que
-   tienen que coincidir con las listas de src/index.js y los CHECK de
-   esquema/009-embudo.sql. Las etapas van en orden. */
-const ETAPAS = {
-  consulta: 'Consultó',
-  charla:   'Charla real',
-  precio:   'Tiene el número',
-  visita:   'Visita agendada',
-  vino:     'Vino',
-  cerrado:  'Cerró',
-};
-const TIPOS = { comprador: 'Compran', vendedor: 'Venden su auto', permuta: 'Cambian el suyo' };
-
-/* Se guarda apenas cambia cualquiera de los tres: no hay botón de
-   guardar porque es una marca rápida mientras se lee el chat. */
-async function guardarEmbudo() {
-  if (!chatActual) return;
-  const { chat } = chatActual;
-  const cuerpo = {
-    tipo: $('#tipoChat').value || null,
-    etapa: $('#etapaChat').value || null,
-    perdido: $('#perdidoChat').checked,
-  };
-  try {
-    await api('/api/admin/chats/' + chat.id + '/embudo', {
-      method: 'POST', body: JSON.stringify(cuerpo),
-    });
-    Object.assign(chat, cuerpo, { perdido: cuerpo.perdido ? 1 : 0 });
-    const enLista = chats.find((c) => c.id === chat.id);
-    if (enLista) Object.assign(enLista, chat);
-    avisar('Marcado');
-  } catch (err) { avisar(err.message, true); }
-}
-['#tipoChat', '#etapaChat', '#perdidoChat'].forEach((s) =>
-  $(s).addEventListener('change', guardarEmbudo));
-
-/* El mes en curso, en hora local: "2026-10". */
-const mesDeHoy = () => {
-  const d = new Date();
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-};
-
-/* UNA FILA POR TIPO Y UNA COLUMNA POR ETAPA, ACUMULADA: la columna
-   "Vino" cuenta a todos los que llegaron por lo menos a venir, aunque
-   después hayan cerrado. Así cada número se lee como "llegaron hasta
-   acá", y el porcentaje de abajo es contra la columna anterior, que es
-   donde se ve en qué paso se escapa la gente. */
-async function cargarEmbudo() {
-  const mes = $('#mesEmbudo').value || mesDeHoy();
-  $('#mesEmbudo').value = mes;
-  let datos;
-  try {
-    datos = await api('/api/admin/embudo?mes=' + encodeURIComponent(mes));
-  } catch (err) { avisar(err.message, true); return; }
-
-  const orden = datos.etapas;
-  const conteo = (tipo, i) => datos.filas
-    .filter((f) => f.tipo === tipo && f.etapa && orden.indexOf(f.etapa) >= i)
-    .reduce((s, f) => s + f.cantidad, 0);
-  const perdidos = (tipo) => datos.filas
-    .filter((f) => f.tipo === tipo && f.perdido)
-    .reduce((s, f) => s + f.cantidad, 0);
-  const suelto = (cond) => datos.filas.filter(cond).reduce((s, f) => s + f.cantidad, 0);
-
-  const cabeza = '<tr><th></th>' +
-    orden.map((e) => '<th>' + escapar(ETAPAS[e] || e) + '</th>').join('') +
-    '<th>Se perdieron</th></tr>';
-
-  const filas = Object.entries(TIPOS).map(([tipo, nombre]) => {
-    let anterior = null;
-    const celdas = orden.map((e, i) => {
-      const n = conteo(tipo, i);
-      const pct = anterior ? Math.round((n / anterior) * 100) + '%' : '';
-      anterior = n;
-      return '<td>' + n + (pct ? '<span class="pct">' + pct + '</span>' : '') + '</td>';
-    }).join('');
-    return '<tr><td>' + nombre + '</td>' + celdas + '<td>' + perdidos(tipo) + '</td></tr>';
-  }).join('');
-
-  const ruido = suelto((f) => f.tipo === 'ruido');
-  const sinMarcar = suelto((f) => !f.tipo);
-
-  $('#tablaEmbudo').innerHTML =
-    '<table><thead>' + cabeza + '</thead><tbody>' + filas + '</tbody></table>' +
-    '<p class="aclara" style="margin:.8rem 0 0">' +
-      'Ruido: ' + ruido + ' · Sin marcar: ' + sinMarcar +
-      '. Cuenta las conversaciones que empezaron en el mes.' +
-    '</p>';
-}
-
-$('#mesEmbudo').addEventListener('change', cargarEmbudo);
 
 /* QUE LA SIGA UNA PERSONA.
    Cubre los dos casos que nos comprometimos a atender: alguien que pide
@@ -1541,8 +1476,8 @@ function verPestania(cual) {
   else if (cual === 'numeros') cargarNumeros();
   else {
     cargarChats().catch((err) => avisar(err.message, true));
-    cargarEmbudo();
     arrancarRefresco();
+    ponerseAlDia();
   }
 }
 
