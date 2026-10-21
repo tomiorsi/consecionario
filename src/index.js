@@ -755,11 +755,19 @@ async function traerDeInstagram(env, { limite = 25 } = {}) {
      al Worker dando vueltas hasta que lo cortan. */
   const paginas = [];
   let siguiente = `/me/conversations?fields=id,updated_time&limit=${limite}`;
-  for (let i = 0; i < 3 && siguiente; i++) {
+  for (let i = 0; i < 2 && siguiente; i++) {
     const pagina = await igLlamar(env, siguiente);
     paginas.push(...(pagina?.data ?? []));
     siguiente = pagina?.paging?.next ?? null;
   }
+
+  /* CON TOPE, Y ACÁ ESTABA EL ERROR DE "DEMASIADAS SOLICITUDES".
+     Abajo se hace una llamada POR CONVERSACIÓN para traer sus mensajes.
+     Con 44 conversaciones eso son 44 llamadas, y Cloudflare corta mucho
+     antes. Se toman las más recientes y listo: los privados nuevos
+     entran por el webhook igual, así que esto es sólo para el arranque
+     y no tiene que traerlo todo de una. */
+  paginas.splice(12);
 
   /* CUÁNTAS VIO Y CUÁNTAS GUARDÓ, POR SEPARADO.
      "No entró nada" tiene dos causas muy distintas: que Instagram no
@@ -835,7 +843,7 @@ async function traerDeInstagram(env, { limite = 25 } = {}) {
    conversación con tres mensajes: lo que se atiende es a la persona.
    Y cada mensaje se queda con el `media_id` de donde salió, que es lo
    que después le dice a la IA de qué auto están hablando. */
-async function traerComentariosDeInstagram(env, { desde = 0, porTanda = 8 } = {}) {
+async function traerComentariosDeInstagram(env, { desde = 0, porTanda = 5 } = {}) {
   const miUsuario = (await igLlamar(env, '/me?fields=username'))?.username;
 
   /* DE A TANDAS, Y ESTO NO ES UN CAPRICHO.

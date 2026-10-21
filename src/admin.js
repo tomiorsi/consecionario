@@ -559,6 +559,18 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
    tramos entre sí —cuánto pesa 45-54 contra 25-34— y una barra se
    compara de un vistazo; una torta hay que descifrarla. */
 .publico{ display:grid; gap:2rem; grid-template-columns:repeat(auto-fit,minmax(16rem,1fr)) }
+
+/* LOS RANKINGS. Misma barra que el público: una sola serie, un solo
+   color. Pintar cada barra de un tono distinto segun su largo seria
+   decir dos veces lo mismo y gastar el unico canal libre que queda.
+
+   DOS GRAFICOS Y NO UNO CON DOS ESCALAS. Envios y alcance se miden en
+   ordenes distintos —decenas contra decenas de miles— y meterlos en un
+   mismo eje inventa una relacion que no esta en los datos. */
+.rankings{ display:grid; gap:2.4rem; grid-template-columns:repeat(auto-fit,minmax(18rem,1fr)) }
+.ranking .barra-fila .arriba span:first-child{
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:14rem;
+}
 .publico h3{
   font-size:.5rem; font-weight:700; letter-spacing:.16em;
   text-transform:uppercase; color:var(--apagado); margin:0 0 .8rem;
@@ -584,6 +596,12 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   text-transform:uppercase; color:var(--apagado); white-space:nowrap;
 }
 .tabla th:first-child{ text-align:left }
+/* La tabla se ordena por la columna que toques. Viene por fecha, que es
+   como uno la lee, pero la pregunta real suele ser "cual anduvo mejor"
+   y eso es ordenar por envios. */
+.tabla th[data-orden]{ cursor:pointer; user-select:none }
+.tabla th[data-orden]:hover{ color:var(--chrome) }
+.tabla th[aria-sort]{ color:var(--chrome) }
 .tabla td{
   padding:.7rem .6rem; border-bottom:1px solid rgba(255,255,255,.06);
   text-align:right; font-size:.8rem; font-variant-numeric:tabular-nums;
@@ -698,6 +716,14 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
         a quien tenia que llegarle.
       </p>
       <div class="publico" id="publico"></div>
+
+      <h2 class="seccion-rotulo">Que anduvo mejor</h2>
+      <p class="seccion-nota">
+        Las diez mejores de cada cosa. Son dos graficos y no uno porque
+        envios y alcance se cuentan en ordenes distintos: juntarlos en un
+        mismo eje inventaria una relacion que no existe.
+      </p>
+      <div class="rankings" id="rankings"></div>
 
       <h2 class="seccion-rotulo">Las publicaciones</h2>
       <p class="seccion-nota">

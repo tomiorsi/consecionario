@@ -1060,6 +1060,9 @@ $('#responder').addEventListener('submit', async (e) => {
    como ausente y lo demás se muestra igual. */
 
 let numeros = null;
+/* Por fecha de entrada, que es como uno lee una lista. Pero la pregunta
+   real suele ser "cuál anduvo mejor", y para eso se toca la columna. */
+let ordenMedia = 'cuando';
 
 const CORTES = { age: 'Edad', gender: 'Género', country: 'País' };
 const GENEROS = { M: 'Hombres', F: 'Mujeres', U: 'Sin declarar' };
@@ -1121,14 +1124,53 @@ function pintarNumeros() {
       }).join('') + '</div>';
   }).join('') || '<p class="seccion-nota">Instagram todavía no devuelve datos del público.</p>';
 
+  /* LOS DOS RANKINGS. Una sola serie cada uno, un solo color: pintar
+     cada barra de un tono según su largo sería decir dos veces lo
+     mismo. Se etiquetan todas porque son diez y el número ES el
+     contenido de un ranking, no un adorno sobre un punto. */
+  $('#rankings').innerHTML = [
+    ['envios', 'Envíos', 'Lo que la gente le mandó a alguien. Es lo que decide a quién le llega.'],
+    ['alcance', 'Alcance', 'Cuánta gente distinta lo vio.'],
+  ].map(([campo, titulo, nota]) => {
+    const filas = publicaciones
+      .filter((p) => typeof p[campo] === 'number')
+      .sort((a, b) => b[campo] - a[campo])
+      .slice(0, 10);
+    if (!filas.length) return '';
+
+    const tope = filas[0][campo] || 1;
+    return '<div class="ranking"><h3 class="seccion-rotulo" style="margin:0 0 .3rem">' +
+      titulo + '</h3>' +
+      '<p class="seccion-nota" style="margin:0 0 1rem">' + nota + '</p>' +
+      filas.map((p) => {
+        const nombre = (p.texto || '(sin texto)').split('\n')[0];
+        return '<div class="barra-fila" title="' + escapar(nombre) + '">' +
+          '<span class="arriba"><span>' + escapar(nombre) + '</span>' +
+            '<b>' + conPuntos(p[campo]) + '</b></span>' +
+          '<span class="barra-riel"><span class="barra-fill" style="width:' +
+            Math.round((p[campo] / tope) * 100) + '%"></span></span>' +
+        '</div>';
+      }).join('') + '</div>';
+  }).join('');
+
   /* Y la tabla. Lo más nuevo arriba, que es como uno la lee. */
   $('#tablaMedia').innerHTML =
     '<thead><tr>' +
-      '<th>Publicación</th><th>Alcance</th><th>Repr.</th>' +
-      '<th class="envios">Envíos</th><th>Guardados</th>' +
-      '<th>Me gusta</th><th>Coment.</th>' +
+      '<th data-orden="cuando">Publicación</th>' +
+      '<th data-orden="alcance">Alcance</th>' +
+      '<th data-orden="reproducciones">Repr.</th>' +
+      '<th class="envios" data-orden="envios">Envíos</th>' +
+      '<th data-orden="guardados">Guardados</th>' +
+      '<th data-orden="likes">Me gusta</th>' +
+      '<th data-orden="comentarios">Coment.</th>' +
     '</tr></thead><tbody>' +
-    publicaciones.map((p) => {
+    [...publicaciones].sort((a, b) => {
+      const x = a[ordenMedia], y = b[ordenMedia];
+      if (x === y) return 0;
+      if (x === null || x === undefined) return 1;
+      if (y === null || y === undefined) return -1;
+      return x > y ? -1 : 1;
+    }).map((p) => {
       const foto = p.imagen
         ? '<img src="' + escapar(p.imagen) + '" alt="" loading="lazy">'
         : '<img alt="">';
@@ -1150,6 +1192,12 @@ function pintarNumeros() {
         '<td>' + cifra(p.comentarios) + '</td>' +
       '</tr>';
     }).join('') + '</tbody>';
+
+  /* Marcar por cuál está ordenada, y dejar cambiarla. */
+  $$('#tablaMedia th[data-orden]').forEach((th) => {
+    if (th.dataset.orden === ordenMedia) th.setAttribute('aria-sort', 'descending');
+    th.addEventListener('click', () => { ordenMedia = th.dataset.orden; pintarNumeros(); });
+  });
 }
 
 /* ── QUE SE ACTUALICE SOLO ───────────────────────────────────────
