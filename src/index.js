@@ -1162,10 +1162,22 @@ const MODELO = 'claude-haiku-5-5';
    puede hacer es decir cuánto vale: junta los datos y las fotos, y la
    diferencia la pasa una persona. */
 function instruccionesDelBot({ autos, posteo, decidiendo = false, esComentario = false }) {
+  /* CADA AUTO CON SU DIRECCIÓN PROPIA, y no la del garage entero.
+     Cuando piden fotos, el link es la respuesta: la ficha las tiene
+     todas. Mandar el garage entero es hacerle buscar de nuevo el auto
+     que acaba de nombrar, y ahí se cae la mitad.
+
+     Los miles con punto: "USD 72.900" se lee de un vistazo y "USD 72900"
+     hay que contarlo con el dedo. */
+  const conPuntos = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
   const stock = autos.map((a) => {
-    const precio = a.precio === null ? 'a consultar' : `${a.moneda} ${a.precio}`;
-    return `- ${a.marca} ${a.modelo} ${a.anio ?? ''} · ${a.km ?? '?'} km · ${precio}` +
-           `${a.color ? ' · ' + a.color : ''}`;
+    const precio = a.precio === null
+      ? 'a consultar' : `${a.moneda} ${conPuntos(a.precio)}`;
+    const km = a.km === null || a.km === undefined ? '?' : conPuntos(a.km);
+    return `- ${a.marca} ${a.modelo} ${a.anio ?? ''} · ${km} km · ${precio}` +
+           `${a.color ? ' · ' + a.color : ''}\n` +
+           `  fotos y ficha: ${SITIO}${enlaceDe(a)}`;
   }).join('\n') || '(no hay autos publicados)';
 
   const deDonde = posteo
@@ -1184,10 +1196,15 @@ contestado, cerrá con este renglón, tal cual, en una línea aparte:
 Te contesta un asistente automático. Si preferís hablar con una persona, decímelo.
 En los mensajes que siguen no lo repitas nunca más.
 
-DERIVÁ A UNA PERSONA, sin intentar resolverlo vos, si:
+PASÁ A UNA PERSONA SÓLO EN DOS CASOS, y en ningún otro:
 - piden hablar con alguien del equipo
 - piden que borremos sus datos
-- preguntan algo que no esté en estas instrucciones
+
+Son los únicos dos. En cualquier otra cosa seguís vos.
+
+Si te preguntan algo que no sabés, decí que no lo tenés y que se lo
+confirma una persona — pero seguí atendiendo el resto normalmente. No
+saber un detalle no es motivo para pasar la conversación.
 
 TU OBJETIVO es que vengan a ver el auto. Se visita con cita.
 
@@ -1210,8 +1227,13 @@ ningún número, ni aproximado, ni un rango.
 
 ${deDonde}
 
+FOTOS: no podés mandar fotos por acá. Cada auto tiene su página con
+todas las fotos y la ficha entera: pasá ESE link, el del auto que te
+están preguntando. Nunca el del garage, nunca el de otro auto. Para
+cualquier detalle fino —el color del techo, el equipamiento, el baúl—
+mandá el mismo link, que está todo ahí.
+
 Si dudás entre dos autos, preguntá cuál.
-Si no sabés algo, decí que se lo confirma una persona.
 
 Castellano rioplatense, de vos. Dos o tres renglones. Sin emojis, sin
 signos de exclamación, sin vender humo.${decidiendo ? decidir(esComentario) : ''}`;
@@ -1296,7 +1318,7 @@ async function pensarRespuesta(env, conversacionId, { decidiendo = false } = {})
   const ultimo = conTexto[conTexto.length - 1];
 
   const { results: autos } = await env.DB.prepare(
-    `SELECT marca, modelo, anio, km, precio, moneda, color, estado
+    `SELECT id, marca, modelo, anio, km, precio, moneda, color, estado
        FROM autos WHERE estado = 'publicado' ORDER BY marca, modelo`
   ).all();
 
