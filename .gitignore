@@ -10,3 +10,8 @@ source/Cyberduck.app/
 
 # wrangler r2 object get descarga aca; no es parte del proyecto
 autos/
+
+# Exportación de chats de WhatsApp: datos personales de clientes. Nunca al
+# repo. Ver los compromisos de datos en CLAUDE.md (borrado, conservación).
+chats-whatsapp/
+node_modules/

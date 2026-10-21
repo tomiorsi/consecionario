@@ -903,6 +903,10 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
                 placeholder="Escribí tu respuesta"></textarea>
       <div class="pie">
         <span class="plazo" id="plazo"></span>
+        <!-- ESCRIBE, NO MANDA. Deja el texto en el cuadro de arriba y
+             lo manda Tomas si le gusta. Una respuesta equivocada a un
+             cliente no se puede deshacer. -->
+        <button class="btn" type="button" id="sugerir">Que escriba la IA</button>
         <button class="btn btn--fuerte" type="submit" id="enviar">Enviar</button>
       </div>
     </form>

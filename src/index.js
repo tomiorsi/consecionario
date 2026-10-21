@@ -20,6 +20,7 @@
    bytes, no cuesta nada y el original queda en la compu de quien lo
    sube. Ver `achicar()` en el panel. */
 
+import Anthropic from '@anthropic-ai/sdk';
 import { PANEL } from './admin.js';
 
 const GRUPOS = ['alta-gama', 'evolution', 'deportivos', 'urbanos'];
@@ -1118,6 +1119,143 @@ async function instagramNumeros(env, { cuantas = 24 } = {}) {
   return { perfil, cuenta, publico, publicaciones };
 }
 
+/* ── EL BOT ──────────────────────────────────────────────────────
+   ══════════════════════════════════════════════════════════════════
+
+   ESCRIBE BORRADORES, NO MANDA SOLO. Esta primera versión deja la
+   respuesta escrita en el panel y la manda Tomás con un botón. No es
+   timidez: es que una respuesta equivocada a un cliente no se puede
+   deshacer, y hasta que no se vea cómo contesta con gente de verdad,
+   el costo de equivocarse lo paga el negocio. Cuando esté probado se
+   cambia una línea y manda solo.
+
+   LO QUE SABE, Y DE DÓNDE:
+   - Las reglas y el tono: escritas acá abajo.
+   - El stock: de la base, en el momento. No de un texto que envejece.
+   - El posteo: si el mensaje es un comentario, el texto que escribió
+     Tomás debajo del reel. Eso es lo que le dice de qué auto hablan.
+   - La conversación entera, para no repetir lo ya dicho.
+
+   LO QUE NO PUEDE HACER está en las instrucciones y no es decorativo:
+   son los compromisos asumidos ante Meta y lo que dicen las condiciones
+   de uso publicadas. Si esto cambia, hay que mirar CLAUDE.md primero. */
+
+const MODELO = 'claude-opus-5-5';
+
+function instruccionesDelBot({ autos, posteo }) {
+  const stock = autos.map((a) => {
+    const precio = a.precio === null ? 'a consultar' : `${a.moneda} ${a.precio}`;
+    return `- ${a.marca} ${a.modelo} ${a.anio ?? ''} · ${a.km ?? '?'} km · ${precio}` +
+           `${a.color ? ' · ' + a.color : ''} · estado: ${a.estado}`;
+  }).join('\n') || '(no hay autos publicados)';
+
+  return `Sos el asistente de Manna Motors Selected, una concesionaria de autos
+seleccionados en la Ciudad de Buenos Aires. Atendés por Instagram.
+
+DECÍ QUE SOS UN ASISTENTE AUTOMÁTICO en tu primer mensaje de la
+conversación. No lo escondas ni te hagas pasar por una persona.
+
+SI PIDEN HABLAR CON ALGUIEN DEL EQUIPO, cortá y decí que ya le avisás a
+una persona. No insistas ni intentes resolverlo vos.
+
+SI PIDEN QUE BORREMOS SUS DATOS, no lo contestes: decí que lo pasás a
+una persona del equipo. Es un pedido legal y lo atiende alguien.
+
+TU OBJETIVO es que la persona venga a ver el auto. No vendés por
+Instagram: conseguís la visita. El salón es con cita.
+
+NUNCA, POR NINGÚN MOTIVO:
+- Des un descuento ni negocies el precio.
+- Reserves, señes ni guardes un auto.
+- Tasés un auto ni des un valor de permuta, ni aproximado.
+- Prometas financiación, plazos ni condiciones.
+Todo eso lo cierra una persona. Lo que vale es lo acordado con ella, no
+lo que digas vos.
+
+SI NO SABÉS ALGO, DECILO. "Eso te lo confirma mañana una persona" es
+mejor que un dato inventado. Un dato inventado nos cuesta un cliente.
+
+LOS AUTOS QUE HAY HOY (esto es lo único cierto sobre precios y stock;
+si algo no está en esta lista, no lo tenemos):
+${stock}
+
+${posteo ? `DE DÓNDE VIENE ESTE MENSAJE. La persona comentó debajo de esta
+publicación nuestra. Lo más probable es que pregunte por eso:
+
+"""
+${posteo}
+"""
+
+Si el texto habla de un auto de la lista, es por ese. Si habla de otra
+cosa —una curiosidad, un auto que no vendemos— no inventes que tenemos
+uno: contestá sobre lo que se comentó.` : `ESTE MENSAJE NO VIENE DE NINGUNA
+PUBLICACIÓN, así que no sabés por qué auto preguntan. Si no queda claro
+en la conversación, preguntá por cuál antes de dar datos.`}
+
+SI DUDÁS ENTRE DOS AUTOS PARECIDOS, preguntá cuál. Vale más preguntar
+que dar el precio del auto equivocado.
+
+CÓMO HABLÁS: castellano rioplatense, de vos. Dos o tres renglones, no
+más. Concreto, sin vender humo, sin signos de exclamación de más y sin
+emojis. Contestá como contestaría alguien que sabe del tema y tiene
+poco tiempo.`;
+}
+
+/* Arma el borrador para una conversación. No manda nada. */
+async function borradorDeRespuesta(env, conversacionId) {
+  if (!env.ANTHROPIC_API_KEY) {
+    throw new Error('Falta cargar ANTHROPIC_API_KEY en Cloudflare');
+  }
+
+  const { results: mensajes } = await env.DB.prepare(
+    `SELECT direccion, autor, texto, clase, media_id
+       FROM mensajes WHERE conversacion_id = ?
+      ORDER BY creado, id`
+  ).bind(conversacionId).all();
+
+  const conTexto = (mensajes ?? []).filter((m) => m.texto);
+  if (!conTexto.length) throw new Error('No hay nada que contestar todavía');
+
+  const { results: autos } = await env.DB.prepare(
+    `SELECT marca, modelo, anio, km, precio, moneda, color, estado
+       FROM autos WHERE estado = 'publicado' ORDER BY marca, modelo`
+  ).all();
+
+  /* EL TEXTO DEL POSTEO, DEL ÚLTIMO COMENTARIO QUE HAYA.
+     Sale de las estadísticas que ya guardamos, así que no cuesta una
+     llamada a Instagram. Si todavía no se leyeron, el bot se arregla
+     sin eso y sus instrucciones ya le dicen qué hacer en ese caso. */
+  let posteo = null;
+  const conPosteo = [...conTexto].reverse().find((m) => m.media_id);
+  if (conPosteo) {
+    const guardado = (await leerEstado(env, 'instagram_numeros'))?.valor;
+    posteo = (guardado?.publicaciones ?? [])
+      .find((p) => p.id === conPosteo.media_id)?.texto ?? null;
+  }
+
+  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+
+  const respuesta = await client.messages.create({
+    model: MODELO,
+    max_tokens: 1000,
+    /* Esfuerzo bajo: son dos renglones de atención al cliente, no un
+       problema difícil. Subirlo acá es pagar de más por pensar algo
+       que no lo necesita. */
+    output_config: { effort: 'low' },
+    system: instruccionesDelBot({ autos: autos ?? [], posteo }),
+    messages: conTexto.map((m) => ({
+      role: m.direccion === 'entrante' ? 'user' : 'assistant',
+      content: m.texto,
+    })),
+  });
+
+  const texto = (respuesta.content ?? [])
+    .filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
+
+  if (!texto) throw new Error('Claude no devolvió una respuesta');
+  return { texto, conPosteo: Boolean(posteo) };
+}
+
 /* SE CONTESTA 200 SIEMPRE QUE EL AVISO SEA DE META, y rápido. Si Meta
    no recibe un 200 en unos segundos, reintenta el mismo aviso una y otra
    vez, y si falla seguido termina desactivando la dirección. Lo que haya
@@ -1731,6 +1869,22 @@ async function admin(peticion, env, ruta, metodo) {
 
     if (!r.meta.changes) return error('No está', 404);
     return json({ ok: true, humano: prendido });
+  }
+
+  /* QUE CLAUDE ESCRIBA UN BORRADOR.
+
+     DEVUELVE EL TEXTO, NO LO MANDA. Queda escrito en el cuadro de
+     respuesta y lo manda Tomás si le gusta. Una respuesta equivocada a
+     un cliente no se puede deshacer, así que hasta que no se vea cómo
+     contesta con gente de verdad, la última palabra es de una persona.
+     Cuando esté probado, se cambia una línea. */
+  const sugerirA = ruta.match(/^\/api\/admin\/chats\/(\d+)\/sugerir$/);
+  if (sugerirA && metodo === 'POST') {
+    try {
+      return json(await borradorDeRespuesta(env, sugerirA[1]));
+    } catch (e) {
+      return error(e?.message || 'No se pudo escribir la respuesta', 502);
+    }
   }
 
   /* CONTESTAR DESDE EL PANEL.

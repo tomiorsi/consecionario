@@ -1013,6 +1013,32 @@ function prepararRespuesta(chat, mensajes) {
   $('#enviar').disabled = !isFinite(horas) || horas >= 24;
 }
 
+/* QUE ESCRIBA LA IA.
+   Deja el borrador en el cuadro y no lo manda: lo lee Tomás y decide.
+   Y si lo edita antes de mandarlo, mejor — el que conoce al cliente es
+   él. */
+$('#sugerir').addEventListener('click', async () => {
+  if (!chatActual) return;
+  const boton = $('#sugerir');
+  const antes = boton.textContent;
+  boton.disabled = true;
+  boton.textContent = 'Escribiendo…';
+  try {
+    const { texto, conPosteo } = await api(
+      '/api/admin/chats/' + chatActual.chat.id + '/sugerir', { method: 'POST' });
+    $('#respuesta').value = texto;
+    $('#respuesta').focus();
+    /* Decir si supo de qué publicación venía importa: sin eso el bot
+       contestó a ciegas y conviene leerlo con más cuidado. */
+    avisar(conPosteo ? 'Escrito, con el texto del posteo' : 'Escrito, sin saber de qué publicación');
+  } catch (err) {
+    avisar(err.message, true);
+  } finally {
+    boton.disabled = false;
+    boton.textContent = antes;
+  }
+});
+
 $('#responder').addEventListener('submit', async (e) => {
   e.preventDefault();
   if (!chatActual) return;
