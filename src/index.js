@@ -755,7 +755,7 @@ async function traerDeInstagram(env, { limite = 25 } = {}) {
      al Worker dando vueltas hasta que lo cortan. */
   const paginas = [];
   let siguiente = `/me/conversations?fields=id,updated_time&limit=${limite}`;
-  for (let i = 0; i < 10 && siguiente; i++) {
+  for (let i = 0; i < 3 && siguiente; i++) {
     const pagina = await igLlamar(env, siguiente);
     paginas.push(...(pagina?.data ?? []));
     siguiente = pagina?.paging?.next ?? null;
@@ -835,16 +835,26 @@ async function traerDeInstagram(env, { limite = 25 } = {}) {
    conversación con tres mensajes: lo que se atiende es a la persona.
    Y cada mensaje se queda con el `media_id` de donde salió, que es lo
    que después le dice a la IA de qué auto están hablando. */
-async function traerComentariosDeInstagram(env, { publicaciones = 25 } = {}) {
+async function traerComentariosDeInstagram(env, { desde = 0, porTanda = 8 } = {}) {
   const miUsuario = (await igLlamar(env, '/me?fields=username'))?.username;
 
-  const media = await igLlamar(env,
-    `/me/media?fields=id&limit=${publicaciones}`);
+  /* DE A TANDAS, Y ESTO NO ES UN CAPRICHO.
+     Cloudflare le pone un tope a cuántas llamadas externas puede hacer
+     un Worker en un solo pedido. Una llamada por publicación lo pasaba,
+     el trabajo se cortaba a la mitad —y peor: se cortaba ANTES del paso
+     que acomoda las fechas, así que el historial entraba fechado como
+     si fuera de hoy.
+
+     Ahora cada pedido toma unas pocas publicaciones y dice por dónde
+     quedó. El panel lo vuelve a llamar hasta terminar. */
+  const media = await igLlamar(env, `/me/media?fields=id&limit=100`);
+  const todas = media?.data ?? [];
+  const tanda = todas.slice(desde, desde + porTanda);
 
   let vistos = 0;
   let guardados = 0;
 
-  for (const p of media?.data ?? []) {
+  for (const p of tanda) {
     const com = await igLlamar(env,
       `/${p.id}/comments?fields=id,text,timestamp,username,from&limit=50`
     ).catch(() => null);
@@ -885,18 +895,13 @@ async function traerComentariosDeInstagram(env, { publicaciones = 25 } = {}) {
     }
   }
 
-  /* EL RELOJ DE CADA CONVERSACIÓN SE REACOMODA AL FINAL.
-     Las filas se fueron creando con la hora de ahora, pero un
-     comentario de hace dos meses no es actividad de hoy: sin esto, la
-     bandeja mostraría todo el historial como si acabara de pasar. */
-  await env.DB.prepare(
-    `UPDATE conversaciones SET ultimo = COALESCE(
-       (SELECT MAX(m.creado) FROM mensajes m WHERE m.conversacion_id = conversaciones.id),
-       ultimo)
-     WHERE canal = 'instagram'`
-  ).run();
-
-  return { vistos, guardados };
+  const siguiente = desde + porTanda;
+  return {
+    vistos, guardados,
+    publicaciones: todas.length,
+    hechas: Math.min(siguiente, todas.length),
+    siguiente: siguiente < todas.length ? siguiente : null,
+  };
 }
 
 /* ── INSTAGRAM: LOS NÚMEROS ──────────────────────────────────────
@@ -1730,9 +1735,28 @@ async function admin(peticion, env, ruta, metodo) {
     try {
       /* Las dos cosas de una. Separarlas en dos botones obliga a saber
          que existen dos puertas —privados y comentarios— y eso es
-         nuestro problema, no de quien usa el panel. */
-      const r = await traerDeInstagram(env);
-      const c = await traerComentariosDeInstagram(env);
+         nuestro problema, no de quien usa el panel.
+
+         Los privados sólo en la primera tanda: son pocos y no hace
+         falta repetirlos en cada vuelta. */
+      const cuerpo = await peticion.json().catch(() => ({}));
+      const desde = Number(cuerpo?.desde) || 0;
+
+      const r = desde === 0 ? await traerDeInstagram(env) : {};
+      const c = await traerComentariosDeInstagram(env, { desde });
+
+      /* LAS FECHAS SE ACOMODAN EN CADA TANDA, no sólo al final.
+         Antes esto corría recién al terminar todo, así que un corte a
+         la mitad dejaba el historial entero fechado como de hoy. Es
+         sólo base de datos: no gasta llamadas y puede repetirse. */
+      await env.DB.prepare(
+        `UPDATE conversaciones SET ultimo = COALESCE(
+           (SELECT MAX(m.creado) FROM mensajes m
+             WHERE m.conversacion_id = conversaciones.id),
+           ultimo)
+         WHERE canal = 'instagram'`
+      ).run();
+
       return json({ ok: true, ...r, comentarios: c });
     } catch (e) {
       return error(e?.message || 'No se pudo consultar a Instagram', 502);

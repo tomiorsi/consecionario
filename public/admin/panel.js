@@ -1204,9 +1204,35 @@ $('#traerIG').addEventListener('click', async () => {
   boton.disabled = true;
   boton.textContent = 'Trayendo…';
   try {
-    const { vistas, leidos, guardados, comentarios } = await api(
-      '/api/admin/instagram/traer', { method: 'POST' });
-    const total = (guardados || 0) + (comentarios?.guardados || 0);
+    /* EL IMPORTADOR VIENE DE A TANDAS Y ACÁ SE LO LLAMA HASTA QUE
+       TERMINA. Cloudflare limita cuántas llamadas externas hace un
+       Worker por pedido, así que el servidor toma unas pocas
+       publicaciones y dice por dónde quedó.
+
+       SE MUESTRA EL AVANCE porque esto tarda: un botón que se queda
+       pensando medio minuto sin decir nada parece colgado, y el que
+       mira lo aprieta de nuevo. */
+    let desde = 0;
+    let total = 0;
+    let vistas = 0;
+    let leidos = 0;
+    let vueltas = 0;
+
+    while (desde !== null && vueltas < 30) {
+      const r = await api('/api/admin/instagram/traer', {
+        method: 'POST',
+        body: JSON.stringify({ desde }),
+      });
+      total += (r.guardados || 0) + (r.comentarios?.guardados || 0);
+      if (desde === 0) { vistas = r.vistas || 0; leidos = r.leidos || 0; }
+
+      const c = r.comentarios ?? {};
+      if (c.publicaciones) {
+        boton.textContent = 'Trayendo… ' + (c.hechas || 0) + '/' + c.publicaciones;
+      }
+      desde = c.siguiente ?? null;
+      vueltas++;
+    }
     /* Cada caso dice algo distinto y por eso no comparten mensaje:
        sin conversaciones el problema está en Instagram, y con
        conversaciones pero sin nada nuevo, no hay problema. */
