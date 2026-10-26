@@ -1,0 +1,57 @@
+# PUBLICAR LA WEB AL SUBIR CODIGO
+#
+# Antes esto se hacia a mano: `npx wrangler deploy` desde la carpeta de
+# uno, contra la cuenta de Cloudflare de uno. Funciona mientras el que
+# programa y el que tiene la cuenta son la misma persona. Cuando son dos,
+# el segundo puede escribir todo el codigo que quiera y la pagina no
+# cambia nunca.
+#
+# LA CLAVE DE CLOUDFLARE NO LA TIENE NADIE EN SU COMPUTADORA. Vive como
+# secreto del repositorio: GitHub se la pasa a este proceso y nadie mas la
+# ve, ni en el codigo, ni en los registros, ni quien clone el repo. Se
+# revoca desde Cloudflare en un clic y sin tocar nada de esto.
+#
+# QUIEN PUEDE SUBIR CODIGO, PUBLICA. Eso es lo que se esta decidiendo aca
+# y conviene decirlo: no hay nadie revisando en el medio. Si se quiere que
+# alguien mire primero, la linea de abajo cambia de `push` a
+# `pull_request` y entonces se publica recien al aprobar.
+
+name: Publicar
+
+on:
+  push:
+    branches: [main]
+
+  # Y a mano desde la pestaña Actions, para republicar sin tener que
+  # inventar un cambio en el codigo.
+  workflow_dispatch:
+
+# Una publicacion por vez. Dos subidas seguidas lanzan dos procesos, y el
+# que arranco primero puede terminar ultimo: la web quedaria con el codigo
+# viejo sin que nadie entienda por que.
+concurrency:
+  group: publicar
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # `npm ci` y no `npm install`: instala exactamente lo que dice
+      # package-lock.json. El Worker usa el SDK de Anthropic, y que la
+      # version cambie sola en una publicacion es como se rompen las
+      # cosas un viernes.
+      - run: npm ci
+
+      - uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
