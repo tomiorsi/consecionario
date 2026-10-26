@@ -1408,20 +1408,39 @@ async function graphMandar(token, nombre, camino, cuerpo) {
     body: JSON.stringify(cuerpo),
   });
   const dato = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(dato?.error?.message || `Meta contestó ${r.status}`);
+  if (!r.ok) {
+    const e = new Error(dato?.error?.message || `Meta contestó ${r.status}`);
+    e.codigo = dato?.error?.code ?? null;
+    throw e;
+  }
   return dato;
 }
+
+/* LOS CELULARES DE ARGENTINA LLEGAN CON EL 9 (549 11 ...), y en modo de
+   prueba Meta suele rechazar la respuesta a ese número con "no está en
+   la lista de destinatarios" (código 131030), porque lo tiene anotado
+   sin el 9. Se reintenta una vez sin el 9. Con un número de producción
+   no pasa, y si pasa con otro error, el error sube tal cual. */
+const SIN_EL_NUEVE = (n) => (/^549\d{10}$/.test(n) ? '54' + n.slice(3) : null);
 
 async function mandarUno(env, chat, texto) {
   if (chat.canal === 'whatsapp') {
     /* `preview_url` es lo que hace que un link salga con su foto. */
-    const r = await graphMandar(env.WHATSAPP_TOKEN, 'WHATSAPP_TOKEN',
+    const mandarA = (to) => graphMandar(env.WHATSAPP_TOKEN, 'WHATSAPP_TOKEN',
       `/${env.WHATSAPP_PHONE_ID}/messages`, {
         messaging_product: 'whatsapp',
-        to: chat.externo_id,
+        to,
         type: 'text',
         text: { body: texto, preview_url: true },
       });
+    let r;
+    try {
+      r = await mandarA(chat.externo_id);
+    } catch (e) {
+      const otro = e.codigo === 131030 && SIN_EL_NUEVE(chat.externo_id);
+      if (!otro) throw e;
+      r = await mandarA(otro);
+    }
     return r?.messages?.[0]?.id ?? null;
   }
 
