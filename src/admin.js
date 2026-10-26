@@ -790,13 +790,6 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
       </div>
       <p class="nota" id="botNota"></p>
 
-      <!-- LAS FOTOS QUE TODAVÍA NO SE PUEDEN MANDAR POR CHAT.
-           Sólo aparece si hay alguna: ver esquema/012. -->
-      <div class="oculto" id="zonaJpg" style="margin-top:1rem">
-        <button class="btn" type="button" id="prepararJpg">Preparar fotos para los chats</button>
-        <span class="rotulo" id="cuantasJpg" style="margin-left:.6rem"></span>
-      </div>
-
       <div class="barra-estado oculto" id="progreso">
         <span class="barra-estado-texto" id="progresoTexto"></span>
         <span class="barra-riel"><span class="barra-fill" id="progresoFill" style="width:0%"></span></span>
@@ -934,8 +927,8 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
     <form class="responder oculto" id="responder" autocomplete="off">
       <textarea id="respuesta" rows="3"
                 placeholder="Escribí tu respuesta"></textarea>
-      <!-- Lo que el bot sugiere además del texto: qué fotos van y si lo
-           tiene que seguir una persona. Se ve antes de mandar. -->
+      <!-- Lo que el bot sugiere además del texto: la ficha de qué auto va
+           y si lo tiene que seguir una persona. Se ve antes de mandar. -->
       <p class="nota oculto" id="sugeridoFotos" style="margin:0"></p>
       <p class="nota oculto" id="sugeridoDerivar" style="margin:0"></p>
       <div class="pie">

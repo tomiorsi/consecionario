@@ -69,7 +69,6 @@ function lineaDeAuto(a) {
     a.km !== null ? `${a.km} km` : null,
     precio,
     a.motor, a.transmision, a.combustible, a.color,
-    `${a.fotos} fotos`,
   ].filter(Boolean).join(' · ');
   const desc = a.descripcion
     ? `\n  ${a.descripcion.replace(/\s+/g, ' ').slice(0, 400)}`
@@ -135,10 +134,13 @@ STOCK — sólo esto. Lo que no está en la lista no lo tenemos. El número entr
 corchetes es para vos, nunca lo escribas.
 ${stock}
 
-FOTOS DE UN AUTO DE LA LISTA
-Si te piden fotos, o mandarlas ayuda a que avance, poné el número del auto
-en "fotos_de" y escribí el mensaje como si las fotos fueran justo después.
-Si el auto tiene 0 fotos, no lo pongas y decí que se las mandás en un rato.
+LA FICHA DE UN AUTO
+Si te piden fotos o más información de un auto de la lista, poné su número
+en "ficha_de". Antes de tu mensaje le llega el link del auto en nuestro
+garage, que se ve con la foto y tiene todas las fotos y los datos. Escribí
+como si ya lo tuviera a la vista. No digas cuántas fotos son ni escribas
+vos el link. Si en la conversación ya le mandamos ese link, no lo pongas
+de nuevo.
 
 SI QUIERE ENTREGAR SU AUTO, como parte de pago o para que se lo vendamos
 Tomamos autos. Para que una persona le haga una propuesta hace falta

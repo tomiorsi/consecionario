@@ -1156,7 +1156,7 @@ async function instagramNumeros(env, { cuantas = 24 } = {}) {
 const MODELO = 'claude-haiku-5-5';
 
 /* CONTESTA EN UNA FORMA FIJA Y NO EN TEXTO SUELTO.
-   Además del mensaje, el bot tiene que poder decir "mandale las fotos de
+   Además del mensaje, el bot tiene que poder decir "mandale la ficha de
    este auto" y "esto lo tiene que seguir una persona". Si eso viniera
    mezclado en el texto, habría que adivinarlo leyendo; así viene en su
    propio campo y el código no interpreta nada. */
@@ -1164,10 +1164,10 @@ const FORMA_DE_RESPUESTA = {
   type: 'object',
   properties: {
     mensaje: { type: 'string' },
-    fotos_de: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
+    ficha_de: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
     pasar_a_persona: { anyOf: [{ type: 'string' }, { type: 'null' }] },
   },
-  required: ['mensaje', 'fotos_de', 'pasar_a_persona'],
+  required: ['mensaje', 'ficha_de', 'pasar_a_persona'],
   additionalProperties: false,
 };
 
@@ -1284,9 +1284,9 @@ async function pensarRespuesta(env, conversacionId, { automatico = false } = {})
   const texto = String(dato?.mensaje ?? '').trim();
   if (!texto) throw new Error('Claude no devolvió una respuesta');
 
-  /* El número de auto se cruza con el stock: uno inventado, vendido o
-     sin fotos no llega a ningún lado. */
-  const auto = (autos ?? []).find((a) => a.id === dato.fotos_de && a.fotos > 0);
+  /* El número de auto se cruza con el stock: uno inventado o vendido no
+     llega a ningún lado. */
+  const auto = (autos ?? []).find((a) => a.id === dato.ficha_de);
 
   return {
     texto,
@@ -1296,32 +1296,18 @@ async function pensarRespuesta(env, conversacionId, { automatico = false } = {})
   };
 }
 
-/* ── LAS FOTOS QUE SALEN POR CHAT ────────────────────────────────
+/* ── LA FICHA DE UN AUTO, EN VEZ DE FOTOS SUELTAS ────────────────
 
-   VAN LAS PRIMERAS SEIS. Son las que se eligieron para encabezar la
-   ficha; mandar veinte en un chat es tapar la conversación.
-
-   SÓLO LAS QUE TIENEN SU JPG (ver esquema/012). Si un auto tiene fotos
-   pero ninguna convertida todavía, va el link a la ficha, que las
-   muestra todas: al cliente le llegan igual. */
-const FOTOS_POR_CHAT = 6;
-
-async function fotosParaChat(env, autoId) {
+   ASÍ LO HACE MAXI A MANO: no manda fotos, manda el link del auto en el
+   garage. WhatsApp, Instagram y Messenger arman solos la vista previa con
+   la portada, y desde ahí el cliente ve todas las fotos y los datos. */
+async function fichaDe(env, autoId) {
   const auto = await env.DB.prepare(
     `SELECT id, marca, modelo, anio FROM autos WHERE id = ? AND estado = 'publicado'`
   ).bind(autoId).first();
   if (!auto) return null;
-
-  const { results } = await env.DB.prepare(
-    'SELECT clave, jpg FROM fotos WHERE auto_id = ? ORDER BY orden, id'
-  ).bind(autoId).all();
-  const todas = results ?? [];
-
   return {
     titulo: [auto.marca, auto.modelo, auto.anio].filter(Boolean).join(' '),
-    urls: todas.filter((f) => f.jpg).slice(0, FOTOS_POR_CHAT)
-      .map((f) => `${SITIO}/fotos/${f.clave}-1600.jpg`),
-    total: todas.length,
     enlace: SITIO + enlaceDe(auto),
   };
 }
@@ -1354,22 +1340,20 @@ async function graphMandar(token, nombre, camino, cuerpo) {
   return dato;
 }
 
-async function mandarUno(env, chat, { texto, imagen }) {
+async function mandarUno(env, chat, texto) {
   if (chat.canal === 'whatsapp') {
+    /* `preview_url` es lo que hace que un link salga con su foto. */
     const r = await graphMandar(env.WHATSAPP_TOKEN, 'WHATSAPP_TOKEN',
       `/${env.WHATSAPP_PHONE_ID}/messages`, {
         messaging_product: 'whatsapp',
         to: chat.externo_id,
-        ...(imagen
-          ? { type: 'image', image: { link: imagen } }
-          : { type: 'text', text: { body: texto, preview_url: true } }),
+        type: 'text',
+        text: { body: texto, preview_url: true },
       });
     return r?.messages?.[0]?.id ?? null;
   }
 
-  const mensaje = imagen
-    ? { attachment: { type: 'image', payload: { url: imagen } } }
-    : { text: texto };
+  const mensaje = { text: texto };
 
   if (chat.canal === 'messenger') {
     const r = await graphMandar(env.META_PAGE_TOKEN, 'META_PAGE_TOKEN', '/me/messages', {
@@ -1391,34 +1375,37 @@ async function mandarUno(env, chat, { texto, imagen }) {
   throw new Error('No sé mandar por ese canal');
 }
 
-/* EL TEXTO PRIMERO Y LAS FOTOS DESPUÉS, como lo haría una persona.
+/* PRIMERO EL LINK, DESPUÉS EL MENSAJE.
+   El link va solo, en su propio mensaje, para que el chat lo muestre con
+   la foto del auto. Una vez que está, sale el texto que lo acompaña.
 
-   SI FALLA EL TEXTO, NO SALE NADA y el error sube: no tiene sentido
-   mandar fotos sueltas sin el mensaje que las presenta.
-   SI FALLA UNA FOTO, el texto ya salió y no se deshace. Se corta ahí y
-   se avisa cuántas llegaron, en vez de hacer como si nada. */
+   NO SE REPITE: si ese link ya se mandó en esta conversación, no vuelve
+   a salir. El cliente ya lo tiene arriba.
+
+   SI FALLA EL LINK, NO SALE NADA y el error sube: el mensaje habla de un
+   auto que la persona no tendría a la vista. */
+const PAUSA_TRAS_EL_LINK = 2500;
+
 async function mandarRespuesta(env, chat, { texto, autoId = null, autor }) {
-  const fotos = autoId ? await fotosParaChat(env, autoId) : null;
+  const ficha = autoId ? await fichaDe(env, autoId) : null;
+  let conLink = false;
 
-  let cuerpo = texto;
-  if (fotos && !fotos.urls.length && fotos.total) cuerpo += `\n${fotos.enlace}`;
-
-  const idTexto = await mandarUno(env, chat, { texto: cuerpo });
-  await guardarSaliente(env, chat.id, cuerpo, autor, idTexto);
-
-  let mandadas = 0;
-  let fallo = null;
-  for (const url of fotos?.urls ?? []) {
-    try {
-      const id = await mandarUno(env, chat, { imagen: url });
-      await guardarSaliente(env, chat.id, `Foto del ${fotos.titulo}`, autor, id, 'imagen');
-      mandadas++;
-    } catch (e) {
-      fallo = e?.message ?? String(e);
-      break;
+  if (ficha) {
+    const yaEsta = await env.DB.prepare(
+      `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
+          AND texto LIKE '%' || ? || '%' LIMIT 1`
+    ).bind(chat.id, ficha.enlace).first();
+    if (!yaEsta) {
+      const id = await mandarUno(env, chat, ficha.enlace);
+      await guardarSaliente(env, chat.id, ficha.enlace, autor, id);
+      conLink = true;
+      await new Promise((listo) => setTimeout(listo, PAUSA_TRAS_EL_LINK));
     }
   }
-  return { fotos: mandadas, falloFotos: fallo };
+
+  const id = await mandarUno(env, chat, texto);
+  await guardarSaliente(env, chat.id, texto, autor, id);
+  return { link: conLink };
 }
 
 /* ── EL BOT SOLO ─────────────────────────────────────────────────
@@ -2164,23 +2151,19 @@ async function admin(peticion, env, ruta, metodo) {
      una persona. Para que conteste solo está el modo automático, por
      canal, más abajo.
 
-     Con el texto vienen las fotos que mandaría y si cree que lo tiene
-     que seguir una persona: el panel lo muestra y decide el que atiende. */
+     Con el texto viene la ficha de auto que mandaría y si cree que lo
+     tiene que seguir una persona: el panel lo muestra y decide el que
+     atiende. */
   const sugerirA = ruta.match(/^\/api\/admin\/chats\/(\d+)\/sugerir$/);
   if (sugerirA && metodo === 'POST') {
     try {
       const r = await pensarRespuesta(env, sugerirA[1]);
-      const fotos = r.autoId ? await fotosParaChat(env, r.autoId) : null;
+      const ficha = r.autoId ? await fichaDe(env, r.autoId) : null;
       return json({
         texto: r.texto,
         conPosteo: r.conPosteo,
         derivar: r.derivar,
-        fotos: fotos && {
-          auto_id: r.autoId,
-          titulo: fotos.titulo,
-          cuantas: fotos.urls.length,
-          total: fotos.total,
-        },
+        ficha: ficha && { auto_id: r.autoId, ...ficha },
       });
     } catch (e) {
       return error(e?.message || 'No se pudo escribir la respuesta', 502);
@@ -2561,24 +2544,14 @@ async function admin(peticion, env, ruta, metodo) {
       });
     }
 
-    /* LA COPIA EN JPG PARA LOS CHATS (esquema/012). Viene si el panel ya
-       es el nuevo; si no, la foto se sube igual y se convierte después. */
-    const jpg = form.get('jpg');
-    const conJpg = jpg instanceof File && jpg.size <= 3 * 1024 * 1024;
-    if (conJpg) {
-      await env.FOTOS.put(`${base}-1600.jpg`, jpg.stream(), {
-        httpMetadata: { contentType: 'image/jpeg' },
-      });
-    }
-
     /* Al final de la fila, sin pisarle el lugar a las que ya están. */
     const ultimo = await env.DB
       .prepare('SELECT COALESCE(MAX(orden), -1) AS n FROM fotos WHERE auto_id = ?')
       .bind(auto.id).first();
 
     const { meta } = await env.DB.prepare(
-      'INSERT INTO fotos (auto_id, clave, orden, jpg) VALUES (?, ?, ?, ?)'
-    ).bind(auto.id, base, ultimo.n + 1, conJpg ? 1 : 0).run();
+      'INSERT INTO fotos (auto_id, clave, orden) VALUES (?, ?, ?)'
+    ).bind(auto.id, base, ultimo.n + 1).run();
 
     await tocar(env, auto.id);
     return json({ id: meta.last_row_id, clave: base }, 201);
@@ -2688,33 +2661,6 @@ async function admin(peticion, env, ruta, metodo) {
     return json({ ok: true });
   }
 
-  /* LAS FOTOS QUE TODAVÍA NO TIENEN SU JPG, de los autos que se ven.
-     El panel las baja, las convierte en el navegador y las sube de a una
-     al endpoint de abajo. */
-  if (ruta === '/api/admin/fotos/sin-jpg' && metodo === 'GET') {
-    const { results } = await env.DB.prepare(
-      `SELECT f.id, f.clave FROM fotos f JOIN autos a ON a.id = f.auto_id
-        WHERE f.jpg = 0 AND a.estado = 'publicado'
-        ORDER BY a.orden, f.orden`
-    ).all();
-    return json({ fotos: results ?? [] });
-  }
-
-  const aJpg = ruta.match(/^\/api\/admin\/fotos\/(\d+)\/jpg$/);
-  if (aJpg && metodo === 'POST') {
-    const fila = await env.DB.prepare('SELECT clave FROM fotos WHERE id = ?')
-      .bind(aJpg[1]).first();
-    if (!fila) return error('No está', 404);
-    const parte = (await peticion.formData()).get('jpg');
-    if (!(parte instanceof File)) return error('Falta la imagen');
-    if (parte.size > 3 * 1024 * 1024) return error('Esa foto pesa demasiado');
-    await env.FOTOS.put(`${fila.clave}-1600.jpg`, parte.stream(), {
-      httpMetadata: { contentType: 'image/jpeg' },
-    });
-    await env.DB.prepare('UPDATE fotos SET jpg = 1 WHERE id = ?').bind(aJpg[1]).run();
-    return json({ ok: true });
-  }
-
   const foto = ruta.match(/^\/api\/admin\/fotos\/(\d+)$/);
   if (foto && metodo === 'DELETE') {
     const fila = await env.DB.prepare('SELECT auto_id, clave FROM fotos WHERE id = ?')
@@ -2750,7 +2696,4 @@ const tocar = (env, id) =>
 
 /* Cada foto son DOS objetos en R2, uno por tamaño. */
 const borrarArchivos = (env, claves) =>
-  Promise.all(claves.flatMap((c) => [
-    ...TAMANOS.map((t) => env.FOTOS.delete(`${c}-${t}.webp`)),
-    env.FOTOS.delete(`${c}-1600.jpg`),
-  ]));
+  Promise.all(claves.flatMap((c) => TAMANOS.map((t) => env.FOTOS.delete(`${c}-${t}.webp`))));

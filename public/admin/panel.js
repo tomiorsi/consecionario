@@ -503,7 +503,7 @@ async function quitarFoto(i) {
    SE GUARDAN DOS TAMAÑOS. 1600 px para la ficha del auto y 640 para la
    grilla del catálogo. Sin el chico, la grilla bajaría diez imágenes de
    1600 px para mostrarlas del tamaño de una estampilla. */
-function achicar(archivo, lado, formato = 'image/webp', calidad = 0.82) {
+function achicar(archivo, lado) {
   return new Promise((listo, fallo) => {
     const img = new Image();
     img.onload = () => {
@@ -515,21 +515,8 @@ function achicar(archivo, lado, formato = 'image/webp', calidad = 0.82) {
       pincel.imageSmoothingQuality = 'high';
       pincel.drawImage(img, 0, 0, lienzo.width, lienzo.height);
       URL.revokeObjectURL(img.src);
-      /* EL JPG NO TIENE TRANSPARENCIA: lo transparente saldría negro.
-         Se pinta blanco abajo antes, que es lo que se ve en un chat. */
-      if (formato === 'image/jpeg') {
-        const lleno = document.createElement('canvas');
-        lleno.width = lienzo.width; lleno.height = lienzo.height;
-        const p2 = lleno.getContext('2d');
-        p2.fillStyle = '#fff';
-        p2.fillRect(0, 0, lleno.width, lleno.height);
-        p2.drawImage(lienzo, 0, 0);
-        lleno.toBlob((b) => (b ? listo(b) : fallo(new Error('No se pudo convertir'))),
-          formato, calidad);
-        return;
-      }
       lienzo.toBlob((b) => (b ? listo(b) : fallo(new Error('No se pudo convertir'))),
-        formato, calidad);
+        'image/webp', 0.82);
     };
     img.onerror = () => fallo(new Error('Ese archivo no es una imagen'));
     img.src = URL.createObjectURL(archivo);
@@ -538,13 +525,10 @@ function achicar(archivo, lado, formato = 'image/webp', calidad = 0.82) {
 
 /* Achicar las dos versiones de una foto. Se hace siempre acá, exista el
    auto o no: lo que cambia después es si se manda o si se guarda. */
-/* Y UNA TERCERA, EN JPG, PARA MANDARLA POR CHAT: WhatsApp no acepta
-   WebP. Ver esquema/012-fotos-jpg.sql. */
 async function preparar(archivo) {
   return {
     g: await achicar(archivo, 1600),
     ch: await achicar(archivo, 640),
-    jpg: await achicar(archivo, 1600, 'image/jpeg', 0.85),
   };
 }
 
@@ -552,7 +536,6 @@ async function mandar(par) {
   const cuerpo = new FormData();
   cuerpo.append('1600', par.g, '1600.webp');
   cuerpo.append('640', par.ch, '640.webp');
-  if (par.jpg) cuerpo.append('jpg', par.jpg, '1600.jpg');
   return api('/api/admin/autos/' + actual.id + '/fotos', { method: 'POST', body: cuerpo });
 }
 
@@ -1036,28 +1019,27 @@ function prepararRespuesta(chat, mensajes) {
    decide. Y si lo edita antes de mandarlo, mejor — el que conoce al
    cliente es él.
 
-   LAS FOTOS VAN APARTE DEL TEXTO. Si el bot quiere mandar las de un
-   auto, se dice abajo del cuadro con un botón para sacarlas: lo que
-   sale es lo que se ve antes de apretar Enviar. */
-let fotosSugeridas = null;
+   LA FICHA DEL AUTO VA APARTE DEL TEXTO. Si el bot quiere mandar el link
+   de un auto del garage, se dice abajo del cuadro con un botón para
+   sacarlo: lo que sale es lo que se ve antes de apretar Enviar. El link
+   sale primero, solo, para que el chat lo muestre con la foto. */
+let fichaSugerida = null;
 
 function limpiarSugerido() {
-  fotosSugeridas = null;
+  fichaSugerida = null;
   $('#sugeridoFotos').classList.add('oculto');
   $('#sugeridoDerivar').classList.add('oculto');
 }
 
-function pintarFotosSugeridas() {
+function pintarFichaSugerida() {
   const zona = $('#sugeridoFotos');
-  if (!fotosSugeridas) { zona.classList.add('oculto'); return; }
-  const f = fotosSugeridas;
-  const que = f.cuantas
-    ? 'Van ' + f.cuantas + ' fotos del ' + f.titulo + ' después del mensaje.'
-    : 'Va el link a la ficha del ' + f.titulo + ': sus fotos todavía no están preparadas para los chats.';
-  zona.innerHTML = escapar(que) + ' <button class="btn" type="button" id="sacarFotos" ' +
-    'style="padding:.3em .7em;font-size:.5rem">No mandarlas</button>';
+  if (!fichaSugerida) { zona.classList.add('oculto'); return; }
+  zona.innerHTML = escapar('Antes del mensaje va el link del ' + fichaSugerida.titulo +
+    ' en el garage, salvo que ya se lo hayan mandado.') +
+    ' <button class="btn" type="button" id="sacarFotos" ' +
+    'style="padding:.3em .7em;font-size:.5rem">No mandarlo</button>';
   zona.classList.remove('oculto');
-  $('#sacarFotos').addEventListener('click', () => { fotosSugeridas = null; pintarFotosSugeridas(); });
+  $('#sacarFotos').addEventListener('click', () => { fichaSugerida = null; pintarFichaSugerida(); });
 }
 
 $('#sugerir').addEventListener('click', async () => {
@@ -1067,13 +1049,13 @@ $('#sugerir').addEventListener('click', async () => {
   boton.disabled = true;
   boton.textContent = 'Escribiendo…';
   try {
-    const { texto, conPosteo, fotos, derivar } = await api(
+    const { texto, conPosteo, ficha, derivar } = await api(
       '/api/admin/chats/' + chatActual.chat.id + '/sugerir', { method: 'POST' });
     $('#respuesta').value = texto;
     $('#respuesta').focus();
 
-    fotosSugeridas = fotos || null;
-    pintarFotosSugeridas();
+    fichaSugerida = ficha || null;
+    pintarFichaSugerida();
 
     /* Si cree que lo tiene que seguir una persona, se dice acá y no se
        hace solo: en borrador decide el que atiende, con el botón de
@@ -1104,12 +1086,9 @@ $('#responder').addEventListener('submit', async (e) => {
   try {
     const r = await api('/api/admin/chats/' + chatActual.chat.id + '/responder', {
       method: 'POST',
-      body: JSON.stringify({ texto: mensaje, auto_id: fotosSugeridas?.auto_id ?? null }),
+      body: JSON.stringify({ texto: mensaje, auto_id: fichaSugerida?.auto_id ?? null }),
     });
-    /* El texto salió. Si una foto falló, se dice cuántas llegaron y por
-       qué cortó, que es lo que hace falta para decidir qué hacer. */
-    if (r.falloFotos) avisar('Salió el mensaje y ' + r.fotos + ' fotos. Después: ' + r.falloFotos, true);
-    else avisar(r.fotos ? 'Enviado, con ' + r.fotos + ' fotos' : 'Enviado');
+    avisar(r.link ? 'Enviado, con el link del auto' : 'Enviado');
     await abrirChat(chatActual.chat.id);
     await cargarChats();
   } catch (err) {
@@ -1580,44 +1559,6 @@ $('#botGuardar').addEventListener('click', async () => {
   } catch (err) { avisar(err.message, true); }
 });
 
-/* ── LAS FOTOS PARA LOS CHATS ────────────────────────────────────
-   Las fotos subidas antes de esto están sólo en WebP, y WhatsApp no la
-   acepta. Este botón las convierte acá, en el navegador —el mismo que
-   ya las achica al subirlas— y sube la copia en JPG. Se hace una vez. */
-let sinJpg = [];
-
-async function contarSinJpg() {
-  ({ fotos: sinJpg } = await api('/api/admin/fotos/sin-jpg'));
-  $('#zonaJpg').classList.toggle('oculto', !sinJpg.length);
-  $('#cuantasJpg').textContent = sinJpg.length + ' fotos sin preparar';
-}
-
-$('#prepararJpg').addEventListener('click', async () => {
-  const boton = $('#prepararJpg');
-  boton.disabled = true;
-  let hechas = 0;
-  for (const f of sinJpg) {
-    try {
-      const webp = await fetch('/fotos/' + f.clave + '-1600.webp').then((r) => {
-        if (!r.ok) throw new Error('No se pudo leer la foto');
-        return r.blob();
-      });
-      const jpg = await achicar(webp, 1600, 'image/jpeg', 0.85);
-      const cuerpo = new FormData();
-      cuerpo.append('jpg', jpg, '1600.jpg');
-      await api('/api/admin/fotos/' + f.id + '/jpg', { method: 'POST', body: cuerpo });
-      hechas++;
-      $('#cuantasJpg').textContent = hechas + ' de ' + sinJpg.length;
-    } catch (err) {
-      avisar('Se cortó en la foto ' + (hechas + 1) + ': ' + err.message, true);
-      break;
-    }
-  }
-  boton.disabled = false;
-  if (hechas === sinJpg.length) avisar('Listas las ' + hechas + ' fotos');
-  await contarSinJpg().catch(() => {});
-});
-
 function verPestania(cual) {
   const autos = cual === 'autos';
   [['autos', '#pesAutos'], ['medios', '#pesMedios'],
@@ -1642,7 +1583,6 @@ function verPestania(cual) {
   else {
     cargarChats().catch((err) => avisar(err.message, true));
     cargarBot().catch((err) => avisar(err.message, true));
-    contarSinJpg().catch(() => {});
     arrancarRefresco();
     ponerseAlDia();
   }

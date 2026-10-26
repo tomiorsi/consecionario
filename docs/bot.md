@@ -6,23 +6,18 @@ Contesta por WhatsApp, Instagram y Messenger como Manna Selected, con la voz de 
 
 - Lee la conversación entera, incluidas las fotos y los audios que mandó el cliente (sabe que llegaron, aunque no los ve).
 - Conoce todo el stock publicado: precio, km, motor, caja, color, descripción y cuántas fotos tiene cada auto.
-- Manda las fotos de un auto cuando se las piden: las primeras 6, después del mensaje.
+- Si piden fotos o más información de un auto, manda primero el link del auto en el garage (el chat lo muestra con la foto) y después el mensaje. No repite un link que ya mandó en esa conversación.
 - Si alguien quiere entregar su auto, pide solo los datos y las fotos que faltan.
 - Pasa la conversación a una persona si piden hablar con alguien, si piden borrar sus datos, si quieren negociar, señar o pagar, o si hay un reclamo. En automático lo hace solo y deja de contestar ese chat.
 - Qué dice y cómo lo dice está en `src/instrucciones.js`. Para cambiar el bot, se cambia ese archivo.
 
 ## Para publicarlo (Tomás)
 
-1. La columna nueva de las fotos:
-   ```
-   npx wrangler d1 execute manna-autos --remote --file=esquema/012-fotos-jpg.sql
-   ```
-2. Las llaves que faltan, con `wrangler secret put` (nunca en el código ni en un chat):
+1. Las llaves que faltan, con `wrangler secret put` (nunca en el código ni en un chat):
    - `WHATSAPP_TOKEN`: token del usuario del sistema de la cuenta de WhatsApp Business, con `whatsapp_business_messaging`.
    - `META_PAGE_TOKEN`: token de la página de Facebook, con `pages_messaging`.
    - `META_IG_TOKEN` ya está. Para mandar hace falta `instagram_business_manage_messages`.
-3. `npx wrangler deploy`.
-4. En el panel, pestaña Mensajes: apretar **Preparar fotos para los chats** una vez. Convierte las fotos que ya estaban a JPG, porque WhatsApp no acepta WebP.
+2. `npx wrangler deploy`.
 
 ## Para probar sin la revisión de Meta
 
