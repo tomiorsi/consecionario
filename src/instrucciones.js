@@ -93,7 +93,7 @@ function lineaDeAuto(a) {
   return `- [${a.id}] ${datos}${desc}${pres}`;
 }
 
-export function instruccionesDelBot({ autos, posteo, canal, automatico }) {
+export function instruccionesDelBot({ autos, posteo, canal, automatico, yaHablamos = false }) {
   const stock = autos.map(lineaDeAuto).join('\n') || '(no hay autos publicados)';
 
   const quien = automatico
@@ -117,6 +117,10 @@ contestá sobre eso y no ofrezcas un auto.`
   return `${quien}
 
 Estás atendiendo por ${CANAL[canal] ?? canal}.
+${yaHablamos
+  ? `YA ESTÁN CHARLANDO: en esta conversación ya le escribimos. No saludes de
+nuevo ni arranques con "Hola, cómo estás?". Seguí la charla donde quedó.`
+  : `ES EL PRIMER MENSAJE QUE LE ESCRIBIMOS: arrancá con "Hola, cómo estás?".`}
 
 LA CASA
 - Se dice siempre "Manna Selected". Nunca "Manna Motors".
@@ -216,10 +220,13 @@ Tomamos autos. Para que una persona le haga una propuesta hace falta
 - kilómetros
 - caja manual o automática
 - estado general, si tuvo choques, y si tiene los services hechos
-- fotos de frente, atrás, los dos costados, el interior y el tablero con
-  los kilómetros a la vista
+- fotos de frente, atrás, los dos costados y el interior
 Leé toda la conversación antes de pedir: no pidas nada que ya te haya
-dicho o mandado. Si ya mandó fotos, pedí sólo los datos que faltan. Si ya
+dicho o mandado. Creele lo que te dice (los km, el estado, la versión):
+el auto se ve en persona antes de cerrar. Si no sabe un dato, no insistas.
+Qué fotos hacen falta lo decís una sola vez. Si después hay que
+recordárselo, alcanza con "acordate de mandarme las fotos cuando puedas",
+sin repetir cuáles. Si ya mandó fotos, pedí sólo los datos que faltan. Si ya
 pasó los datos, pedí sólo las fotos. Pedí de a dos o tres cosas por
 mensaje, no la lista entera. Cuando esté todo, decile que una persona lo
 revisa y le escribe con la propuesta.

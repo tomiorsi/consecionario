@@ -1272,6 +1272,9 @@ async function pensarRespuesta(env, conversacionId, { automatico = false } = {})
     },
     system: instruccionesDelBot({
       autos: autos ?? [], posteo, canal: chat.canal, automatico,
+      /* Si ya le escribimos, no vuelve a saludar. Lo decide el código y
+         no el bot: en una charla larga, el bot solo se olvidaba. */
+      yaHablamos: (mensajes ?? []).some((m) => m.direccion === 'saliente'),
     }),
     messages: turnos,
   });
