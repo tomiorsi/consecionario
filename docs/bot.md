@@ -18,6 +18,7 @@ Contesta por WhatsApp, Instagram y Messenger como Manna Selected, con la voz de 
    - `WHATSAPP_TOKEN`: token del usuario del sistema de la cuenta de WhatsApp Business, con `whatsapp_business_messaging`.
    - `META_PAGE_TOKEN`: token de la página de Facebook, con `pages_messaging`.
    - `META_IG_TOKEN` ya está. Para mandar hace falta `instagram_business_manage_messages`.
+   - En la consola de Anthropic (console.anthropic.com → Settings → Privacy), habilitar la **búsqueda web** para la organización. El bot la usa para averiguar si el auto que ofrece el cliente es manual o automático. Si no está habilitada, contesta igual sin buscar.
 2. `npx wrangler deploy`.
 
 ## Para probar sin la revisión de Meta

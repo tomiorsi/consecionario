@@ -1174,6 +1174,11 @@ const FORMA_DE_RESPUESTA = {
   additionalProperties: false,
 };
 
+const FORMA_EN_TEXTO = `
+
+TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
+{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null}`;
+
 /* LO QUE NO ES TEXTO, DICHO CON PALABRAS.
    Antes un audio o una foto desaparecían del historial que veía el bot,
    y entonces pedía las fotos que el cliente ya había mandado. Ahora
@@ -1260,31 +1265,67 @@ async function pensarRespuesta(env, conversacionId, { automatico = false } = {})
   }
 
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-  const respuesta = await client.messages.create({
+  const pedido = {
     model: MODELO,
-    max_tokens: 2000,
+    max_tokens: 4000,
     /* Esfuerzo bajo: son dos renglones de atención al cliente, no un
        problema difícil. Subirlo acá es pagar de más por pensar algo
        que no lo necesita. */
-    output_config: {
-      effort: 'low',
-      format: { type: 'json_schema', schema: FORMA_DE_RESPUESTA },
-    },
+    /* SIN FORMATO FORZADO MIENTRAS PUEDE BUSCAR: las búsquedas traen
+       citas, y las citas no conviven con un formato JSON forzado. La
+       forma se pide en las instrucciones y se lee con tolerancia abajo. */
+    output_config: { effort: 'low' },
     system: instruccionesDelBot({
       autos: autos ?? [], posteo, canal: chat.canal, automatico,
       /* Si ya le escribimos, no vuelve a saludar. Lo decide el código y
          no el bot: en una charla larga, el bot solo se olvidaba. */
       yaHablamos: (mensajes ?? []).some((m) => m.direccion === 'saliente'),
-    }),
+    }) + FORMA_EN_TEXTO,
+    /* BUSCAR EN LA WEB, PARA NO PREGUNTAR LO QUE SE PUEDE AVERIGUAR.
+       Pedido de Maxi: si el cliente dice qué auto tiene, si es manual o
+       automático lo averigua el bot. La búsqueda es sobre el modelo del
+       auto, nunca sobre la persona, y la hace Anthropic, que ya está
+       declarado. Dos búsquedas por respuesta como mucho. */
+    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }],
     messages: turnos,
-  });
+  };
+
+  let respuesta;
+  try {
+    respuesta = await client.messages.create(pedido);
+  } catch (e) {
+    /* Si la cuenta no tiene la búsqueda web habilitada, se contesta igual
+       sin buscar: el bot sabe la caja de casi todos los autos. */
+    if (!(e instanceof Anthropic.BadRequestError)) throw e;
+    console.error('Sin búsqueda web:', e.message);
+    const { tools, ...sinBuscar } = pedido;
+    respuesta = await client.messages.create({
+      ...sinBuscar,
+      output_config: { effort: 'low', format: { type: 'json_schema', schema: FORMA_DE_RESPUESTA } },
+    });
+  }
+
+  /* Una búsqueda larga puede cortar el turno a la mitad (`pause_turn`):
+     se le devuelve lo que llevaba para que siga, una vez. */
+  if (respuesta.stop_reason === 'pause_turn') {
+    respuesta = await client.messages.create({
+      ...pedido,
+      messages: [...turnos, { role: 'assistant', content: respuesta.content }],
+    });
+  }
 
   if (respuesta.stop_reason === 'refusal') {
     throw new Error('Claude no quiso contestar esta conversación');
   }
 
-  const crudo = (respuesta.content ?? [])
+  /* La respuesta es el texto que viene DESPUÉS de la última búsqueda: lo
+     de antes es el bot diciendo qué va a buscar. Y del objeto JSON se
+     toma de la primera llave a la última. */
+  const bloques = respuesta.content ?? [];
+  const ultimaBusqueda = bloques.map((b) => b.type).lastIndexOf('web_search_tool_result');
+  const final = bloques.slice(ultimaBusqueda + 1)
     .filter((b) => b.type === 'text').map((b) => b.text).join('');
+  const crudo = final.slice(final.indexOf('{'), final.lastIndexOf('}') + 1);
   let dato;
   try { dato = JSON.parse(crudo); } catch { dato = null; }
   const partes = (Array.isArray(dato?.partes) ? dato.partes : [])
