@@ -1,6 +1,6 @@
 # El bot de mensajes
 
-Contesta por WhatsApp, Instagram y Messenger con la voz de Maxi. Arranca en **borrador**: escribe la respuesta en el panel y la manda una persona. Cada canal se puede pasar a **automático** desde el panel (pestaña Mensajes), con un horario opcional.
+Contesta por WhatsApp, Instagram y Messenger como Manna Selected, con la voz de Maxi. Arranca en **borrador**: escribe la respuesta en el panel y la manda una persona. Cada canal se puede pasar a **automático** desde el panel (pestaña Mensajes), con un horario opcional.
 
 ## Qué hace
 
@@ -36,5 +36,5 @@ Después le escribe al negocio desde esas cuentas y prueba los borradores en el 
 
 ## Antes del modo automático
 
-- El automático se identifica como asistente de Maxi en el primer mensaje. Es lo declarado ante Meta y en `/privacidad/` (CLAUDE.md, regla 6). Si se quiere cambiar, primero se cambian `/privacidad/` y las respuestas en Meta.
+- El automático se identifica como asistente de Manna Selected en el primer mensaje. Es lo declarado ante Meta y en `/privacidad/` (CLAUDE.md, regla 6). Si se quiere cambiar, primero se cambian `/privacidad/` y las respuestas en Meta.
 - Para clientes reales hace falta que Meta apruebe los permisos de envío (revisión de la app).
