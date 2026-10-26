@@ -526,6 +526,16 @@ async function firmaDeMetaValida(crudo, cabecera, secreto) {
    (entregado, leído) porque no son mensajes de nadie, y los `is_echo` de
    Instagram y Messenger, que son nuestras propias respuestas volviendo.
    Guardar un eco sería guardar dos veces lo que ya escribimos nosotros. */
+/* DE QUÉ ANUNCIO VINO, si vino de uno. Cada canal lo manda con otra
+   forma; acá queda una sola: id, título y texto del anuncio. */
+function anuncioDe(ref, canal) {
+  if (!ref) return null;
+  const a = canal === 'whatsapp'
+    ? { id: ref.source_id ?? null, titulo: ref.headline ?? null, texto: ref.body ?? null }
+    : { id: ref.ad_id ?? null, titulo: ref.ads_context_data?.ad_title ?? null, texto: null };
+  return a.id || a.titulo || a.texto ? JSON.stringify(a) : null;
+}
+
 function mensajesDelAviso(aviso) {
   const salida = [];
   if (!aviso?.entry) return salida;
@@ -560,11 +570,19 @@ function mensajesDelAviso(aviso) {
             texto: m.text?.body ?? m[m.type]?.caption ?? null,
             clase: 'mensaje',
             media_id: null,
+            anuncio: anuncioDe(m.referral, canal),
           });
         }
       }
     } else {
       for (const ev of entrada.messaging ?? []) {
+        /* En Messenger e Instagram el anuncio puede llegar solo, al abrir
+           la conversación, antes del primer mensaje. Se guarda igual. */
+        if (!ev?.message && ev?.referral && ev.sender?.id) {
+          salida.push({ canal, externo_id: ev.sender.id, nombre: null,
+            soloAnuncio: true, anuncio: anuncioDe(ev.referral, canal) });
+          continue;
+        }
         if (!ev?.message || ev.message.is_echo) continue;
         salida.push({
           canal,
@@ -575,6 +593,7 @@ function mensajesDelAviso(aviso) {
           texto: ev.message.text ?? null,
           clase: 'mensaje',
           media_id: null,
+          anuncio: anuncioDe(ev.message.referral ?? ev.referral, canal),
         });
       }
 
@@ -640,15 +659,16 @@ async function guardarEntrantes(env, lista) {
   const disparos = [];
   for (const m of lista) {
     const conv = await env.DB.prepare(
-      `INSERT INTO conversaciones (canal, externo_id, nombre)
-            VALUES (?, ?, ?)
+      `INSERT INTO conversaciones (canal, externo_id, nombre, anuncio)
+            VALUES (?, ?, ?, ?)
        ON CONFLICT (canal, externo_id) DO UPDATE SET
             ultimo = datetime('now'),
-            nombre = COALESCE(excluded.nombre, conversaciones.nombre)
+            nombre = COALESCE(excluded.nombre, conversaciones.nombre),
+            anuncio = COALESCE(excluded.anuncio, conversaciones.anuncio)
          RETURNING id`
-    ).bind(m.canal, m.externo_id, m.nombre).first();
+    ).bind(m.canal, m.externo_id, m.nombre, m.anuncio ?? null).first();
 
-    if (!conv?.id) continue;
+    if (!conv?.id || m.soloAnuncio) continue;
 
     /* `direccion` puede venir en el aviso: un comentario nuestro es
        saliente aunque llegue por el mismo webhook que los entrantes.
@@ -1228,9 +1248,11 @@ async function pensarRespuesta(env, conversacionId, { automatico = false } = {})
   }
 
   const chat = await env.DB
-    .prepare('SELECT canal FROM conversaciones WHERE id = ?')
+    .prepare('SELECT canal, anuncio FROM conversaciones WHERE id = ?')
     .bind(conversacionId).first();
   if (!chat) throw new Error('Esa conversación no está');
+  let anuncio = null;
+  try { anuncio = chat.anuncio ? JSON.parse(chat.anuncio) : null; } catch { /* viejo o roto */ }
 
   const { results: mensajes } = await env.DB.prepare(
     `SELECT direccion, autor, tipo, texto, clase, media_id
@@ -1276,7 +1298,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false } = {})
        forma se pide en las instrucciones y se lee con tolerancia abajo. */
     output_config: { effort: 'low' },
     system: instruccionesDelBot({
-      autos: autos ?? [], posteo, canal: chat.canal, automatico,
+      autos: autos ?? [], posteo, anuncio, canal: chat.canal, automatico,
       /* Si ya le escribimos, no vuelve a saludar. Lo decide el código y
          no el bot: en una charla larga, el bot solo se olvidaba. */
       yaHablamos: (mensajes ?? []).some((m) => m.direccion === 'saliente'),

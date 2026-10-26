@@ -888,6 +888,8 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
              página, y nunca en la dirección: la URL de este chat es su
              id interno y nada más. -->
         <p class="quien" id="quienChat" style="margin-top:.5rem"></p>
+        <!-- De qué anuncio de Meta vino, si vino de uno. -->
+        <p class="quien oculto" id="anuncioChat" style="margin-top:.3rem"></p>
       </div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap">
         <button class="btn" id="volverChat" type="button">Volver</button>

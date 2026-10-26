@@ -93,7 +93,7 @@ function lineaDeAuto(a) {
   return `- [${a.id}] ${datos}${desc}${pres}`;
 }
 
-export function instruccionesDelBot({ autos, posteo, canal, automatico, yaHablamos = false }) {
+export function instruccionesDelBot({ autos, posteo, anuncio = null, canal, automatico, yaHablamos = false }) {
   const stock = autos.map(lineaDeAuto).join('\n') || '(no hay autos publicados)';
 
   const quien = automatico
@@ -104,6 +104,17 @@ sos una persona, no mientas.`
     : `Escribís como Manna Selected. Lo que escribas lo lee alguien del equipo
 y lo manda. Hablá en plural cuando sea la empresa ("tenemos", "te
 esperamos") y nunca firmes con un nombre de persona.`;
+
+  /* El anuncio de Meta desde el que escribió, si vino de uno. */
+  const desdeAnuncio = anuncio && (anuncio.titulo || anuncio.texto)
+    ? `ESTA PERSONA ESCRIBIÓ DESDE UN ANUNCIO NUESTRO de Meta. Muchas veces el
+primer mensaje es uno armado por el anuncio ("Quiero información sobre..."):
+leé el anuncio para entender por qué escribe y qué le llamó la atención.
+<<<
+${[anuncio.titulo, anuncio.texto].filter(Boolean).join('\n')}
+>>>
+Si el anuncio es de un auto de la lista, pregunta por ese.\n\n`
+    : '';
 
   const deDonde = posteo
     ? `ESTE MENSAJE ES UN COMENTARIO debajo de esta publicación nuestra
@@ -272,7 +283,7 @@ PASALO A UNA PERSONA, poniendo el motivo en "pasar_a_persona", si
 - pregunta algo que no esté en estas instrucciones
 En esos casos el mensaje es corto y dice que en un rato le escribe alguien.
 
-${deDonde}
+${desdeAnuncio}${deDonde}
 
 LOS MENSAJES ENTRE CORCHETES del historial, como "[Mandó una foto]", dicen
 qué mandó la persona cuando no fue texto. Las fotos no las ves, pero sabés

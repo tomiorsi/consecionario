@@ -953,6 +953,12 @@ async function abrirChat(id) {
   const { chat, mensajes } = chatActual;
 
   $('#tituloChat').textContent = chat.nombre || CANALES[chat.canal] || chat.canal;
+  let anuncio = null;
+  try { anuncio = chat.anuncio ? JSON.parse(chat.anuncio) : null; } catch { anuncio = null; }
+  $('#anuncioChat').classList.toggle('oculto', !anuncio?.titulo && !anuncio?.texto);
+  $('#anuncioChat').textContent = anuncio
+    ? 'Vino del anuncio: ' + [anuncio.titulo, anuncio.texto].filter(Boolean).join(' · ')
+    : '';
   $('#quienChat').textContent =
     (CANALES[chat.canal] || chat.canal) + ' · ' + chat.externo_id;
 

@@ -4,6 +4,7 @@ Contesta por WhatsApp, Instagram y Messenger como Manna Selected, con la voz de 
 
 ## Qué hace
 
+- Si la persona escribió desde un anuncio de Meta, sabe de qué anuncio vino (título y texto, que Meta manda con el mensaje) y lo usa para entender por qué escribe. El panel lo muestra arriba del chat.
 - Lee la conversación entera, incluidas las fotos y los audios que mandó el cliente (sabe que llegaron, aunque no los ve).
 - Conoce todo el stock publicado: precio, km, motor, caja, color, descripción y cuántas fotos tiene cada auto.
 - Contesta en varios mensajes cortos, con 10 segundos entre uno y otro, como una persona. Si va el link de un auto del garage, entra antes del último mensaje y se espera 12 segundos para que el chat muestre la foto. No repite un link que ya mandó en esa conversación.
@@ -14,6 +15,10 @@ Contesta por WhatsApp, Instagram y Messenger como Manna Selected, con la voz de 
 
 ## Para publicarlo (Tomás)
 
+0. La columna nueva del anuncio de Meta del que vino cada conversación:
+   ```
+   npx wrangler d1 execute manna-autos --remote --file=esquema/012-anuncio.sql
+   ```
 1. Las llaves que faltan, con `wrangler secret put` (nunca en el código ni en un chat):
    - `WHATSAPP_TOKEN`: token del usuario del sistema de la cuenta de WhatsApp Business, con `whatsapp_business_messaging`.
    - `META_PAGE_TOKEN`: token de la página de Facebook, con `pages_messaging`.
