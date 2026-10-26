@@ -1432,8 +1432,15 @@ async function mandarRespuesta(env, chat, { partes, autoId = null, autor }) {
   await guardarSaliente(env, chat.id, primero.texto, autor, id);
 
   if (resto.length) {
+    /* Hasta qué mensaje del cliente se tuvo en cuenta: si después llega
+       otro, lo que falta de esta respuesta ya no corresponde. */
+    const visto = (await env.DB.prepare(
+      `SELECT COALESCE(MAX(id), 0) AS n FROM mensajes
+        WHERE conversacion_id = ? AND direccion = 'entrante'`
+    ).bind(chat.id).first())?.n ?? 0;
     const cola = env.ENVIOS.get(env.ENVIOS.idFromName(String(chat.id)));
-    await cola.encolar({ id: chat.id, canal: chat.canal, externo_id: chat.externo_id }, resto, autor);
+    await cola.encolar({ id: chat.id, canal: chat.canal, externo_id: chat.externo_id },
+      resto, autor, visto);
   }
   return { link: Boolean(link), partes: pasos.length };
 }
@@ -1444,18 +1451,22 @@ async function mandarRespuesta(env, chat, { partes, autoId = null, autor }) {
    siguiente, y cuando no queda nada se vacía: lo que guarda dura lo que
    dura la respuesta, unos segundos.
 
+   SI EL CLIENTE ESCRIBE EN EL MEDIO, SE CORTA. Meta no avisa cuándo
+   alguien está escribiendo o grabando, así que no se puede esperar a que
+   termine; pero si llega un mensaje suyo mientras salen las partes, las
+   que faltan ya no corresponden y no salen. En automático, ese mensaje
+   nuevo dispara una respuesta nueva que lo tiene en cuenta.
+
    SI LO QUE MANDA LA IA YA LO SIGUE UNA PERSONA, SE CORTA. Si alguien
    apretó "Que siga una persona" en el medio, no sale una parte más.
    SI FALLA UNA PARTE, se cortan las que siguen: una respuesta a medias
    es mejor que una desordenada. */
 export class Envios extends DurableObject {
-  async encolar(chat, pasos, autor) {
-    const cola = (await this.ctx.storage.get('cola')) ?? [];
-    cola.push(...pasos.map((p) => ({ ...p, chat, autor })));
+  async encolar(chat, pasos, autor, visto) {
+    /* Una respuesta nueva reemplaza a la que estaba saliendo. */
+    const cola = pasos.map((p) => ({ ...p, chat, autor, visto }));
     await this.ctx.storage.put('cola', cola);
-    if (!(await this.ctx.storage.getAlarm())) {
-      await this.ctx.storage.setAlarm(Date.now() + cola[0].espera);
-    }
+    await this.ctx.storage.setAlarm(Date.now() + cola[0].espera);
   }
 
   async alarm() {
@@ -1463,9 +1474,13 @@ export class Envios extends DurableObject {
     const paso = cola.shift();
     if (paso) {
       try {
-        const sigue = paso.autor !== 'ia' || !(await this.env.DB
+        const escribio = await this.env.DB.prepare(
+          `SELECT 1 FROM mensajes WHERE conversacion_id = ?
+              AND direccion = 'entrante' AND id > ? LIMIT 1`
+        ).bind(paso.chat.id, paso.visto).first();
+        const sigue = !escribio && (paso.autor !== 'ia' || !(await this.env.DB
           .prepare('SELECT humano FROM conversaciones WHERE id = ?')
-          .bind(paso.chat.id).first())?.humano;
+          .bind(paso.chat.id).first())?.humano);
         if (sigue) {
           const id = await mandarUno(this.env, paso.chat, paso.texto);
           await guardarSaliente(this.env, paso.chat.id, paso.texto, paso.autor, id);
