@@ -503,7 +503,7 @@ async function quitarFoto(i) {
    SE GUARDAN DOS TAMAÑOS. 1600 px para la ficha del auto y 640 para la
    grilla del catálogo. Sin el chico, la grilla bajaría diez imágenes de
    1600 px para mostrarlas del tamaño de una estampilla. */
-function achicar(archivo, lado) {
+function achicar(archivo, lado, formato = 'image/webp', calidad = 0.82) {
   return new Promise((listo, fallo) => {
     const img = new Image();
     img.onload = () => {
@@ -515,8 +515,21 @@ function achicar(archivo, lado) {
       pincel.imageSmoothingQuality = 'high';
       pincel.drawImage(img, 0, 0, lienzo.width, lienzo.height);
       URL.revokeObjectURL(img.src);
+      /* EL JPG NO TIENE TRANSPARENCIA: lo transparente saldría negro.
+         Se pinta blanco abajo antes, que es lo que se ve en un chat. */
+      if (formato === 'image/jpeg') {
+        const lleno = document.createElement('canvas');
+        lleno.width = lienzo.width; lleno.height = lienzo.height;
+        const p2 = lleno.getContext('2d');
+        p2.fillStyle = '#fff';
+        p2.fillRect(0, 0, lleno.width, lleno.height);
+        p2.drawImage(lienzo, 0, 0);
+        lleno.toBlob((b) => (b ? listo(b) : fallo(new Error('No se pudo convertir'))),
+          formato, calidad);
+        return;
+      }
       lienzo.toBlob((b) => (b ? listo(b) : fallo(new Error('No se pudo convertir'))),
-        'image/webp', 0.82);
+        formato, calidad);
     };
     img.onerror = () => fallo(new Error('Ese archivo no es una imagen'));
     img.src = URL.createObjectURL(archivo);
@@ -525,10 +538,13 @@ function achicar(archivo, lado) {
 
 /* Achicar las dos versiones de una foto. Se hace siempre acá, exista el
    auto o no: lo que cambia después es si se manda o si se guarda. */
+/* Y UNA TERCERA, EN JPG, PARA MANDARLA POR CHAT: WhatsApp no acepta
+   WebP. Ver esquema/012-fotos-jpg.sql. */
 async function preparar(archivo) {
   return {
     g: await achicar(archivo, 1600),
     ch: await achicar(archivo, 640),
+    jpg: await achicar(archivo, 1600, 'image/jpeg', 0.85),
   };
 }
 
@@ -536,6 +552,7 @@ async function mandar(par) {
   const cuerpo = new FormData();
   cuerpo.append('1600', par.g, '1600.webp');
   cuerpo.append('640', par.ch, '640.webp');
+  if (par.jpg) cuerpo.append('jpg', par.jpg, '1600.jpg');
   return api('/api/admin/autos/' + actual.id + '/fotos', { method: 'POST', body: cuerpo });
 }
 
@@ -988,14 +1005,15 @@ async function abrirChat(id) {
    que conviene decirlo ANTES de que escriba —no después— y por eso el
    aviso se calcula acá y no cuando Meta devuelve el error.
 
-   El cuadro sólo aparece en Instagram: es el único canal con el envío
-   programado. Mostrarlo en los otros sería ofrecer un botón que falla. */
+   Lo mismo en los tres canales: WhatsApp y Messenger tienen la misma
+   ventana de 24 horas. Si al canal le falta su llave en Cloudflare, el
+   error de Meta lo dice al mandar. */
 function prepararRespuesta(chat, mensajes) {
   const form = $('#responder');
-  const puede = chat.canal === 'instagram';
-  form.classList.toggle('oculto', !puede);
+  form.classList.remove('oculto');
   $('#respuesta').value = '';
-  if (!puede) return;
+  limpiarSugerido();
+  const red = CANALES[chat.canal] || chat.canal;
 
   const ultimoDeEl = [...mensajes].reverse().find((m) => m.direccion === 'entrante');
   const horas = ultimoDeEl
@@ -1004,9 +1022,9 @@ function prepararRespuesta(chat, mensajes) {
 
   const plazo = $('#plazo');
   if (!isFinite(horas)) {
-    plazo.textContent = 'Esta persona todavía no escribió, así que Instagram no deja escribirle primero.';
+    plazo.textContent = 'Esta persona todavía no escribió, así que ' + red + ' no deja escribirle primero.';
   } else if (horas >= 24) {
-    plazo.textContent = 'Pasaron más de 24 horas desde su último mensaje. Instagram va a rechazar el envío.';
+    plazo.textContent = 'Pasaron más de 24 horas desde su último mensaje. ' + red + ' va a rechazar el envío.';
   } else {
     plazo.textContent = 'Quedan ' + Math.max(0, Math.floor(24 - horas)) + ' h para contestar libremente.';
   }
@@ -1014,9 +1032,34 @@ function prepararRespuesta(chat, mensajes) {
 }
 
 /* QUE ESCRIBA LA IA.
-   Deja el borrador en el cuadro y no lo manda: lo lee Tomás y decide.
-   Y si lo edita antes de mandarlo, mejor — el que conoce al cliente es
-   él. */
+   Deja el borrador en el cuadro y no lo manda: lo lee el que atiende y
+   decide. Y si lo edita antes de mandarlo, mejor — el que conoce al
+   cliente es él.
+
+   LAS FOTOS VAN APARTE DEL TEXTO. Si el bot quiere mandar las de un
+   auto, se dice abajo del cuadro con un botón para sacarlas: lo que
+   sale es lo que se ve antes de apretar Enviar. */
+let fotosSugeridas = null;
+
+function limpiarSugerido() {
+  fotosSugeridas = null;
+  $('#sugeridoFotos').classList.add('oculto');
+  $('#sugeridoDerivar').classList.add('oculto');
+}
+
+function pintarFotosSugeridas() {
+  const zona = $('#sugeridoFotos');
+  if (!fotosSugeridas) { zona.classList.add('oculto'); return; }
+  const f = fotosSugeridas;
+  const que = f.cuantas
+    ? 'Van ' + f.cuantas + ' fotos del ' + f.titulo + ' después del mensaje.'
+    : 'Va el link a la ficha del ' + f.titulo + ': sus fotos todavía no están preparadas para los chats.';
+  zona.innerHTML = escapar(que) + ' <button class="btn" type="button" id="sacarFotos" ' +
+    'style="padding:.3em .7em;font-size:.5rem">No mandarlas</button>';
+  zona.classList.remove('oculto');
+  $('#sacarFotos').addEventListener('click', () => { fotosSugeridas = null; pintarFotosSugeridas(); });
+}
+
 $('#sugerir').addEventListener('click', async () => {
   if (!chatActual) return;
   const boton = $('#sugerir');
@@ -1024,10 +1067,21 @@ $('#sugerir').addEventListener('click', async () => {
   boton.disabled = true;
   boton.textContent = 'Escribiendo…';
   try {
-    const { texto, conPosteo } = await api(
+    const { texto, conPosteo, fotos, derivar } = await api(
       '/api/admin/chats/' + chatActual.chat.id + '/sugerir', { method: 'POST' });
     $('#respuesta').value = texto;
     $('#respuesta').focus();
+
+    fotosSugeridas = fotos || null;
+    pintarFotosSugeridas();
+
+    /* Si cree que lo tiene que seguir una persona, se dice acá y no se
+       hace solo: en borrador decide el que atiende, con el botón de
+       arriba. */
+    const zona = $('#sugeridoDerivar');
+    zona.classList.toggle('oculto', !derivar);
+    if (derivar) zona.textContent = 'La IA cree que esto lo tiene que seguir una persona: ' + derivar;
+
     /* Decir si supo de qué publicación venía importa: sin eso el bot
        contestó a ciegas y conviene leerlo con más cuidado. */
     avisar(conPosteo ? 'Escrito, con el texto del posteo' : 'Escrito, sin saber de qué publicación');
@@ -1048,11 +1102,14 @@ $('#responder').addEventListener('submit', async (e) => {
   const boton = $('#enviar');
   boton.disabled = true;
   try {
-    await api('/api/admin/chats/' + chatActual.chat.id + '/responder', {
+    const r = await api('/api/admin/chats/' + chatActual.chat.id + '/responder', {
       method: 'POST',
-      body: JSON.stringify({ texto: mensaje }),
+      body: JSON.stringify({ texto: mensaje, auto_id: fotosSugeridas?.auto_id ?? null }),
     });
-    avisar('Enviado');
+    /* El texto salió. Si una foto falló, se dice cuántas llegaron y por
+       qué cortó, que es lo que hace falta para decidir qué hacer. */
+    if (r.falloFotos) avisar('Salió el mensaje y ' + r.fotos + ' fotos. Después: ' + r.falloFotos, true);
+    else avisar(r.fotos ? 'Enviado, con ' + r.fotos + ' fotos' : 'Enviado');
     await abrirChat(chatActual.chat.id);
     await cargarChats();
   } catch (err) {
@@ -1370,6 +1427,8 @@ function pintarHilo(chat, mensajes) {
 
     const cuerpo = m.tipo === 'texto'
       ? '<p>' + escapar(m.texto) + '</p>'
+      : mio && m.texto
+      ? '<span class="adjunto">' + escapar(m.texto) + '</span>'
       : '<span class="adjunto">' + (ADJUNTOS[m.tipo] || ADJUNTOS.otro) +
         ' · se abre en ' + escapar(CANALES[chat.canal] || chat.canal) + '</span>';
 
@@ -1479,6 +1538,86 @@ $('#borrarChat').addEventListener('click', () => {
 
 /* ── las pestañas ───────────────────────────────────────────── */
 
+/* ── CÓMO CONTESTA EL BOT ────────────────────────────────────────
+   Por canal, borrador o automático, y en qué horario contesta solo.
+   Sin horario elegido, el automático contesta a toda hora. */
+const HORAS = Array.from({ length: 24 }, (_, h) => h);
+['#botDesde', '#botHasta'].forEach((sel) => {
+  $(sel).innerHTML = '<option value="">Siempre</option>' +
+    HORAS.map((h) => '<option value="' + h + '">' + String(h).padStart(2, '0') + ' h</option>').join('');
+});
+
+function pintarBot(cfg) {
+  $$('#botModo select[data-canal]').forEach((s) => { s.value = cfg.modo[s.dataset.canal]; });
+  $('#botDesde').value = cfg.desde ?? '';
+  $('#botHasta').value = cfg.hasta ?? '';
+
+  const solos = Object.entries(cfg.modo).filter(([, m]) => m === 'automatico')
+    .map(([c]) => CANALES[c]);
+  const horario = cfg.desde !== null && cfg.hasta !== null && cfg.desde !== cfg.hasta
+    ? ', de ' + cfg.desde + ' a ' + cfg.hasta + ' h' : ', a toda hora';
+  $('#botNota').textContent = solos.length
+    ? 'Contesta solo en ' + solos.join(' y ') + horario +
+      '. En el resto escribe un borrador cuando lo pedís. Si alguien pide hablar con una persona o que borremos sus datos, deja de contestar ese chat y queda marcado.'
+    : 'El bot no contesta solo en ningún canal. Escribe un borrador cuando lo pedís, y lo mandás vos.';
+}
+
+async function cargarBot() { pintarBot(await api('/api/admin/bot')); }
+
+$('#botGuardar').addEventListener('click', async () => {
+  const modo = {};
+  $$('#botModo select[data-canal]').forEach((s) => { modo[s.dataset.canal] = s.value; });
+  const nuevos = Object.entries(modo).filter(([, m]) => m === 'automatico').map(([c]) => CANALES[c]);
+  if (nuevos.length && !confirm('El bot va a contestar solo, sin que nadie lo lea antes, en ' +
+      nuevos.join(' y ') + '. Seguimos?')) return;
+  const hora = (v) => (v === '' ? null : Number(v));
+  try {
+    pintarBot(await api('/api/admin/bot', {
+      method: 'PUT',
+      body: JSON.stringify({ modo, desde: hora($('#botDesde').value), hasta: hora($('#botHasta').value) }),
+    }));
+    avisar('Guardado');
+  } catch (err) { avisar(err.message, true); }
+});
+
+/* ── LAS FOTOS PARA LOS CHATS ────────────────────────────────────
+   Las fotos subidas antes de esto están sólo en WebP, y WhatsApp no la
+   acepta. Este botón las convierte acá, en el navegador —el mismo que
+   ya las achica al subirlas— y sube la copia en JPG. Se hace una vez. */
+let sinJpg = [];
+
+async function contarSinJpg() {
+  ({ fotos: sinJpg } = await api('/api/admin/fotos/sin-jpg'));
+  $('#zonaJpg').classList.toggle('oculto', !sinJpg.length);
+  $('#cuantasJpg').textContent = sinJpg.length + ' fotos sin preparar';
+}
+
+$('#prepararJpg').addEventListener('click', async () => {
+  const boton = $('#prepararJpg');
+  boton.disabled = true;
+  let hechas = 0;
+  for (const f of sinJpg) {
+    try {
+      const webp = await fetch('/fotos/' + f.clave + '-1600.webp').then((r) => {
+        if (!r.ok) throw new Error('No se pudo leer la foto');
+        return r.blob();
+      });
+      const jpg = await achicar(webp, 1600, 'image/jpeg', 0.85);
+      const cuerpo = new FormData();
+      cuerpo.append('jpg', jpg, '1600.jpg');
+      await api('/api/admin/fotos/' + f.id + '/jpg', { method: 'POST', body: cuerpo });
+      hechas++;
+      $('#cuantasJpg').textContent = hechas + ' de ' + sinJpg.length;
+    } catch (err) {
+      avisar('Se cortó en la foto ' + (hechas + 1) + ': ' + err.message, true);
+      break;
+    }
+  }
+  boton.disabled = false;
+  if (hechas === sinJpg.length) avisar('Listas las ' + hechas + ' fotos');
+  await contarSinJpg().catch(() => {});
+});
+
 function verPestania(cual) {
   const autos = cual === 'autos';
   [['autos', '#pesAutos'], ['medios', '#pesMedios'],
@@ -1502,6 +1641,8 @@ function verPestania(cual) {
   else if (cual === 'numeros') cargarNumeros();
   else {
     cargarChats().catch((err) => avisar(err.message, true));
+    cargarBot().catch((err) => avisar(err.message, true));
+    contarSinJpg().catch(() => {});
     arrancarRefresco();
     ponerseAlDia();
   }

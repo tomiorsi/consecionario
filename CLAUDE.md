@@ -36,5 +36,6 @@ Lo que sigue fue **declarado ante Meta** (revisión de la app "Manna Selected Hu
 - Condiciones de uso: `public/terminos/index.html`. Dicen que las respuestas de la IA son orientativas y que vale lo acordado con una persona: el bot nunca debe cerrar precios, reservas ni condiciones por su cuenta.
 - Pedidos de autoridades: `docs/solicitudes-de-autoridades.md`.
 - Webhook de Meta: `/api/meta/webhook` en `src/index.js`.
+- El bot: qué dice y cómo habla en `src/instrucciones.js`; cómo funciona y cómo se publica en `docs/bot.md`.
 
 Si cambia cualquiera de estos compromisos, se actualizan los tres lugares (este archivo, `/privacidad/` y Meta) el mismo día, y se cambia la fecha de "Última actualización" de la política.
