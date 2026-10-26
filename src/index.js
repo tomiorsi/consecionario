@@ -21,6 +21,7 @@
    sube. Ver `achicar()` en el panel. */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { DurableObject } from 'cloudflare:workers';
 import { PANEL } from './admin.js';
 import { instruccionesDelBot } from './instrucciones.js';
 
@@ -1163,11 +1164,13 @@ const MODELO = 'claude-haiku-5-5';
 const FORMA_DE_RESPUESTA = {
   type: 'object',
   properties: {
-    mensaje: { type: 'string' },
+    /* CADA PARTE ES UN MENSAJE DE WHATSAPP APARTE. Una persona no manda
+       un párrafo: manda dos o tres mensajes cortos seguidos. */
+    partes: { type: 'array', items: { type: 'string' } },
     ficha_de: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
     pasar_a_persona: { anyOf: [{ type: 'string' }, { type: 'null' }] },
   },
-  required: ['mensaje', 'ficha_de', 'pasar_a_persona'],
+  required: ['partes', 'ficha_de', 'pasar_a_persona'],
   additionalProperties: false,
 };
 
@@ -1281,14 +1284,17 @@ async function pensarRespuesta(env, conversacionId, { automatico = false } = {})
     .filter((b) => b.type === 'text').map((b) => b.text).join('');
   let dato;
   try { dato = JSON.parse(crudo); } catch { dato = null; }
-  const texto = String(dato?.mensaje ?? '').trim();
-  if (!texto) throw new Error('Claude no devolvió una respuesta');
+  const partes = (Array.isArray(dato?.partes) ? dato.partes : [])
+    .map((t) => String(t ?? '').trim()).filter(Boolean).slice(0, 4);
+  if (!partes.length) throw new Error('Claude no devolvió una respuesta');
+  const texto = partes.join('\n\n');
 
   /* El número de auto se cruza con el stock: uno inventado o vendido no
      llega a ningún lado. */
   const auto = (autos ?? []).find((a) => a.id === dato.ficha_de);
 
   return {
+    partes,
     texto,
     autoId: auto?.id ?? null,
     derivar: texto && dato.pasar_a_persona ? String(dato.pasar_a_persona).slice(0, 200) : null,
@@ -1375,37 +1381,109 @@ async function mandarUno(env, chat, texto) {
   throw new Error('No sé mandar por ese canal');
 }
 
-/* PRIMERO EL LINK, DESPUÉS EL MENSAJE.
-   El link va solo, en su propio mensaje, para que el chat lo muestre con
-   la foto del auto. Una vez que está, sale el texto que lo acompaña.
+/* EN PARTES Y CON PAUSAS, COMO ESCRIBE UNA PERSONA.
+   ══════════════════════════════════════════════════════════════════
 
-   NO SE REPITE: si ese link ya se mandó en esta conversación, no vuelve
-   a salir. El cliente ya lo tiene arriba.
+   Así lo pidió Maxi: una respuesta sale en varios mensajes, con diez
+   segundos entre uno y otro. Si va el link de un auto, entra antes de la
+   última parte, y después del link se espera un poco más para que el
+   chat termine de mostrar la foto:
 
-   SI FALLA EL LINK, NO SALE NADA y el error sube: el mensaje habla de un
-   auto que la persona no tendría a la vista. */
-const PAUSA_TRAS_EL_LINK = 2500;
+     Hola, cómo estás? Qué bueno que te interesó la GLA. Es una ...
+        10 s
+     Está impecable, sin un detalle por afuera ni adentro.
+        10 s
+     https://www.mannaselected.com.ar/auto/...
+        12 s
+     La estabas viendo para compra directa o tenés algún vehículo ...
 
-async function mandarRespuesta(env, chat, { texto, autoId = null, autor }) {
+   EL LINK NO SE REPITE: si ya se mandó en esta conversación, no vuelve a
+   salir. El cliente ya lo tiene arriba.
+
+   LA PRIMERA PARTE SALE EN EL MOMENTO y el resto queda en la cola de
+   envíos de esa conversación (la clase `Envios`, abajo). Así un error de
+   Meta —token vencido, ventana de 24 horas— se ve enseguida en el panel,
+   y las pausas no dependen de que nadie espere: Cloudflare no deja que
+   una tarea suelta siga más de treinta segundos. */
+const PAUSA_ENTRE_PARTES = 10000;
+const PAUSA_TRAS_EL_LINK = 12000;
+
+async function mandarRespuesta(env, chat, { partes, autoId = null, autor }) {
   const ficha = autoId ? await fichaDe(env, autoId) : null;
-  let conLink = false;
-
+  let link = null;
   if (ficha) {
     const yaEsta = await env.DB.prepare(
       `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
           AND texto LIKE '%' || ? || '%' LIMIT 1`
     ).bind(chat.id, ficha.enlace).first();
-    if (!yaEsta) {
-      const id = await mandarUno(env, chat, ficha.enlace);
-      await guardarSaliente(env, chat.id, ficha.enlace, autor, id);
-      conLink = true;
-      await new Promise((listo) => setTimeout(listo, PAUSA_TRAS_EL_LINK));
+    if (!yaEsta) link = ficha.enlace;
+  }
+
+  /* El plan: qué sale y cuánto se espera ANTES de cada cosa. */
+  const textos = [...partes];
+  if (link) textos.splice(Math.max(0, textos.length - 1), 0, link);
+  const pasos = textos.map((texto, n) => ({
+    texto,
+    espera: n === 0 ? 0 : textos[n - 1] === link ? PAUSA_TRAS_EL_LINK : PAUSA_ENTRE_PARTES,
+  }));
+
+  const [primero, ...resto] = pasos;
+  const id = await mandarUno(env, chat, primero.texto);
+  await guardarSaliente(env, chat.id, primero.texto, autor, id);
+
+  if (resto.length) {
+    const cola = env.ENVIOS.get(env.ENVIOS.idFromName(String(chat.id)));
+    await cola.encolar({ id: chat.id, canal: chat.canal, externo_id: chat.externo_id }, resto, autor);
+  }
+  return { link: Boolean(link), partes: pasos.length };
+}
+
+/* LA COLA DE ENVÍOS DE UNA CONVERSACIÓN.
+   Una por chat. Guarda las partes que faltan y se despierta sola a la
+   hora de cada una (una alarma de Cloudflare). Manda una, programa la
+   siguiente, y cuando no queda nada se vacía: lo que guarda dura lo que
+   dura la respuesta, unos segundos.
+
+   SI LO QUE MANDA LA IA YA LO SIGUE UNA PERSONA, SE CORTA. Si alguien
+   apretó "Que siga una persona" en el medio, no sale una parte más.
+   SI FALLA UNA PARTE, se cortan las que siguen: una respuesta a medias
+   es mejor que una desordenada. */
+export class Envios extends DurableObject {
+  async encolar(chat, pasos, autor) {
+    const cola = (await this.ctx.storage.get('cola')) ?? [];
+    cola.push(...pasos.map((p) => ({ ...p, chat, autor })));
+    await this.ctx.storage.put('cola', cola);
+    if (!(await this.ctx.storage.getAlarm())) {
+      await this.ctx.storage.setAlarm(Date.now() + cola[0].espera);
     }
   }
 
-  const id = await mandarUno(env, chat, texto);
-  await guardarSaliente(env, chat.id, texto, autor, id);
-  return { link: conLink };
+  async alarm() {
+    const cola = (await this.ctx.storage.get('cola')) ?? [];
+    const paso = cola.shift();
+    if (paso) {
+      try {
+        const sigue = paso.autor !== 'ia' || !(await this.env.DB
+          .prepare('SELECT humano FROM conversaciones WHERE id = ?')
+          .bind(paso.chat.id).first())?.humano;
+        if (sigue) {
+          const id = await mandarUno(this.env, paso.chat, paso.texto);
+          await guardarSaliente(this.env, paso.chat.id, paso.texto, paso.autor, id);
+        } else {
+          cola.length = 0;
+        }
+      } catch (e) {
+        console.error('No salió una parte de la respuesta:', e?.message ?? e);
+        cola.length = 0;
+      }
+    }
+    if (cola.length) {
+      await this.ctx.storage.put('cola', cola);
+      await this.ctx.storage.setAlarm(Date.now() + cola[0].espera);
+    } else {
+      await this.ctx.storage.deleteAll();
+    }
+  }
 }
 
 /* ── EL BOT SOLO ─────────────────────────────────────────────────
@@ -1476,7 +1554,7 @@ async function atenderSolo(env, disparos) {
           .bind(`La IA lo pasó: ${r.derivar}`, chat.id).run();
       }
 
-      await mandarRespuesta(env, chat, { texto: r.texto, autoId: r.autoId, autor: 'ia' });
+      await mandarRespuesta(env, chat, { partes: r.partes, autoId: r.autoId, autor: 'ia' });
 
       /* Sin una palabra del mensaje: sólo que contestó y por dónde. */
       console.log(JSON.stringify({ bot: 'contestó', canal: chat.canal, derivo: Boolean(r.derivar) }));
@@ -2183,9 +2261,12 @@ async function admin(peticion, env, ruta, metodo) {
   const responderA = ruta.match(/^\/api\/admin\/chats\/(\d+)\/responder$/);
   if (responderA && metodo === 'POST') {
     const cuerpo = await peticion.json().catch(() => ({}));
-    const mensaje = texto(cuerpo?.texto, 1000);
+    const mensaje = texto(cuerpo?.texto, 3000);
     if (!mensaje) return error('Falta el texto');
     const autoId = entero(cuerpo?.auto_id, 1, 1e9);
+    /* Cada párrafo del cuadro —separado por una línea en blanco— sale
+       como un mensaje aparte. */
+    const partes = mensaje.split(/\n\s*\n/).map((t) => t.trim()).filter(Boolean);
 
     const chat = await env.DB
       .prepare('SELECT id, canal, externo_id FROM conversaciones WHERE id = ?')
@@ -2197,7 +2278,7 @@ async function admin(peticion, env, ruta, metodo) {
        mandarlo una persona. Lo que sale solo queda como 'ia'. */
     try {
       return json({ ok: true, ...(await mandarRespuesta(env, chat, {
-        texto: mensaje, autoId, autor: 'persona',
+        partes, autoId, autor: 'persona',
       })) });
     } catch (e) {
       return error(e?.message || 'Meta no aceptó el mensaje', 502);

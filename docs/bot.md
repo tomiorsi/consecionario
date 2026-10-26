@@ -6,7 +6,8 @@ Contesta por WhatsApp, Instagram y Messenger como Manna Selected, con la voz de 
 
 - Lee la conversación entera, incluidas las fotos y los audios que mandó el cliente (sabe que llegaron, aunque no los ve).
 - Conoce todo el stock publicado: precio, km, motor, caja, color, descripción y cuántas fotos tiene cada auto.
-- Si piden fotos o más información de un auto, manda primero el link del auto en el garage (el chat lo muestra con la foto) y después el mensaje. No repite un link que ya mandó en esa conversación.
+- Contesta en varios mensajes cortos, con 10 segundos entre uno y otro, como una persona. Si va el link de un auto del garage, entra antes del último mensaje y se espera 12 segundos para que el chat muestre la foto. No repite un link que ya mandó en esa conversación.
+- La primera parte sale en el momento; el resto lo manda una cola de envíos por conversación (`Envios` en `src/index.js`, un Durable Object de Cloudflare). Se crea sola la primera vez que se publica: está en `wrangler.jsonc`.
 - Si alguien quiere entregar su auto, pide solo los datos y las fotos que faltan.
 - Pasa la conversación a una persona si piden hablar con alguien, si piden borrar sus datos, si quieren negociar, señar o pagar, o si hay un reclamo. En automático lo hace solo y deja de contestar ese chat.
 - Qué dice y cómo lo dice está en `src/instrucciones.js`. Para cambiar el bot, se cambia ese archivo.

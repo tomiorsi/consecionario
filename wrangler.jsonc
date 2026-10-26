@@ -85,6 +85,14 @@
   // para que el panel este al dia sin que nadie entre. La limpieza de
   // conversaciones sigue siendo diaria y el propio codigo la corre solo
   // en la vuelta de las 4 (ver `scheduled` en src/index.js).
+  // LA COLA DE ENVÍOS DEL BOT: manda una respuesta en partes, con pausas
+  // de diez segundos, aunque nadie se quede esperando. Ver `Envios` en
+  // src/index.js. La migración la crea la primera vez que se publica.
+  "durable_objects": {
+    "bindings": [{ "name": "ENVIOS", "class_name": "Envios" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Envios"] }],
+
   "triggers": { "crons": ["0,30 * * * *"] },
 
   "observability": { "enabled": true }

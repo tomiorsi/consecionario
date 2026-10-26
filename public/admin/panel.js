@@ -1034,7 +1034,7 @@ function limpiarSugerido() {
 function pintarFichaSugerida() {
   const zona = $('#sugeridoFotos');
   if (!fichaSugerida) { zona.classList.add('oculto'); return; }
-  zona.innerHTML = escapar('Antes del mensaje va el link del ' + fichaSugerida.titulo +
+  zona.innerHTML = escapar('Antes del último párrafo va el link del ' + fichaSugerida.titulo +
     ' en el garage, salvo que ya se lo hayan mandado.') +
     ' <button class="btn" type="button" id="sacarFotos" ' +
     'style="padding:.3em .7em;font-size:.5rem">No mandarlo</button>';
@@ -1088,7 +1088,11 @@ $('#responder').addEventListener('submit', async (e) => {
       method: 'POST',
       body: JSON.stringify({ texto: mensaje, auto_id: fichaSugerida?.auto_id ?? null }),
     });
-    avisar(r.link ? 'Enviado, con el link del auto' : 'Enviado');
+    /* Sale la primera parte y el resto va saliendo solo, de a diez
+       segundos: el hilo se completa con el refresco de la bandeja. */
+    avisar(r.partes > 1
+      ? 'Salió el primer mensaje. Los otros ' + (r.partes - 1) + ' salen solos, de a 10 segundos'
+      : 'Enviado');
     await abrirChat(chatActual.chat.id);
     await cargarChats();
   } catch (err) {

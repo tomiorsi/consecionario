@@ -926,7 +926,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
     <!-- CONTESTAR, por cualquiera de los tres canales. -->
     <form class="responder oculto" id="responder" autocomplete="off">
       <textarea id="respuesta" rows="3"
-                placeholder="Escribí tu respuesta"></textarea>
+                placeholder="Escribí tu respuesta. Cada párrafo sale como un mensaje aparte, con 10 segundos entre uno y otro."></textarea>
       <!-- Lo que el bot sugiere además del texto: la ficha de qué auto va
            y si lo tiene que seguir una persona. Se ve antes de mandar. -->
       <p class="nota oculto" id="sugeridoFotos" style="margin:0"></p>
