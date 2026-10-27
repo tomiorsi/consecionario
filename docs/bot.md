@@ -15,6 +15,8 @@ Contesta por WhatsApp, Instagram y Messenger como Manna Selected, con la voz de 
 
 ## Para publicarlo (Tomás)
 
+**La web se publica sola al subir a `main`** (`.github/workflows/publicar.yml`). Por eso el orden importa: la columna de la base va antes.
+
 0. La columna nueva del anuncio de Meta del que vino cada conversación:
    ```
    npx wrangler d1 execute manna-autos --remote --file=esquema/012-anuncio.sql
@@ -24,7 +26,7 @@ Contesta por WhatsApp, Instagram y Messenger como Manna Selected, con la voz de 
    - `META_PAGE_TOKEN`: token de la página de Facebook, con `pages_messaging`.
    - `META_IG_TOKEN` ya está. Para mandar hace falta `instagram_business_manage_messages`.
    - En la consola de Anthropic (console.anthropic.com → Settings → Privacy), habilitar la **búsqueda web** para la organización. El bot la usa para averiguar si el auto que ofrece el cliente es manual o automático. Si no está habilitada, contesta igual sin buscar.
-2. `npx wrangler deploy`.
+2. Subir a `main` (se publica solo). La cola de envíos (Durable Object `Envios`) se crea sola con esa publicación. Si el código llega antes que la columna del anuncio, funciona igual y empieza a guardar el anuncio cuando la columna esté.
 
 ## Para probar sin la revisión de Meta
 
@@ -38,5 +40,8 @@ Después le escribe al negocio desde esas cuentas y prueba los borradores en el 
 
 ## Antes del modo automático
 
-- El automático se identifica como asistente de Manna Selected en el primer mensaje. Es lo declarado ante Meta y en `/privacidad/` (CLAUDE.md, regla 6). Si se quiere cambiar, primero se cambian `/privacidad/` y las respuestas en Meta.
+- Hay un interruptor general en el código: `CONTESTA_SOLA` en `src/index.js`. Hoy está en `false` (lo decidió Tomás): no sale ningún mensaje solo, elija lo que elija el panel. Para prenderlo se cambia esa palabra, y después se elige canal por canal en el panel.
+- El bot no se anuncia como asistente, pero si le preguntan dice la verdad (decisión de Tomás del 21/10). **Ojo:** `CLAUDE.md` (regla 6) y `/privacidad/` todavía dicen que la IA se identifica. Antes de prender el automático hay que poner de acuerdo las tres cosas: la política, las respuestas en Meta y el código.
+- Los comentarios de Instagram: el bot decide si escribirle por privado (casi nunca, ante la duda no) y si poner me gusta. Un privado por publicación, y un aviso público abajo del comentario una vez que salió.
+- Frenos: espera 8 segundos a que la persona termine de escribir, nunca se contesta a sí mismo, máximo 5 mensajes en 10 minutos por chat, y se calla en los chats que pasaron a una persona.
 - Para clientes reales hace falta que Meta apruebe los permisos de envío (revisión de la app).

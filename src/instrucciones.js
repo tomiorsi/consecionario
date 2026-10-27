@@ -93,17 +93,25 @@ function lineaDeAuto(a) {
   return `- [${a.id}] ${datos}${desc}${pres}`;
 }
 
-export function instruccionesDelBot({ autos, posteo, anuncio = null, canal, automatico, yaHablamos = false }) {
+export function instruccionesDelBot({
+  autos, posteo, nuestro = null, anuncio = null, canal, automatico,
+  yaHablamos = false, esComentario = false,
+}) {
   const stock = autos.map(lineaDeAuto).join('\n') || '(no hay autos publicados)';
 
-  const quien = automatico
-    ? `Escribís como Manna Selected y contestás solo, sin que nadie lo lea
-antes. En tu primer mensaje de la conversación decí, al pasar y en una
-frase, que sos el asistente de Manna Selected. Si te preguntan en serio si
-sos una persona, no mientas.`
-    : `Escribís como Manna Selected. Lo que escribas lo lee alguien del equipo
-y lo manda. Hablá en plural cuando sea la empresa ("tenemos", "te
-esperamos") y nunca firmes con un nombre de persona.`;
+  /* NO SE ANUNCIA, PERO NUNCA MIENTE. Lo decidió Tomás el 21/10 ("deja de
+     anunciarse como bot") y es lo que pide Maxi: que se sienta una charla
+     con alguien del equipo. Si preguntan, la verdad, siempre. */
+  const quien = `Escribís como Manna Selected. ${automatico
+    ? 'Contestás solo, sin que nadie lo lea antes.'
+    : 'Lo que escribas lo lee alguien del equipo y lo manda.'} Hablá en plural
+cuando sea la empresa ("tenemos", "te esperamos") y nunca firmes con un
+nombre de persona.
+No aclares que sos un asistente: no lo anuncies, no lo firmes, no lo
+cierres con un aviso. PERO SI TE PREGUNTAN si sos un bot, una máquina o una
+persona, decí la verdad: que sos un asistente con inteligencia artificial y
+que le pasás la charla a alguien del equipo cuando quiera. Nunca lo niegues
+ni te inventes un nombre.`;
 
   /* El anuncio de Meta desde el que escribió, si vino de uno. */
   const desdeAnuncio = anuncio && (anuncio.titulo || anuncio.texto)
@@ -116,18 +124,48 @@ ${[anuncio.titulo, anuncio.texto].filter(Boolean).join('\n')}
 Si el anuncio es de un auto de la lista, pregunta por ese.\n\n`
     : '';
 
+  /* DE QUÉ PUBLICACIÓN SALE, Y VA PRIMERO. Enterrado a dos tercios del
+     texto, el bot lo ignoraba y preguntaba "de cuál auto" abajo de una
+     publicación que decía cuál (Tomás, 21/10). */
   const deDonde = posteo
-    ? `ESTE MENSAJE ES UN COMENTARIO debajo de esta publicación nuestra
+    ? `ANTES QUE NADA: ESTO SALE DE UNA PUBLICACIÓN NUESTRA.
+Esto escribimos al publicarla
 <<<
 ${posteo}
->>>
-Si habla de un auto de la lista, preguntan por ese. Si habla de otra cosa,
-contestá sobre eso y no ofrezcas un auto.`
-    : `Si no queda claro por qué auto preguntan, preguntá cuál antes de dar datos.`;
+>>>${nuestro ? `\nY esto pusimos nosotros en el primer comentario\n<<<\n${nuestro}\n>>>` : ''}
+AHÍ ESTÁ DE QUÉ AUTO TE HABLAN. Ese es el auto, y es el único: si preguntan
+"precio?" o "cuánto?", es de ESE. No preguntes cuál, no ofrezcas otro, no
+pases una lista. Si la publicación no habla de ningún auto, contestá sobre
+lo que dice y no ofrezcas ninguno.
+Los datos no salen de acá: precio, kilómetros y disponibilidad, sólo del
+stock de abajo. Un posteo viejo puede tener un precio viejo.`
+    : `Si no queda claro por qué auto preguntan, preguntá cuál antes de dar
+datos. Nunca le pases la lista de autos: eso es mandarle un catálogo.`;
+
+  /* UN COMENTARIO NO ES UN PRIVADO: casi nunca se le escribe (Tomás). */
+  const comentario = esComentario
+    ? `ESTO ES UN COMENTARIO EN UNA PUBLICACIÓN NUESTRA. Nadie te escribió: si
+le escribís, le escribís vos primero, por privado, con UN solo mensaje (una
+sola parte en "partes"). Escribile SÓLO si hay algo concreto que contestar
+de un auto.
+"responder": false si la publicación no es de un auto de la lista, si opinó
+y nada más ("qué lindo", un emoji, un chiste, etiquetar a un amigo), si le
+habla a otro, o si no se entiende qué quiere. Ante la duda, false.
+"responder": true sólo si pregunta algo de un auto: precio, kilómetros,
+año, si está disponible, si lo puede ver, si tomamos permuta.
+"megusta": true si el comentario es bueno con nosotros o con el auto (un
+elogio, un "qué máquina", una pregunta de buen modo). false si es una
+crítica, una cargada, un insulto, una queja o le parece caro: a eso no se
+le hace nada.`
+    : `ESTO ES UN MENSAJE PRIVADO: te escribió. "responder" va true y "megusta"
+false.`;
 
   return `${quien}
 
+${deDonde}
+
 Estás atendiendo por ${CANAL[canal] ?? canal}.
+${comentario}
 ${yaHablamos
   ? `YA ESTÁN CHARLANDO: en esta conversación ya le escribimos. No saludes de
 nuevo ni arranques con "Hola, cómo estás?". Seguí la charla donde quedó.`
@@ -283,7 +321,7 @@ PASALO A UNA PERSONA, poniendo el motivo en "pasar_a_persona", si
 - pregunta algo que no esté en estas instrucciones
 En esos casos el mensaje es corto y dice que en un rato le escribe alguien.
 
-${desdeAnuncio}${deDonde}
+${desdeAnuncio}
 
 LOS MENSAJES ENTRE CORCHETES del historial, como "[Mandó una foto]", dicen
 qué mandó la persona cuando no fue texto. Las fotos no las ves, pero sabés

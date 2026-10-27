@@ -1483,6 +1483,62 @@ $('#aHumano').addEventListener('click', async () => {
   } catch (err) { avisar(err.message, true); }
 });
 
+/* ── PROBAR LA IA SIN MANDAR NADA ────────────────────────────────
+
+   La IA contesta sola. Lo único que no se puede revisar después de que
+   mandó es lo que mandó, así que esto corre la misma decisión sobre
+   mensajes reales que ya entraron y muestra qué haría con cada uno.
+
+   SE MIRA UNA COSA SOLA: a quién le escribe. Un comentario que es sólo
+   una opinión tiene que caer en "no le escribe". Si le escribe a todos,
+   la decisión está mal y hay que arreglarla antes de dejarlo correr. */
+$('#probarIA').addEventListener('click', async () => {
+  const boton = $('#probarIA');
+  const donde = $('#decisiones');
+
+  boton.disabled = true;
+  boton.textContent = 'Pensando…';
+  donde.innerHTML = '';
+
+  try {
+    const r = await api('/api/admin/chats/probar', {
+      method: 'POST',
+      body: JSON.stringify({ cuantas: 10 }),
+    });
+
+    const d = r.decisiones ?? [];
+    if (!d.length) {
+      donde.innerHTML = '<p class="nota">No hay mensajes para probar.</p>';
+      return;
+    }
+
+    donde.innerHTML = d.map((x) => {
+      const escribe = x.responder || x.derivar;
+      const veredicto = x.falla
+        ? 'Se rompió'
+        : escribe ? (x.derivar ? 'La pasa a una persona' : 'Le escribe')
+                  : 'No le escribe';
+
+      return '<div class="decision">' +
+        '<p class="quien">' +
+          '<span>' + escapar(x.nombre || 'Sin nombre') + '</span>' +
+          '<span class="veredicto' + (escribe ? ' veredicto--si' : '') + '">' +
+            escapar(veredicto) + '</span>' +
+          '<span class="veredicto">' + escapar(x.clase || 'mensaje') + '</span>' +
+        '</p>' +
+        '<p class="dijo">' + escapar(x.le_dijo || '') + '</p>' +
+        '<p class="diria' + (escribe ? '' : ' diria--no') + '">' +
+          escapar(x.falla || x.texto || '') + '</p>' +
+      '</div>';
+    }).join('');
+  } catch (err) {
+    avisar(err.message, true);
+  } finally {
+    boton.disabled = false;
+    boton.textContent = 'Probar la IA sin mandar nada';
+  }
+});
+
 /* ── el borrado a pedido ─────────────────────────────────────────
    Diez días hábiles es el plazo que declaramos, y lo que se borra es
    todo: la conversación y los mensajes, en los tres canales, buscando
@@ -1540,6 +1596,14 @@ function pintarBot(cfg) {
   $$('#botModo select[data-canal]').forEach((s) => { s.value = cfg.modo[s.dataset.canal]; });
   $('#botDesde').value = cfg.desde ?? '';
   $('#botHasta').value = cfg.hasta ?? '';
+
+  /* EL INTERRUPTOR GENERAL. Si está apagado en el código (CONTESTA_SOLA),
+     elegir "Automático" acá no haría nada: se dice y no se deja. */
+  $$('#botModo select, #botGuardar').forEach((el) => { el.disabled = Boolean(cfg.apagado); });
+  if (cfg.apagado) {
+    $('#botNota').textContent = 'La respuesta automática está apagada desde el código: el bot no le contesta solo a nadie, en ningún canal. Escribe un borrador cuando lo pedís, y lo mandás vos.';
+    return;
+  }
 
   const solos = Object.entries(cfg.modo).filter(([, m]) => m === 'automatico')
     .map(([c]) => CANALES[c]);

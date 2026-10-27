@@ -626,6 +626,33 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   text-transform:uppercase; color:var(--apagado);
 }
 .barra-estado .barra-fill{ transition:width .4s var(--ease) }
+
+/* PROBAR LA IA: EL VEREDICTO PRIMERO, DESPUES EL TEXTO.
+   Lo que se viene a buscar acá es una sola cosa — a este le escribe o no
+   le escribe. Eso va arriba, corto y en mayusculas. El texto que
+   hubiera mandado va abajo, en tipografia mas chica: importa, pero
+   recien cuando ya se sabe de que lado cayo. */
+.probar{ margin:1.6rem 0 0; border-top:1px solid var(--linea); padding-top:1.2rem }
+.probar .nota{ margin:.5rem 0 0 }
+.decision{
+  border:1px solid var(--linea); border-radius:3px; background:var(--panel);
+  padding:.75rem .85rem; margin:.7rem 0 0; display:grid; gap:.4rem;
+}
+.decision .quien{
+  display:flex; flex-wrap:wrap; gap:.5rem; align-items:baseline;
+  font-size:.56rem; font-weight:700; letter-spacing:.14em;
+  text-transform:uppercase;
+}
+.decision .veredicto{ color:var(--apagado) }
+/* Le escribe: lleno. No le escribe: apenas marcado. En este panel lo
+   relleno es lo que pasa y lo tenue es lo que no. */
+.decision .veredicto--si{
+  color:var(--void); background:var(--chrome);
+  padding:.25em .55em; border-radius:100px;
+}
+.decision .dijo{ font-size:.8rem; color:var(--apagado); font-style:italic }
+.decision .diria{ font-size:.85rem; line-height:1.5; white-space:pre-wrap }
+.decision .diria--no{ opacity:.45 }
 /* De cuando es lo que se esta viendo. Un dato viejo a la vista le gana
    a uno nuevo dentro de quince segundos, pero solo si dice su fecha. */
 .leido{
@@ -797,6 +824,23 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 
       <div class="bandeja" id="chats"></div>
       <div class="vacio oculto" id="sinChats">Todavía no entró ningún mensaje.</div>
+
+      <!-- PROBAR LA IA SIN MANDAR NADA.
+           La IA contesta sola, y lo que manda ya no se puede revisar
+           antes. Esto corre la misma decision sobre las conversaciones
+           que ya estan guardadas y muestra que haria con cada una: a
+           quien le escribiria, a quien no, y con que texto.
+
+           Esta aca abajo y no arriba a propósito: es una herramienta
+           para revisar, no algo que haga falta todos los dias. -->
+      <div class="probar">
+        <button class="btn" id="probarIA" type="button">Probar la IA sin mandar nada</button>
+        <p class="nota">
+          Decide sobre los últimos diez mensajes que ya entraron. No le
+          escribe a nadie y no cambia nada.
+        </p>
+        <div id="decisiones"></div>
+      </div>
 
       <!-- EL BORRADO A PEDIDO.
            Está acá y no escondido en la ficha de cada chat porque el
