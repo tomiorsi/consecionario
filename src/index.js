@@ -21,7 +21,9 @@
    sube. Ver `achicar()` en el panel. */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { DurableObject } from 'cloudflare:workers';
 import { PANEL } from './admin.js';
+import { instruccionesDelBot } from './instrucciones.js';
 
 const GRUPOS = ['alta-gama', 'evolution', 'deportivos', 'urbanos'];
 const TAMANOS = ['1600', '640'];
@@ -524,6 +526,16 @@ async function firmaDeMetaValida(crudo, cabecera, secreto) {
    (entregado, leído) porque no son mensajes de nadie, y los `is_echo` de
    Instagram y Messenger, que son nuestras propias respuestas volviendo.
    Guardar un eco sería guardar dos veces lo que ya escribimos nosotros. */
+/* DE QUÉ ANUNCIO VINO, si vino de uno. Cada canal lo manda con otra
+   forma; acá queda una sola: id, título y texto del anuncio. */
+function anuncioDe(ref, canal) {
+  if (!ref) return null;
+  const a = canal === 'whatsapp'
+    ? { id: ref.source_id ?? null, titulo: ref.headline ?? null, texto: ref.body ?? null }
+    : { id: ref.ad_id ?? null, titulo: ref.ads_context_data?.ad_title ?? null, texto: null };
+  return a.id || a.titulo || a.texto ? JSON.stringify(a) : null;
+}
+
 function mensajesDelAviso(aviso) {
   const salida = [];
   if (!aviso?.entry) return salida;
@@ -553,24 +565,35 @@ function mensajesDelAviso(aviso) {
             nombre: nombres[m.from] ?? null,
             mensaje_id: m.id,
             tipo: tipoConocido(m.type),
-            texto: m.text?.body ?? null,
+            /* Una foto con leyenda trae texto igual: "este es el mío,
+               tiene 40 mil km" es justo lo que el bot tiene que leer. */
+            texto: m.text?.body ?? m[m.type]?.caption ?? null,
             clase: 'mensaje',
             media_id: null,
+            anuncio: anuncioDe(m.referral, canal),
           });
         }
       }
     } else {
       for (const ev of entrada.messaging ?? []) {
+        /* En Messenger e Instagram el anuncio puede llegar solo, al abrir
+           la conversación, antes del primer mensaje. Se guarda igual. */
+        if (!ev?.message && ev?.referral && ev.sender?.id) {
+          salida.push({ canal, externo_id: ev.sender.id, nombre: null,
+            soloAnuncio: true, anuncio: anuncioDe(ev.referral, canal) });
+          continue;
+        }
         if (!ev?.message || ev.message.is_echo) continue;
         salida.push({
           canal,
           externo_id: ev.sender?.id,
           nombre: null,
           mensaje_id: ev.message.mid,
-          tipo: ev.message.text ? 'texto' : 'otro',
+          tipo: ev.message.text ? 'texto' : tipoConocido(ev.message.attachments?.[0]?.type),
           texto: ev.message.text ?? null,
           clase: 'mensaje',
           media_id: null,
+          anuncio: anuncioDe(ev.message.referral ?? ev.referral, canal),
         });
       }
 
@@ -612,7 +635,8 @@ function mensajesDelAviso(aviso) {
 const TIPOS_MENSAJE = ['texto','imagen','audio','video','documento','ubicacion'];
 const tipoConocido = (t) => {
   const mapa = { image: 'imagen', audio: 'audio', video: 'video',
-                 document: 'documento', location: 'ubicacion', text: 'texto' };
+                 document: 'documento', file: 'documento',
+                 location: 'ubicacion', text: 'texto' };
   const v = mapa[t] ?? t;
   return TIPOS_MENSAJE.includes(v) ? v : 'otro';
 };
@@ -625,34 +649,59 @@ const tipoConocido = (t) => {
    nada y no rompe.
 
    `ultimo` se pisa en cada mensaje porque es el reloj de los 12 meses de
-   conservación. */
+   conservación.
+
+   DEVUELVE QUÉ MENSAJES PRIVADOS ENTRARON RECIÉN, con su conversación:
+   es lo que el bot necesita para saber a quién contestar. Un reintento
+   de Meta no escribe nada y por eso no aparece: no se contesta dos veces
+   el mismo mensaje. */
+/* ¿YA ESTÁ LA COLUMNA DEL ANUNCIO? (esquema/012-anuncio.sql)
+   La web se publica sola al subir código, y la base se cambia a mano:
+   puede pasar que el código llegue antes que la columna. Sin esto, cada
+   mensaje que entrara en ese rato fallaría al guardarse. Se pregunta una
+   vez por arranque del Worker. */
+let conAnuncio = null;
+async function hayColumnaAnuncio(env) {
+  if (conAnuncio === null) {
+    const { results } = await env.DB.prepare('PRAGMA table_info(conversaciones)').all();
+    conAnuncio = (results ?? []).some((c) => c.name === 'anuncio');
+  }
+  return conAnuncio;
+}
+
 async function guardarEntrantes(env, lista) {
-  /* LAS CONVERSACIONES QUE HAY QUE CONTESTAR, y sólo ésas. Devuelve los
-     ids donde entró un mensaje NUEVO de la otra persona.
-
-     "Nuevo" es literal: Meta reintenta el mismo aviso, y un reintento
-     que vuelva a disparar al bot le manda dos veces lo mismo al cliente.
-     El INSERT OR IGNORE ya lo frena en la base, así que acá se mira si
-     escribió algo (`changes`); si no escribió, el mensaje ya estaba y no
-     hay nada que contestar. */
-  const paraContestar = new Set();
-
+  const anuncioOk = await hayColumnaAnuncio(env);
+  /* LAS CONVERSACIONES QUE HAY QUE CONTESTAR, y sólo ésas: dónde entró
+     un mensaje NUEVO de la otra persona, privado o comentario, con el id
+     de ese mensaje. "Nuevo" es literal: un reintento de Meta no escribe
+     nada en la base (INSERT OR IGNORE) y por eso no aparece. */
+  const disparos = [];
   for (const m of lista) {
-    const conv = await env.DB.prepare(
-      `INSERT INTO conversaciones (canal, externo_id, nombre)
-            VALUES (?, ?, ?)
-       ON CONFLICT (canal, externo_id) DO UPDATE SET
-            ultimo = datetime('now'),
-            nombre = COALESCE(excluded.nombre, conversaciones.nombre)
-         RETURNING id`
-    ).bind(m.canal, m.externo_id, m.nombre).first();
+    const conv = anuncioOk
+      ? await env.DB.prepare(
+        `INSERT INTO conversaciones (canal, externo_id, nombre, anuncio)
+              VALUES (?, ?, ?, ?)
+         ON CONFLICT (canal, externo_id) DO UPDATE SET
+              ultimo = datetime('now'),
+              nombre = COALESCE(excluded.nombre, conversaciones.nombre),
+              anuncio = COALESCE(excluded.anuncio, conversaciones.anuncio)
+           RETURNING id`
+      ).bind(m.canal, m.externo_id, m.nombre, m.anuncio ?? null).first()
+      : await env.DB.prepare(
+        `INSERT INTO conversaciones (canal, externo_id, nombre)
+              VALUES (?, ?, ?)
+         ON CONFLICT (canal, externo_id) DO UPDATE SET
+              ultimo = datetime('now'),
+              nombre = COALESCE(excluded.nombre, conversaciones.nombre)
+           RETURNING id`
+      ).bind(m.canal, m.externo_id, m.nombre).first();
 
-    if (!conv?.id) continue;
+    if (!conv?.id || m.soloAnuncio) continue;
 
     /* `direccion` puede venir en el aviso: un comentario nuestro es
        saliente aunque llegue por el mismo webhook que los entrantes.
        Lo que no la trae es entrante, que es el caso normal. */
-    const escrito = await env.DB.prepare(
+    const r = await env.DB.prepare(
       `INSERT OR IGNORE INTO mensajes
          (conversacion_id, externo_id, direccion, tipo, texto, clase, media_id)
        VALUES (?, ?, ?, ?, ?, ?, ?)`
@@ -661,13 +710,14 @@ async function guardarEntrantes(env, lista) {
       m.tipo, m.texto, m.clase ?? 'mensaje', m.media_id ?? null
     ).run();
 
-    const esNuevo = (escrito?.meta?.changes ?? 0) > 0;
-    if (esNuevo && (m.direccion ?? 'entrante') === 'entrante') {
-      paraContestar.add(conv.id);
+    if (r.meta?.changes && (m.direccion ?? 'entrante') === 'entrante') {
+      /* Si la misma persona mandó varios en un aviso, cuenta el último. */
+      const previo = disparos.find((d) => d.conversacion === conv.id);
+      if (previo) previo.mensaje = r.meta.last_row_id;
+      else disparos.push({ conversacion: conv.id, canal: m.canal, mensaje: r.meta.last_row_id });
     }
   }
-
-  return [...paraContestar];
+  return disparos;
 }
 
 /* ── INSTAGRAM: CONTESTAR ────────────────────────────────────────
@@ -710,20 +760,6 @@ async function igLlamar(env, camino, opciones = {}) {
     throw new Error(dato?.error?.message || `Instagram contestó ${r.status}`);
   }
   return dato;
-}
-
-/* MANDAR UN MENSAJE.
-   `destino` es el id de la persona (para un DM) o el id de un comentario
-   (para una respuesta privada). Son el mismo endpoint y cambia una sola
-   clave adentro de `recipient`, así que es una sola función. */
-async function mandarPorInstagram(env, destino, texto, { esComentario = false } = {}) {
-  return igLlamar(env, '/me/messages', {
-    method: 'POST',
-    body: JSON.stringify({
-      recipient: esComentario ? { comment_id: destino } : { id: destino },
-      message: { text: texto },
-    }),
-  });
 }
 
 /* DAR ME GUSTA A UN COMENTARIO.
@@ -779,13 +815,16 @@ async function avisarEnElComentario(env, comentarioId) {
 
 /* Deja asentado lo que mandamos, en la misma conversación.
    `autor` separa lo que escribió una persona de lo que escribió la IA:
-   es el compromiso de que después se pueda ver quién respondió qué. */
-async function guardarSaliente(env, conversacionId, texto, autor, mensajeId, mediaId) {
+   es el compromiso de que después se pueda ver quién respondió qué.
+   `mediaId` marca la publicación por la que le escribimos (un privado por
+   publicación); `tipo`, si no fue texto. */
+async function guardarSaliente(env, conversacionId, texto, autor, mensajeId,
+  { tipo = 'texto', mediaId = null } = {}) {
   await env.DB.prepare(
     `INSERT OR IGNORE INTO mensajes
        (conversacion_id, externo_id, direccion, autor, tipo, texto, media_id)
-     VALUES (?, ?, 'saliente', ?, 'texto', ?, ?)`
-  ).bind(conversacionId, mensajeId ?? null, autor, texto, mediaId ?? null).run();
+     VALUES (?, ?, 'saliente', ?, ?, ?, ?)`
+  ).bind(conversacionId, mensajeId ?? null, autor, tipo, texto, mediaId ?? null).run();
 
   await env.DB.prepare(
     `UPDATE conversaciones SET ultimo = datetime('now') WHERE id = ?`
@@ -849,7 +888,7 @@ async function traerDeInstagram(env, { limite = 25 } = {}) {
 
   for (const c of paginas) {
     const detalle = await igLlamar(env,
-      `/${c.id}?fields=messages.limit(25){id,created_time,from{id,username},to{id,username},message}`);
+      `/${c.id}?fields=messages.limit(25){id,created_time,from{id,username},to{id,username},message,attachments}`);
 
     for (const m of detalle?.messages?.data ?? []) {
       leidos++;
@@ -874,13 +913,21 @@ async function traerDeInstagram(env, { limite = 25 } = {}) {
          que cuando Instagram no manda la fecha, la columna no se nombra
          y la pone la base. */
       const cuando = (m.created_time || '').replace('T', ' ').slice(0, 19);
+      /* UNA FOTO SIN TEXTO VIENE COMO MENSAJE VACÍO, con el adjunto
+         aparte. Guardada como texto vacío desaparecía, y el bot volvía a
+         pedir las fotos que el cliente ya había mandado. */
+      const adjunto = m.attachments?.data?.[0];
+      const tipo = m.message ? 'texto'
+        : adjunto?.image_data ? 'imagen'
+        : adjunto?.video_data ? 'video'
+        : adjunto ? 'otro' : 'texto';
       const campos = ['conversacion_id', 'externo_id', 'direccion', 'autor', 'tipo', 'texto'];
       const valores = [
         fila.id, m.id,
         mio ? 'saliente' : 'entrante',
         mio ? 'persona' : null,
-        'texto',
-        m.message ?? null,
+        tipo,
+        m.message || null,
       ];
       if (cuando) { campos.push('creado'); valores.push(cuando); }
 
@@ -1197,203 +1244,116 @@ async function instagramNumeros(env, { cuantas = 24 } = {}) {
   return { perfil, cuenta, publico, publicaciones };
 }
 
-/* HAIKU Y NO OPUS. Lo eligió Tomás y para esto cierra: son dos
+/* ══════════════════════════════════════════════════════════════════
+   EL BOT
+   ══════════════════════════════════════════════════════════════════
+
+   QUÉ DICE Y CÓMO LO DICE ESTÁ EN src/instrucciones.js (y las
+   presentaciones de cada auto en src/presentaciones.js). Acá está lo que
+   lo rodea: qué historial ve, qué stock, de qué publicación o anuncio
+   viene, y qué se hace con lo que contesta.
+
+   HAIKU Y NO OPUS. Lo eligió Tomás y para esto cierra: son dos
    renglones de atención al cliente con las reglas servidas, no un
    problema difícil. Sale unas cuarenta veces más barato. */
 const MODELO = 'claude-haiku-5-5';
 
-/* LAS INSTRUCCIONES SON CORTAS A PROPÓSITO.
-   Antes decían tres veces "no inventes" y explicaban el porqué de cada
-   regla. A un modelo el porqué no le suma y el ruido le resta — y con
-   Haiku más, que responde mejor a reglas cortas e imperativas que a
-   párrafos. Cada línea de acá abajo tapa un error concreto que el bot
-   podría cometer; si se agrega una, que sea por un error nuevo.
+/* CONTESTA EN UNA FORMA FIJA Y NO EN TEXTO SUELTO.
+   Además del mensaje, el bot dice qué ficha de auto mandar, si lo tiene
+   que seguir una persona y —en un comentario— si conviene escribirle y
+   ponerle me gusta. Cada cosa en su campo: el código no interpreta nada.
 
-   LA PERMUTA SE TOMA, Y ESO ANTES ESTABA MAL ESCRITO. Lo que el bot no
-   puede hacer es decir cuánto vale: junta los datos y las fotos, y la
-   diferencia la pasa una persona. */
-function instruccionesDelBot({
-  autos, posteo, nuestro = null, decidiendo = false, esComentario = false,
-}) {
-  /* CADA AUTO CON SU DIRECCIÓN PROPIA, y no la del garage entero.
-     Cuando piden fotos, el link es la respuesta: la ficha las tiene
-     todas. Mandar el garage entero es hacerle buscar de nuevo el auto
-     que acaba de nombrar, y ahí se cae la mitad.
+   `partes`: cada una sale como un mensaje aparte, con pausas.
+   `responder` y `megusta` sólo pesan en un comentario: a un privado se
+   le contesta siempre. */
+const FORMA_DE_RESPUESTA = {
+  type: 'object',
+  properties: {
+    partes: { type: 'array', items: { type: 'string' } },
+    ficha_de: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
+    pasar_a_persona: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    responder: { type: 'boolean' },
+    megusta: { type: 'boolean' },
+  },
+  required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta'],
+  additionalProperties: false,
+};
 
-     Los miles con punto: "USD 72.900" se lee de un vistazo y "USD 72900"
-     hay que contarlo con el dedo. */
-  const conPuntos = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const FORMA_EN_TEXTO = `
 
-  const stock = autos.map((a) => {
-    const precio = a.precio === null
-      ? 'a consultar' : `${a.moneda} ${conPuntos(a.precio)}`;
-    const km = a.km === null || a.km === undefined ? '?' : conPuntos(a.km);
-    return `- ${a.marca} ${a.modelo} ${a.anio ?? ''} · ${km} km · ${precio}` +
-           `${a.color ? ' · ' + a.color : ''}\n` +
-           `  fotos y ficha: ${SITIO}${enlaceDe(a)}`;
-  }).join('\n') || '(no hay autos publicados)';
+TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
+{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false}
+Escribí "partes" siempre, aunque "responder" sea false: así se puede revisar
+qué hubieras dicho.`;
 
-  /* DE DÓNDE SALE ESTO, y qué pusimos nosotros ahí.
-     Es lo que deja al bot atar cabos: si la publicación habla de un auto,
-     el que comenta "cuánto" pregunta por ESE y no hay que preguntarle
-     cuál. Sin esto, cada comentario arranca de cero. */
-  const nuestroTexto = nuestro
-    ? `\n\nY esto lo pusimos nosotros en el primer comentario:\n<<<\n${nuestro}\n>>>`
-    : '';
+/* LO QUE NO ES TEXTO, DICHO CON PALABRAS.
+   Antes un audio o una foto desaparecían del historial que veía el bot,
+   y entonces pedía las fotos que el cliente ya había mandado. Ahora
+   sabe que llegaron, aunque no las vea. */
+const NO_ES_TEXTO = {
+  imagen: '[Mandó una foto]',
+  audio: '[Mandó un audio]',
+  video: '[Mandó un video]',
+  documento: '[Mandó un archivo]',
+  ubicacion: '[Mandó una ubicación]',
+  otro: '[Mandó algo que no es texto]',
+};
 
-  const deDonde = posteo
-    ? `ANTES QUE NADA: ESTO SALE DE UNA PUBLICACIÓN NUESTRA.\nEsto escribimos al publicarla:\n<<<\n${posteo}\n>>>${nuestroTexto}\n\nAHÍ ESTÁ DE QUÉ AUTO TE HABLAN. Leelo primero y fijate qué modelo\nnombra. Ese es el auto, y es el único: si te preguntan "precio?" o\n"cuánto?" te lo preguntan de ESE. NO les preguntes cuál, NO les ofrezcas\notro, NO les pases una lista. Buscalo en el stock de abajo por marca y\nmodelo, y contestá de ese.\n\nSi la publicación no habla de ningún auto, contestá sobre lo que dice y\nno ofrezcas ninguno.\n\nLOS DATOS NO SALEN DE ACÁ. Esto sirve para saber DE QUÉ AUTO hablan y\nnada más. El precio, los kilómetros y si está disponible salen SÓLO del\nstock de abajo, que es el que está al día. Un posteo o un comentario de\nhace meses puede tener un precio viejo: no lo repitas nunca, ni aunque\nlo hayamos escrito nosotros.`
-    : `ESTO NO VIENE DE NINGUNA PUBLICACIÓN. Si no queda claro por qué auto\npreguntan, preguntá cuál antes de dar datos.`;
+/* EL HISTORIAL EN TURNOS, ALTERNADOS Y EMPEZANDO POR LA PERSONA.
+   La API pide que arranque el cliente, así que lo nuestro que haya antes
+   se saltea. Y no puede terminar en un turno nuestro: si lo último lo
+   escribimos nosotros, se le avisa al bot con una línea. */
+function historialParaClaude(mensajes) {
+  const turnos = [];
+  for (const m of mensajes) {
+    const nuestro = m.direccion === 'saliente';
+    const contenido = nuestro
+      ? (m.tipo === 'texto' ? m.texto : m.texto && `[Le mandamos ${m.texto.toLowerCase()}]`)
+      : (m.tipo === 'texto' ? m.texto : NO_ES_TEXTO[m.tipo] ?? NO_ES_TEXTO.otro);
+    if (!contenido) continue;
 
-  return `Sos quien atiende por Instagram en Manna Motors Selected,
-concesionaria de autos seleccionados en Buenos Aires.
+    const rol = nuestro ? 'assistant' : 'user';
+    const anterior = turnos[turnos.length - 1];
+    if (anterior?.role === rol) anterior.content += '\n' + contenido;
+    else if (rol === 'user' || turnos.length) turnos.push({ role: rol, content: contenido });
+  }
 
-${deDonde}
-
-SALUDÁ PRIMERO, SIEMPRE. Un "hola", un "buenas", un "qué tal" y el
-nombre si lo sabés. Recién después contestá. Saludar es respeto y acá no
-se saltea nunca.
-
-TU OBJETIVO es que vengan a ver el auto. Se visita con cita.
-
-PRECIOS Y STOCK — sólo esto. Lo que no está en la lista, no lo tenemos:
-${stock}
-
-NUNCA RECITES LA LISTA. Si no sabés por cuál auto preguntan, preguntá
-cuál: "¿por cuál de los autos preguntás?" y nada más. Tirarle ocho
-modelos encima es mandarle un catálogo, no atenderlo.
-
-PASÁ A UNA PERSONA SÓLO EN DOS CASOS, y en ningún otro:
-- piden hablar con alguien del equipo
-- piden que borremos sus datos
-
-Son los únicos dos. En cualquier otra cosa seguís vos. Si no sabés algo,
-decí que no lo tenés y que te lo confirma una persona, pero seguí
-atendiendo normalmente: no saber un detalle no es pasar la conversación.
-
-DÓNDE ESTAMOS: Pasaje Lanín 154, Barracas, Ciudad de Buenos Aires.
-Escribila así, entera y con la altura: sin el número no la encuentran en
-el mapa. Si preguntan la ubicación, pasásela, y después preguntá qué día
-quiere venir, que el salón se abre con cita.
-
-NO HACEMOS FINANCIACIÓN. Si preguntan, decilo y listo. No es algo que
-confirme una persona después: no existe.
-
-NUNCA des un descuento, una reserva, una seña, ni cuánto vale un auto
-en parte de pago. Eso lo cierra una persona.
-
-PERMUTA: sí tomamos. Pedí marca, modelo, año, kilómetros, estado y
-fotos. Decí que con eso una persona le pasa la diferencia. No des vos
-ningún número, ni aproximado, ni un rango.
-
-FOTOS: no podés mandar fotos por acá. Cada auto tiene su página con
-todas las fotos y la ficha entera: pasá ESE link, el del auto que te
-están preguntando. Nunca el del garage, nunca el de otro auto. Para
-cualquier detalle fino —el color del techo, el equipamiento, el baúl—
-está todo ahí.
-
-EL LINK VA UNA SOLA VEZ. Mirá los mensajes de más arriba: si el de ese
-auto ya se lo pasaste, NO lo vuelvas a escribir. Decí que el dato está
-en la ficha que le pasaste y seguí. Repetir el mismo link en cada
-mensaje es lo que hace un robot.
-
-NO ACLARES QUE SOS UN ASISTENTE. No lo anuncies, no lo firmes, no lo
-cierres con un aviso. Atendés como atiende cualquiera del equipo.
-
-PERO SI TE PREGUNTAN si sos un bot, una máquina o una persona, decí la
-verdad: que sos un asistente con inteligencia artificial y que podés
-pasarle la conversación a alguien del equipo cuando quiera. No lo
-niegues nunca, ni digas que sos una persona, ni te inventes un nombre.
-
-Castellano rioplatense, de vos. Dos o tres renglones. Sin emojis, sin
-signos de exclamación, sin vender humo.${decidiendo ? decidir(esComentario) : ''}`;
-}
-
-/* ── A QUIÉN SE LE ESCRIBE ───────────────────────────────────────
-   ══════════════════════════════════════════════════════════════════
-
-   Esto es lo único que el bot decide por su cuenta, y es la diferencia
-   entre atender y ser spam.
-
-   UN MENSAJE PRIVADO SE CONTESTA SIEMPRE. Alguien se tomó el trabajo de
-   escribirnos: dejarlo sin respuesta es el peor resultado posible.
-
-   UN COMENTARIO, CASI NUNCA. Mandarle un privado a cada uno que comenta
-   "qué lindo" es spam, lo vive como spam y además Instagram lo mide como
-   spam. El privado se gana con una pregunta concreta sobre un auto, y
-   ante la duda no se escribe: un interesado que no recibió el privado
-   vuelve a preguntar, y un privado a quien no preguntó nada no se
-   deshace.
-
-   POR QUÉ SE LE PIDE EL TEXTO AUNQUE DIGA QUE NO. Porque sin el texto no
-   hay cómo revisar la decisión: en el log queda qué hubiera contestado y
-   se puede ver si se está callando donde debería hablar. */
-function decidir(esComentario) {
-  const cuando = esComentario
-    ? `ESTO ES UN COMENTARIO EN UNA PUBLICACIÓN NUESTRA. Nadie te escribió:
-le vas a escribir vos primero, por privado. Así que escribile SÓLO si hay
-algo concreto que contestar de un auto.
-
-responder: false si
-- la publicación no es de un auto de la lista
-- opinó y nada más: "qué lindo", "tremendo", un emoji, una puteada, un
-  chiste, etiquetar a un amigo
-- le habla a otro que comentó, no a nosotros
-- no se entiende qué quiere
-
-responder: true sólo si pregunta algo de un auto: precio, kilómetros,
-año, si está disponible, si lo puede ver, si tomamos permuta.
-
-ANTE LA DUDA, false.
-
-ME GUSTA. Va en true si el comentario es bueno con nosotros o con el
-auto: un elogio, un "qué máquina", aplausos, un corazón, una pregunta
-hecha de buen modo. Eso se agradece aunque no le contestemos.
-
-Va en false, y ahí no se hace nada de nada —ni me gusta, ni respuesta,
-ni derivar—, si es una crítica, una cargada, un insulto, una queja, un
-chiste a costa nuestra, o si le parece caro o un robo. A eso se lo deja
-pasar: ponerle me gusta a quien nos pegó es ridículo, y contestarle es
-darle cuerda adelante de todos.`
-    : `ESTO ES UN MENSAJE PRIVADO: te escribió. responder va true siempre.`;
-
-  return `
-
-${cuando}
-
-Devolvé SÓLO este JSON, sin una palabra antes ni después:
-{"responder": true, "derivar": false, "megusta": false, "texto": "..."}
-
-responder — si le escribimos o no.
-derivar — si de acá sigue una persona.
-megusta — si le ponemos me gusta al comentario.
-texto — lo que le escribimos. Escribilo siempre, incluso si responder es
-false: si derivás, que sea que ya le pasás con alguien del equipo.`;
+  if (turnos[turnos.length - 1]?.role === 'assistant') {
+    turnos.push({
+      role: 'user',
+      content: '[No escribió nada nuevo desde nuestra última respuesta. Escribí un seguimiento corto sólo si suma algo.]',
+    });
+  }
+  return turnos;
 }
 
 /* PIENSA LA RESPUESTA. NO MANDA NADA: eso lo decide quien la llama.
-
-   `decidiendo` cambia lo que se le pide a Claude. Sin eso devuelve un
-   texto y se terminó — es el borrador que escribe el botón del panel.
-   Con eso devuelve además si hay que escribirle y si de ahí sigue una
-   persona, que es lo que hace falta cuando contesta solo.
-
-   ES UNA SOLA FUNCIÓN PARA LOS DOS CASOS A PROPÓSITO. El contexto que
-   junta —el stock, el texto del posteo, el hilo— es idéntico, y tener dos
-   copias garantiza que el día que se arregle una, la otra quede vieja.
-   Lo único que cambia son las instrucciones y qué se lee de la vuelta. */
-async function pensarRespuesta(env, conversacionId, { decidiendo = false } = {}) {
+   Es una sola función para el borrador del panel, para la prueba sin
+   mandar y para cuando contesta solo: el contexto que junta es el mismo,
+   y dos copias garantizan que el día que se arregle una, la otra quede
+   vieja. */
+async function pensarRespuesta(env, conversacionId, { automatico = false } = {}) {
   if (!env.ANTHROPIC_API_KEY) {
     throw new Error('Falta cargar ANTHROPIC_API_KEY en Cloudflare');
   }
 
+  const chat = await env.DB
+    .prepare(`SELECT canal${(await hayColumnaAnuncio(env)) ? ', anuncio' : ''}
+                FROM conversaciones WHERE id = ?`)
+    .bind(conversacionId).first();
+  if (!chat) throw new Error('Esa conversación no está');
+  let anuncio = null;
+  try { anuncio = chat.anuncio ? JSON.parse(chat.anuncio) : null; } catch { /* viejo o roto */ }
+
   const { results: mensajes } = await env.DB.prepare(
-    `SELECT direccion, autor, texto, clase, media_id, externo_id
+    `SELECT direccion, autor, tipo, texto, clase, media_id, externo_id
        FROM mensajes WHERE conversacion_id = ?
       ORDER BY creado, id`
   ).bind(conversacionId).all();
 
-  const todos = (mensajes ?? []).filter((m) => m.texto);
+  /* Lo que tiene algo: un texto, o una foto o un audio aunque no traiga
+     texto. Un mensaje vacío no le dice nada al bot. */
+  const todos = (mensajes ?? []).filter((m) => m.texto || m.tipo !== 'texto');
   if (!todos.length) throw new Error('No hay nada que contestar todavía');
 
   const ultimo = todos[todos.length - 1];
@@ -1401,37 +1361,36 @@ async function pensarRespuesta(env, conversacionId, { decidiendo = false } = {})
 
   /* ── EL CONTEXTO DE UN COMENTARIO NO ES EL HILO ──────────────────
 
-     Acá estaba el ruido. Una "conversación" es una persona, no una
-     charla: si alguien comentó cuarenta y seis veces en dieciséis
-     publicaciones distintas a lo largo de meses, las cuarenta y seis
-     entraban juntas como si fueran un diálogo seguido — y encima con el
-     texto de UNA sola de las dieciséis. El modelo tenía que adivinar de
-     qué se estaba hablando entre pedazos de dieciséis temas.
+     Una "conversación" es una persona, no una charla: si alguien comentó
+     cuarenta y seis veces en dieciséis publicaciones, las cuarenta y seis
+     no son un diálogo seguido.
 
-     UN COMENTARIO SE MIRA SOLO, contra su publicación. Lo que entra es
-     lo que esa persona escribió EN ESA publicación y nada más. Si
-     comentó tres veces abajo del mismo posteo, las tres: eso sí es un
-     hilo. Lo que dijo en otro posteo hace dos meses, no.
+     UN COMENTARIO SE MIRA SOLO, contra su publicación: lo que esa persona
+     escribió EN ESA publicación y nada más.
 
-     UN PRIVADO SÍ ES UNA CHARLA, pero sólo con los privados: los
-     comentarios viejos no son parte de ella. Y los últimos veinte, que
-     más atrás ya no se está hablando de lo mismo. */
+     UN PRIVADO SÍ ES UNA CHARLA, pero sólo con los privados, y los
+     últimos veinte: más atrás ya no se está hablando de lo mismo. */
   const privados = todos.filter((m) => m.clase !== 'comentario').slice(-20);
-
   const hilo = esComentario
     ? todos.filter((m) => m.clase === 'comentario' && m.media_id === ultimo.media_id)
     : (privados.length ? privados : [ultimo]);
 
+  const turnos = historialParaClaude(hilo);
+  if (!turnos.length) throw new Error('No hay nada que contestar todavía');
+
+  /* EL STOCK ENTERO, CON LO QUE EL CLIENTE PUEDE PREGUNTAR. */
   const { results: autos } = await env.DB.prepare(
-    `SELECT id, marca, modelo, anio, km, precio, moneda, color, estado
-       FROM autos WHERE estado = 'publicado' ORDER BY marca, modelo`
+    `SELECT a.id, a.marca, a.modelo, a.anio, a.km, a.precio, a.moneda,
+            a.motor, a.transmision, a.combustible, a.color, a.descripcion,
+            (SELECT COUNT(*) FROM fotos f WHERE f.auto_id = a.id) AS fotos
+       FROM autos a WHERE a.estado = 'publicado'
+      ORDER BY a.orden, a.creado DESC`
   ).all();
 
   /* DE QUÉ PUBLICACIÓN SALE ESTO.
      En un comentario, la suya. En un privado, la del comentario que lo
-     originó — pero sólo si fue lo último que pasó: si hay que irse diez
-     mensajes atrás para encontrarlo, ya no es de eso que están
-     hablando, y arrastrarlo confunde más de lo que ayuda. */
+     originó — pero sólo si fue de lo último que pasó: si hay que irse
+     diez mensajes atrás, ya no es de eso que están hablando. */
   const origen = esComentario
     ? ultimo
     : [...todos].slice(-4).reverse().find((m) => m.media_id);
@@ -1441,21 +1400,14 @@ async function pensarRespuesta(env, conversacionId, { decidiendo = false } = {})
 
   if (origen?.media_id) {
     /* El texto sale de las estadísticas que ya tenemos guardadas, así
-       que no cuesta una llamada a Instagram. Si todavía no se leyeron,
-       el bot se arregla sin eso. */
+       que no cuesta una llamada a Instagram. */
     const guardado = (await leerEstado(env, 'instagram_numeros'))?.valor;
     posteo = (guardado?.publicaciones ?? [])
       .find((p) => p.id === origen.media_id)?.texto ?? null;
 
-    /* Y SI NO ESTÁ GUARDADA, SE PREGUNTA.
-       Acá se rompía de verdad. Lo guardado son las publicaciones que
-       entraron en la última lectura, y la gente comenta en posteos de
-       hace meses: el comentario que destapó esto colgaba de uno que no
-       estaba. Sin el texto el bot queda ciego y termina preguntando "de
-       cuál auto" abajo de una publicación que dice cuál.
-
-       Es una sola llamada y sólo cuando falta. Si tampoco sale, se sigue
-       sin ella: las instrucciones ya dicen qué hacer a oscuras. */
+    /* Y SI NO ESTÁ GUARDADA, SE PREGUNTA. La gente comenta en posteos de
+       hace meses, que no entraron en la última lectura. Una llamada y
+       sólo cuando falta; si tampoco sale, se sigue sin ella. */
     if (!posteo) {
       try {
         const m = await igLlamar(env, `/${origen.media_id}?fields=caption`);
@@ -1465,253 +1417,485 @@ async function pensarRespuesta(env, conversacionId, { decidiendo = false } = {})
       }
     }
 
-    /* Y EL COMENTARIO QUE PONEMOS NOSOTROS ABAJO, si hay.
-       No las respuestas a la gente —esas arrancan con la arroba— sino
-       lo que escribimos al publicar, que es donde suelen ir los datos
-       que no entraron en la descripción. */
+    /* Y EL COMENTARIO QUE PONEMOS NOSOTROS AL PUBLICAR, si hay: ahí
+       suelen ir los datos que no entraron en la descripción. No las
+       respuestas a la gente, que arrancan con la arroba. */
     const propio = await env.DB.prepare(
       `SELECT texto FROM mensajes
         WHERE media_id = ? AND clase = 'comentario' AND direccion = 'saliente'
           AND texto IS NOT NULL AND texto NOT LIKE '@%'
         ORDER BY creado, id LIMIT 1`
     ).bind(origen.media_id).first();
-
     nuestro = propio?.texto ?? null;
   }
 
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-
-  const respuesta = await client.messages.create({
+  const pedido = {
     model: MODELO,
-    max_tokens: 1000,
-    /* Esfuerzo bajo: son dos renglones de atención al cliente, no un
-       problema difícil. Subirlo acá es pagar de más por pensar algo
-       que no lo necesita. */
+    max_tokens: 4000,
+    /* Esfuerzo bajo: son dos renglones de atención al cliente.
+       SIN FORMATO FORZADO MIENTRAS PUEDE BUSCAR: las búsquedas traen
+       citas, y las citas no conviven con un formato JSON forzado. La
+       forma se pide en las instrucciones y se lee con tolerancia abajo. */
     output_config: { effort: 'low' },
     system: instruccionesDelBot({
-      autos: autos ?? [], posteo, nuestro, decidiendo, esComentario,
-    }),
-    messages: hilo.map((m) => ({
-      role: m.direccion === 'entrante' ? 'user' : 'assistant',
-      content: m.texto,
-    })),
-  });
+      autos: autos ?? [], posteo, nuestro, anuncio, canal: chat.canal,
+      automatico, esComentario,
+      /* Si ya le escribimos por privado, no vuelve a saludar. Lo decide
+         el código y no el bot: en una charla larga, el bot se olvidaba. */
+      yaHablamos: privados.some((m) => m.direccion === 'saliente'),
+    }) + FORMA_EN_TEXTO,
+    /* BUSCAR EN LA WEB, PARA NO PREGUNTAR LO QUE SE PUEDE AVERIGUAR: si
+       el auto del cliente es manual o automático. La búsqueda es sobre
+       el modelo, nunca sobre la persona, y la hace Anthropic, que ya está
+       declarado. Dos por respuesta como mucho. */
+    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }],
+    messages: turnos,
+  };
 
-  const crudo = (respuesta.content ?? [])
-    .filter((b) => b.type === 'text').map((b) => b.text).join('\n').trim();
+  let respuesta;
+  try {
+    respuesta = await client.messages.create(pedido);
+  } catch (e) {
+    /* Si la cuenta no tiene la búsqueda web habilitada, se contesta igual
+       sin buscar y con el formato forzado. */
+    if (!(e instanceof Anthropic.BadRequestError)) throw e;
+    console.error('Sin búsqueda web:', e.message);
+    const { tools, ...sinBuscar } = pedido;
+    respuesta = await client.messages.create({
+      ...sinBuscar,
+      output_config: { effort: 'low', format: { type: 'json_schema', schema: FORMA_DE_RESPUESTA } },
+    });
+  }
 
-  if (!crudo) throw new Error('Claude no devolvió una respuesta');
-  if (!decidiendo) return { texto: crudo, conPosteo: Boolean(posteo), ultimo };
+  /* Una búsqueda larga puede cortar el turno a la mitad (`pause_turn`):
+     se le devuelve lo que llevaba para que siga, una vez. */
+  if (respuesta.stop_reason === 'pause_turn') {
+    respuesta = await client.messages.create({
+      ...pedido,
+      messages: [...turnos, { role: 'assistant', content: respuesta.content }],
+    });
+  }
+
+  if (respuesta.stop_reason === 'refusal') {
+    throw new Error('Claude no quiso contestar esta conversación');
+  }
 
   /* TOLERANTE AL LEER, ESTRICTO AL DECIDIR.
-     Claude puede envolver el JSON en un "acá va:" o en un bloque de
-     código, y eso no es motivo para no contestarle a un cliente: se
-     busca de la primera llave a la última. Lo que no se perdona es que
-     adentro falte algo — ahí tira, y quien llama no manda nada. */
-  const abre = crudo.indexOf('{');
-  const cierra = crudo.lastIndexOf('}');
-  if (abre < 0 || cierra < abre) throw new Error('Claude no devolvió una decisión');
+     La respuesta es el texto que viene después de la última búsqueda, y
+     del objeto JSON se toma de la primera llave a la última. Lo que no se
+     perdona es que adentro falte el mensaje: ahí tira, y quien llama no
+     manda nada. */
+  const bloques = respuesta.content ?? [];
+  const ultimaBusqueda = bloques.map((b) => b.type).lastIndexOf('web_search_tool_result');
+  const final = bloques.slice(ultimaBusqueda + 1)
+    .filter((b) => b.type === 'text').map((b) => b.text).join('');
+  let dato = null;
+  try { dato = JSON.parse(final.slice(final.indexOf('{'), final.lastIndexOf('}') + 1)); } catch { /* abajo */ }
 
-  const d = JSON.parse(crudo.slice(abre, cierra + 1));
-  const texto = typeof d?.texto === 'string' ? d.texto.trim() : '';
-  if (!texto) throw new Error('La decisión vino sin texto');
+  const partes = (Array.isArray(dato?.partes) ? dato.partes : [])
+    .map((t) => String(t ?? '').trim()).filter(Boolean).slice(0, 4);
+  if (!partes.length) throw new Error('Claude no devolvió una respuesta');
+
+  /* El número de auto se cruza con el stock: uno inventado o vendido no
+     llega a ningún lado. */
+  const auto = (autos ?? []).find((a) => a.id === dato.ficha_de);
 
   return {
-    texto, conPosteo: Boolean(posteo), ultimo,
-    responder: d.responder === true,
-    derivar: d.derivar === true,
-    megusta: d.megusta === true,
+    partes,
+    texto: partes.join('\n\n'),
+    autoId: auto?.id ?? null,
+    derivar: dato.pasar_a_persona ? String(dato.pasar_a_persona).slice(0, 200) : null,
+    /* A un privado se le contesta siempre; a un comentario, si el bot
+       decide que hay algo concreto que contestar. */
+    responder: esComentario ? dato.responder === true : true,
+    megusta: esComentario && dato.megusta === true,
+    conPosteo: Boolean(posteo),
+    esComentario,
+    ultimo,
   };
 }
 
-/* El botón del panel. Devuelve el borrador y nada más: lo de adentro no
-   le sirve a la pantalla. */
-async function borradorDeRespuesta(env, conversacionId) {
-  const { texto, conPosteo } = await pensarRespuesta(env, conversacionId);
-  return { texto, conPosteo };
+/* ── LA FICHA DE UN AUTO, EN VEZ DE FOTOS SUELTAS ────────────────
+
+   ASÍ LO HACE MAXI A MANO: no manda fotos, manda el link del auto en el
+   garage. WhatsApp, Instagram y Messenger arman solos la vista previa con
+   la portada, y desde ahí el cliente ve todas las fotos y los datos. */
+async function fichaDe(env, autoId) {
+  const auto = await env.DB.prepare(
+    `SELECT id, marca, modelo, anio FROM autos WHERE id = ? AND estado = 'publicado'`
+  ).bind(autoId).first();
+  if (!auto) return null;
+  return {
+    titulo: [auto.marca, auto.modelo, auto.anio].filter(Boolean).join(' '),
+    enlace: SITIO + enlaceDe(auto),
+  };
+}
+
+/* ── MANDAR, POR CUALQUIERA DE LOS TRES ──────────────────────────
+
+   UNA FUNCIÓN PARA LOS TRES CANALES. Lo que cambia es la dirección, la
+   llave y la forma del pedido; quien llama no tiene que saber por dónde
+   sale.
+
+   CADA CANAL CON SU LLAVE, cargada con `wrangler secret put`:
+   - WhatsApp: WHATSAPP_TOKEN (y el número en WHATSAPP_PHONE_ID).
+   - Messenger: META_PAGE_TOKEN, el de la página de Facebook.
+   - Instagram: META_IG_TOKEN, el que ya se usa.
+
+   EL ERROR DE META VUELVE TAL CUAL: si se venció la ventana de 24 horas,
+   si falta un permiso o si el token murió, lo dice con todas las letras,
+   y eso es lo que tiene que leer el que está atendiendo. */
+const GRAPH = 'https://graph.facebook.com/v23.0';
+
+async function graphMandar(token, nombre, camino, cuerpo) {
+  if (!token) throw new Error(`Falta cargar ${nombre} en Cloudflare`);
+  const r = await fetch(GRAPH + camino, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify(cuerpo),
+  });
+  const dato = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const e = new Error(dato?.error?.message || `Meta contestó ${r.status}`);
+    e.codigo = dato?.error?.code ?? null;
+    throw e;
+  }
+  return dato;
+}
+
+/* LOS CELULARES DE ARGENTINA LLEGAN CON EL 9 (549 11 ...), y en modo de
+   prueba Meta suele rechazar la respuesta a ese número con "no está en
+   la lista de destinatarios" (código 131030), porque lo tiene anotado
+   sin el 9. Se reintenta una vez sin el 9. Con un número de producción
+   no pasa, y si pasa con otro error, el error sube tal cual. */
+const SIN_EL_NUEVE = (n) => (/^549\d{10}$/.test(n) ? '54' + n.slice(3) : null);
+
+/* `comentarioId`: en Instagram, la respuesta privada a un comentario.
+   A alguien que nunca nos escribió no se le puede abrir un privado; la
+   respuesta privada a su comentario es la única puerta, dura 7 días y se
+   usa UNA sola vez. */
+async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
+  if (chat.canal === 'whatsapp') {
+    /* `preview_url` es lo que hace que un link salga con su foto. */
+    const mandarA = (to) => graphMandar(env.WHATSAPP_TOKEN, 'WHATSAPP_TOKEN',
+      `/${env.WHATSAPP_PHONE_ID}/messages`, {
+        messaging_product: 'whatsapp',
+        to,
+        type: 'text',
+        text: { body: texto, preview_url: true },
+      });
+    let r;
+    try {
+      r = await mandarA(chat.externo_id);
+    } catch (e) {
+      const otro = e.codigo === 131030 && SIN_EL_NUEVE(chat.externo_id);
+      if (!otro) throw e;
+      r = await mandarA(otro);
+    }
+    return r?.messages?.[0]?.id ?? null;
+  }
+
+  if (chat.canal === 'messenger') {
+    const r = await graphMandar(env.META_PAGE_TOKEN, 'META_PAGE_TOKEN', '/me/messages', {
+      recipient: { id: chat.externo_id },
+      messaging_type: 'RESPONSE',
+      message: { text: texto },
+    });
+    return r?.message_id ?? null;
+  }
+
+  if (chat.canal === 'instagram') {
+    const r = await igLlamar(env, '/me/messages', {
+      method: 'POST',
+      body: JSON.stringify({
+        recipient: comentarioId ? { comment_id: comentarioId } : { id: chat.externo_id },
+        message: { text: texto },
+      }),
+    });
+    return r?.message_id ?? null;
+  }
+
+  throw new Error('No sé mandar por ese canal');
+}
+
+/* EN PARTES Y CON PAUSAS, COMO ESCRIBE UNA PERSONA.
+   ══════════════════════════════════════════════════════════════════
+
+   Así lo pidió Maxi: una respuesta sale en varios mensajes, con diez
+   segundos entre uno y otro. Si va el link de un auto, entra antes de la
+   última parte, y después del link se espera un poco más para que el
+   chat termine de mostrar la foto:
+
+     Hola, cómo estás? Qué bueno que te interesó la GLA. Es una ...
+        10 s
+     Está impecable, sin un detalle por afuera ni adentro.
+        10 s
+     https://www.mannaselected.com.ar/auto/...
+        12 s
+     La estabas viendo para compra directa o tenés algún vehículo ...
+
+   EL LINK NO SE REPITE: si ya se mandó en esta conversación, no vuelve a
+   salir. Repetirlo es justo lo que delata a un robot.
+
+   LA PRIMERA PARTE SALE EN EL MOMENTO y el resto queda en la cola de
+   envíos de esa conversación (la clase `Envios`, abajo). Así un error de
+   Meta se ve enseguida en el panel, y las pausas no dependen de que
+   nadie espere: Cloudflare no deja que una tarea suelta siga más de
+   treinta segundos. */
+const PAUSA_ENTRE_PARTES = 10000;
+const PAUSA_TRAS_EL_LINK = 12000;
+
+async function linkSinRepetir(env, chatId, autoId) {
+  const ficha = autoId ? await fichaDe(env, autoId) : null;
+  if (!ficha) return null;
+  const yaEsta = await env.DB.prepare(
+    `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
+        AND texto LIKE '%' || ? || '%' LIMIT 1`
+  ).bind(chatId, ficha.enlace).first();
+  return yaEsta ? null : ficha.enlace;
+}
+
+async function mandarRespuesta(env, chat, { partes, autoId = null, autor }) {
+  const link = await linkSinRepetir(env, chat.id, autoId);
+
+  /* El plan: qué sale y cuánto se espera ANTES de cada cosa. */
+  const textos = [...partes];
+  if (link) textos.splice(Math.max(0, textos.length - 1), 0, link);
+  const pasos = textos.map((texto, n) => ({
+    texto,
+    espera: n === 0 ? 0 : textos[n - 1] === link ? PAUSA_TRAS_EL_LINK : PAUSA_ENTRE_PARTES,
+  }));
+
+  const [primero, ...resto] = pasos;
+  const id = await mandarUno(env, chat, primero.texto);
+  await guardarSaliente(env, chat.id, primero.texto, autor, id);
+
+  if (resto.length) {
+    /* Hasta qué mensaje del cliente se tuvo en cuenta: si después llega
+       otro, lo que falta de esta respuesta ya no corresponde. */
+    const visto = (await env.DB.prepare(
+      `SELECT COALESCE(MAX(id), 0) AS n FROM mensajes
+        WHERE conversacion_id = ? AND direccion = 'entrante'`
+    ).bind(chat.id).first())?.n ?? 0;
+    const cola = env.ENVIOS.get(env.ENVIOS.idFromName(String(chat.id)));
+    await cola.encolar({ id: chat.id, canal: chat.canal, externo_id: chat.externo_id },
+      resto, autor, visto);
+  }
+  return { link: Boolean(link), partes: pasos.length };
+}
+
+/* LA COLA DE ENVÍOS DE UNA CONVERSACIÓN.
+   Una por chat. Guarda las partes que faltan y se despierta sola a la
+   hora de cada una (una alarma de Cloudflare). Manda una, programa la
+   siguiente, y cuando no queda nada se vacía: lo que guarda dura lo que
+   dura la respuesta, unos segundos.
+
+   SI EL CLIENTE ESCRIBE EN EL MEDIO, SE CORTA. Meta no avisa cuándo
+   alguien está escribiendo o grabando, así que no se puede esperar a que
+   termine; pero si llega un mensaje suyo mientras salen las partes, las
+   que faltan ya no corresponden y no salen.
+
+   SI LO QUE MANDA LA IA YA LO SIGUE UNA PERSONA, SE CORTA. Si alguien
+   apretó "Que siga una persona" en el medio, no sale una parte más.
+   SI FALLA UNA PARTE, se cortan las que siguen: una respuesta a medias
+   es mejor que una desordenada. */
+export class Envios extends DurableObject {
+  async encolar(chat, pasos, autor, visto) {
+    /* Una respuesta nueva reemplaza a la que estaba saliendo. */
+    const cola = pasos.map((p) => ({ ...p, chat, autor, visto }));
+    await this.ctx.storage.put('cola', cola);
+    await this.ctx.storage.setAlarm(Date.now() + cola[0].espera);
+  }
+
+  async alarm() {
+    const cola = (await this.ctx.storage.get('cola')) ?? [];
+    const paso = cola.shift();
+    if (paso) {
+      try {
+        const escribio = await this.env.DB.prepare(
+          `SELECT 1 FROM mensajes WHERE conversacion_id = ?
+              AND direccion = 'entrante' AND id > ? LIMIT 1`
+        ).bind(paso.chat.id, paso.visto).first();
+        const sigue = !escribio && (paso.autor !== 'ia' || !(await this.env.DB
+          .prepare('SELECT humano FROM conversaciones WHERE id = ?')
+          .bind(paso.chat.id).first())?.humano);
+        if (sigue) {
+          const id = await mandarUno(this.env, paso.chat, paso.texto);
+          await guardarSaliente(this.env, paso.chat.id, paso.texto, paso.autor, id);
+        } else {
+          cola.length = 0;
+        }
+      } catch (e) {
+        console.error('No salió una parte de la respuesta:', e?.message ?? e);
+        cola.length = 0;
+      }
+    }
+    if (cola.length) {
+      await this.ctx.storage.put('cola', cola);
+      await this.ctx.storage.setAlarm(Date.now() + cola[0].espera);
+    } else {
+      await this.ctx.storage.deleteAll();
+    }
+  }
 }
 
 /* ── CONTESTAR SOLO ──────────────────────────────────────────────
    ══════════════════════════════════════════════════════════════════
 
    DE ACÁ EN ADELANTE EL BOT MANDA SIN QUE NADIE MIRE. Eso no se
-   deshace: un mensaje enviado ya está en el teléfono del cliente. Así
-   que hay cuatro frenos, y ninguno es decorativo.
+   deshace: un mensaje enviado ya está en el teléfono del cliente.
 
-   1. SI FALLA ALGO, NO MANDA. Si Claude no contesta, si la respuesta no
-      se entiende, si se rompe una consulta — silencio. El error cae del
-      lado de no escribir, nunca del lado de escribir cualquier cosa.
+   EL INTERRUPTOR GENERAL ESTÁ APAGADO. Lo pidió Tomás: contesta él, a
+   mano, todo. Mientras esto esté en false no sale un solo mensaje solo,
+   haya lo que haya elegido el panel. El día que se quiera prender, se
+   cambia esta palabra y después se elige canal por canal en el panel.
 
-   2. NUNCA SE CONTESTA A SÍ MISMO. Sólo si el último mensaje del hilo es
-      de la otra persona. Sin esto, nuestra propia respuesta vuelve por
-      el webhook y arranca una conversación del bot consigo mismo.
-
-   3. CUANDO PIDEN UNA PERSONA, SE CALLA PARA SIEMPRE EN ESE CHAT. Deja
-      la conversación marcada y no vuelve a escribir ahí. Es el
-      compromiso asumido ante Meta y es el que más importa.
-
-   4. NO LE ESCRIBE A TODO EL QUE COMENTA. Lo decide `decidir()` más
-      arriba, y por defecto decide que no.
-
-   Y una más: siempre por privado, nunca contestando en el comentario a
-   la vista de todos. Una respuesta equivocada en un privado la lee una
-   persona; abajo de la publicación, la lee cualquiera. */
-/* APAGADA. Lo pidió Tomás: contesta él, a mano, todo.
-
-   NO SE BORRÓ EL CÓDIGO, SE CORTÓ LA SALIDA, y es la diferencia que
-   importa: mientras esto esté en false no sale un solo mensaje solo, y
-   el día que se quiera volver a prender se cambia esta palabra y nada
-   más. Borrarlo obligaría a rehacer los frenos —el de ráfaga, el de un
-   privado por publicación, el de no contestarse a sí mismo—, que son
-   justamente la parte que costó.
-
-   LO QUE SIGUE ANDANDO es todo lo que no manda nada: el botón "Que
-   escriba la IA" del panel, que arma un borrador para que lo mande una
-   persona, y el de "Probar la IA sin mandar nada". */
+   Lo que sigue andando con esto apagado es todo lo que no manda nada: el
+   botón "Que escriba la IA" del panel y el de "Probar la IA sin mandar
+   nada". */
 const CONTESTA_SOLA = false;
 
-async function contestarSolo(env, conversacionId) {
-  try {
-    if (!CONTESTA_SOLA) return;
-    if (!env.ANTHROPIC_API_KEY || !env.META_IG_TOKEN) return;
+/* POR CANAL Y POR HORARIO, Y EN BORRADOR DE FÁBRICA. El horario es el de
+   Buenos Aires; "de 19 a 10" cruza la medianoche y está bien. Se guarda
+   en la tabla `estado`, así que prenderlo o apagarlo no toca la base. */
+const CANALES_DEL_BOT = ['whatsapp', 'instagram', 'messenger'];
 
-    const chat = await env.DB.prepare(
-      'SELECT id, canal, externo_id, humano FROM conversaciones WHERE id = ?'
-    ).bind(conversacionId).first();
-
-    /* Marcada para una persona: acá el bot no escribe más. */
-    if (!chat || chat.humano) return;
-    if (chat.canal !== 'instagram') return;
-
-    /* ── EL FRENO DE RÁFAGA ──────────────────────────────────────────
-       Nadie necesita cinco mensajes nuestros en diez minutos, y Meta
-       menos: los límites de Instagram se cuentan por cuenta y por hora,
-       y una cuenta que dispara seguido termina con la dirección cortada.
-
-       Esto no es el límite de Meta —con ochocientos seguidores no se
-       llega ni cerca—, es el freno de que algo nuestro se vuelva loco:
-       un bucle, una tanda de avisos repetidos, un error que reintenta.
-       Cinco en diez minutos no lo alcanza nadie atendiendo bien. */
-    const recientes = await env.DB.prepare(
-      `SELECT COUNT(*) n FROM mensajes
-        WHERE conversacion_id = ? AND direccion = 'saliente'
-          AND creado > datetime('now', '-10 minutes')`
-    ).bind(conversacionId).first();
-
-    if ((recientes?.n ?? 0) >= 5) {
-      console.log(JSON.stringify({
-        bot: 'frenado por ráfaga', chat: conversacionId, salientes: recientes.n,
-      }));
-      return;
-    }
-
-    const d = await pensarRespuesta(env, conversacionId, { decidiendo: true });
-
-    /* El último con texto no es de la otra persona: o ya le contestaron,
-       o lo que entró es nuestro. En los dos casos no hay nada que decir. */
-    if (d.ultimo?.direccion !== 'entrante') return;
-
-    if (d.derivar) {
-      await env.DB.prepare(
-        `UPDATE conversaciones
-            SET humano = 1,
-                nota = COALESCE(nota, 'La IA lo pasó a una persona')
-          WHERE id = ?`
-      ).bind(conversacionId).run();
-    }
-
-    /* EL ME GUSTA VA PRIMERO Y VA APARTE.
-       A un comentario amable se le pone me gusta aunque no haya nada que
-       contestarle — es el caso más común y el que más se nota. Y va
-       envuelto porque es lo secundario: si falla el me gusta, la
-       respuesta tiene que salir igual. */
-    const esUnComentario = d.ultimo.clase === 'comentario' && d.ultimo.externo_id;
-
-    if (d.megusta && esUnComentario) {
-      try {
-        await megustaEnInstagram(env, d.ultimo.externo_id);
-      } catch (e) {
-        console.error('No se pudo dar me gusta:', e?.message ?? e);
-      }
-    }
-
-    if (!d.responder && !d.derivar) {
-      /* Queda el texto que hubiera mandado, para poder revisar si se
-         está callando donde debería hablar. Es nuestro propio borrador,
-         no lo que escribió el cliente. */
-      console.log(JSON.stringify({
-        bot: 'no le escribe', chat: conversacionId,
-        megusta: Boolean(d.megusta && esUnComentario),
-        hubiera_dicho: d.texto,
-      }));
-      return;
-    }
-
-    /* UN COMENTARIO SE CONTESTA POR EL ID DEL COMENTARIO, no por el de
-       la persona: a alguien que nunca nos escribió no se le puede abrir
-       un privado, y la respuesta privada a un comentario es la única
-       puerta que da Instagram. Dura 7 días y se usa una sola vez. */
-    /* UN PRIVADO POR PUBLICACIÓN, Y NO UNO POR COMENTARIO.
-       Meta deja una respuesta privada por comentario, así que alguien
-       que comenta cinco veces abajo del mismo posteo habilita cinco
-       privados. Que esté permitido no lo hace sensato: son cinco
-       mensajes nuestros por una sola consulta, y así es como la gente
-       marca una cuenta como spam.
-
-       Ya le escribimos por esta publicación: el me gusta ya se puso más
-       arriba, y con eso alcanza. */
-    if (esUnComentario && d.ultimo.media_id) {
-      const yaFuimos = await env.DB.prepare(
-        `SELECT 1 FROM mensajes
-          WHERE conversacion_id = ? AND direccion = 'saliente'
-            AND media_id = ? LIMIT 1`
-      ).bind(conversacionId, d.ultimo.media_id).first();
-
-      if (yaFuimos) {
-        console.log(JSON.stringify({
-          bot: 'ya le escribió por esta publicación', chat: conversacionId,
-        }));
-        return;
-      }
-    }
-
-    const envio = await mandarPorInstagram(
-      env,
-      esUnComentario ? d.ultimo.externo_id : chat.externo_id,
-      d.texto,
-      { esComentario: Boolean(esUnComentario) }
-    );
-
-    await guardarSaliente(
-      env, conversacionId, d.texto, 'ia', envio?.message_id,
-      esUnComentario ? d.ultimo.media_id : null
-    );
-
-    /* Y EL AVISO ABAJO DE LA PUBLICACIÓN, después de que el privado
-       salió. En ese orden: avisar que escribimos antes de haber escrito
-       es mentirle a todo el que lo lea. Envuelto, porque no se puede
-       responder abajo de una respuesta a otro comentario y eso no es
-       motivo para dar por fallado un privado que ya salió bien. */
-    if (esUnComentario) {
-      try {
-        await avisarEnElComentario(env, d.ultimo.externo_id);
-      } catch (e) {
-        console.error('No se pudo avisar en el comentario:', e?.message ?? e);
-      }
-    }
-
-    console.log(JSON.stringify({
-      bot: d.derivar ? 'derivó' : 'contestó',
-      chat: conversacionId,
-      por: esUnComentario ? 'comentario' : 'privado',
-      megusta: Boolean(d.megusta && esUnComentario),
-    }));
-  } catch (e) {
-    /* NO SE PROPAGA. Esto corre colgado del webhook: si tira, Meta
-       nunca se enteraría igual, pero un error sin atrapar se lleva
-       puesto el resto de las conversaciones de la misma tanda. */
-    console.error('El bot no pudo contestar:', e?.message ?? e);
+async function configDelBot(env) {
+  const g = (await leerEstado(env, 'bot'))?.valor ?? {};
+  const modo = {};
+  for (const c of CANALES_DEL_BOT) {
+    modo[c] = g.modo?.[c] === 'automatico' ? 'automatico' : 'borrador';
   }
+  const hora = (v) => (Number.isInteger(v) && v >= 0 && v <= 23 ? v : null);
+  return { modo, desde: hora(g.desde), hasta: hora(g.hasta), apagado: !CONTESTA_SOLA };
+}
+
+function enHorario(cfg, ahora = new Date()) {
+  if (cfg.desde === null || cfg.hasta === null || cfg.desde === cfg.hasta) return true;
+  const h = (ahora.getUTCHours() + 21) % 24;   // Buenos Aires, UTC-3 todo el año
+  return cfg.desde < cfg.hasta
+    ? h >= cfg.desde && h < cfg.hasta
+    : h >= cfg.desde || h < cfg.hasta;
+}
+
+/* LOS FRENOS, y ninguno es decorativo.
+
+   1. SI FALLA ALGO, NO MANDA. El error cae del lado de no escribir.
+   2. NUNCA SE CONTESTA A SÍ MISMO, y espera a que la persona termine:
+      contesta sólo si el último mensaje sigue siendo el que lo despertó.
+   3. CUANDO PIDEN UNA PERSONA, SE CALLA EN ESE CHAT para siempre.
+   4. NO LE ESCRIBE A TODO EL QUE COMENTA. Lo decide el bot, y ante la
+      duda decide que no.
+   5. LA RÁFAGA: cinco mensajes nuestros en diez minutos en un chat y se
+      frena. Es el freno de que algo nuestro se vuelva loco —un bucle,
+      un error que reintenta—, no el límite de Meta.
+   6. UN PRIVADO POR PUBLICACIÓN, no uno por comentario: cinco
+      comentarios abajo del mismo posteo no son cinco consultas.
+
+   ESPERA UN POCO ANTES DE CONTESTAR. La gente escribe en tres mensajes
+   seguidos: "hola", "vi la Hilux", "sigue disponible?". Cada mensaje
+   arranca su propia espera, y al terminarla sólo contesta si nadie
+   escribió algo después: responde el último, una vez, y lee los tres. */
+const ESPERA_ANTES_DE_CONTESTAR = 8000;
+
+async function atenderSolo(env, disparos) {
+  if (!CONTESTA_SOLA) return;
+  const cfg = await configDelBot(env);
+  if (!disparos.some((d) => cfg.modo[d.canal] === 'automatico')) return;
+  if (!enHorario(cfg)) return;
+
+  await new Promise((listo) => setTimeout(listo, ESPERA_ANTES_DE_CONTESTAR));
+
+  /* UNA POR VEZ: en paralelo serían varias llamadas a Claude y a Meta
+     desde la misma invocación, y Cloudflare corta por pedidos salientes. */
+  for (const d of disparos) {
+    if (cfg.modo[d.canal] !== 'automatico') continue;
+    try {
+      const chat = await env.DB.prepare(
+        'SELECT id, canal, externo_id, humano FROM conversaciones WHERE id = ?'
+      ).bind(d.conversacion).first();
+      if (!chat || chat.humano) continue;
+
+      const ultimo = await env.DB.prepare(
+        `SELECT id FROM mensajes WHERE conversacion_id = ?
+          ORDER BY creado DESC, id DESC LIMIT 1`
+      ).bind(chat.id).first();
+      if (ultimo?.id !== d.mensaje) continue;
+
+      const recientes = await env.DB.prepare(
+        `SELECT COUNT(*) n FROM mensajes
+          WHERE conversacion_id = ? AND direccion = 'saliente'
+            AND creado > datetime('now', '-10 minutes')`
+      ).bind(chat.id).first();
+      if ((recientes?.n ?? 0) >= 5) {
+        console.log(JSON.stringify({ bot: 'frenado por ráfaga', chat: chat.id }));
+        continue;
+      }
+
+      const r = await pensarRespuesta(env, chat.id, { automatico: true });
+      if (r.ultimo?.direccion !== 'entrante') continue;
+
+      /* PASAR A UNA PERSONA ES AUTOMÁTICO TAMBIÉN. Si pide hablar con
+         alguien o que borremos sus datos, el bot deja de contestar ese
+         chat y queda anotado por qué. Igual sale el mensaje corto que
+         avisa que sigue alguien. */
+      if (r.derivar) {
+        await env.DB.prepare('UPDATE conversaciones SET humano = 1, nota = ? WHERE id = ?')
+          .bind(`La IA lo pasó: ${r.derivar}`, chat.id).run();
+      }
+
+      if (r.esComentario) await atenderComentario(env, chat, r);
+      else await mandarRespuesta(env, chat, { partes: r.partes, autoId: r.autoId, autor: 'ia' });
+
+      /* Sin una palabra del mensaje: sólo qué hizo y por dónde. */
+      console.log(JSON.stringify({
+        bot: r.derivar ? 'derivó' : 'contestó', canal: chat.canal,
+        por: r.esComentario ? 'comentario' : 'privado',
+      }));
+    } catch (e) {
+      console.error('El bot no pudo contestar:', e?.message ?? e);
+    }
+  }
+}
+
+/* UN COMENTARIO DE INSTAGRAM.
+   El me gusta va primero y aparte: a un comentario amable se le pone
+   aunque no haya nada que contestar, y si falla no frena lo demás.
+   Después, si hay que escribirle, va UN privado —la respuesta privada a
+   un comentario se usa una sola vez, así que las partes y el link van
+   juntos en ese mensaje— y recién cuando salió, el aviso público abajo
+   del comentario. En ese orden: avisar que escribimos antes de haber
+   escrito es mentirle a todo el que lo lea. */
+async function atenderComentario(env, chat, r) {
+  const comentario = r.ultimo;
+  if (chat.canal !== 'instagram' || !comentario?.externo_id) return;
+
+  if (r.megusta) {
+    try { await megustaEnInstagram(env, comentario.externo_id); }
+    catch (e) { console.error('No se pudo dar me gusta:', e?.message ?? e); }
+  }
+
+  if (!r.responder && !r.derivar) return;
+
+  if (comentario.media_id) {
+    const yaFuimos = await env.DB.prepare(
+      `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
+          AND media_id = ? LIMIT 1`
+    ).bind(chat.id, comentario.media_id).first();
+    if (yaFuimos) return;
+  }
+
+  const link = await linkSinRepetir(env, chat.id, r.autoId);
+  const textos = [...r.partes];
+  if (link) textos.splice(Math.max(0, textos.length - 1), 0, link);
+  const texto = textos.join('\n\n');
+
+  const id = await mandarUno(env, chat, texto, { comentarioId: comentario.externo_id });
+  await guardarSaliente(env, chat.id, texto, 'ia', id, { mediaId: comentario.media_id });
+
+  try { await avisarEnElComentario(env, comentario.externo_id); }
+  catch (e) { console.error('No se pudo avisar en el comentario:', e?.message ?? e); }
 }
 
 /* SE CONTESTA 200 SIEMPRE QUE EL AVISO SEA DE META, y rápido. Si Meta
@@ -1784,34 +1968,26 @@ async function recibirDeMeta(peticion, env, ctx) {
   try { aviso = JSON.parse(crudo); } catch { /* cuerpo ilegible */ }
 
   let guardados = 0;
-  let contestando = 0;
+  let disparos = [];
   try {
     const lista = mensajesDelAviso(aviso);
     if (lista.length) {
-      const chats = await guardarEntrantes(env, lista);
+      disparos = await guardarEntrantes(env, lista);
       guardados = lista.length;
-
-      /* CONTESTAR VA COLGADO, NO ANTES DEL 200.
-         Pensar la respuesta son unos segundos de Claude y uno más de
-         Instagram, y Meta no espera: si el 200 tarda, reintenta el mismo
-         aviso y a la larga desactiva la dirección. Así que se contesta
-         200 ya, y el bot sigue trabajando después con `waitUntil`, que
-         es lo que mantiene vivo al Worker un rato más.
-
-         UNA POR VEZ. En paralelo serían varias llamadas a Claude y
-         varias a Instagram desde la misma invocación, y Cloudflare corta
-         por cantidad de pedidos salientes. Son conversaciones distintas:
-         que una espere a la otra no se nota. */
-      if (chats.length && env.ANTHROPIC_API_KEY) {
-        contestando = chats.length;
-        const trabajo = (async () => {
-          for (const id of chats) await contestarSolo(env, id);
-        })();
-        if (ctx?.waitUntil) ctx.waitUntil(trabajo); else await trabajo;
-      }
     }
   } catch (e) {
     console.error('No se pudo guardar el aviso de Meta:', e?.message ?? e);
+  }
+
+  /* EL BOT CONTESTA DESPUÉS DE ESTA RESPUESTA, no antes: Meta necesita
+     el 200 en segundos —si tarda, reintenta el mismo aviso y a la larga
+     desactiva la dirección— y el bot espera a que la persona termine de
+     escribir. `waitUntil` deja que siga trabajando con la respuesta ya
+     enviada.
+     SÓLO CON FIRMA VERIFICADA (regla 11): lo que no se pudo verificar
+     se guarda, pero nunca se usa para contestar. */
+  if (verificado && disparos.length && ctx) {
+    ctx.waitUntil(atenderSolo(env, disparos));
   }
 
   /* El `object` sale de un cuerpo que puede venir de cualquiera, así que
@@ -1824,7 +2000,7 @@ async function recibirDeMeta(peticion, env, ctx) {
     meta: verificado ? `verificado (${verificado})` : 'sin verificar (no hay claves cargadas)',
     canal,
     mensajes: guardados,
-    contestando,
+    contestando: verificado ? disparos.length : 0,
   }));
 
   return new Response('ok', { status: 200 });
@@ -2383,14 +2559,26 @@ async function admin(peticion, env, ruta, metodo) {
   /* QUE CLAUDE ESCRIBA UN BORRADOR.
 
      DEVUELVE EL TEXTO, NO LO MANDA. Queda escrito en el cuadro de
-     respuesta y lo manda Tomás si le gusta. Una respuesta equivocada a
-     un cliente no se puede deshacer, así que hasta que no se vea cómo
-     contesta con gente de verdad, la última palabra es de una persona.
-     Cuando esté probado, se cambia una línea. */
+     respuesta y lo manda una persona si le gusta. Una respuesta
+     equivocada a un cliente no se puede deshacer, así que hasta que no
+     se vea cómo contesta con gente de verdad, la última palabra es de
+     una persona. Para que conteste solo está el modo automático, por
+     canal, más abajo.
+
+     Con el texto viene la ficha de auto que mandaría y si cree que lo
+     tiene que seguir una persona: el panel lo muestra y decide el que
+     atiende. */
   const sugerirA = ruta.match(/^\/api\/admin\/chats\/(\d+)\/sugerir$/);
   if (sugerirA && metodo === 'POST') {
     try {
-      return json(await borradorDeRespuesta(env, sugerirA[1]));
+      const r = await pensarRespuesta(env, sugerirA[1]);
+      const ficha = r.autoId ? await fichaDe(env, r.autoId) : null;
+      return json({
+        texto: r.texto,
+        conPosteo: r.conPosteo,
+        derivar: r.derivar,
+        ficha: ficha && { auto_id: r.autoId, ...ficha },
+      });
     } catch (e) {
       return error(e?.message || 'No se pudo escribir la respuesta', 502);
     }
@@ -2428,7 +2616,7 @@ async function admin(peticion, env, ruta, metodo) {
     const salida = [];
     for (const c of chats ?? []) {
       try {
-        const d = await pensarRespuesta(env, c.id, { decidiendo: true });
+        const d = await pensarRespuesta(env, c.id);
         salida.push({
           chat: c.id, nombre: c.nombre, clase: c.clase,
           le_dijo: c.texto, responder: d.responder,
@@ -2458,29 +2646,47 @@ async function admin(peticion, env, ruta, metodo) {
   const responderA = ruta.match(/^\/api\/admin\/chats\/(\d+)\/responder$/);
   if (responderA && metodo === 'POST') {
     const cuerpo = await peticion.json().catch(() => ({}));
-    const mensaje = texto(cuerpo?.texto, 1000);
+    const mensaje = texto(cuerpo?.texto, 3000);
     if (!mensaje) return error('Falta el texto');
+    const autoId = entero(cuerpo?.auto_id, 1, 1e9);
+    /* Cada párrafo del cuadro —separado por una línea en blanco— sale
+       como un mensaje aparte. */
+    const partes = mensaje.split(/\n\s*\n/).map((t) => t.trim()).filter(Boolean);
 
     const chat = await env.DB
       .prepare('SELECT id, canal, externo_id FROM conversaciones WHERE id = ?')
       .bind(responderA[1]).first();
     if (!chat) return error('No está', 404);
-    if (chat.canal !== 'instagram') {
-      return error('Por ahora sólo se puede contestar por Instagram', 400);
-    }
 
-    let envio;
+    /* `autor: persona` porque esto lo mandó alguien del equipo desde el
+       panel, aunque el borrador lo haya escrito la IA: lo leyó y decidió
+       mandarlo una persona. Lo que sale solo queda como 'ia'. */
     try {
-      envio = await mandarPorInstagram(env, chat.externo_id, mensaje);
+      return json({ ok: true, ...(await mandarRespuesta(env, chat, {
+        partes, autoId, autor: 'persona',
+      })) });
     } catch (e) {
-      return error(e?.message || 'Instagram no aceptó el mensaje', 502);
+      return error(e?.message || 'Meta no aceptó el mensaje', 502);
     }
+  }
 
-    /* `autor: persona` porque esto lo escribió alguien del equipo en el
-       panel. Cuando conteste la IA, va a escribir 'ia' y se va a poder
-       distinguir una de otra mirando la conversación. */
-    await guardarSaliente(env, chat.id, mensaje, 'persona', envio?.message_id);
-    return json({ ok: true });
+  /* CÓMO CONTESTA EL BOT: borrador o automático, por canal, y en qué
+     horario. Ver `configDelBot`. */
+  if (ruta === '/api/admin/bot' && metodo === 'GET') {
+    return json(await configDelBot(env));
+  }
+  if (ruta === '/api/admin/bot' && metodo === 'PUT') {
+    const cuerpo = await peticion.json().catch(() => ({}));
+    const modo = {};
+    for (const c of CANALES_DEL_BOT) {
+      modo[c] = cuerpo?.modo?.[c] === 'automatico' ? 'automatico' : 'borrador';
+    }
+    await guardarEstado(env, 'bot', {
+      modo,
+      desde: entero(cuerpo?.desde, 0, 23),
+      hasta: entero(cuerpo?.hasta, 0, 23),
+    });
+    return json(await configDelBot(env));
   }
 
   /* QUÉ CONTESTA INSTAGRAM, CRUDO.

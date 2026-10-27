@@ -953,6 +953,12 @@ async function abrirChat(id) {
   const { chat, mensajes } = chatActual;
 
   $('#tituloChat').textContent = chat.nombre || CANALES[chat.canal] || chat.canal;
+  let anuncio = null;
+  try { anuncio = chat.anuncio ? JSON.parse(chat.anuncio) : null; } catch { anuncio = null; }
+  $('#anuncioChat').classList.toggle('oculto', !anuncio?.titulo && !anuncio?.texto);
+  $('#anuncioChat').textContent = anuncio
+    ? 'Vino del anuncio: ' + [anuncio.titulo, anuncio.texto].filter(Boolean).join(' · ')
+    : '';
   $('#quienChat').textContent =
     (CANALES[chat.canal] || chat.canal) + ' · ' + chat.externo_id;
 
@@ -988,14 +994,15 @@ async function abrirChat(id) {
    que conviene decirlo ANTES de que escriba —no después— y por eso el
    aviso se calcula acá y no cuando Meta devuelve el error.
 
-   El cuadro sólo aparece en Instagram: es el único canal con el envío
-   programado. Mostrarlo en los otros sería ofrecer un botón que falla. */
+   Lo mismo en los tres canales: WhatsApp y Messenger tienen la misma
+   ventana de 24 horas. Si al canal le falta su llave en Cloudflare, el
+   error de Meta lo dice al mandar. */
 function prepararRespuesta(chat, mensajes) {
   const form = $('#responder');
-  const puede = chat.canal === 'instagram';
-  form.classList.toggle('oculto', !puede);
+  form.classList.remove('oculto');
   $('#respuesta').value = '';
-  if (!puede) return;
+  limpiarSugerido();
+  const red = CANALES[chat.canal] || chat.canal;
 
   const ultimoDeEl = [...mensajes].reverse().find((m) => m.direccion === 'entrante');
   const horas = ultimoDeEl
@@ -1004,9 +1011,9 @@ function prepararRespuesta(chat, mensajes) {
 
   const plazo = $('#plazo');
   if (!isFinite(horas)) {
-    plazo.textContent = 'Esta persona todavía no escribió, así que Instagram no deja escribirle primero.';
+    plazo.textContent = 'Esta persona todavía no escribió, así que ' + red + ' no deja escribirle primero.';
   } else if (horas >= 24) {
-    plazo.textContent = 'Pasaron más de 24 horas desde su último mensaje. Instagram va a rechazar el envío.';
+    plazo.textContent = 'Pasaron más de 24 horas desde su último mensaje. ' + red + ' va a rechazar el envío.';
   } else {
     plazo.textContent = 'Quedan ' + Math.max(0, Math.floor(24 - horas)) + ' h para contestar libremente.';
   }
@@ -1014,9 +1021,33 @@ function prepararRespuesta(chat, mensajes) {
 }
 
 /* QUE ESCRIBA LA IA.
-   Deja el borrador en el cuadro y no lo manda: lo lee Tomás y decide.
-   Y si lo edita antes de mandarlo, mejor — el que conoce al cliente es
-   él. */
+   Deja el borrador en el cuadro y no lo manda: lo lee el que atiende y
+   decide. Y si lo edita antes de mandarlo, mejor — el que conoce al
+   cliente es él.
+
+   LA FICHA DEL AUTO VA APARTE DEL TEXTO. Si el bot quiere mandar el link
+   de un auto del garage, se dice abajo del cuadro con un botón para
+   sacarlo: lo que sale es lo que se ve antes de apretar Enviar. El link
+   sale primero, solo, para que el chat lo muestre con la foto. */
+let fichaSugerida = null;
+
+function limpiarSugerido() {
+  fichaSugerida = null;
+  $('#sugeridoFotos').classList.add('oculto');
+  $('#sugeridoDerivar').classList.add('oculto');
+}
+
+function pintarFichaSugerida() {
+  const zona = $('#sugeridoFotos');
+  if (!fichaSugerida) { zona.classList.add('oculto'); return; }
+  zona.innerHTML = escapar('Antes del último párrafo va el link del ' + fichaSugerida.titulo +
+    ' en el garage, salvo que ya se lo hayan mandado.') +
+    ' <button class="btn" type="button" id="sacarFotos" ' +
+    'style="padding:.3em .7em;font-size:.5rem">No mandarlo</button>';
+  zona.classList.remove('oculto');
+  $('#sacarFotos').addEventListener('click', () => { fichaSugerida = null; pintarFichaSugerida(); });
+}
+
 $('#sugerir').addEventListener('click', async () => {
   if (!chatActual) return;
   const boton = $('#sugerir');
@@ -1024,10 +1055,21 @@ $('#sugerir').addEventListener('click', async () => {
   boton.disabled = true;
   boton.textContent = 'Escribiendo…';
   try {
-    const { texto, conPosteo } = await api(
+    const { texto, conPosteo, ficha, derivar } = await api(
       '/api/admin/chats/' + chatActual.chat.id + '/sugerir', { method: 'POST' });
     $('#respuesta').value = texto;
     $('#respuesta').focus();
+
+    fichaSugerida = ficha || null;
+    pintarFichaSugerida();
+
+    /* Si cree que lo tiene que seguir una persona, se dice acá y no se
+       hace solo: en borrador decide el que atiende, con el botón de
+       arriba. */
+    const zona = $('#sugeridoDerivar');
+    zona.classList.toggle('oculto', !derivar);
+    if (derivar) zona.textContent = 'La IA cree que esto lo tiene que seguir una persona: ' + derivar;
+
     /* Decir si supo de qué publicación venía importa: sin eso el bot
        contestó a ciegas y conviene leerlo con más cuidado. */
     avisar(conPosteo ? 'Escrito, con el texto del posteo' : 'Escrito, sin saber de qué publicación');
@@ -1048,11 +1090,15 @@ $('#responder').addEventListener('submit', async (e) => {
   const boton = $('#enviar');
   boton.disabled = true;
   try {
-    await api('/api/admin/chats/' + chatActual.chat.id + '/responder', {
+    const r = await api('/api/admin/chats/' + chatActual.chat.id + '/responder', {
       method: 'POST',
-      body: JSON.stringify({ texto: mensaje }),
+      body: JSON.stringify({ texto: mensaje, auto_id: fichaSugerida?.auto_id ?? null }),
     });
-    avisar('Enviado');
+    /* Sale la primera parte y el resto va saliendo solo, de a diez
+       segundos: el hilo se completa con el refresco de la bandeja. */
+    avisar(r.partes > 1
+      ? 'Salió el primer mensaje. Los otros ' + (r.partes - 1) + ' salen solos, de a 10 segundos'
+      : 'Enviado');
     await abrirChat(chatActual.chat.id);
     await cargarChats();
   } catch (err) {
@@ -1370,6 +1416,8 @@ function pintarHilo(chat, mensajes) {
 
     const cuerpo = m.tipo === 'texto'
       ? '<p>' + escapar(m.texto) + '</p>'
+      : mio && m.texto
+      ? '<span class="adjunto">' + escapar(m.texto) + '</span>'
       : '<span class="adjunto">' + (ADJUNTOS[m.tipo] || ADJUNTOS.otro) +
         ' · se abre en ' + escapar(CANALES[chat.canal] || chat.canal) + '</span>';
 
@@ -1535,6 +1583,56 @@ $('#borrarChat').addEventListener('click', () => {
 
 /* ── las pestañas ───────────────────────────────────────────── */
 
+/* ── CÓMO CONTESTA EL BOT ────────────────────────────────────────
+   Por canal, borrador o automático, y en qué horario contesta solo.
+   Sin horario elegido, el automático contesta a toda hora. */
+const HORAS = Array.from({ length: 24 }, (_, h) => h);
+['#botDesde', '#botHasta'].forEach((sel) => {
+  $(sel).innerHTML = '<option value="">Siempre</option>' +
+    HORAS.map((h) => '<option value="' + h + '">' + String(h).padStart(2, '0') + ' h</option>').join('');
+});
+
+function pintarBot(cfg) {
+  $$('#botModo select[data-canal]').forEach((s) => { s.value = cfg.modo[s.dataset.canal]; });
+  $('#botDesde').value = cfg.desde ?? '';
+  $('#botHasta').value = cfg.hasta ?? '';
+
+  /* EL INTERRUPTOR GENERAL. Si está apagado en el código (CONTESTA_SOLA),
+     elegir "Automático" acá no haría nada: se dice y no se deja. */
+  $$('#botModo select, #botGuardar').forEach((el) => { el.disabled = Boolean(cfg.apagado); });
+  if (cfg.apagado) {
+    $('#botNota').textContent = 'La respuesta automática está apagada desde el código: el bot no le contesta solo a nadie, en ningún canal. Escribe un borrador cuando lo pedís, y lo mandás vos.';
+    return;
+  }
+
+  const solos = Object.entries(cfg.modo).filter(([, m]) => m === 'automatico')
+    .map(([c]) => CANALES[c]);
+  const horario = cfg.desde !== null && cfg.hasta !== null && cfg.desde !== cfg.hasta
+    ? ', de ' + cfg.desde + ' a ' + cfg.hasta + ' h' : ', a toda hora';
+  $('#botNota').textContent = solos.length
+    ? 'Contesta solo en ' + solos.join(' y ') + horario +
+      '. En el resto escribe un borrador cuando lo pedís. Si alguien pide hablar con una persona o que borremos sus datos, deja de contestar ese chat y queda marcado.'
+    : 'El bot no contesta solo en ningún canal. Escribe un borrador cuando lo pedís, y lo mandás vos.';
+}
+
+async function cargarBot() { pintarBot(await api('/api/admin/bot')); }
+
+$('#botGuardar').addEventListener('click', async () => {
+  const modo = {};
+  $$('#botModo select[data-canal]').forEach((s) => { modo[s.dataset.canal] = s.value; });
+  const nuevos = Object.entries(modo).filter(([, m]) => m === 'automatico').map(([c]) => CANALES[c]);
+  if (nuevos.length && !confirm('El bot va a contestar solo, sin que nadie lo lea antes, en ' +
+      nuevos.join(' y ') + '. Seguimos?')) return;
+  const hora = (v) => (v === '' ? null : Number(v));
+  try {
+    pintarBot(await api('/api/admin/bot', {
+      method: 'PUT',
+      body: JSON.stringify({ modo, desde: hora($('#botDesde').value), hasta: hora($('#botHasta').value) }),
+    }));
+    avisar('Guardado');
+  } catch (err) { avisar(err.message, true); }
+});
+
 function verPestania(cual) {
   const autos = cual === 'autos';
   [['autos', '#pesAutos'], ['medios', '#pesMedios'],
@@ -1558,6 +1656,7 @@ function verPestania(cual) {
   else if (cual === 'numeros') cargarNumeros();
   else {
     cargarChats().catch((err) => avisar(err.message, true));
+    cargarBot().catch((err) => avisar(err.message, true));
     arrancarRefresco();
     ponerseAlDia();
   }

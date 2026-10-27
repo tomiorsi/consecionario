@@ -789,6 +789,34 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
            por el webhook y lo viejo se trae por detras sin que nadie
            apriete nada. -->
 
+      <!-- CÓMO CONTESTA EL BOT, POR CANAL.
+           Borrador: escribe y espera a que alguien lo mande desde acá.
+           Automático: contesta solo, dentro del horario si hay uno.
+           Arranca todo en borrador y se prende canal por canal. -->
+      <div class="marcar bot-modo" id="botModo">
+        <label class="campo"><span class="rotulo">WhatsApp</span>
+          <select data-canal="whatsapp">
+            <option value="borrador">Borrador</option>
+            <option value="automatico">Automático</option>
+          </select></label>
+        <label class="campo"><span class="rotulo">Instagram</span>
+          <select data-canal="instagram">
+            <option value="borrador">Borrador</option>
+            <option value="automatico">Automático</option>
+          </select></label>
+        <label class="campo"><span class="rotulo">Messenger</span>
+          <select data-canal="messenger">
+            <option value="borrador">Borrador</option>
+            <option value="automatico">Automático</option>
+          </select></label>
+        <label class="campo"><span class="rotulo">Solo, desde las</span>
+          <select id="botDesde"></select></label>
+        <label class="campo"><span class="rotulo">hasta las</span>
+          <select id="botHasta"></select></label>
+        <button class="btn" type="button" id="botGuardar">Guardar</button>
+      </div>
+      <p class="nota" id="botNota"></p>
+
       <div class="barra-estado oculto" id="progreso">
         <span class="barra-estado-texto" id="progresoTexto"></span>
         <span class="barra-riel"><span class="barra-fill" id="progresoFill" style="width:0%"></span></span>
@@ -904,6 +932,8 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
              página, y nunca en la dirección: la URL de este chat es su
              id interno y nada más. -->
         <p class="quien" id="quienChat" style="margin-top:.5rem"></p>
+        <!-- De qué anuncio de Meta vino, si vino de uno. -->
+        <p class="quien oculto" id="anuncioChat" style="margin-top:.3rem"></p>
       </div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap">
         <button class="btn" id="volverChat" type="button">Volver</button>
@@ -939,17 +969,19 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
     <p class="nota oculto" id="notaChat"></p>
     <div class="hilo" id="hilo"></div>
 
-    <!-- CONTESTAR. Sólo aparece en Instagram: es el único canal con el
-         envío programado. En WhatsApp y Messenger el cuadro no se
-         muestra, en vez de mostrarlo y fallar al apretar. -->
+    <!-- CONTESTAR, por cualquiera de los tres canales. -->
     <form class="responder oculto" id="responder" autocomplete="off">
       <textarea id="respuesta" rows="3"
-                placeholder="Escribí tu respuesta"></textarea>
+                placeholder="Escribí tu respuesta. Cada párrafo sale como un mensaje aparte, con 10 segundos entre uno y otro."></textarea>
+      <!-- Lo que el bot sugiere además del texto: la ficha de qué auto va
+           y si lo tiene que seguir una persona. Se ve antes de mandar. -->
+      <p class="nota oculto" id="sugeridoFotos" style="margin:0"></p>
+      <p class="nota oculto" id="sugeridoDerivar" style="margin:0"></p>
       <div class="pie">
         <span class="plazo" id="plazo"></span>
         <!-- ESCRIBE, NO MANDA. Deja el texto en el cuadro de arriba y
-             lo manda Tomas si le gusta. Una respuesta equivocada a un
-             cliente no se puede deshacer. -->
+             lo manda una persona si le gusta. Una respuesta equivocada a
+             un cliente no se puede deshacer. -->
         <button class="btn" type="button" id="sugerir">Que escriba la IA</button>
         <button class="btn btn--fuerte" type="submit" id="enviar">Enviar</button>
       </div>
