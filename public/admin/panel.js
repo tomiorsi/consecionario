@@ -1042,22 +1042,31 @@ function prepararRespuesta(chat, mensajes) {
    sacarlo: lo que sale es lo que se ve antes de apretar Enviar. El link
    sale primero, solo, para que el chat lo muestre con la foto. */
 let fichaSugerida = null;
+let ubicacionSugerida = false;
 
 function limpiarSugerido() {
   fichaSugerida = null;
+  ubicacionSugerida = false;
   $('#sugeridoFotos').classList.add('oculto');
   $('#sugeridoDerivar').classList.add('oculto');
 }
 
+/* Lo fijo que va con la respuesta: el link de un auto y la ubicación,
+   cada uno con su botón para sacarlo. */
 function pintarFichaSugerida() {
   const zona = $('#sugeridoFotos');
-  if (!fichaSugerida) { zona.classList.add('oculto'); return; }
-  zona.innerHTML = escapar('Antes del último párrafo va el link del ' + fichaSugerida.titulo +
-    ' en el garage, salvo que ya se lo hayan mandado.') +
-    ' <button class="btn" type="button" id="sacarFotos" ' +
-    'style="padding:.3em .7em;font-size:.5rem">No mandarlo</button>';
+  const que = [];
+  if (fichaSugerida) que.push(['ficha', 'el link del ' + fichaSugerida.titulo + ' en el garage']);
+  if (ubicacionSugerida) que.push(['ubicacion', 'la ubicación con el mapa']);
+  if (!que.length) { zona.classList.add('oculto'); return; }
+  zona.innerHTML = que.map(([k, t]) => escapar('Va ' + t + ', en un mensaje aparte.') +
+    ' <button class="btn" type="button" data-sacar="' + k + '" ' +
+    'style="padding:.3em .7em;font-size:.5rem">No mandarlo</button>').join('<br>');
   zona.classList.remove('oculto');
-  $('#sacarFotos').addEventListener('click', () => { fichaSugerida = null; pintarFichaSugerida(); });
+  zona.querySelectorAll('[data-sacar]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.sacar === 'ficha') fichaSugerida = null; else ubicacionSugerida = false;
+    pintarFichaSugerida();
+  }));
 }
 
 $('#sugerir').addEventListener('click', async () => {
@@ -1067,12 +1076,13 @@ $('#sugerir').addEventListener('click', async () => {
   boton.disabled = true;
   boton.textContent = 'Escribiendo…';
   try {
-    const { texto, conPosteo, ficha, derivar } = await api(
+    const { texto, conPosteo, ficha, derivar, ubicacion } = await api(
       '/api/admin/chats/' + chatActual.chat.id + '/sugerir', { method: 'POST' });
     $('#respuesta').value = texto;
     $('#respuesta').focus();
 
     fichaSugerida = ficha || null;
+    ubicacionSugerida = Boolean(ubicacion);
     pintarFichaSugerida();
 
     /* Si cree que lo tiene que seguir una persona, se dice acá y no se
@@ -1104,7 +1114,9 @@ $('#responder').addEventListener('submit', async (e) => {
   try {
     const r = await api('/api/admin/chats/' + chatActual.chat.id + '/responder', {
       method: 'POST',
-      body: JSON.stringify({ texto: mensaje, auto_id: fichaSugerida?.auto_id ?? null }),
+      body: JSON.stringify({
+        texto: mensaje, auto_id: fichaSugerida?.auto_id ?? null, ubicacion: ubicacionSugerida,
+      }),
     });
     /* Sale la primera parte y el resto va saliendo solo, de a diez
        segundos: el hilo se completa con el refresco de la bandeja. */
