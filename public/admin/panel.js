@@ -1595,6 +1595,40 @@ $('#borrarChat').addEventListener('click', () => {
 
 /* ── las pestañas ───────────────────────────────────────────── */
 
+/* ── NOCHE Y DIA ─────────────────────────────────────────────────
+
+   SE ELIGE UNA VEZ Y QUEDA. Se guarda en el navegador de quien lo
+   eligio, asi que no es una decision del negocio sino de cada uno: el
+   que atiende de noche en el salon lo deja oscuro y el que carga autos
+   de dia lo pone claro, en el mismo panel y sin pisarse.
+
+   SE APLICA ANTES DE PINTAR NADA. El atributo se escribe sobre <html>
+   apenas carga el archivo, no cuando termina: si se hiciera despues, el
+   panel arrancaria negro y pegaria un flash blanco a los dos cuadros.
+
+   Y SI EL NAVEGADOR NO DEJA GUARDAR —modo privado, permisos—, el tema
+   igual cambia; lo unico que se pierde es que lo recuerde. */
+const TEMA_GUARDADO = 'manna-tema';
+
+function ponerTema(cual) {
+  const dia = cual === 'dia';
+  document.documentElement.dataset.tema = dia ? 'dia' : 'noche';
+
+  const boton = document.querySelector('#temaTexto');
+  if (boton) boton.textContent = dia ? 'Modo noche' : 'Modo día';
+
+  const icono = document.querySelector('#tema [aria-hidden]');
+  if (icono) icono.textContent = dia ? '☾' : '☀';
+}
+
+try { ponerTema(localStorage.getItem(TEMA_GUARDADO)); } catch { ponerTema('noche'); }
+
+$('#tema').addEventListener('click', () => {
+  const nuevo = document.documentElement.dataset.tema === 'dia' ? 'noche' : 'dia';
+  ponerTema(nuevo);
+  try { localStorage.setItem(TEMA_GUARDADO, nuevo); } catch { /* sigue andando igual */ }
+});
+
 /* ── PRENDER Y APAGAR LA IA ──────────────────────────────────────
 
    UN BOTON, Y QUE DIGA LO QUE VA A PASAR. Antes esto eran cinco

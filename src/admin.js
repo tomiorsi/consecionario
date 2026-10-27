@@ -23,15 +23,42 @@ export const PANEL = `<!doctype html>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&family=Montserrat:wght@300..800&display=swap" rel="stylesheet">
 <style>
+/* ── NOCHE Y DIA ─────────────────────────────────────────────────
+
+   EL COLOR SE GUARDA EN CANALES, NO EN COLORES. La "tinta" es el color
+   de lo que se escribe y y el "fondo" el de atras, pero como numeros
+   sueltos: "255,255,255". Asi cualquier transparencia del panel se
+   escribe rgba(var(--tinta),.14) y se da vuelta sola al cambiar de
+   tema, en vez de tener que buscar y reemplazar veinte colores a mano
+   cada vez que se toca algo.
+
+   DE NOCHE DE FABRICA, porque es un panel que se mira de noche en el
+   salon y porque es el que ya conocia Tomas. El de dia se elige, se
+   guarda en el navegador y vuelve solo la proxima vez.
+
+   SOLO EL PANEL. El sitio publico no se toca: ese es negro y punto. */
 :root{
-  --void:#000; --chrome:#fff;
-  --linea:rgba(255,255,255,.14);
-  --apagado:rgba(255,255,255,.55);
+  --tinta:255,255,255;
+  --fondo:0,0,0;
   --panel:#0a0a0c;
+  --hueco:var(--hueco);
+  --void:rgb(var(--fondo)); --chrome:rgb(var(--tinta));
+  --linea:rgba(var(--tinta),.14);
+  --apagado:rgba(var(--tinta),.55);
   --ease:cubic-bezier(.22,1,.36,1);
   --display:"Syncopate",ui-sans-serif,system-ui,sans-serif;
   --texto:"Montserrat",ui-sans-serif,system-ui,sans-serif;
 }
+/* De dia el fondo no es blanco puro: un blanco de verdad contra texto
+   negro cansa a los diez minutos. Un gris muy claro apaga el golpe y
+   deja que las tarjetas, que si son blancas, se despeguen del fondo. */
+:root[data-tema="dia"]{
+  --tinta:17,17,19;
+  --fondo:244,244,245;
+  --panel:#fff;
+  --hueco:#e9e9ec;
+}
+
 *{margin:0;padding:0;box-sizing:border-box}
 body{
   background:var(--void); color:var(--chrome);
@@ -49,7 +76,7 @@ a{color:inherit}
   position:sticky; top:0; z-index:10;
   display:flex; align-items:center; justify-content:space-between; gap:1rem;
   padding:1rem clamp(1rem,4vw,2.5rem);
-  background:rgba(0,0,0,.86); backdrop-filter:blur(14px);
+  background:rgba(var(--fondo),.86); backdrop-filter:blur(14px);
   border-bottom:1px solid var(--linea);
 }
 .barra img{ height:34px; width:auto; display:block }
@@ -64,9 +91,9 @@ button{ font-family:inherit; cursor:pointer }
   letter-spacing:.18em; text-transform:uppercase;
   transition:border-color .3s var(--ease), background .3s var(--ease);
 }
-.btn:hover{ border-color:rgba(255,255,255,.5); background:rgba(255,255,255,.05) }
+.btn:hover{ border-color:rgba(var(--tinta),.5); background:rgba(var(--tinta),.05) }
 .btn--fuerte{ background:var(--chrome); color:var(--void); border-color:var(--chrome) }
-.btn--fuerte:hover{ background:rgba(255,255,255,.85) }
+.btn--fuerte:hover{ background:rgba(var(--tinta),.85) }
 .btn--peligro:hover{ border-color:#ff6b6b; color:#ff8a8a; background:rgba(255,80,80,.08) }
 .btn[disabled]{ opacity:.4; cursor:not-allowed }
 
@@ -83,8 +110,8 @@ input,select,textarea{
   padding:.65rem .1rem; transition:border-color .3s var(--ease);
 }
 input:focus,select:focus,textarea:focus{ outline:none; border-bottom-color:var(--chrome) }
-input::placeholder,textarea::placeholder{ color:rgba(255,255,255,.28) }
-select option{ background:#111; color:#fff }
+input::placeholder,textarea::placeholder{ color:rgba(var(--tinta),.28) }
+select option{ background:var(--panel); color:var(--chrome) }
 textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 
 /* ── contenido ── */
@@ -147,7 +174,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 /* Alto fijo y no aspect-ratio del lugar: como los lugares cambian de
    forma según la pantalla, la miniatura acá es sólo para reconocer la
    foto, no para prometer cómo se va a recortar. */
-.medio .marco{ position:relative; height:9rem; background:#08080a; overflow:hidden }
+.medio .marco{ position:relative; height:9rem; background:var(--hueco); overflow:hidden }
 .medio .marco img,
 .medio .marco video{ width:100%; height:100%; object-fit:cover; display:block }
 /* La pieza estira y los botones se van al fondo: las guías tienen
@@ -223,12 +250,12 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   background:var(--panel); display:flex; flex-direction:column;
   transition:border-color .3s var(--ease);
 }
-.ficha:hover{ border-color:rgba(255,255,255,.32) }
-.ficha .foto{ aspect-ratio:16/10; background:#08080a; position:relative }
+.ficha:hover{ border-color:rgba(var(--tinta),.32) }
+.ficha .foto{ aspect-ratio:16/10; background:var(--hueco); position:relative }
 .ficha .foto img{ width:100%; height:100%; object-fit:cover; display:block }
 .ficha .foto .vacia{
   position:absolute; inset:0; display:grid; place-content:center;
-  color:rgba(255,255,255,.2); font-size:.6rem; letter-spacing:.2em; text-transform:uppercase;
+  color:rgba(var(--tinta),.2); font-size:.6rem; letter-spacing:.2em; text-transform:uppercase;
 }
 .ficha .cuerpo{ padding:.9rem 1rem 1rem; display:grid; gap:.35rem }
 .ficha h3{ font-size:.92rem; font-weight:600; line-height:1.35 }
@@ -241,7 +268,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 }
 .estado--publicado{ color:#7ee39b; border-color:rgba(126,227,155,.4) }
 .estado--borrador{ color:#e3c97e; border-color:rgba(227,201,126,.4) }
-.estado--vendido{ color:rgba(255,255,255,.45); border-color:var(--linea) }
+.estado--vendido{ color:rgba(var(--tinta),.45); border-color:var(--linea) }
 
 /* ── ficha de edición ── */
 .campos{ display:grid; gap:1.4rem 1.6rem; grid-template-columns:repeat(auto-fit,minmax(11rem,1fr)); margin-top:1.6rem }
@@ -249,7 +276,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .ancho{ grid-column:1 / -1 }
 
 .fotos{ display:grid; gap:.7rem; grid-template-columns:repeat(auto-fill,minmax(9rem,1fr)); margin-top:1rem }
-.miniatura{ position:relative; aspect-ratio:16/10; border:1px solid var(--linea); border-radius:3px; overflow:hidden; background:#08080a }
+.miniatura{ position:relative; aspect-ratio:16/10; border:1px solid var(--linea); border-radius:3px; overflow:hidden; background:var(--hueco) }
 .miniatura img{ width:100%; height:100%; object-fit:cover; display:block }
 .miniatura .portada{
   position:absolute; left:.4rem; top:.4rem; background:var(--chrome); color:var(--void);
@@ -274,7 +301,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   transition:border-color .3s var(--ease), color .3s var(--ease), background .3s var(--ease);
 }
 .mas span{ font-size:1.6rem; line-height:1; font-weight:300 }
-.mas:hover,.mas.encima{ border-color:var(--chrome); color:var(--chrome); background:rgba(255,255,255,.04) }
+.mas:hover,.mas.encima{ border-color:var(--chrome); color:var(--chrome); background:rgba(var(--tinta),.04) }
 
 /* Mientras se arrastra: la que viaja se apaga y la de destino marca el
    borde, que es lo que dice donde va a caer. */
@@ -304,7 +331,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 }
 .giro{
   width:1.5rem; height:1.5rem; border-radius:50%;
-  border:2px solid rgba(255,255,255,.16);
+  border:2px solid rgba(var(--tinta),.16);
   border-top-color:var(--chrome);
   animation:girar .8s linear infinite;
   margin:0 auto;
@@ -346,6 +373,10 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
    Un punto de luz, una frase y un boton. El punto dice el estado de un
    vistazo y la frase lo dice con palabras, porque un color solo no
    alcanza: hay gente que no distingue verde de gris. */
+.logo--dia{ display:none }
+:root[data-tema="dia"] .logo--noche{ display:none }
+:root[data-tema="dia"] .logo--dia{ display:block }
+
 .interruptor{
   display:flex; align-items:center; gap:.85rem; max-width:52rem;
   border:1px solid var(--linea); border-radius:4px; background:var(--panel);
@@ -395,7 +426,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 }
 .bandeja .chat:first-child{ border-top:0 }
 .chat:hover,
-.chat:focus-visible{ background:rgba(255,255,255,.045); outline:0 }
+.chat:focus-visible{ background:rgba(var(--tinta),.045); outline:0 }
 
 /* LA INICIAL EN UN CIRCULO. Reemplaza a la pastilla del canal como
    ancla visual de la izquierda: con veinte conversaciones, el ojo
@@ -408,7 +439,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   font-size:.8rem; font-weight:600; text-transform:uppercase;
   color:var(--apagado);
 }
-.chat:hover .chat-inicial{ color:var(--chrome); border-color:rgba(255,255,255,.3) }
+.chat:hover .chat-inicial{ color:var(--chrome); border-color:rgba(var(--tinta),.3) }
 
 .chat .nombre{
   grid-area:nombre; font-size:.84rem; font-weight:600; min-width:0;
@@ -477,7 +508,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .globo .firma{
   display:flex; gap:.5rem; align-items:baseline;
   font-size:.46rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
-  color:rgba(255,255,255,.34);
+  color:rgba(var(--tinta),.34);
 }
 /* DE QUIÉN ES ESTA CONVERSACIÓN: el canal y el teléfono o usuario.
    Tiene el tamaño de un .rotulo pero NO va en mayúsculas: un usuario de
@@ -611,7 +642,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
    aplican: la barra existía en el marcado y no se dibujaba. El riel se
    salvaba por ser hijo de una grilla; el relleno no. */
 .barra-riel{
-  display:block; height:4px; background:rgba(255,255,255,.07);
+  display:block; height:4px; background:rgba(var(--tinta),.07);
   border-radius:100px; overflow:hidden;
 }
 .barra-fill{ display:block; height:100%; background:var(--chrome); border-radius:100px }
@@ -635,15 +666,15 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .tabla th[data-orden]:hover{ color:var(--chrome) }
 .tabla th[aria-sort]{ color:var(--chrome) }
 .tabla td{
-  padding:.7rem .6rem; border-bottom:1px solid rgba(255,255,255,.06);
+  padding:.7rem .6rem; border-bottom:1px solid rgba(var(--tinta),.06);
   text-align:right; font-size:.8rem; font-variant-numeric:tabular-nums;
   color:var(--chrome); white-space:nowrap;
 }
 .tabla td:first-child{ text-align:left; white-space:normal }
-.tabla tr:hover td{ background:rgba(255,255,255,.025) }
+.tabla tr:hover td{ background:rgba(var(--tinta),.025) }
 /* Un número que no vino no es un cero: es que Instagram no lo da para
    ese tipo de publicación. Se dibuja distinto para no leerlo mal. */
-.tabla .nada{ color:rgba(255,255,255,.2) }
+.tabla .nada{ color:rgba(var(--tinta),.2) }
 
 /* LOS ENVÍOS VAN DESTACADOS. De todas las columnas, es la que decide a
    quién le llega el reel — y es la que nadie mira. */
@@ -654,7 +685,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .pieza img,
 .pieza .sinfoto{
   width:3rem; height:3rem; object-fit:cover; border-radius:3px;
-  background:#08080a; flex:none; border:1px solid var(--linea);
+  background:var(--hueco); flex:none; border:1px solid var(--linea);
 }
 .pieza .texto{ display:grid; gap:.2rem; min-width:0 }
 .pieza .texto a{
@@ -728,8 +759,19 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 <!-- PANEL -->
 <div id="pantallaPanel" class="oculto">
   <header class="barra">
-    <img src="/assets/logo/logo-horizontal-blanco.svg" alt="Manna Motors Selected">
+    <!-- Dos archivos y no un filtro CSS: el logo tiene version negra
+         dibujada, y una inversion por filtro le cambiaria los grises
+         del isotipo. El que no corresponde se esconde por CSS. -->
+    <img class="logo logo--noche" src="/assets/logo/logo-horizontal-blanco.svg" alt="Manna Motors Selected">
+    <img class="logo logo--dia" src="/assets/logo/logo-horizontal-negro.svg" alt="" aria-hidden="true">
     <div class="der">
+      <!-- NOCHE O DIA. Dice a donde vas, no donde estas: un boton que
+           dice "Noche" cuando ya es de noche no se sabe si informa o
+           promete. El icono acompana pero no manda, por si el ancho del
+           celular se come el texto. -->
+      <button class="btn" id="tema" type="button" aria-live="polite">
+        <span aria-hidden="true">☀</span> <span id="temaTexto">Modo día</span>
+      </button>
       <button class="btn" id="verSitio" type="button">Ver el sitio</button>
       <button class="btn" id="salir" type="button">Salir</button>
     </div>
@@ -963,7 +1005,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
     <section style="margin-top:2.4rem" id="zonaFotos">
       <div style="display:flex;align-items:baseline;gap:.8rem;flex-wrap:wrap">
         <h2 class="rotulo">Fotos</h2>
-        <span class="rotulo" style="color:rgba(255,255,255,.32);letter-spacing:.1em">
+        <span class="rotulo" style="color:rgba(var(--tinta),.32);letter-spacing:.1em">
           Arrastralas para cambiar el orden · la primera es la portada
         </span>
       </div>
