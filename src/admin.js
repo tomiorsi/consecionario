@@ -41,7 +41,8 @@ export const PANEL = `<!doctype html>
   --tinta:255,255,255;
   --fondo:0,0,0;
   --panel:#0a0a0c;
-  --hueco:var(--hueco);
+  --hueco:#08080a;
+  --realce:#101014;
   --void:rgb(var(--fondo)); --chrome:rgb(var(--tinta));
   --linea:rgba(var(--tinta),.14);
   --apagado:rgba(var(--tinta),.55);
@@ -57,6 +58,7 @@ export const PANEL = `<!doctype html>
   --fondo:244,244,245;
   --panel:#fff;
   --hueco:#e9e9ec;
+  --realce:#ececef;
 }
 
 *{margin:0;padding:0;box-sizing:border-box}
@@ -334,7 +336,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
    esta ocupada subiendo. */
 .miniatura.cargando{
   display:grid; place-content:center; gap:.5rem;
-  background:#0c0c0f; cursor:default;
+  background:var(--realce); cursor:default;
 }
 .giro{
   width:1.5rem; height:1.5rem; border-radius:50%;
@@ -500,10 +502,11 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   border:1px solid var(--linea); border-radius:3px; background:var(--panel);
   padding:.65rem .8rem; display:grid; gap:.3rem; max-width:min(31rem,88%);
 }
-/* Lo que mandamos nosotros va a la derecha. Es la única señal de
-   dirección que hay: no hay color que distinga, así que la posición
-   tiene que alcanzar. */
-.globo--saliente{ margin-left:auto; background:#101014 }
+/* Lo que mandamos nosotros va a la derecha, sobre un fondo apenas
+   despegado del panel. Ese fondo TIENE QUE SEGUIR AL TEMA: escrito a
+   mano en negro, de día quedaba texto oscuro sobre un rectángulo
+   oscuro y las respuestas de la IA no se leían. */
+.globo--saliente{ margin-left:auto; background:var(--realce) }
 .globo p{ font-size:.82rem; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere }
 /* Un mensaje que no es texto. No guardamos el archivo —solo que llegó y
    de qué tipo— así que esto dice exactamente eso y no finge una vista
