@@ -1274,15 +1274,16 @@ const FORMA_DE_RESPUESTA = {
     pasar_a_persona: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     responder: { type: 'boolean' },
     megusta: { type: 'boolean' },
+    ubicacion: { type: 'boolean' },
   },
-  required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta'],
+  required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion'],
   additionalProperties: false,
 };
 
 const FORMA_EN_TEXTO = `
 
 TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
-{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false}
+{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false}
 Escribí "partes" siempre, aunque "responder" sea false: así se puede revisar
 qué hubieras dicho.`;
 
@@ -1510,6 +1511,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false } = {})
        decide que hay algo concreto que contestar. */
     responder: esComentario ? dato.responder === true : true,
     megusta: esComentario && dato.megusta === true,
+    ubicacion: dato.ubicacion === true,
     conPosteo: Boolean(posteo),
     esComentario,
     ultimo,
@@ -1653,6 +1655,22 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
 const PAUSA_ENTRE_PARTES = 10000;
 const PAUSA_TRAS_EL_LINK = 12000;
 
+/* LA UBICACIÓN ES UN MENSAJE FIJO, NO LO ESCRIBE EL BOT. Así la mandan en
+   los chats: la dirección y el link de Maps, solos, que el chat muestra
+   con el mapita. Escrita por el bot salía pegada a otra frase, y sin el
+   mapa. El bot sólo dice que va (`ubicacion: true`). */
+const UBICACION = 'Pje. Lanín 154, Barracas\nhttps://maps.app.goo.gl/CMLnmLY8MdnYsMyG6';
+
+/* EL ORDEN DE LOS MENSAJES: lo que se cuenta, después lo fijo (el link
+   del auto, la ubicación) y al final la pregunta, si la última parte es
+   una. Lo fijo se espera un poco más, para que se vea la vista previa. */
+function armarTextos(partes, fijos) {
+  const textos = [...partes];
+  const termina = textos.length > 1 && /\?\s*$/.test(textos[textos.length - 1]);
+  textos.splice(termina ? textos.length - 1 : textos.length, 0, ...fijos);
+  return textos;
+}
+
 async function linkSinRepetir(env, chatId, autoId) {
   const ficha = autoId ? await fichaDe(env, autoId) : null;
   if (!ficha) return null;
@@ -1672,15 +1690,15 @@ async function linkSinRepetir(env, chatId, autoId) {
   return yaEsta ? null : ficha.enlace;
 }
 
-async function mandarRespuesta(env, chat, { partes, autoId = null, autor }) {
+async function mandarRespuesta(env, chat, { partes, autoId = null, ubicacion = false, autor }) {
   const link = await linkSinRepetir(env, chat.id, autoId);
+  const fijos = [link, ubicacion ? UBICACION : null].filter(Boolean);
 
   /* El plan: qué sale y cuánto se espera ANTES de cada cosa. */
-  const textos = [...partes];
-  if (link) textos.splice(Math.max(0, textos.length - 1), 0, link);
+  const textos = armarTextos(partes, fijos);
   const pasos = textos.map((texto, n) => ({
     texto,
-    espera: n === 0 ? 0 : textos[n - 1] === link ? PAUSA_TRAS_EL_LINK : PAUSA_ENTRE_PARTES,
+    espera: n === 0 ? 0 : fijos.includes(textos[n - 1]) ? PAUSA_TRAS_EL_LINK : PAUSA_ENTRE_PARTES,
   }));
 
   const [primero, ...resto] = pasos;
@@ -1898,7 +1916,9 @@ async function atenderSolo(env, disparos) {
       }
 
       if (r.esComentario) await atenderComentario(env, chat, r);
-      else await mandarRespuesta(env, chat, { partes: r.partes, autoId: r.autoId, autor: 'ia' });
+      else await mandarRespuesta(env, chat, {
+        partes: r.partes, autoId: r.autoId, ubicacion: r.ubicacion, autor: 'ia',
+      });
 
       /* Sin una palabra del mensaje: sólo qué hizo y por dónde. */
       console.log(JSON.stringify({
@@ -1949,9 +1969,8 @@ async function atenderComentario(env, chat, r) {
   }
 
   const link = await linkSinRepetir(env, chat.id, r.autoId);
-  const textos = [...r.partes];
-  if (link) textos.splice(Math.max(0, textos.length - 1), 0, link);
-  const texto = textos.join('\n\n');
+  const texto = armarTextos(r.partes,
+    [link, r.ubicacion ? UBICACION : null].filter(Boolean)).join('\n\n');
 
   const id = await mandarUno(env, chat, texto, { comentarioId: comentario.externo_id });
   await guardarSaliente(env, chat.id, texto, 'ia', id, { mediaId: comentario.media_id });
@@ -2640,6 +2659,7 @@ async function admin(peticion, env, ruta, metodo) {
         conPosteo: r.conPosteo,
         derivar: r.derivar,
         ficha: ficha && { auto_id: r.autoId, ...ficha },
+        ubicacion: r.ubicacion,
       });
     } catch (e) {
       return error(e?.message || 'No se pudo escribir la respuesta', 502);
@@ -2711,6 +2731,7 @@ async function admin(peticion, env, ruta, metodo) {
     const mensaje = texto(cuerpo?.texto, 3000);
     if (!mensaje) return error('Falta el texto');
     const autoId = entero(cuerpo?.auto_id, 1, 1e9);
+    const ubicacion = cuerpo?.ubicacion === true;
     /* Cada párrafo del cuadro —separado por una línea en blanco— sale
        como un mensaje aparte. */
     const partes = mensaje.split(/\n\s*\n/).map((t) => t.trim()).filter(Boolean);
@@ -2725,7 +2746,7 @@ async function admin(peticion, env, ruta, metodo) {
        mandarlo una persona. Lo que sale solo queda como 'ia'. */
     try {
       return json({ ok: true, ...(await mandarRespuesta(env, chat, {
-        partes, autoId, autor: 'persona',
+        partes, autoId, ubicacion, autor: 'persona',
       })) });
     } catch (e) {
       return error(e?.message || 'Meta no aceptó el mensaje', 502);
