@@ -1571,12 +1571,30 @@ async function graphMandar(token, nombre, camino, cuerpo) {
   return dato;
 }
 
-/* LOS CELULARES DE ARGENTINA LLEGAN CON EL 9 (549 11 ...), y en modo de
-   prueba Meta suele rechazar la respuesta a ese número con "no está en
-   la lista de destinatarios" (código 131030), porque lo tiene anotado
-   sin el 9. Se reintenta una vez sin el 9. Con un número de producción
-   no pasa, y si pasa con otro error, el error sube tal cual. */
-const SIN_EL_NUEVE = (n) => (/^549\d{10}$/.test(n) ? '54' + n.slice(3) : null);
+/* LAS OTRAS FORMAS DE ESCRIBIR UN CELULAR ARGENTINO.
+
+   El número llega del webhook como 549 + área + línea, que es el
+   correcto y el único que usa WhatsApp. Pero la lista de destinatarios
+   del número de prueba no se compara contra ése: se compara contra cómo
+   quedó anotado el número ahí, y Meta lo anota a su manera. A un número
+   lo guardó sin el 9 (54 11 ...) y a otro con el viejo 15 adentro
+   (54 11 15 ...), que es lo que arma su propia herramienta de envío.
+   Cuando no coincide, rechaza con el código 131030 y nada más.
+
+   Por eso, y SÓLO ante ese código, se reintenta con las otras formas.
+   El 15 va después del área, y el área puede tener 2, 3 o 4 dígitos
+   (11 en Buenos Aires, 351 en Córdoba, 2302 en General Villegas), así
+   que se prueban los tres cortes en vez de adivinar uno.
+
+   ESTO ES DEL NÚMERO DE PRUEBA Y SE VA CON ÉL. Un número de producción
+   no tiene lista de destinatarios, así que el 131030 no existe y este
+   reintento nunca corre. Cualquier otro error sube tal cual. */
+const OTRAS_FORMAS = (n) => {
+  if (!/^549\d{10}$/.test(n)) return [];
+  const resto = n.slice(3);
+  return ['54' + resto,
+          ...[2, 3, 4].map((a) => '54' + resto.slice(0, a) + '15' + resto.slice(a))];
+};
 
 /* `comentarioId`: en Instagram, la respuesta privada a un comentario.
    A alguien que nunca nos escribió no se le puede abrir un privado; la
@@ -1592,13 +1610,35 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
         type: 'text',
         text: { body: texto, preview_url: true },
       });
-    let r;
-    try {
-      r = await mandarA(chat.externo_id);
-    } catch (e) {
-      const otro = e.codigo === 131030 && SIN_EL_NUEVE(chat.externo_id);
-      if (!otro) throw e;
-      r = await mandarA(otro);
+    /* LOS ULTIMOS CUATRO DIGITOS Y NADA MAS. Un telefono entero es un
+       dato personal y no va al log, pero sin saber a quien se intento
+       no hay forma de diagnosticar un rechazo. Cuatro digitos alcanzan
+       para reconocerlo y no identifican a nadie. */
+    const cola = (n) => "..." + String(n).slice(-4);
+
+    const formas = [chat.externo_id, ...OTRAS_FORMAS(chat.externo_id)];
+    let r = null;
+    let rechazo = null;
+    for (const forma of formas) {
+      try {
+        r = await mandarA(forma);
+        rechazo = null;
+        break;
+      } catch (e) {
+        /* Cualquier cosa que no sea "ese numero no esta en la lista"
+           sube ya mismo: reintentar un token vencido o una ventana
+           cerrada con otro formato no arregla nada y tapa el motivo. */
+        if (e.codigo !== 131030) {
+          e.message += " [a " + cola(forma) + ", desde " + env.WHATSAPP_PHONE_ID + "]";
+          throw e;
+        }
+        rechazo = e;
+      }
+    }
+    if (rechazo) {
+      rechazo.message += " [a " + cola(chat.externo_id) + ", desde " + env.WHATSAPP_PHONE_ID
+        + ": ninguna de las " + formas.length + " formas esta en la lista de destinatarios]";
+      throw rechazo;
     }
     return r?.messages?.[0]?.id ?? null;
   }
@@ -2763,6 +2803,47 @@ async function admin(peticion, env, ruta, metodo) {
 
      NO ES PARA DEJAR PUESTO. Devuelve nombres de usuario y debería irse
      cuando Instagram entre solo. */
+  /* QUE CONTESTA WHATSAPP, CRUDO.
+
+     Para cuando un envio se rechaza y el mensaje resumido no alcanza.
+     Devuelve la respuesta entera de Meta —codigo, subcodigo, detalle y
+     numero de rastreo— que es lo que hay que leer para saber si el
+     problema es el destinatario, el token, la cuenta o el numero de
+     origen. El mensaje corto que se ve en el log muchas veces dice una
+     cosa y el subcodigo dice otra.
+
+     NO MANDA NADA SI FALLA, que es el caso que interesa. Si el numero
+     esta habilitado, si manda: es el precio de probar de verdad.
+
+     Se abre desde el panel, ya con la sesion puesta:
+       /api/admin/whatsapp/diagnostico?a=5491133762494  */
+  if (ruta === '/api/admin/whatsapp/diagnostico' && metodo === 'GET') {
+    const a = (new URL(peticion.url).searchParams.get('a') || '').replace(/\D/g, '');
+    if (!a) return error('Falta ?a= con el numero a probar', 400);
+
+    const probar = async (destino) => {
+      const r = await fetch(`${GRAPH}/${env.WHATSAPP_PHONE_ID}/messages`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${env.WHATSAPP_TOKEN}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp', to: destino,
+          type: 'text', text: { body: 'Prueba de diagnostico.' },
+        }),
+      });
+      return { destino, estado: r.status, respuesta: await r.json().catch(() => ({})) };
+    };
+
+    const salida = { phone_id: env.WHATSAPP_PHONE_ID, intentos: [await probar(a)] };
+    for (const forma of OTRAS_FORMAS(a)) {
+      if (salida.intentos[salida.intentos.length - 1].respuesta?.messages) break;
+      salida.intentos.push(await probar(forma));
+    }
+    return json(salida);
+  }
+
   if (ruta === '/api/admin/instagram/diagnostico' && metodo === 'GET') {
     const pruebas = {};
     const probar = async (nombre, camino) => {
