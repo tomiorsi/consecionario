@@ -1760,26 +1760,35 @@ export class Envios extends DurableObject {
    "Que escriba la IA" y el de probar sin mandar—, porque esos los
    dispara una persona. */
 
-/* POR CANAL Y POR HORARIO, Y EN BORRADOR DE FÁBRICA. El horario es el de
-   Buenos Aires; "de 19 a 10" cruza la medianoche y está bien. Se guarda
-   en la tabla `estado`, así que prenderlo o apagarlo no toca la base. */
-const CANALES_DEL_BOT = ['whatsapp', 'instagram', 'messenger'];
+/* UN SOLO INTERRUPTOR, NO UNO POR CANAL.
 
+   Antes esto guardaba un modo por canal —borrador o automático en
+   WhatsApp, Instagram y Messenger por separado— y el bot sólo contestaba
+   donde dijera "automatico". Tres decisiones para lo que en la práctica
+   es una: el cliente es el mismo y pregunta lo mismo, lo único que
+   cambia es por qué caño entró.
+
+   Y ADEMÁS ERA UN AGUJERO. Cuando los selectores se sacaron del panel,
+   nadie podía ya poner un canal en "automatico": la IA se prendía, el
+   panel decía que estaba contestando sola, y esa condición la frenaba
+   en silencio en los tres canales. Prendido y sin contestar es el peor
+   estado posible, porque no se nota.
+
+   Queda `encendida` y nada más. Si está prendida contesta los tres
+   canales igual; si está apagada, ninguno.
+
+   EL HORARIO SE QUEDA aunque hoy no haya control en el panel: lo lee el
+   bot y vale lo que esté guardado. Sin horario elegido, contesta a toda
+   hora, que es lo que hay ahora. */
 async function configDelBot(env) {
   const g = (await leerEstado(env, 'bot'))?.valor ?? {};
-  const modo = {};
-  for (const c of CANALES_DEL_BOT) {
-    modo[c] = g.modo?.[c] === 'automatico' ? 'automatico' : 'borrador';
-  }
   const hora = (v) => (Number.isInteger(v) && v >= 0 && v <= 23 ? v : null);
+
   /* `=== true` y no un valor que parezca verdadero: si lo guardado se
      corrompe o viene de una versión vieja, queda apagada. */
   const encendida = g.encendida === true;
 
-  return {
-    modo, desde: hora(g.desde), hasta: hora(g.hasta),
-    encendida, apagado: !encendida,
-  };
+  return { desde: hora(g.desde), hasta: hora(g.hasta), encendida, apagado: !encendida };
 }
 
 function enHorario(cfg, ahora = new Date()) {
@@ -1813,7 +1822,6 @@ const ESPERA_ANTES_DE_CONTESTAR = 8000;
 async function atenderSolo(env, disparos) {
   const cfg = await configDelBot(env);
   if (!cfg.encendida) return;
-  if (!disparos.some((d) => cfg.modo[d.canal] === 'automatico')) return;
   if (!enHorario(cfg)) return;
 
   await new Promise((listo) => setTimeout(listo, ESPERA_ANTES_DE_CONTESTAR));
@@ -1821,7 +1829,6 @@ async function atenderSolo(env, disparos) {
   /* UNA POR VEZ: en paralelo serían varias llamadas a Claude y a Meta
      desde la misma invocación, y Cloudflare corta por pedidos salientes. */
   for (const d of disparos) {
-    if (cfg.modo[d.canal] !== 'automatico') continue;
     try {
       const chat = await env.DB.prepare(
         'SELECT id, canal, externo_id, humano FROM conversaciones WHERE id = ?'
@@ -2688,17 +2695,13 @@ async function admin(peticion, env, ruta, metodo) {
   }
   if (ruta === '/api/admin/bot' && metodo === 'PUT') {
     const cuerpo = await peticion.json().catch(() => ({}));
-    const modo = {};
-    for (const c of CANALES_DEL_BOT) {
-      modo[c] = cuerpo?.modo?.[c] === 'automatico' ? 'automatico' : 'borrador';
-    }
+
     /* Lo que no venga en el cuerpo se queda como estaba: el botón de
-       prender manda sólo `encendida` y no tiene por qué pisar el horario
-       ni los canales que alguien eligió antes. */
+       prender manda sólo `encendida` y no tiene por qué pisar el
+       horario que alguien haya dejado puesto. */
     const antes = (await leerEstado(env, 'bot'))?.valor ?? {};
 
     await guardarEstado(env, 'bot', {
-      modo: cuerpo?.modo ? modo : (antes.modo ?? modo),
       desde: 'desde' in (cuerpo ?? {}) ? entero(cuerpo.desde, 0, 23) : (antes.desde ?? null),
       hasta: 'hasta' in (cuerpo ?? {}) ? entero(cuerpo.hasta, 0, 23) : (antes.hasta ?? null),
       encendida: 'encendida' in (cuerpo ?? {}) ? cuerpo.encendida === true : antes.encendida === true,

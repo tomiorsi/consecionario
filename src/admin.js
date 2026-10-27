@@ -115,14 +115,21 @@ select option{ background:var(--panel); color:var(--chrome) }
 textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 
 /* ── contenido ── */
-.hoja{ padding:clamp(1.2rem,4vw,2.5rem); max-width:74rem; margin:0 auto }
+.hoja{ padding:clamp(1.2rem,4vw,2.5rem); max-width:56rem; margin:0 auto }
 .titulo{
   font-family:var(--display); font-size:clamp(.9rem,2vw,1.15rem);
   font-weight:700; letter-spacing:.06em; text-transform:uppercase;
 }
 
 /* ── pestañas ── */
-.pestanias{ display:flex; gap:.3rem }
+/* Centradas como todo lo demas, y que envuelvan en el celular en vez
+   de desbordar: son cuatro y el nombre mas largo es "Imagenes del
+   sitio". El margen derecho de cada pestana se compensa a la
+   izquierda del bloque para que el conjunto quede optico al medio. */
+.pestanias{
+  display:flex; gap:.3rem; flex-wrap:wrap;
+  justify-content:center; margin-left:1rem;
+}
 .pestania{
   appearance:none; border:0; border-bottom:1px solid transparent; background:transparent;
   color:var(--apagado); padding:.4em .2em; margin-right:1rem;
@@ -134,7 +141,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .pestania:hover{ color:var(--chrome) }
 
 .aclara{
-  margin:1.4rem 0 1.2rem; max-width:44rem;
+  margin:1.4rem auto 1.2rem; max-width:44rem;
   font-size:.8rem; line-height:1.7; color:var(--apagado);
 }
 
@@ -163,7 +170,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   letter-spacing:.14em; text-transform:uppercase; color:var(--chrome);
 }
 .grupo-nota{
-  margin:.45rem 0 1rem; max-width:40rem;
+  margin:.45rem auto 1rem; max-width:40rem;
   font-size:.72rem; line-height:1.6; color:var(--apagado);
 }
 .grupo-fotos{ display:grid; gap:.9rem; grid-template-columns:repeat(auto-fill,minmax(14rem,1fr)) }
@@ -378,7 +385,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 :root[data-tema="dia"] .logo--dia{ display:block }
 
 .interruptor{
-  display:flex; align-items:center; gap:.85rem; max-width:52rem;
+  display:flex; align-items:center; gap:.85rem; max-width:52rem; margin-inline:auto;
   border:1px solid var(--linea); border-radius:4px; background:var(--panel);
   padding:.85rem 1rem; margin:0 0 1.4rem;
 }
@@ -405,7 +412,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
    punto de anclaje a la izquierda para recorrer la lista de un vistazo,
    que es para lo que sirve una bandeja. */
 .bandeja{
-  display:grid; max-width:52rem;
+  display:grid; max-width:52rem; margin-inline:auto;
   border:1px solid var(--linea); border-radius:4px; overflow:hidden;
 }
 /* Es un <button> y no un <div> con click: se abre con el teclado y el
@@ -488,7 +495,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 }
 
 /* ── un chat abierto ── */
-.hilo{ display:grid; gap:.5rem; max-width:44rem; margin:1.8rem 0 0 }
+.hilo{ display:grid; gap:.5rem; max-width:44rem; margin:1.8rem auto 0 }
 .globo{
   border:1px solid var(--linea); border-radius:3px; background:var(--panel);
   padding:.65rem .8rem; display:grid; gap:.3rem; max-width:min(31rem,88%);
@@ -521,7 +528,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 }
 .nota{
   border-left:2px solid var(--linea); padding-left:.7rem; margin:1.2rem 0 0;
-  max-width:44rem; font-size:.74rem; line-height:1.6; color:var(--apagado);
+  max-width:44rem; margin-inline:auto; font-size:.74rem; line-height:1.6; color:var(--apagado);
 }
 
 /* ── contestar ──
@@ -529,7 +536,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
    arriba abajo y el cuadro para escribir es el final de esa lectura,
    no un elemento aparte. */
 .responder{
-  display:grid; gap:.6rem; max-width:44rem; margin:1.4rem 0 0;
+  display:grid; gap:.6rem; max-width:44rem; margin:1.4rem auto 0;
 }
 .responder textarea{
   width:100%; resize:vertical; min-height:4.4rem;
@@ -549,7 +556,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
    Hasta dónde llega la gente, por mes. Es una tabla y no un gráfico:
    son pocos números, y lo que importa es poder leer "de 40 visitas, 6
    cerraron" sin interpretar barras. */
-.embudo{ max-width:52rem; margin:0 0 2.4rem; overflow-x:auto }
+.embudo{ max-width:52rem; margin:0 auto 2.4rem; overflow-x:auto }
 .embudo-cabeza{ display:flex; align-items:center; gap:.8rem; flex-wrap:wrap; margin-bottom:.9rem }
 .embudo-cabeza input{ font:inherit; font-size:.74rem; padding:.35em .6em;
   background:var(--panel); color:var(--chrome); border:1px solid var(--linea); border-radius:3px }
@@ -569,7 +576,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .etapa-marca--perdido{ text-decoration:line-through }
 
 /* Los mandos del embudo adentro de un chat. */
-.marcar{ display:flex; gap:1rem 1.4rem; flex-wrap:wrap; align-items:end; margin:1.4rem 0 0; max-width:44rem }
+.marcar{ display:flex; gap:1rem 1.4rem; flex-wrap:wrap; align-items:end; margin:1.4rem auto 0; max-width:44rem }
 .marcar select{ font:inherit; font-size:.78rem; padding:.4em .6em;
   background:var(--panel); color:var(--chrome); border:1px solid var(--linea); border-radius:3px }
 .marcar label.tilde{ display:flex; gap:.45rem; align-items:center; font-size:.78rem }
@@ -588,7 +595,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 }
 .seccion-rotulo:first-of-type{ margin-top:1.4rem }
 .seccion-nota{
-  margin:-.6rem 0 1.2rem; max-width:44rem;
+  margin:-.6rem auto 1.2rem; max-width:44rem;
   font-size:.72rem; line-height:1.6; color:var(--apagado);
 }
 
@@ -700,7 +707,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
    Lo que tarda tiene que decir que esta trabajando y cuanto falta. Una
    pantalla quieta diez segundos se lee como rota, y el que mira
    recarga o aprieta de nuevo — que es justo lo que no hay que hacer. */
-.barra-estado{ display:grid; gap:.45rem; max-width:30rem; margin:0 0 1.4rem }
+.barra-estado{ display:grid; gap:.45rem; max-width:30rem; margin:0 auto 1.4rem }
 .barra-estado-texto{
   font-size:.56rem; font-weight:600; letter-spacing:.14em;
   text-transform:uppercase; color:var(--apagado);
@@ -712,7 +719,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
    le escribe. Eso va arriba, corto y en mayusculas. El texto que
    hubiera mandado va abajo, en tipografia mas chica: importa, pero
    recien cuando ya se sabe de que lado cayo. */
-.probar{ margin:1.6rem 0 0; border-top:1px solid var(--linea); padding-top:1.2rem }
+.probar{ margin:1.6rem auto 0; max-width:52rem; border-top:1px solid var(--linea); padding-top:1.2rem }
 .probar .nota{ margin:.5rem 0 0 }
 .decision{
   border:1px solid var(--linea); border-radius:3px; background:var(--panel);
