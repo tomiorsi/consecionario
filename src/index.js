@@ -1857,13 +1857,31 @@ async function atenderSolo(env, disparos) {
       ).bind(chat.id).first();
       if (ultimo?.id !== d.mensaje) continue;
 
-      const recientes = await env.DB.prepare(
+      /* EL FRENO CUENTA LO QUE SALIO SIN QUE EL CLIENTE DIJERA NADA.
+
+         Antes contaba todos los mensajes nuestros de los ultimos diez
+         minutos y cortaba a los cinco. Pero el bot manda cada respuesta
+         en tres o cuatro partes a proposito, asi que DOS respuestas
+         normales ya lo disparaban: contestaba dos veces y despues se
+         quedaba mudo en plena charla, justo cuando la persona estaba
+         mas enganchada.
+
+         Lo que hay que detectar no es "muchos mensajes" sino "muchos
+         mensajes sin que el otro conteste", que es la forma de un bucle.
+         Mientras el cliente siga escribiendo, la cuenta se reinicia
+         sola: una charla larga no se frena nunca, y un bucle se frena
+         igual de rapido que antes. */
+      const sinRespuesta = await env.DB.prepare(
         `SELECT COUNT(*) n FROM mensajes
           WHERE conversacion_id = ? AND direccion = 'saliente'
-            AND creado > datetime('now', '-10 minutes')`
-      ).bind(chat.id).first();
-      if ((recientes?.n ?? 0) >= 5) {
-        console.log(JSON.stringify({ bot: 'frenado por ráfaga', chat: chat.id }));
+            AND id > COALESCE((SELECT MAX(id) FROM mensajes
+                                WHERE conversacion_id = ? AND direccion = 'entrante'), 0)`
+      ).bind(chat.id, chat.id).first();
+
+      if ((sinRespuesta?.n ?? 0) >= 8) {
+        console.log(JSON.stringify({
+          bot: 'frenado por ráfaga', chat: chat.id, sin_respuesta: sinRespuesta.n,
+        }));
         continue;
       }
 
