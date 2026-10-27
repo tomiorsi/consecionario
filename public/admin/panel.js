@@ -924,17 +924,29 @@ function pintarChats() {
       ? escapar(c.adelanto)
       : '<em>' + (c.cantidad ? 'Mandó algo que no es texto' : 'Sin mensajes') + '</em>';
 
+    /* La inicial del nombre. Si no hay nombre queda el circulo vacio,
+       que es mejor que meterle una letra inventada del canal. */
+    const inicial = (quien.replace(/^@/, '').trim()[0] || '·');
+
+    /* EL CANAL Y LA CLASE EN UNA LINEA, separados por un punto. Antes
+       eran tres pastillas por fila; con veinte filas eran sesenta
+       rectangulos. El dato es el mismo y se mira de reojo. */
+    const meta = [
+      '<span>' + escapar(CANALES[c.canal] || c.canal) + '</span>',
+      c.clase === 'comentario'
+        ? '<span class="publico">Comentario</span>'
+        : '<span>Privado</span>',
+    ];
+    if (c.humano) meta.push('<span class="espera">La sigue una persona</span>');
+
     return '<button class="chat" type="button" data-id="' + c.id + '">' +
-      '<span class="arriba">' +
-        '<span class="nombre">' + escapar(quien) + '</span>' +
-        (c.humano ? '<span class="espera">Espera a una persona</span>' : '') +
-        (c.clase === 'comentario'
-          ? '<span class="clase clase--comentario">Comentario</span>'
-          : '<span class="clase">Privado</span>') +
-        '<span class="canal">' + escapar(CANALES[c.canal] || c.canal) + '</span>' +
-        '<span class="cuando">' + cuandoCorto(c.ultimo) + '</span>' +
-      '</span>' +
+      '<span class="chat-inicial" aria-hidden="true">' + escapar(inicial) + '</span>' +
+      '<span class="nombre">' + escapar(quien) + '</span>' +
+      '<span class="cuando">' + cuandoCorto(c.ultimo) + '</span>' +
       '<span class="adelanto">' + adelanto + '</span>' +
+      '<span class="meta">' +
+        meta.join('<span class="punto">·</span>') +
+      '</span>' +
     '</button>';
   }).join('');
 
@@ -1583,54 +1595,59 @@ $('#borrarChat').addEventListener('click', () => {
 
 /* ── las pestañas ───────────────────────────────────────────── */
 
-/* ── CÓMO CONTESTA EL BOT ────────────────────────────────────────
-   Por canal, borrador o automático, y en qué horario contesta solo.
-   Sin horario elegido, el automático contesta a toda hora. */
-const HORAS = Array.from({ length: 24 }, (_, h) => h);
-['#botDesde', '#botHasta'].forEach((sel) => {
-  $(sel).innerHTML = '<option value="">Siempre</option>' +
-    HORAS.map((h) => '<option value="' + h + '">' + String(h).padStart(2, '0') + ' h</option>').join('');
-});
+/* ── PRENDER Y APAGAR LA IA ──────────────────────────────────────
 
-function pintarBot(cfg) {
-  $$('#botModo select[data-canal]').forEach((s) => { s.value = cfg.modo[s.dataset.canal]; });
-  $('#botDesde').value = cfg.desde ?? '';
-  $('#botHasta').value = cfg.hasta ?? '';
+   UN BOTON, Y QUE DIGA LO QUE VA A PASAR. Antes esto eran cinco
+   controles —uno por canal, dos de horario y guardar— para lo que en la
+   practica es una sola decision: contesta sola o no. Y mientras estuvo
+   apagada desde el codigo, los cinco estaban grises y no se podia hacer
+   nada con ellos.
 
-  /* EL INTERRUPTOR GENERAL. Si está apagado en el código (CONTESTA_SOLA),
-     elegir "Automático" acá no haría nada: se dice y no se deja. */
-  $$('#botModo select, #botGuardar').forEach((el) => { el.disabled = Boolean(cfg.apagado); });
-  if (cfg.apagado) {
-    $('#botNota').textContent = 'La respuesta automática está apagada desde el código: el bot no le contesta solo a nadie, en ningún canal. Escribe un borrador cuando lo pedís, y lo mandás vos.';
-    return;
-  }
+   PRENDERLA PIDE CONFIRMACION; APAGARLA NO. Apagar nunca puede salir
+   mal: lo peor que pasa es que alguien conteste a mano un rato. Prender
+   si, porque a partir de ese momento le escribe a clientes reales sin
+   que nadie lo lea antes, y eso no se deshace. */
+function pintarIA(cfg) {
+  const caja = $('#interruptorIA');
+  caja.hidden = false;
+  caja.classList.toggle('viva', cfg.encendida);
 
-  const solos = Object.entries(cfg.modo).filter(([, m]) => m === 'automatico')
-    .map(([c]) => CANALES[c]);
-  const horario = cfg.desde !== null && cfg.hasta !== null && cfg.desde !== cfg.hasta
-    ? ', de ' + cfg.desde + ' a ' + cfg.hasta + ' h' : ', a toda hora';
-  $('#botNota').textContent = solos.length
-    ? 'Contesta solo en ' + solos.join(' y ') + horario +
-      '. En el resto escribe un borrador cuando lo pedís. Si alguien pide hablar con una persona o que borremos sus datos, deja de contestar ese chat y queda marcado.'
-    : 'El bot no contesta solo en ningún canal. Escribe un borrador cuando lo pedís, y lo mandás vos.';
+  $('#estadoIA').textContent = cfg.encendida
+    ? 'La IA está contestando sola'
+    : 'La IA está apagada';
+
+  $('#detalleIA').textContent = cfg.encendida
+    ? 'Responde WhatsApp, Instagram y Messenger sin que nadie lo lea antes. Si alguien pide hablar con una persona, deja ese chat.'
+    : 'Contestás vos. No sale ningún mensaje solo. El botón "Que escriba la IA" te arma el borrador igual.';
+
+  $('#palancaIA').textContent = cfg.encendida ? 'Apagar' : 'Prender';
+  $('#palancaIA').classList.toggle('btn--fuerte', cfg.encendida);
 }
 
-async function cargarBot() { pintarBot(await api('/api/admin/bot')); }
+async function cargarIA() {
+  try { pintarIA(await api('/api/admin/bot')); } catch { /* el panel abre igual */ }
+}
 
-$('#botGuardar').addEventListener('click', async () => {
-  const modo = {};
-  $$('#botModo select[data-canal]').forEach((s) => { modo[s.dataset.canal] = s.value; });
-  const nuevos = Object.entries(modo).filter(([, m]) => m === 'automatico').map(([c]) => CANALES[c]);
-  if (nuevos.length && !confirm('El bot va a contestar solo, sin que nadie lo lea antes, en ' +
-      nuevos.join(' y ') + '. Seguimos?')) return;
-  const hora = (v) => (v === '' ? null : Number(v));
+$('#palancaIA').addEventListener('click', async () => {
+  const prendiendo = !$('#interruptorIA').classList.contains('viva');
+
+  if (prendiendo && !confirm(
+    'A partir de ahora la IA le va a contestar sola a los clientes, ' +
+    'sin que nadie lo lea antes. ¿Seguimos?')) return;
+
+  const boton = $('#palancaIA');
+  boton.disabled = true;
   try {
-    pintarBot(await api('/api/admin/bot', {
+    pintarIA(await api('/api/admin/bot', {
       method: 'PUT',
-      body: JSON.stringify({ modo, desde: hora($('#botDesde').value), hasta: hora($('#botHasta').value) }),
+      body: JSON.stringify({ encendida: prendiendo }),
     }));
-    avisar('Guardado');
-  } catch (err) { avisar(err.message, true); }
+    avisar(prendiendo ? 'La IA quedó contestando sola' : 'La IA quedó apagada');
+  } catch (err) {
+    avisar(err.message, true);
+  } finally {
+    boton.disabled = false;
+  }
 });
 
 function verPestania(cual) {
@@ -1656,7 +1673,7 @@ function verPestania(cual) {
   else if (cual === 'numeros') cargarNumeros();
   else {
     cargarChats().catch((err) => avisar(err.message, true));
-    cargarBot().catch((err) => avisar(err.message, true));
+    cargarIA();
     arrancarRefresco();
     ponerseAlDia();
   }

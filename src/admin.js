@@ -342,62 +342,111 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
    El teléfono y el usuario se muestran —hay que poder reconocer a quien
    escribió— pero no viajan en ninguna dirección: la lista y el chat se
    navegan por el id interno. */
-.bandeja{ display:grid; gap:.5rem; max-width:52rem }
+/* ── EL INTERRUPTOR DE LA IA ─────────────────────────────────────
+   Un punto de luz, una frase y un boton. El punto dice el estado de un
+   vistazo y la frase lo dice con palabras, porque un color solo no
+   alcanza: hay gente que no distingue verde de gris. */
+.interruptor{
+  display:flex; align-items:center; gap:.85rem; max-width:52rem;
+  border:1px solid var(--linea); border-radius:4px; background:var(--panel);
+  padding:.85rem 1rem; margin:0 0 1.4rem;
+}
+.interruptor-luz{
+  width:.5rem; height:.5rem; border-radius:50%; flex:none;
+  background:var(--apagado); transition:background .3s var(--ease);
+}
+.interruptor.viva .interruptor-luz{
+  background:#4ade80; box-shadow:0 0 0 3px rgba(74,222,128,.18);
+}
+.interruptor-texto{ display:grid; gap:.15rem; margin-right:auto; min-width:0 }
+.interruptor-texto strong{ font-size:.78rem; font-weight:600 }
+.interruptor-texto small{ font-size:.68rem; color:var(--apagado); line-height:1.4 }
+.interruptor .btn{ flex:none }
+
+/* ── LA BANDEJA ──────────────────────────────────────────────────
+   SIN UN RECUADRO POR FILA. Antes cada chat era una tarjeta con borde:
+   con veinte conversaciones eran veinte rectangulos compitiendo entre
+   si, y el ojo no sabia donde parar. Ahora son filas separadas por una
+   linea finita, como cualquier bandeja de mensajes, y lo que marca cual
+   estas mirando es el fondo al pasar por arriba.
+
+   LA INICIAL EN UN CIRCULO reemplaza a la pastilla del canal: da un
+   punto de anclaje a la izquierda para recorrer la lista de un vistazo,
+   que es para lo que sirve una bandeja. */
+.bandeja{
+  display:grid; max-width:52rem;
+  border:1px solid var(--linea); border-radius:4px; overflow:hidden;
+}
 /* Es un <button> y no un <div> con click: se abre con el teclado y el
-   lector de pantalla lo anuncia como algo que se puede abrir. */
-/* EL min-width:0 NO ES DECORATIVO: adentro de una grilla, una pieza no
-   se achica por debajo de lo que mide su contenido, así que un nombre
-   largo más la marca de "espera a una persona" empujaban la tarjeta
-   fuera de la pantalla del celular en vez de cortarse. */
+   lector de pantalla lo anuncia como algo que se puede abrir.
+
+   TRES COLUMNAS: la inicial, el contenido y la hora. El contenido va en
+   el medio con min-width:0, que es lo que permite que un nombre largo o
+   un mensaje largo se corten con puntos suspensivos en vez de empujar
+   la hora fuera de la pantalla del celular. */
 .chat{
   appearance:none; width:100%; min-width:0; font-family:inherit; color:inherit;
-  border:1px solid var(--linea); border-radius:3px; background:var(--panel);
-  padding:.8rem .95rem; display:grid; gap:.3rem; text-align:left; cursor:pointer;
-  transition:border-color .3s var(--ease);
+  border:0; border-top:1px solid var(--linea); border-radius:0;
+  background:transparent; cursor:pointer; text-align:left;
+  padding:.95rem 1rem; display:grid; gap:0 .85rem;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  grid-template-areas:"ini nombre hora" "ini texto texto" "ini meta meta";
+  align-items:center; transition:background .2s var(--ease);
 }
-.chat:hover{ border-color:var(--chrome) }
-.chat .arriba{ display:flex; align-items:baseline; gap:.6rem; min-width:0 }
-/* Un span y no un h3: adentro de un <button> sólo entra texto, y un
-   título ahí es HTML inválido aunque el navegador lo dibuje igual.
+.bandeja .chat:first-child{ border-top:0 }
+.chat:hover,
+.chat:focus-visible{ background:rgba(255,255,255,.045); outline:0 }
 
-   Se corta en un renglón en vez de partirse en dos: en el celular, al
-   lado de la marca de "espera a una persona", un nombre largo empujaba
-   la fila al doble de alto y la lista se leía despareja. */
+/* LA INICIAL EN UN CIRCULO. Reemplaza a la pastilla del canal como
+   ancla visual de la izquierda: con veinte conversaciones, el ojo
+   recorre una columna de circulos mucho mas rapido que una de textos.
+   En blanco y negro como el resto del panel, no en colores. */
+.chat-inicial{
+  grid-area:ini; width:2.2rem; height:2.2rem; border-radius:50%;
+  display:grid; place-items:center; flex:none;
+  border:1px solid var(--linea); background:var(--panel);
+  font-size:.8rem; font-weight:600; text-transform:uppercase;
+  color:var(--apagado);
+}
+.chat:hover .chat-inicial{ color:var(--chrome); border-color:rgba(255,255,255,.3) }
+
 .chat .nombre{
-  font-size:.82rem; font-weight:600; margin-right:auto; min-width:0;
+  grid-area:nombre; font-size:.84rem; font-weight:600; min-width:0;
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
-/* El adelanto es una línea y se corta: la bandeja sirve para elegir a
-   quién contestar, no para leer la conversación por encima. */
+/* El adelanto es una linea y se corta: la bandeja sirve para elegir a
+   quien contestar, no para leer la conversacion por encima. */
 .chat .adelanto{
-  font-size:.74rem; line-height:1.5; color:var(--apagado);
+  grid-area:texto; font-size:.76rem; line-height:1.55; color:var(--apagado);
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  margin-top:.15rem;
 }
-/* COMENTARIO O PRIVADO. Va al lado del canal porque responde a lo
-   mismo —por dónde llegó esto— pero es la distinción que más cambia
-   qué hacer: un comentario lo lee cualquiera. */
-.clase{
-  font-size:.46rem; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
-  border-radius:100px; padding:.3em .6em; white-space:nowrap;
-  border:1px solid var(--linea); color:var(--apagado);
+/* EL CANAL Y LA CLASE, EN TEXTO Y NO EN PASTILLAS. Tres pastillas por
+   fila eran tres rectangulos por fila: mucho dibujo para un dato que se
+   mira de reojo. Una linea gris abajo dice lo mismo y no compite. */
+.chat .meta{
+  grid-area:meta; display:flex; align-items:center; gap:.4rem; flex-wrap:wrap;
+  margin-top:.35rem;
+  font-size:.58rem; font-weight:600; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--apagado);
 }
-/* El público va marcado y el privado no: lo que necesita un cuidado
-   extra es lo que se ve, y marcar los dos es no marcar ninguno. */
-.clase--comentario{
-  border-color:rgba(255,255,255,.4); color:var(--chrome);
-}
-
-/* De qué canal vino. Va en texto y no en un logo de colores porque son
-   tres marcas ajenas y el panel es en blanco y negro. */
-.canal{
-  font-size:.46rem; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
-  border:1px solid var(--linea); border-radius:100px; padding:.3em .6em;
-  color:var(--apagado); white-space:nowrap;
+.chat .meta .punto{ opacity:.45 }
+/* Lo publico va marcado y lo privado no: lo que necesita un cuidado
+   extra es lo que lo lee cualquiera, y marcar los dos es no marcar
+   ninguno. */
+.chat .meta .publico{ color:var(--chrome) }
+/* Cuando la sigue una persona, el bot no escribe ahi. Es el unico
+   estado que cambia que hacer, asi que es el unico que lleva marco. */
+.chat .meta .espera{
+  color:var(--chrome); border:1px solid var(--linea);
+  border-radius:100px; padding:.25em .55em; letter-spacing:.08em;
 }
 .cuando{
-  font-size:.56rem; letter-spacing:.1em; color:var(--apagado);
+  grid-area:hora; align-self:start;
+  font-size:.62rem; letter-spacing:.06em; color:var(--apagado);
   font-variant-numeric:tabular-nums; white-space:nowrap;
 }
+
 /* LA MARCA DE "ACÁ CONTESTA UNA PERSONA". Va llena y no apagada a
    propósito: mientras está prendida la IA no responde, y eso es algo
    que tiene que saltar a la vista en la lista sin abrir el chat. */
@@ -793,29 +842,29 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
            Borrador: escribe y espera a que alguien lo mande desde acá.
            Automático: contesta solo, dentro del horario si hay uno.
            Arranca todo en borrador y se prende canal por canal. -->
-      <div class="marcar bot-modo" id="botModo">
-        <label class="campo"><span class="rotulo">WhatsApp</span>
-          <select data-canal="whatsapp">
-            <option value="borrador">Borrador</option>
-            <option value="automatico">Automático</option>
-          </select></label>
-        <label class="campo"><span class="rotulo">Instagram</span>
-          <select data-canal="instagram">
-            <option value="borrador">Borrador</option>
-            <option value="automatico">Automático</option>
-          </select></label>
-        <label class="campo"><span class="rotulo">Messenger</span>
-          <select data-canal="messenger">
-            <option value="borrador">Borrador</option>
-            <option value="automatico">Automático</option>
-          </select></label>
-        <label class="campo"><span class="rotulo">Solo, desde las</span>
-          <select id="botDesde"></select></label>
-        <label class="campo"><span class="rotulo">hasta las</span>
-          <select id="botHasta"></select></label>
-        <button class="btn" type="button" id="botGuardar">Guardar</button>
+      <!-- EL INTERRUPTOR DE LA IA, Y NADA MAS.
+           Aca habia cinco controles: un selector por canal, dos de
+           horario y un boton de guardar. Con la IA apagada estaban todos
+           grises, y con la IA prendida eran cinco decisiones para lo que
+           en la practica es una sola: contesta sola, si o no.
+
+           Lo unico que hay que poder tocar con urgencia es apagarla. Si
+           el bot empieza a decir cualquier cosa, el que lo ve no es el
+           que programa: tiene que frenarlo desde el telefono, sin
+           buscar. Por eso queda un punto de luz, una frase y un boton.
+
+           El punto dice el estado de un vistazo y la frase lo dice con
+           palabras, porque un color solo no alcanza. Y el boton nombra
+           lo que va a pasar al apretarlo, no lo que esta pasando: un
+           boton que dice "Apagada" no se sabe si informa o promete. -->
+      <div class="interruptor" id="interruptorIA" hidden>
+        <span class="interruptor-luz"></span>
+        <span class="interruptor-texto">
+          <strong id="estadoIA">La IA está apagada</strong>
+          <small id="detalleIA">Contestás vos. No sale ningún mensaje solo.</small>
+        </span>
+        <button class="btn" id="palancaIA" type="button">Prender</button>
       </div>
-      <p class="nota" id="botNota"></p>
 
       <div class="barra-estado oculto" id="progreso">
         <span class="barra-estado-texto" id="progresoTexto"></span>

@@ -1746,15 +1746,19 @@ export class Envios extends DurableObject {
    DE ACÁ EN ADELANTE EL BOT MANDA SIN QUE NADIE MIRE. Eso no se
    deshace: un mensaje enviado ya está en el teléfono del cliente.
 
-   EL INTERRUPTOR GENERAL ESTÁ APAGADO. Lo pidió Tomás: contesta él, a
-   mano, todo. Mientras esto esté en false no sale un solo mensaje solo,
-   haya lo que haya elegido el panel. El día que se quiera prender, se
-   cambia esta palabra y después se elige canal por canal en el panel.
+   EL INTERRUPTOR GENERAL ES UN BOTÓN DEL PANEL, no una línea de código.
 
-   Lo que sigue andando con esto apagado es todo lo que no manda nada: el
-   botón "Que escriba la IA" del panel y el de "Probar la IA sin mandar
-   nada". */
-const CONTESTA_SOLA = false;
+   Antes era una constante acá, y prenderla o apagarla pedía editar el
+   código y volver a publicar. Eso está mal para lo único que hay que
+   poder apagar rápido: si el bot empieza a decir cualquier cosa, el que
+   lo ve no es el que programa, y tiene que poder frenarlo él, desde el
+   teléfono, en dos segundos.
+
+   Ahora vive en la tabla `estado` y se prende desde el panel. Apagado de
+   fábrica: si nunca nadie lo prendió, o si la lectura falla, no sale un
+   solo mensaje solo. Lo que no manda nada sigue andando igual —el botón
+   "Que escriba la IA" y el de probar sin mandar—, porque esos los
+   dispara una persona. */
 
 /* POR CANAL Y POR HORARIO, Y EN BORRADOR DE FÁBRICA. El horario es el de
    Buenos Aires; "de 19 a 10" cruza la medianoche y está bien. Se guarda
@@ -1768,7 +1772,14 @@ async function configDelBot(env) {
     modo[c] = g.modo?.[c] === 'automatico' ? 'automatico' : 'borrador';
   }
   const hora = (v) => (Number.isInteger(v) && v >= 0 && v <= 23 ? v : null);
-  return { modo, desde: hora(g.desde), hasta: hora(g.hasta), apagado: !CONTESTA_SOLA };
+  /* `=== true` y no un valor que parezca verdadero: si lo guardado se
+     corrompe o viene de una versión vieja, queda apagada. */
+  const encendida = g.encendida === true;
+
+  return {
+    modo, desde: hora(g.desde), hasta: hora(g.hasta),
+    encendida, apagado: !encendida,
+  };
 }
 
 function enHorario(cfg, ahora = new Date()) {
@@ -1800,8 +1811,8 @@ function enHorario(cfg, ahora = new Date()) {
 const ESPERA_ANTES_DE_CONTESTAR = 8000;
 
 async function atenderSolo(env, disparos) {
-  if (!CONTESTA_SOLA) return;
   const cfg = await configDelBot(env);
+  if (!cfg.encendida) return;
   if (!disparos.some((d) => cfg.modo[d.canal] === 'automatico')) return;
   if (!enHorario(cfg)) return;
 
@@ -2681,10 +2692,16 @@ async function admin(peticion, env, ruta, metodo) {
     for (const c of CANALES_DEL_BOT) {
       modo[c] = cuerpo?.modo?.[c] === 'automatico' ? 'automatico' : 'borrador';
     }
+    /* Lo que no venga en el cuerpo se queda como estaba: el botón de
+       prender manda sólo `encendida` y no tiene por qué pisar el horario
+       ni los canales que alguien eligió antes. */
+    const antes = (await leerEstado(env, 'bot'))?.valor ?? {};
+
     await guardarEstado(env, 'bot', {
-      modo,
-      desde: entero(cuerpo?.desde, 0, 23),
-      hasta: entero(cuerpo?.hasta, 0, 23),
+      modo: cuerpo?.modo ? modo : (antes.modo ?? modo),
+      desde: 'desde' in (cuerpo ?? {}) ? entero(cuerpo.desde, 0, 23) : (antes.desde ?? null),
+      hasta: 'hasta' in (cuerpo ?? {}) ? entero(cuerpo.hasta, 0, 23) : (antes.hasta ?? null),
+      encendida: 'encendida' in (cuerpo ?? {}) ? cuerpo.encendida === true : antes.encendida === true,
     });
     return json(await configDelBot(env));
   }
