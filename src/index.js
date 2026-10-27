@@ -1557,8 +1557,15 @@ async function graphMandar(token, nombre, camino, cuerpo) {
   });
   const dato = await r.json().catch(() => ({}));
   if (!r.ok) {
-    const e = new Error(dato?.error?.message || `Meta contestó ${r.status}`);
+    /* QUIEN RECHAZO Y CON QUE TOKEN, en el mensaje mismo. Meta devuelve
+       textos como "Authentication Error" a secas, que leidos en un log
+       parecen un problema de la clave de Claude y mandan a buscar del
+       lado equivocado. El nombre del secreto que fallo es lo que dice
+       cual hay que renovar. */
+    const e = new Error(
+      `Meta rechazo el envio (${nombre}): ${dato?.error?.message || r.status}`);
     e.codigo = dato?.error?.code ?? null;
+    e.deMeta = true;
     throw e;
   }
   return dato;
@@ -1649,9 +1656,18 @@ const PAUSA_TRAS_EL_LINK = 12000;
 async function linkSinRepetir(env, chatId, autoId) {
   const ficha = autoId ? await fichaDe(env, autoId) : null;
   if (!ficha) return null;
+  /* `instr` Y NO `LIKE`. Con LIKE, D1 cortaba la consulta entera con
+     "LIKE or GLOB pattern too complex" y el bot se quedaba mudo a mitad
+     de una charla: contestaba el primer mensaje y el segundo no, sin
+     que se viera nada raro del lado del cliente.
+
+     Y aunque no fallara, LIKE es el metodo equivocado: lee el `%` y el
+     `_` que haya dentro de la direccion como comodines, asi que un auto
+     podria dar por repetido el link de otro. `instr` busca el texto tal
+     cual, no interpreta nada y no tiene limite de patron. */
   const yaEsta = await env.DB.prepare(
     `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
-        AND texto LIKE '%' || ? || '%' LIMIT 1`
+        AND texto IS NOT NULL AND instr(texto, ?) > 0 LIMIT 1`
   ).bind(chatId, ficha.enlace).first();
   return yaEsta ? null : ficha.enlace;
 }
@@ -1872,7 +1888,17 @@ async function atenderSolo(env, disparos) {
         por: r.esComentario ? 'comentario' : 'privado',
       }));
     } catch (e) {
-      console.error('El bot no pudo contestar:', e?.message ?? e);
+      /* EL DETALLE Y NO SOLO EL TITULO. "Authentication Error" a secas
+         no dice si la clave esta mal, si falta saldo o si el modelo no
+         esta habilitado: los tres se arreglan distinto. El SDK trae el
+         codigo y el cuerpo del error, y eso es lo que sirve para
+         diagnosticar sin tener que adivinar. */
+      console.error('El bot no pudo contestar:', JSON.stringify({
+        mensaje: e?.message ?? String(e),
+        status: e?.status ?? null,
+        tipo: e?.error?.error?.type ?? e?.name ?? null,
+        detalle: e?.error?.error?.message ?? null,
+      }));
     }
   }
 }
