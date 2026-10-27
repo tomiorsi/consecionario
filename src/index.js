@@ -1690,9 +1690,20 @@ async function linkSinRepetir(env, chatId, autoId) {
   return yaEsta ? null : ficha.enlace;
 }
 
+/* LA UBICACIÓN TAMPOCO SE REPITE: si ya salió en esta conversación, el
+   cliente la tiene arriba. Mandarla dos veces es lo que hace un robot. */
+async function ubicacionSinRepetir(env, chatId, ubicacion) {
+  if (!ubicacion) return null;
+  const yaEsta = await env.DB.prepare(
+    `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
+        AND texto = ? LIMIT 1`
+  ).bind(chatId, UBICACION).first();
+  return yaEsta ? null : UBICACION;
+}
+
 async function mandarRespuesta(env, chat, { partes, autoId = null, ubicacion = false, autor }) {
   const link = await linkSinRepetir(env, chat.id, autoId);
-  const fijos = [link, ubicacion ? UBICACION : null].filter(Boolean);
+  const fijos = [link, await ubicacionSinRepetir(env, chat.id, ubicacion)].filter(Boolean);
 
   /* El plan: qué sale y cuánto se espera ANTES de cada cosa. */
   const textos = armarTextos(partes, fijos);
@@ -1970,7 +1981,7 @@ async function atenderComentario(env, chat, r) {
 
   const link = await linkSinRepetir(env, chat.id, r.autoId);
   const texto = armarTextos(r.partes,
-    [link, r.ubicacion ? UBICACION : null].filter(Boolean)).join('\n\n');
+    [link, await ubicacionSinRepetir(env, chat.id, r.ubicacion)].filter(Boolean)).join('\n\n');
 
   const id = await mandarUno(env, chat, texto, { comentarioId: comentario.externo_id });
   await guardarSaliente(env, chat.id, texto, 'ia', id, { mediaId: comentario.media_id });
