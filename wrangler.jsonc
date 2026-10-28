@@ -75,7 +75,12 @@
   // Va como secreto con `wrangler secret put WHATSAPP_TOKEN`, nunca aca.
   "vars": {
     "WHATSAPP_PHONE_ID": "1336740542848389",
-    "WHATSAPP_CUENTA_ID": "1784146802921826"
+    "WHATSAPP_CUENTA_ID": "1784146802921826",
+    // El WhatsApp de Maxi: el bot le consulta lo que no sabe, aprende de
+    // lo que él le contesta y a las 21 le manda el repaso del día (ver
+    // "MAXI, EL QUE ENSEÑA" en src/index.js). Lo que llega desde este
+    // número no se contesta como a un cliente. Vacío, todo eso se apaga.
+    "SUPERVISOR_WHATSAPP": "5491133762494"
   },
 
   // LA LIMPIEZA DE LAS CONVERSACIONES, UNA VEZ POR DIA.
