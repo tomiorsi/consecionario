@@ -1764,6 +1764,12 @@ const PAUSA_TRAS_EL_LINK = 12000;
    mapa. El bot sólo dice que va (`ubicacion: true`). */
 const UBICACION = 'Pje. Lanín 154, Barracas\nhttps://share.google/mNeG7SYtUciJdSfq8';
 
+/* A WHATSAPP, CUANDO SE PASA A UNA PERSONA DESDE INSTAGRAM O MESSENGER.
+   Maxi sigue las charlas por WhatsApp (28/10). El bot le dice con
+   amabilidad que sigan por ahí, y el link va fijo, en su propio mensaje:
+   es el mismo número del botón del sitio (public/wa.js). */
+const A_WHATSAPP = 'https://wa.me/5491176703813';
+
 /* EL ORDEN DE LOS MENSAJES: lo que se cuenta, después lo fijo (el link
    del auto, la ubicación) y al final la pregunta, si la última parte es
    una. Lo fijo se espera un poco más, para que se vea la vista previa. */
@@ -1804,9 +1810,15 @@ async function ubicacionSinRepetir(env, chatId, ubicacion) {
   return yaEsta ? null : UBICACION;
 }
 
-async function mandarRespuesta(env, chat, { partes, autoId = null, ubicacion = false, autor }) {
+async function mandarRespuesta(env, chat, {
+  partes, autoId = null, ubicacion = false, aWhatsapp = false, autor,
+}) {
   const link = await linkSinRepetir(env, chat.id, autoId);
-  const fijos = [link, await ubicacionSinRepetir(env, chat.id, ubicacion)].filter(Boolean);
+  const fijos = [
+    link,
+    await ubicacionSinRepetir(env, chat.id, ubicacion),
+    aWhatsapp && chat.canal !== 'whatsapp' ? A_WHATSAPP : null,
+  ].filter(Boolean);
 
   /* El plan: qué sale y cuánto se espera ANTES de cada cosa. */
   const textos = armarTextos(partes, fijos);
@@ -2076,7 +2088,8 @@ async function atenderSolo(env, disparos) {
 
       if (r.esComentario) await atenderComentario(env, chat, r);
       else await mandarRespuesta(env, chat, {
-        partes: r.partes, autoId: r.autoId, ubicacion: r.ubicacion, autor: 'ia',
+        partes: r.partes, autoId: r.autoId, ubicacion: r.ubicacion,
+        aWhatsapp: Boolean(r.derivar), autor: 'ia',
       });
 
       /* Sin una palabra del mensaje: sólo qué hizo y por dónde. */
@@ -2128,8 +2141,11 @@ async function atenderComentario(env, chat, r) {
   }
 
   const link = await linkSinRepetir(env, chat.id, r.autoId);
-  const texto = armarTextos(r.partes,
-    [link, await ubicacionSinRepetir(env, chat.id, r.ubicacion)].filter(Boolean)).join('\n\n');
+  const texto = armarTextos(r.partes, [
+    link,
+    await ubicacionSinRepetir(env, chat.id, r.ubicacion),
+    r.derivar ? A_WHATSAPP : null,
+  ].filter(Boolean)).join('\n\n');
 
   const id = await mandarUno(env, chat, texto, { comentarioId: comentario.externo_id });
   await guardarSaliente(env, chat.id, texto, 'ia', id, { mediaId: comentario.media_id });

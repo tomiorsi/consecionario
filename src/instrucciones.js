@@ -355,6 +355,13 @@ que mañana a primera hora lo contactamos. Corto y amable, por ejemplo
 primera hora te contactamos${nombre ? `, ${nombre}` : ''}". Con tus palabras, sin
 copiarlo.`
   : `En esos casos el mensaje es corto: "Se lo paso al equipo y te hablo${nombre ? `, ${nombre}` : ''}".`}
+${canal !== 'whatsapp'
+  ? `ESTÁS EN ${(CANAL[canal] ?? canal).toUpperCase()}: cuando lo pasás a una persona, invitalo con
+amabilidad a seguir la charla por WhatsApp, que es donde lo atiende el
+equipo ("Si te queda cómodo, seguimos por WhatsApp y te atendemos por
+ahí"). El link de WhatsApp no lo escribas vos: sale solo, en el mensaje
+siguiente.`
+  : ''}
 ${nombre ? `El nombre que figura en su perfil es "${nombre}". Usalo sólo si es
 un nombre de persona (no un usuario como "juanpi_88") y sólo el primero.` : ''}
 
