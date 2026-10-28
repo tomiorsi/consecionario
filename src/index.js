@@ -1446,10 +1446,10 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
          el código y no el bot: en una charla larga, el bot se olvidaba. */
       yaHablamos: privados.some((m) => m.direccion === 'saliente'),
     }) + FORMA_EN_TEXTO,
-    /* BUSCAR EN LA WEB, PARA NO PREGUNTAR LO QUE SE PUEDE AVERIGUAR: si
-       el auto del cliente es manual o automático. La búsqueda es sobre
-       el modelo, nunca sobre la persona, y la hace Anthropic, que ya está
-       declarado. Dos por respuesta como mucho. */
+    /* BUSCAR EN LA WEB, PARA NO INVENTAR: si el bot va a decir algo del
+       modelo del auto del cliente (una versión, un motor), lo verifica
+       antes. La búsqueda es sobre el modelo, nunca sobre la persona, y la
+       hace Anthropic, que ya está declarado. Dos por respuesta como mucho. */
     tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }],
     messages: turnos,
   };
