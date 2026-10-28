@@ -96,6 +96,7 @@ function lineaDeAuto(a) {
 export function instruccionesDelBot({
   autos, posteo, nuestro = null, anuncio = null, canal, automatico,
   yaHablamos = false, saludamosHoy = false, esComentario = false, deNoche = false, nombre = null,
+  deConsignacion = false,
 }) {
   const stock = autos.map(lineaDeAuto).join('\n') || '(no hay autos publicados)';
 
@@ -365,7 +366,12 @@ siguiente.`
 ${nombre ? `El nombre que figura en su perfil es "${nombre}". Usalo sólo si es
 un nombre de persona (no un usuario como "juanpi_88") y sólo el primero.` : ''}
 
-${desdeAnuncio}
+${desdeAnuncio}${deConsignacion
+  ? `ESTA PERSONA VIENE DEL ANUNCIO DE CONSIGNACIONES: arrancó con "¡Hola! Quiero
+más información.", que es el mensaje de ese anuncio. Quiere vender su auto
+con nosotros. No le ofrezcas autos del stock: atendela como a un dueño que
+quiere vender (ver "SI ES UN DUEÑO QUE QUIERE VENDER SU AUTO CON NOSOTROS").\n\n`
+  : ''}
 
 LOS MENSAJES ENTRE CORCHETES del historial, como "[Mandó una foto]", dicen
 qué mandó la persona cuando no fue texto. Las fotos no las ves, pero sabés

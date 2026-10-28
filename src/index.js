@@ -1363,6 +1363,19 @@ function diaDeBsAs(sqlite) {
   return new Date(d.getTime() - 3 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
+/* "¡HOLA! QUIERO MÁS INFORMACIÓN." ES UNA CONSULTA DE CONSIGNACIÓN.
+   Es el mensaje que Meta pone solo en el anuncio de consignaciones, que no
+   deja cambiarlo (28/10). Maxi: si alguien arranca con eso, tal cual y con
+   los dos signos del "Hola", viene a vender su auto. Se perdona la tilde y
+   el punto final; los signos del "¡Hola!" no, que son lo que lo distingue
+   de cualquier otro "hola, quiero info". */
+function esDeConsignacion(texto) {
+  const t = String(texto ?? '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ').trim();
+  return /^¡hola! quiero mas informacion\.?$/.test(t);
+}
+
 function historialParaClaude(mensajes) {
   const turnos = [];
   for (const m of mensajes) {
@@ -1438,6 +1451,10 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
   const turnos = historialParaClaude(hilo);
   if (!turnos.length) throw new Error('No hay nada que contestar todavía');
 
+  /* El primer mensaje de la persona en esta charla. */
+  const primero = privados.find((m) => m.direccion === 'entrante' && m.texto);
+  const deConsignacion = !esComentario && esDeConsignacion(primero?.texto);
+
   /* EL STOCK ENTERO, CON LO QUE EL CLIENTE PUEDE PREGUNTAR. */
   const { results: autos } = await env.DB.prepare(
     `SELECT a.id, a.marca, a.modelo, a.anio, a.km, a.precio, a.moneda,
@@ -1500,7 +1517,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     output_config: { effort: 'low' },
     system: instruccionesDelBot({
       autos: autos ?? [], posteo, nuestro, anuncio, canal: chat.canal,
-      automatico, esComentario, deNoche, nombre: chat.nombre,
+      automatico, esComentario, deNoche, nombre: chat.nombre, deConsignacion,
       /* Si ya le escribimos por privado, no vuelve a saludar. Lo decide
          el código y no el bot: en una charla larga, el bot se olvidaba. */
       yaHablamos: privados.some((m) => m.direccion === 'saliente'),
