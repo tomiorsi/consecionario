@@ -1326,15 +1326,16 @@ const FORMA_DE_RESPUESTA = {
     responder: { type: 'boolean' },
     megusta: { type: 'boolean' },
     ubicacion: { type: 'boolean' },
+    ir_a_whatsapp: { type: 'boolean' },
   },
-  required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion'],
+  required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion', 'ir_a_whatsapp'],
   additionalProperties: false,
 };
 
 const FORMA_EN_TEXTO = `
 
 TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
-{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false}
+{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false}
 Escribí "partes" siempre, aunque "responder" sea false: así se puede revisar
 qué hubieras dicho.`;
 
@@ -1643,6 +1644,9 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     responder: esComentario ? dato.responder === true : true,
     megusta: esComentario && dato.megusta === true,
     ubicacion: dato.ubicacion === true,
+    /* Que siga por WhatsApp sin pasarlo a una persona: la Ranger, que se
+       atiende sólo por ahí (ver AUTOS QUE NO ESTÁN EN EL SITIO). */
+    irAWhatsapp: dato.ir_a_whatsapp === true,
     conPosteo: Boolean(posteo),
     esComentario,
     ultimo,
@@ -2159,7 +2163,7 @@ async function atenderSolo(env, disparos) {
       if (r.esComentario) await atenderComentario(env, chat, r);
       else await mandarRespuesta(env, chat, {
         partes: r.partes, autoId: r.autoId, ubicacion: r.ubicacion,
-        aWhatsapp: Boolean(r.derivar), autor: 'ia',
+        aWhatsapp: Boolean(r.derivar || r.irAWhatsapp), autor: 'ia',
       });
 
       /* Sin una palabra del mensaje: sólo qué hizo y por dónde. */
@@ -2214,7 +2218,7 @@ async function atenderComentario(env, chat, r) {
   const texto = armarTextos(r.partes, [
     link,
     await ubicacionSinRepetir(env, chat.id, r.ubicacion),
-    r.derivar ? A_WHATSAPP : null,
+    r.derivar || r.irAWhatsapp ? A_WHATSAPP : null,
   ].filter(Boolean)).join('\n\n');
 
   const id = await mandarUno(env, chat, texto, { comentarioId: comentario.externo_id });

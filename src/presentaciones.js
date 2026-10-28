@@ -49,3 +49,15 @@ export const PRESENTACIONES = {
 /* La respuesta rápida "Consigna": el primer mensaje a un dueño que
    quiere vender su auto con nosotros. */
 export const PRESENTACION_CONSIGNACION = `Hola! Cómo estás? Gracias por contactarte con Manna Selected. Nos especializamos en la venta de autos seleccionados mediante consignación. No compramos vehículos, sino que trabajamos para encontrar al comprador indicado lo mas rápido posible. Ocupándonos de la presentación, afrontando los gastos de difusión y gestión de las consultas. Para conocer tu auto y evaluar si podemos trabajar juntos, contame qué vehículo tenés: marca, modelo, año y kilómetros. También, qué precio tenés pensado? Gracias!`;
+
+/* AUTOS QUE NO ESTÁN EN EL SITIO, y no van a estar.
+   La Ranger se vende como favor a un cliente amigo: no es un producto
+   Selected, así que no se publica (Maxi, 28/10). Se atiende SÓLO por
+   WhatsApp, con su respuesta rápida "LTD". En Instagram y Facebook se
+   invita a seguir por WhatsApp. El bot no la ofrece: sólo si preguntan. */
+export const FUERA_DEL_SITIO = [
+  {
+    nombre: 'Ford Ranger Limited 3.2 (la "Ranger", "Ranger LTD")',
+    presentacion: `Hola! Cómo estás? Es una Ford Ranger Limited 3.2 turbodiésel, tiene todos los services OFICIALES. Automática de 6 y 4x4, año 2021, con 54.300 km. En excelente estado.`,
+  },
+];

@@ -25,7 +25,7 @@
    CADA LÍNEA TAPA UN ERROR CONCRETO. Si se agrega una, que sea por un
    error que se vio en una conversación de verdad. */
 
-import { PRESENTACIONES, PRESENTACION_CONSIGNACION } from './presentaciones.js';
+import { PRESENTACIONES, PRESENTACION_CONSIGNACION, FUERA_DEL_SITIO } from './presentaciones.js';
 
 /* LA VOZ, SACADA DE LOS CHATS REALES DE WHATSAPP (35 conversaciones,
    26/10/2026). Están reescritos sin datos de nadie —ni nombres, ni
@@ -311,7 +311,8 @@ Nunca digas cuánto vale su auto.
 STOCK PUBLICADO. Precios y datos, sólo de acá. El número entre corchetes es
 para vos, nunca lo escribas.
 Si preguntan por un auto que no está en esta lista, NO digas que no lo
-tenemos: hay autos que se atienden a mano. Pasalo a una persona.
+tenemos: hay autos que se atienden a mano. Pasalo a una persona, salvo los
+de "AUTOS QUE NO ESTÁN EN EL SITIO", más abajo.
 ${stock}
 
 LA FICHA DE UN AUTO
@@ -321,6 +322,22 @@ garage, que se ve con la foto y tiene todas las fotos y los datos. Escribí
 como si ya lo tuviera a la vista. No digas cuántas fotos son ni escribas
 vos el link. Si en la conversación ya le mandamos ese link, no lo pongas
 de nuevo.
+
+AUTOS QUE NO ESTÁN EN EL SITIO. No los ofrezcas nunca: hablá de ellos sólo
+si te preguntan por uno.
+${FUERA_DEL_SITIO.map((a) => `- ${a.nombre}`).join('\n')}
+${canal === 'whatsapp'
+  ? `Si preguntan por uno, presentalo con su texto, casi textual (sin el
+saludo si ya saludaste), en una parte, y en otra la pregunta "La estabas
+evaluando para compra directa o tenés un vehículo para entregar?". No hay
+link ni fotos para mandar. No des precio: si lo piden, se lo pasa una
+persona.
+${FUERA_DEL_SITIO.map((a) => `${a.nombre}: ${a.presentacion}`).join('\n')}`
+  : `Por acá no se atiende: SÓLO por WhatsApp. Si preguntan por uno, con
+amabilidad y como en una charla, contale que esa la manejamos por WhatsApp
+y que ahí le mandamos toda la info. Poné "ir_a_whatsapp": true y el link de
+WhatsApp sale solo en el mensaje siguiente. No des datos ni precio por acá
+y no lo pases a una persona.`}
 
 SI QUIERE ENTREGAR SU AUTO, en permuta o para que se lo vendamos
 LOS KILÓMETROS, SÓLO PARA VOS. NUNCA SE LO DIGAS AL CLIENTE, para que no se
