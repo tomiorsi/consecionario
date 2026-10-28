@@ -1304,6 +1304,14 @@ const NO_ES_TEXTO = {
    La API pide que arranque el cliente, así que lo nuestro que haya antes
    se saltea. Y no puede terminar en un turno nuestro: si lo último lo
    escribimos nosotros, se le avisa al bot con una línea. */
+/* EL DÍA EN BUENOS AIRES, "2026-10-28", de una fecha de la base
+   ("2026-10-28 23:10:00", en UTC) o de ahora. Para saber si ya se saludó
+   hoy: después de medianoche de acá es otro día, aunque en UTC no. */
+function diaDeBsAs(sqlite) {
+  const d = sqlite ? new Date(String(sqlite).replace(' ', 'T') + 'Z') : new Date();
+  return new Date(d.getTime() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
 function historialParaClaude(mensajes) {
   const turnos = [];
   for (const m of mensajes) {
@@ -1347,7 +1355,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
   try { anuncio = chat.anuncio ? JSON.parse(chat.anuncio) : null; } catch { /* viejo o roto */ }
 
   const { results: mensajes } = await env.DB.prepare(
-    `SELECT direccion, autor, tipo, texto, clase, media_id, externo_id
+    `SELECT direccion, autor, tipo, texto, clase, media_id, externo_id, creado
        FROM mensajes WHERE conversacion_id = ?
       ORDER BY creado, id`
   ).bind(conversacionId).all();
@@ -1445,6 +1453,8 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
       /* Si ya le escribimos por privado, no vuelve a saludar. Lo decide
          el código y no el bot: en una charla larga, el bot se olvidaba. */
       yaHablamos: privados.some((m) => m.direccion === 'saliente'),
+      /* "Hoy" es el día de Buenos Aires. Las fechas de la base son UTC. */
+      saludamosHoy: privados.some((m) => m.direccion === 'saliente' && diaDeBsAs(m.creado) === diaDeBsAs()),
     }) + FORMA_EN_TEXTO,
     /* BUSCAR EN LA WEB, PARA NO INVENTAR: si el bot va a decir algo del
        modelo del auto del cliente (una versión, un motor), lo verifica
