@@ -912,8 +912,19 @@ async function cargarChats() {
   pintarChats();
 }
 
+/* PARA TASAR: la marca la deja la IA en la nota, que empieza así. */
+const esParaTasar = (c) => String(c.nota ?? '').startsWith('Para tasar');
+let soloTasar = false;
+
+$('#filtroTasar').addEventListener('click', () => {
+  soloTasar = !soloTasar;
+  $('#filtroTasar').setAttribute('aria-pressed', String(soloTasar));
+  pintarChats();
+});
+
 function pintarChats() {
-  const lista = chats;
+  const lista = soloTasar ? chats.filter(esParaTasar) : chats;
+  $('#filtroTasar').textContent = 'Para tasar (' + chats.filter(esParaTasar).length + ')';
   $('#sinChats').classList.toggle('oculto', lista.length > 0);
 
   $('#chats').innerHTML = lista.map((c) => {
@@ -937,6 +948,7 @@ function pintarChats() {
         ? '<span class="publico">Comentario</span>'
         : '<span>Privado</span>',
     ];
+    if (esParaTasar(c)) meta.push('<span class="tasar">' + escapar(c.nota.split(':')[0]) + '</span>');
     if (c.humano) meta.push('<span class="espera">La sigue una persona</span>');
 
     return '<button class="chat" type="button" data-id="' + c.id + '">' +
