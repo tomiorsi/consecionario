@@ -1333,13 +1333,13 @@ function historialParaClaude(mensajes) {
    mandar y para cuando contesta solo: el contexto que junta es el mismo,
    y dos copias garantizan que el día que se arregle una, la otra quede
    vieja. */
-async function pensarRespuesta(env, conversacionId, { automatico = false } = {}) {
+async function pensarRespuesta(env, conversacionId, { automatico = false, deNoche = false } = {}) {
   if (!env.ANTHROPIC_API_KEY) {
     throw new Error('Falta cargar ANTHROPIC_API_KEY en Cloudflare');
   }
 
   const chat = await env.DB
-    .prepare(`SELECT canal${(await hayColumnaAnuncio(env)) ? ', anuncio' : ''}
+    .prepare(`SELECT canal, nombre${(await hayColumnaAnuncio(env)) ? ', anuncio' : ''}
                 FROM conversaciones WHERE id = ?`)
     .bind(conversacionId).first();
   if (!chat) throw new Error('Esa conversación no está');
@@ -1441,7 +1441,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false } = {})
     output_config: { effort: 'low' },
     system: instruccionesDelBot({
       autos: autos ?? [], posteo, nuestro, anuncio, canal: chat.canal,
-      automatico, esComentario,
+      automatico, esComentario, deNoche, nombre: chat.nombre,
       /* Si ya le escribimos por privado, no vuelve a saludar. Lo decide
          el código y no el bot: en una charla larga, el bot se olvidaba. */
       yaHablamos: privados.some((m) => m.direccion === 'saliente'),
@@ -1875,7 +1875,39 @@ async function configDelBot(env) {
      corrompe o viene de una versión vieja, queda apagada. */
   const encendida = g.encendida === true;
 
-  return { desde: hora(g.desde), hasta: hora(g.hasta), encendida, apagado: !encendida };
+  /* WHATSAPP DE DÍA: apagado salvo que Maxi o Tomás lo prendan a
+     propósito (ver `canalActivo`). Mismo criterio: sólo `true` lo prende. */
+  const whatsappDeDia = g.whatsappDeDia === true;
+
+  return {
+    desde: hora(g.desde), hasta: hora(g.hasta), encendida, apagado: !encendida,
+    whatsappDeDia, deNoche: esDeNoche(),
+  };
+}
+
+/* DE NOCHE Y DE DÍA, COMO LO PIDIÓ MAXI (28/10).
+
+   De 8:00 a 20:00 (hora de Buenos Aires) hay gente: el bot contesta
+   Instagram y Facebook —privados y comentarios— y WhatsApp NO, salvo que
+   alguien lo prenda a propósito con "WhatsApp de día". WhatsApp es por
+   donde se cierran las ventas, y de día lo atiende una persona.
+
+   De 20:01 a 7:59 no hay nadie: el bot contesta los tres canales. Y
+   cuando tiene que pasar una charla a una persona, o no puede contestar
+   (un audio, un dato que no tiene), dice que es el asistente y que a la
+   mañana temprano lo contactan: de noche nadie va a seguir esa charla en
+   un rato, y prometerlo sería mentirle.
+
+   Todo esto vale con la IA prendida. Apagada, no contesta nada nunca. */
+function esDeNoche(ahora = new Date()) {
+  const min = ((ahora.getUTCHours() + 21) % 24) * 60 + ahora.getUTCMinutes();  // Buenos Aires, UTC-3
+  return min >= 20 * 60 + 1 || min < 8 * 60;
+}
+
+function canalActivo(cfg, canal, ahora = new Date()) {
+  if (!cfg.encendida) return false;
+  if (canal !== 'whatsapp') return true;
+  return esDeNoche(ahora) || cfg.whatsappDeDia;
 }
 
 function enHorario(cfg, ahora = new Date()) {
@@ -1908,7 +1940,7 @@ const ESPERA_ANTES_DE_CONTESTAR = 8000;
 
 async function atenderSolo(env, disparos) {
   const cfg = await configDelBot(env);
-  if (!cfg.encendida) return;
+  if (!disparos.some((d) => canalActivo(cfg, d.canal))) return;
   if (!enHorario(cfg)) return;
 
   await new Promise((listo) => setTimeout(listo, ESPERA_ANTES_DE_CONTESTAR));
@@ -1916,6 +1948,9 @@ async function atenderSolo(env, disparos) {
   /* UNA POR VEZ: en paralelo serían varias llamadas a Claude y a Meta
      desde la misma invocación, y Cloudflare corta por pedidos salientes. */
   for (const d of disparos) {
+    /* Se vuelve a mirar después de la espera: si en esos segundos dieron
+       las 8, WhatsApp ya no le toca al bot. */
+    if (!canalActivo(cfg, d.canal)) continue;
     try {
       const chat = await env.DB.prepare(
         'SELECT id, canal, externo_id, humano FROM conversaciones WHERE id = ?'
@@ -1956,7 +1991,7 @@ async function atenderSolo(env, disparos) {
         continue;
       }
 
-      const r = await pensarRespuesta(env, chat.id, { automatico: true });
+      const r = await pensarRespuesta(env, chat.id, { automatico: true, deNoche: esDeNoche() });
       if (r.ultimo?.direccion !== 'entrante') continue;
 
       /* PASAR A UNA PERSONA ES AUTOMÁTICO TAMBIÉN. Si pide hablar con
@@ -2823,6 +2858,8 @@ async function admin(peticion, env, ruta, metodo) {
       desde: 'desde' in (cuerpo ?? {}) ? entero(cuerpo.desde, 0, 23) : (antes.desde ?? null),
       hasta: 'hasta' in (cuerpo ?? {}) ? entero(cuerpo.hasta, 0, 23) : (antes.hasta ?? null),
       encendida: 'encendida' in (cuerpo ?? {}) ? cuerpo.encendida === true : antes.encendida === true,
+      whatsappDeDia: 'whatsappDeDia' in (cuerpo ?? {})
+        ? cuerpo.whatsappDeDia === true : antes.whatsappDeDia === true,
     });
     return json(await configDelBot(env));
   }

@@ -95,7 +95,7 @@ function lineaDeAuto(a) {
 
 export function instruccionesDelBot({
   autos, posteo, nuestro = null, anuncio = null, canal, automatico,
-  yaHablamos = false, esComentario = false,
+  yaHablamos = false, esComentario = false, deNoche = false, nombre = null,
 }) {
   const stock = autos.map(lineaDeAuto).join('\n') || '(no hay autos publicados)';
 
@@ -108,7 +108,9 @@ export function instruccionesDelBot({
 cuando sea la empresa ("tenemos", "te esperamos") y nunca firmes con un
 nombre de persona.
 No aclares que sos un asistente: no lo anuncies, no lo firmes, no lo
-cierres con un aviso. PERO SI TE PREGUNTAN si sos un bot, una máquina o una
+cierres con un aviso${deNoche && automatico
+    ? ' (salvo de noche, al pasar la charla a una persona: ver más abajo)'
+    : ''}. PERO SI TE PREGUNTAN si sos un bot, una máquina o una
 persona, decí la verdad: que sos un asistente con inteligencia artificial y
 que le pasás la charla a alguien del equipo cuando quiera. Nunca lo niegues
 ni te inventes un nombre.`;
@@ -323,14 +325,24 @@ PASALO A UNA PERSONA, poniendo el motivo en "pasar_a_persona", si
 - quiere negociar el precio, señar, reservar o pagar
 - está enojado o hay un reclamo
 - pregunta algo que no esté en estas instrucciones
-En esos casos el mensaje es corto y dice que en un rato le escribe alguien.
+- mandó un audio: no lo podés escuchar
+${deNoche && automatico
+  ? `AHORA ES DE NOCHE y no hay nadie del equipo hasta mañana. En esos casos,
+y sólo ahí, decile con cordialidad que sos el asistente de Manna Selected y
+que mañana a primera hora lo contactamos. Corto y amable, por ejemplo
+"Soy el asistente de Manna Selected. Se lo paso al equipo y mañana a
+primera hora te contactamos${nombre ? `, ${nombre}` : ''}". Con tus palabras, sin
+copiarlo.`
+  : `En esos casos el mensaje es corto: "Se lo paso al equipo y te hablo${nombre ? `, ${nombre}` : ''}".`}
+${nombre ? `El nombre que figura en su perfil es "${nombre}". Usalo sólo si es
+un nombre de persona (no un usuario como "juanpi_88") y sólo el primero.` : ''}
 
 ${desdeAnuncio}
 
 LOS MENSAJES ENTRE CORCHETES del historial, como "[Mandó una foto]", dicen
 qué mandó la persona cuando no fue texto. Las fotos no las ves, pero sabés
-que llegaron. Un audio no lo podés escuchar: pedile con naturalidad que te
-lo escriba, sin explicar por qué.
+que llegaron. Un audio no lo podés escuchar: pasalo a una persona, como
+dice más arriba.
 
 CÓMO ESCRIBÍS
 - Como un vendedor argentino que contesta un WhatsApp: directo, humano y

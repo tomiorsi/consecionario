@@ -918,6 +918,18 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
         <button class="btn" id="palancaIA" type="button">Prender</button>
       </div>
 
+      <!-- WHATSAPP DE DÍA. De 8 a 20 el bot no contesta WhatsApp, que lo
+           atiende una persona; de noche sí. Esto lo prende de día a
+           propósito, para cuando no hay nadie. Sólo se ve con la IA
+           prendida, que es cuando significa algo. -->
+      <div class="interruptor" id="interruptorWA" hidden>
+        <span class="interruptor-texto">
+          <strong id="estadoWA">WhatsApp de día: no contesta</strong>
+          <small id="detalleWA">De 8 a 20 WhatsApp lo atienden ustedes.</small>
+        </span>
+        <button class="btn" id="palancaWA" type="button">Prender de día</button>
+      </div>
+
       <div class="barra-estado oculto" id="progreso">
         <span class="barra-estado-texto" id="progresoTexto"></span>
         <span class="barra-riel"><span class="barra-fill" id="progresoFill" style="width:0%"></span></span>
