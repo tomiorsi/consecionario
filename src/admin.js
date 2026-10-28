@@ -583,6 +583,10 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   color:var(--apagado); white-space:nowrap;
 }
 .etapa-marca--perdido{ text-decoration:line-through }
+.filtros-bandeja{ display:flex; gap:.5rem; margin:1rem 0 .6rem }
+.filtros-bandeja .btn[aria-pressed="true"]{ background:var(--chrome); color:var(--void) }
+.tasar{ font-size:.5rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
+  color:#e3c97e; border:1px solid rgba(227,201,126,.45); border-radius:3px; padding:.1em .45em }
 
 /* Los mandos del embudo adentro de un chat. */
 .marcar{ display:flex; gap:1rem 1.4rem; flex-wrap:wrap; align-items:end; margin:1.4rem auto 0; max-width:44rem }
@@ -939,6 +943,14 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
       <div class="barra-estado oculto" id="progreso">
         <span class="barra-estado-texto" id="progresoTexto"></span>
         <span class="barra-riel"><span class="barra-fill" id="progresoFill" style="width:0%"></span></span>
+      </div>
+
+      <!-- PARA TASAR: los autos que dejaron para evaluar, en permuta o en
+           consignación. La IA los marca sola; este botón los deja solos
+           en la lista. Es la "lista de importantes" de WhatsApp, pero acá:
+           las etiquetas de la app no se pueden poner desde el sistema. -->
+      <div class="filtros-bandeja">
+        <button class="btn" type="button" id="filtroTasar" aria-pressed="false">Para tasar</button>
       </div>
 
       <div class="bandeja" id="chats"></div>

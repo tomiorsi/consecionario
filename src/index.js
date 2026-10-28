@@ -1456,15 +1456,18 @@ const FORMA_DE_RESPUESTA = {
     megusta: { type: 'boolean' },
     ubicacion: { type: 'boolean' },
     ir_a_whatsapp: { type: 'boolean' },
+    para_tasar: { anyOf: [{ type: 'string', enum: ['permuta', 'consignacion'] }, { type: 'null' }] },
+    resumen_para_tasar: { anyOf: [{ type: 'string' }, { type: 'null' }] },
   },
-  required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion', 'ir_a_whatsapp'],
+  required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion',
+    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar'],
   additionalProperties: false,
 };
 
 const FORMA_EN_TEXTO = `
 
 TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
-{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false}
+{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null}
 Escribí "partes" siempre, aunque "responder" sea false: así se puede revisar
 qué hubieras dicho.`;
 
@@ -1789,6 +1792,9 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     /* Que siga por WhatsApp sin pasarlo a una persona: la Ranger, que se
        atiende sólo por ahí (ver AUTOS QUE NO ESTÁN EN EL SITIO). */
     irAWhatsapp: dato.ir_a_whatsapp === true,
+    /* Un auto que dejan para evaluar, con lo que se juntó. */
+    paraTasar: ['permuta', 'consignacion'].includes(dato.para_tasar) ? dato.para_tasar : null,
+    resumenParaTasar: dato.resumen_para_tasar ? String(dato.resumen_para_tasar).slice(0, 300) : null,
     conPosteo: Boolean(posteo),
     esComentario,
     ultimo,
@@ -2260,6 +2266,10 @@ function enHorario(cfg, ahora = new Date()) {
    escribió algo después: responde el último, una vez, y lee los tres. */
 const ESPERA_ANTES_DE_CONTESTAR = 8000;
 
+/* Cómo empieza la nota de un chat "Para tasar". El panel la reconoce por
+   esto, así no hace falta otra columna en la base. */
+const PARA_TASAR = 'Para tasar';
+
 async function atenderSolo(env, disparos) {
   const cfg = await configDelBot(env);
   if (!disparos.some((d) => canalActivo(cfg, d.canal))) return;
@@ -2320,9 +2330,21 @@ async function atenderSolo(env, disparos) {
          alguien o que borremos sus datos, el bot deja de contestar ese
          chat y queda anotado por qué. Igual sale el mensaje corto que
          avisa que sigue alguien. */
+      /* PARA TASAR (pedido de Maxi, 28/10): un auto que dejan para ver el
+         valor, en permuta o en consignación. Queda marcado en el panel con
+         lo que se juntó, para tenerlo a mano en "Para tasar". La marca no
+         corta la charla: eso lo decide `derivar`, aparte. */
+      const notaTasar = r.paraTasar
+        ? `${PARA_TASAR} (${r.paraTasar === 'permuta' ? 'permuta' : 'consignación'}): ${r.resumenParaTasar ?? ''}`.trim()
+        : null;
+      if (notaTasar) {
+        await env.DB.prepare('UPDATE conversaciones SET nota = ?, tipo = ? WHERE id = ?')
+          .bind(notaTasar, r.paraTasar === 'permuta' ? 'permuta' : 'vendedor', chat.id).run();
+      }
       if (r.derivar) {
+        /* Si es para tasar, la nota de tasar se queda: dice más. */
         await env.DB.prepare('UPDATE conversaciones SET humano = 1, nota = ? WHERE id = ?')
-          .bind(`La IA lo pasó: ${r.derivar}`, chat.id).run();
+          .bind(notaTasar ?? `La IA lo pasó: ${r.derivar}`, chat.id).run();
       }
 
       if (r.esComentario) await atenderComentario(env, chat, r);
