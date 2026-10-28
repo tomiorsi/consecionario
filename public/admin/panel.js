@@ -1443,6 +1443,9 @@ function pintarHilo(chat, mensajes) {
       /* Un audio que se pasó a texto: se ve qué dijo. */
       : !mio && m.tipo === 'audio' && m.texto
       ? '<span class="adjunto">Un audio · dice</span><p>' + escapar(m.texto) + '</p>'
+      /* Una foto que miró la IA: se ve qué notó. */
+      : !mio && m.tipo === 'imagen' && m.texto
+      ? '<span class="adjunto">Una foto</span><p>' + escapar(m.texto) + '</p>'
       : mio && m.texto
       ? '<span class="adjunto">' + escapar(m.texto) + '</span>'
       /* Una foto con leyenda: estaba guardada y no se mostraba, así que
