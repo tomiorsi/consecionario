@@ -589,6 +589,8 @@ function mensajesDelAviso(aviso, nuestroId = null) {
             clase: 'mensaje',
             media_id: null,
             anuncio: anuncioDe(m.referral, canal),
+            /* Un audio: con qué pedirlo a Meta para pasarlo a texto. */
+            audio: m.type === 'audio' && m.audio?.id ? { whatsappId: m.audio.id } : null,
           });
         }
 
@@ -645,6 +647,8 @@ function mensajesDelAviso(aviso, nuestroId = null) {
           clase: 'mensaje',
           media_id: null,
           anuncio: anuncioDe(ev.message.referral ?? ev.referral, canal),
+          audio: ev.message.attachments?.[0]?.type === 'audio' && ev.message.attachments[0].payload?.url
+            ? { url: ev.message.attachments[0].payload.url } : null,
         });
       }
 
@@ -721,6 +725,7 @@ async function hayColumnaAnuncio(env) {
 }
 
 async function guardarEntrantes(env, lista) {
+  const audios = [];
   const anuncioOk = await hayColumnaAnuncio(env);
   /* LAS CONVERSACIONES QUE HAY QUE CONTESTAR, y sólo ésas: dónde entró
      un mensaje NUEVO de la otra persona, privado o comentario, con el id
@@ -761,6 +766,8 @@ async function guardarEntrantes(env, lista) {
       m.tipo, m.texto, m.clase ?? 'mensaje', m.media_id ?? null
     ).run();
 
+    if (r.meta?.changes && m.audio) audios.push({ fila: r.meta.last_row_id, ...m.audio });
+
     if (r.meta?.changes && (m.direccion ?? 'entrante') === 'entrante') {
       /* Si la misma persona mandó varios en un aviso, cuenta el último. */
       const previo = disparos.find((d) => d.conversacion === conv.id);
@@ -768,7 +775,68 @@ async function guardarEntrantes(env, lista) {
       else disparos.push({ conversacion: conv.id, canal: m.canal, mensaje: r.meta.last_row_id });
     }
   }
+  /* Los audios nuevos viajan colgados de la lista, para pasarlos a texto
+     antes de que conteste el bot (ver `transcribirAudios`). */
+  disparos.audios = audios;
   return disparos;
+}
+
+/* ── LOS AUDIOS, A TEXTO ─────────────────────────────────────────
+
+   Pedido de Maxi (28/10): que el bot entienda los audios. Los pasa a
+   texto WHISPER, PERO EL DE CLOUDFLARE (Workers AI), no el de OpenAI: el
+   audio no sale de Cloudflare, que ya está declarado ante Meta y en
+   /privacidad/. Usar el de OpenAI sería sumar un proveedor, y eso pide
+   antes cambiar la política (CLAUDE.md, regla 1).
+
+   EL AUDIO NO SE GUARDA. Se baja de Meta, se pasa a texto y se descarta;
+   en la base queda sólo el texto, en el mismo mensaje, como si lo
+   hubiera escrito. Se borra con la conversación, como todo.
+
+   SI FALLA, NO PASA NADA GRAVE: el mensaje queda como "[Mandó un audio]"
+   y el bot hace lo de antes, pasarlo a una persona. */
+const TOPE_AUDIO = 15 * 1024 * 1024;
+
+async function bajarAudio(env, a) {
+  if (a.whatsappId) {
+    /* WhatsApp da primero la dirección, y después el archivo, los dos con
+       el token: el link solo no alcanza. */
+    if (!env.WHATSAPP_TOKEN) return null;
+    const auth = { authorization: `Bearer ${env.WHATSAPP_TOKEN}` };
+    const meta = await fetch(`${GRAPH}/${a.whatsappId}`, { headers: auth }).then((r) => r.json());
+    if (!meta?.url) return null;
+    const r = await fetch(meta.url, { headers: auth });
+    return r.ok ? r.arrayBuffer() : null;
+  }
+  if (a.url) {
+    const r = await fetch(a.url);
+    return r.ok ? r.arrayBuffer() : null;
+  }
+  return null;
+}
+
+async function transcribirAudios(env, audios = []) {
+  if (!env.AI || !audios.length) return;
+  for (const a of audios) {
+    try {
+      const bytes = await bajarAudio(env, a);
+      if (!bytes || bytes.byteLength > TOPE_AUDIO) continue;
+      const crudo = new Uint8Array(bytes);
+      let base64 = '';
+      for (let i = 0; i < crudo.length; i += 0x8000) {
+        base64 += String.fromCharCode(...crudo.subarray(i, i + 0x8000));
+      }
+      const r = await env.AI.run('@cf/openai/whisper-large-v3-turbo', {
+        audio: btoa(base64), language: 'es',
+      });
+      const texto = String(r?.text ?? '').trim().slice(0, 4000);
+      if (texto) {
+        await env.DB.prepare('UPDATE mensajes SET texto = ? WHERE id = ?').bind(texto, a.fila).run();
+      }
+    } catch (e) {
+      console.error('No se pudo pasar un audio a texto:', e?.message ?? e);
+    }
+  }
 }
 
 /* ── INSTAGRAM: CONTESTAR ────────────────────────────────────────
@@ -1420,7 +1488,9 @@ function historialParaClaude(mensajes) {
     const nuestro = m.direccion === 'saliente';
     let contenido = nuestro
       ? (m.tipo === 'texto' ? m.texto : m.texto && `[Le mandamos ${m.texto.toLowerCase()}]`)
-      : (m.tipo === 'texto' ? m.texto : NO_ES_TEXTO[m.tipo] ?? NO_ES_TEXTO.otro);
+      : m.tipo === 'texto' ? m.texto
+      : m.tipo === 'audio' && m.texto ? `[Mandó un audio. Dice: «${m.texto}»]`
+      : (NO_ES_TEXTO[m.tipo] ?? NO_ES_TEXTO.otro);
     if (!contenido) continue;
 
     const cuando = m.creado ? new Date(String(m.creado).replace(' ', 'T') + 'Z').getTime() : null;
@@ -2317,7 +2387,11 @@ async function recibirDeMeta(peticion, env, ctx) {
      SÓLO CON FIRMA VERIFICADA (regla 11): lo que no se pudo verificar
      se guarda, pero nunca se usa para contestar. */
   if (verificado && disparos.length && ctx) {
-    ctx.waitUntil(atenderSolo(env, disparos));
+    /* Primero los audios a texto, así el bot ya los lee al contestar. */
+    ctx.waitUntil((async () => {
+      await transcribirAudios(env, disparos.audios);
+      await atenderSolo(env, disparos);
+    })());
   }
 
   /* El `object` sale de un cuerpo que puede venir de cualquiera, así que

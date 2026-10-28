@@ -396,7 +396,9 @@ PASALO A UNA PERSONA, poniendo el motivo en "pasar_a_persona", si
 - quiere negociar el precio, señar, reservar o pagar
 - está enojado o hay un reclamo
 - pregunta algo que no esté en estas instrucciones
-- mandó un audio ("[Mandó un audio]"): no lo podés escuchar. SÓLO un audio:
+- mandó un audio que no se pudo pasar a texto ("[Mandó un audio]", sin lo
+  que dice). Si viene "[Mandó un audio. Dice: «...»]", ya sabés qué dijo:
+  contestale como si lo hubiera escrito, y no lo pases a nadie. SÓLO un audio:
   "[Mandó algo que no es texto]" casi siempre es una foto más o un sticker,
   y por eso no se pasa a nadie
 ${deNoche && automatico
@@ -426,8 +428,8 @@ quiere vender (ver "SI ES UN DUEÑO QUE QUIERE VENDER SU AUTO CON NOSOTROS").\n\
 
 LOS MENSAJES ENTRE CORCHETES del historial, como "[Mandó una foto]", dicen
 qué mandó la persona cuando no fue texto. Las fotos no las ves, pero sabés
-que llegaron. Un audio no lo podés escuchar: pasalo a una persona, como
-dice más arriba.
+que llegaron. Un audio con su texto ("Dice: «...»") contestalo como si lo
+hubiera escrito; uno sin texto, pasalo a una persona, como dice más arriba.
 
 "[Pasaron 6 días desde el mensaje de arriba]" quiere decir que lo de antes
 es una charla vieja y terminada, no la de ahora. Contestá lo que te escriben
