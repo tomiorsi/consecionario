@@ -1677,7 +1677,11 @@ function pintarIA(cfg) {
      ella esté apagada, y mostrarlo ahí sólo sirve para que las dos
      tarjetas parezcan contradecirse. */
   const wa = $('#interruptorWA');
+  /* `hidden` solo no alcanza: el CSS de `.interruptor` le pone display
+     y le gana. Con la IA apagada el recuadro confundía ("lo prendí y no
+     contesta"), así que se esconde a mano. */
   wa.hidden = !cfg.encendida;
+  wa.style.display = cfg.encendida ? '' : 'none';
   wa.classList.toggle('viva', cfg.whatsappDeDia);
   $('#estadoWA').textContent = cfg.whatsappDeDia
     ? 'WhatsApp de día: contesta la IA'

@@ -1379,6 +1379,19 @@ function diaDeBsAs(sqlite) {
   return new Date(d.getTime() - 3 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
+/* "¡HOLA! QUIERO MÁS INFORMACIÓN." ES UNA CONSULTA DE CONSIGNACIÓN.
+   Es el mensaje que Meta pone solo en el anuncio de consignaciones, que no
+   deja cambiarlo (28/10). Maxi: si alguien arranca con eso, tal cual y con
+   los dos signos del "Hola", viene a vender su auto. Se perdona la tilde y
+   el punto final; los signos del "¡Hola!" no, que son lo que lo distingue
+   de cualquier otro "hola, quiero info". */
+function esDeConsignacion(texto) {
+  const t = String(texto ?? '').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ').trim();
+  return /^¡hola! quiero mas informacion\.?$/.test(t);
+}
+
 /* ── EL TIEMPO QUE PASÓ, QUE ANTES SE PERDÍA ─────────────────────
 
    El historial iba sin una sola fecha. Una charla de hace una semana le
@@ -1481,6 +1494,10 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
   const turnos = historialParaClaude(hilo);
   if (!turnos.length) throw new Error('No hay nada que contestar todavía');
 
+  /* El primer mensaje de la persona en esta charla. */
+  const primero = privados.find((m) => m.direccion === 'entrante' && m.texto);
+  const deConsignacion = !esComentario && esDeConsignacion(primero?.texto);
+
   /* EL STOCK ENTERO, CON LO QUE EL CLIENTE PUEDE PREGUNTAR. */
   const { results: autos } = await env.DB.prepare(
     `SELECT a.id, a.marca, a.modelo, a.anio, a.km, a.precio, a.moneda,
@@ -1543,7 +1560,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     output_config: { effort: 'low' },
     system: instruccionesDelBot({
       autos: autos ?? [], posteo, nuestro, anuncio, canal: chat.canal,
-      automatico, esComentario, deNoche, nombre: chat.nombre,
+      automatico, esComentario, deNoche, nombre: chat.nombre, deConsignacion,
       /* Si ya le escribimos por privado, no vuelve a saludar. Lo decide
          el código y no el bot: en una charla larga, el bot se olvidaba. */
       yaHablamos: privados.some((m) => m.direccion === 'saliente'),
@@ -1817,6 +1834,12 @@ const PAUSA_TRAS_EL_LINK = 12000;
    mapa. El bot sólo dice que va (`ubicacion: true`). */
 const UBICACION = 'Pje. Lanín 154, Barracas\nhttps://share.google/mNeG7SYtUciJdSfq8';
 
+/* A WHATSAPP, CUANDO SE PASA A UNA PERSONA DESDE INSTAGRAM O MESSENGER.
+   Maxi sigue las charlas por WhatsApp (28/10). El bot le dice con
+   amabilidad que sigan por ahí, y el link va fijo, en su propio mensaje:
+   es el mismo número del botón del sitio (public/wa.js). */
+const A_WHATSAPP = 'https://wa.me/5491176703813';
+
 /* EL ORDEN DE LOS MENSAJES: lo que se cuenta, después lo fijo (el link
    del auto, la ubicación) y al final la pregunta, si la última parte es
    una. Lo fijo se espera un poco más, para que se vea la vista previa. */
@@ -1857,9 +1880,15 @@ async function ubicacionSinRepetir(env, chatId, ubicacion) {
   return yaEsta ? null : UBICACION;
 }
 
-async function mandarRespuesta(env, chat, { partes, autoId = null, ubicacion = false, autor }) {
+async function mandarRespuesta(env, chat, {
+  partes, autoId = null, ubicacion = false, aWhatsapp = false, autor,
+}) {
   const link = await linkSinRepetir(env, chat.id, autoId);
-  const fijos = [link, await ubicacionSinRepetir(env, chat.id, ubicacion)].filter(Boolean);
+  const fijos = [
+    link,
+    await ubicacionSinRepetir(env, chat.id, ubicacion),
+    aWhatsapp && chat.canal !== 'whatsapp' ? A_WHATSAPP : null,
+  ].filter(Boolean);
 
   /* El plan: qué sale y cuánto se espera ANTES de cada cosa. */
   const textos = armarTextos(partes, fijos);
@@ -2129,7 +2158,8 @@ async function atenderSolo(env, disparos) {
 
       if (r.esComentario) await atenderComentario(env, chat, r);
       else await mandarRespuesta(env, chat, {
-        partes: r.partes, autoId: r.autoId, ubicacion: r.ubicacion, autor: 'ia',
+        partes: r.partes, autoId: r.autoId, ubicacion: r.ubicacion,
+        aWhatsapp: Boolean(r.derivar), autor: 'ia',
       });
 
       /* Sin una palabra del mensaje: sólo qué hizo y por dónde. */
@@ -2181,8 +2211,11 @@ async function atenderComentario(env, chat, r) {
   }
 
   const link = await linkSinRepetir(env, chat.id, r.autoId);
-  const texto = armarTextos(r.partes,
-    [link, await ubicacionSinRepetir(env, chat.id, r.ubicacion)].filter(Boolean)).join('\n\n');
+  const texto = armarTextos(r.partes, [
+    link,
+    await ubicacionSinRepetir(env, chat.id, r.ubicacion),
+    r.derivar ? A_WHATSAPP : null,
+  ].filter(Boolean)).join('\n\n');
 
   const id = await mandarUno(env, chat, texto, { comentarioId: comentario.externo_id });
   await guardarSaliente(env, chat.id, texto, 'ia', id, { mediaId: comentario.media_id });
