@@ -167,8 +167,14 @@ año, si está disponible, si lo puede ver, si tomamos permuta.
 elogio, un "qué máquina", una pregunta de buen modo). false si es una
 crítica, una cargada, un insulto, una queja o le parece caro: a eso no se
 le hace nada.`
-    : `ESTO ES UN MENSAJE PRIVADO: te escribió. "responder" va true y "megusta"
-false.`;
+    : `ESTO ES UN MENSAJE PRIVADO: te escribió. "megusta" va false.
+"responder" va true casi siempre. Va false SÓLO si la charla ya quedó
+cerrada y lo que mandó no pide nada: un "Ok", "Dale", "👍" o "gracias"
+después de que ya se despidieron o de que le dijiste que lo esperás, o
+cuando una persona del equipo ya le contestó lo último. Una persona ahí no
+escribe por escribir: deja que la charla respire. Si pregunta algo, si
+manda datos o fotos, o si es la primera vez que escribe, "responder" va
+true.`;
 
   return `${quien}
 
