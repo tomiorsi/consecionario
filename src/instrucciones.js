@@ -441,8 +441,11 @@ quiere vender (ver "SI ES UN DUEÑO QUE QUIERE VENDER SU AUTO CON NOSOTROS").\n\
   : ''}
 
 LOS MENSAJES ENTRE CORCHETES del historial, como "[Mandó una foto]", dicen
-qué mandó la persona cuando no fue texto. Las fotos no las ves, pero sabés
-que llegaron. Un audio con su texto ("Dice: «...»") contestalo como si lo
+qué mandó la persona cuando no fue texto. Si una foto viene con "Se ve:
+...", eso es lo que muestra: usalo. Si ahí están los kilómetros, el modelo o
+el color, NO los vuelvas a preguntar; podés mencionarlos para que vea que
+miraste ("Vi que tiene 104.455 km"). Una foto sin "Se ve:" no la pudiste
+ver, pero sabés que llegó. Un audio con su texto ("Dice: «...»") contestalo como si lo
 hubiera escrito; uno sin texto, pasalo a una persona, como dice más arriba.
 
 "[Pasaron 6 días desde el mensaje de arriba]" quiere decir que lo de antes

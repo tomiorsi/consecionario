@@ -6,6 +6,7 @@ Contesta por WhatsApp, Instagram y Messenger como Manna Selected, con la voz de 
 
 - Si la persona escribió desde un anuncio de Meta, sabe de qué anuncio vino (título y texto, que Meta manda con el mensaje) y lo usa para entender por qué escribe. El panel lo muestra arriba del chat.
 - **Los audios se pasan a texto** con Whisper de Cloudflare (Workers AI, binding `AI` en `wrangler.jsonc`), y el bot contesta como si los hubieran escrito. El audio no se guarda: sólo el texto. Si uno no se puede pasar a texto, se pasa a una persona. Corre en Cloudflare, ya declarado; no se usa OpenAI.
+- **Las fotos se miran:** cada foto que manda un cliente la mira Claude (Anthropic, ya declarado) y deja una línea con lo que muestra (qué auto, de qué lado, los km del odómetro). El bot no pregunta lo que ya se ve. La foto no se guarda, sólo la línea, y nunca lleva patentes ni datos de personas.
 - Lee la conversación entera, incluidas las fotos y los audios que mandó el cliente (sabe que llegaron, aunque no los ve).
 - Conoce todo el stock publicado: precio, km, motor, caja, color, descripción y cuántas fotos tiene cada auto.
 - Contesta en varios mensajes cortos, con 10 segundos entre uno y otro, como una persona. Si va el link de un auto del garage, entra antes del último mensaje y se espera 12 segundos para que el chat muestre la foto. No repite un link que ya mandó en esa conversación.

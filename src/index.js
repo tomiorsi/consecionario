@@ -591,6 +591,7 @@ function mensajesDelAviso(aviso, nuestroId = null) {
             anuncio: anuncioDe(m.referral, canal),
             /* Un audio: con qué pedirlo a Meta para pasarlo a texto. */
             audio: m.type === 'audio' && m.audio?.id ? { whatsappId: m.audio.id } : null,
+            foto: m.type === 'image' && m.image?.id ? { whatsappId: m.image.id } : null,
           });
         }
 
@@ -648,6 +649,8 @@ function mensajesDelAviso(aviso, nuestroId = null) {
           media_id: null,
           anuncio: anuncioDe(ev.message.referral ?? ev.referral, canal),
           audio: ev.message.attachments?.[0]?.type === 'audio' && ev.message.attachments[0].payload?.url
+            ? { url: ev.message.attachments[0].payload.url } : null,
+          foto: ev.message.attachments?.[0]?.type === 'image' && ev.message.attachments[0].payload?.url
             ? { url: ev.message.attachments[0].payload.url } : null,
         });
       }
@@ -726,6 +729,7 @@ async function hayColumnaAnuncio(env) {
 
 async function guardarEntrantes(env, lista) {
   const audios = [];
+  const fotos = [];
   const anuncioOk = await hayColumnaAnuncio(env);
   /* LAS CONVERSACIONES QUE HAY QUE CONTESTAR, y sólo ésas: dónde entró
      un mensaje NUEVO de la otra persona, privado o comentario, con el id
@@ -767,6 +771,7 @@ async function guardarEntrantes(env, lista) {
     ).run();
 
     if (r.meta?.changes && m.audio) audios.push({ fila: r.meta.last_row_id, ...m.audio });
+    if (r.meta?.changes && m.foto) fotos.push({ fila: r.meta.last_row_id, texto: m.texto ?? null, ...m.foto });
 
     if (r.meta?.changes && (m.direccion ?? 'entrante') === 'entrante') {
       /* Si la misma persona mandó varios en un aviso, cuenta el último. */
@@ -778,6 +783,7 @@ async function guardarEntrantes(env, lista) {
   /* Los audios nuevos viajan colgados de la lista, para pasarlos a texto
      antes de que conteste el bot (ver `transcribirAudios`). */
   disparos.audios = audios;
+  disparos.fotos = fotos;
   return disparos;
 }
 
@@ -797,7 +803,9 @@ async function guardarEntrantes(env, lista) {
    y el bot hace lo de antes, pasarlo a una persona. */
 const TOPE_AUDIO = 15 * 1024 * 1024;
 
-async function bajarAudio(env, a) {
+/* Baja un archivo de Meta: un audio o una foto. Devuelve los bytes y de
+   qué tipo son. */
+async function bajarDeMeta(env, a) {
   if (a.whatsappId) {
     /* WhatsApp da primero la dirección, y después el archivo, los dos con
        el token: el link solo no alcanza. */
@@ -806,28 +814,81 @@ async function bajarAudio(env, a) {
     const meta = await fetch(`${GRAPH}/${a.whatsappId}`, { headers: auth }).then((r) => r.json());
     if (!meta?.url) return null;
     const r = await fetch(meta.url, { headers: auth });
-    return r.ok ? r.arrayBuffer() : null;
+    return r.ok ? { bytes: await r.arrayBuffer(), tipo: meta.mime_type || r.headers.get('content-type') } : null;
   }
   if (a.url) {
     const r = await fetch(a.url);
-    return r.ok ? r.arrayBuffer() : null;
+    return r.ok ? { bytes: await r.arrayBuffer(), tipo: r.headers.get('content-type') } : null;
   }
   return null;
+}
+
+/* Base64 común, no el "url" de las sesiones: así lo piden la API de
+   Anthropic y Workers AI. */
+const aBase64Plano = (bytes) => {
+  const crudo = new Uint8Array(bytes);
+  let s = '';
+  for (let i = 0; i < crudo.length; i += 0x8000) s += String.fromCharCode(...crudo.subarray(i, i + 0x8000));
+  return btoa(s);
+};
+
+/* ── LAS FOTOS, MIRADAS ───────────────────────────────────────────
+
+   Pedido de Maxi (28/10): un cliente mandó la foto del tablero con
+   104.455 km y el bot le volvió a preguntar los kilómetros. Ahora cada
+   foto que llega la mira Claude (Anthropic, ya declarado) y deja una
+   línea con lo que muestra: el odómetro, qué auto es, de qué lado. El bot
+   lee esa línea y no pregunta lo que ya se ve.
+
+   LA FOTO NO SE GUARDA, sólo la línea. Y la línea nunca lleva patentes,
+   documentos ni datos de personas: se le pide así, porque guardar lo
+   mínimo es un compromiso (CLAUDE.md, regla 3).
+
+   Van todas a la vez: un cliente manda cinco fotos juntas, y una por
+   una no entrarían en el tiempo que da Cloudflare antes de contestar. */
+const TOPE_FOTO = 4.5 * 1024 * 1024;
+const TIPOS_FOTO = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const MARCA_FOTO = '[Se ve: ';
+
+async function describirFotos(env, fotos = []) {
+  if (!env.ANTHROPIC_API_KEY || !fotos.length) return;
+  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  await Promise.all(fotos.slice(0, 8).map(async (f) => {
+    try {
+      const bajado = await bajarDeMeta(env, f);
+      const tipo = String(bajado?.tipo ?? '').split(';')[0].trim();
+      if (!bajado || bajado.bytes.byteLength > TOPE_FOTO || !TIPOS_FOTO.includes(tipo)) return;
+      const r = await client.messages.create({
+        model: MODELO,
+        max_tokens: 300,
+        output_config: { effort: 'low' },
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: tipo, data: aBase64Plano(bajado.bytes) } },
+            { type: 'text', text: `Un cliente de una concesionaria de autos mandó esta foto por chat. Describila en UNA línea corta, en castellano, con lo que le sirve a quien lo atiende: qué auto es (marca, modelo, color) y de qué lado se ve, o qué parte muestra. Si se ve el tablero, escribí los kilómetros EXACTOS del odómetro, tal cual se leen. Si se ve algún daño, decilo. Nunca escribas patentes, números de documento, nombres ni datos de personas. Sólo la línea, sin nada más.` },
+          ],
+        }],
+      });
+      const linea = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join(' ')
+        .replace(/\s+/g, ' ').trim().slice(0, 300);
+      if (!linea) return;
+      const texto = (f.texto ? f.texto + '\n' : '') + MARCA_FOTO + linea + ']';
+      await env.DB.prepare('UPDATE mensajes SET texto = ? WHERE id = ?').bind(texto, f.fila).run();
+    } catch (e) {
+      console.error('No se pudo mirar una foto:', e?.message ?? e);
+    }
+  }));
 }
 
 async function transcribirAudios(env, audios = []) {
   if (!env.AI || !audios.length) return;
   for (const a of audios) {
     try {
-      const bytes = await bajarAudio(env, a);
-      if (!bytes || bytes.byteLength > TOPE_AUDIO) continue;
-      const crudo = new Uint8Array(bytes);
-      let base64 = '';
-      for (let i = 0; i < crudo.length; i += 0x8000) {
-        base64 += String.fromCharCode(...crudo.subarray(i, i + 0x8000));
-      }
+      const bajado = await bajarDeMeta(env, a);
+      if (!bajado || bajado.bytes.byteLength > TOPE_AUDIO) continue;
       const r = await env.AI.run('@cf/openai/whisper-large-v3-turbo', {
-        audio: btoa(base64), language: 'es',
+        audio: aBase64Plano(bajado.bytes), language: 'es',
       });
       const texto = String(r?.text ?? '').trim().slice(0, 4000);
       if (texto) {
@@ -1490,6 +1551,12 @@ function historialParaClaude(mensajes) {
       ? (m.tipo === 'texto' ? m.texto : m.texto && `[Le mandamos ${m.texto.toLowerCase()}]`)
       : m.tipo === 'texto' ? m.texto
       : m.tipo === 'audio' && m.texto ? `[Mandó un audio. Dice: «${m.texto}»]`
+      : m.tipo === 'imagen' && m.texto?.includes(MARCA_FOTO) ? (() => {
+          const i = m.texto.indexOf(MARCA_FOTO);
+          const leyenda = m.texto.slice(0, i).trim();
+          const seVe = m.texto.slice(i + MARCA_FOTO.length).replace(/\]$/, '');
+          return `[Mandó una foto. Se ve: ${seVe}]` + (leyenda ? ` Escribió: «${leyenda}»` : '');
+        })()
       /* UNA FOTO PUEDE VENIR CON UNA LEYENDA, y suele ser lo que hay que
          leer: "este es el mío, tiene 40 mil km". Llega en el mismo campo
          que el texto y se guardaba bien, pero acá se perdía: para todo lo
@@ -2417,7 +2484,10 @@ async function recibirDeMeta(peticion, env, ctx) {
   if (verificado && disparos.length && ctx) {
     /* Primero los audios a texto, así el bot ya los lee al contestar. */
     ctx.waitUntil((async () => {
-      await transcribirAudios(env, disparos.audios);
+      await Promise.all([
+        transcribirAudios(env, disparos.audios),
+        describirFotos(env, disparos.fotos),
+      ]);
       await atenderSolo(env, disparos);
     })());
   }
