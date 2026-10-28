@@ -60,16 +60,23 @@
   // dan acceso a nada por si solos —sin el token no sirven— y tenerlos
   // escritos deja claro con que numero habla el sitio.
   //
-  // HOY ES EL NUMERO DE PRUEBA DE META, +1 555 182 6499. El numero real
-  // del negocio (+54 9 11 7670-3813) se usa en la app WhatsApp Business
-  // con catalogo; conectarlo a la API por la via comun lo saca de la app.
-  // No se cambia hasta confirmar si la cuenta tiene "coexistencia".
+  // ES EL NUMERO REAL DEL NEGOCIO, +54 9 11 7670-3813, EN COEXISTENCIA.
+  // Coexistencia quiere decir que el numero sigue funcionando en la app
+  // WhatsApp Business del celular —con su catalogo y sus chats— y ademas
+  // contesta por la API. Antes habia que ser proveedor de tecnologia de
+  // Meta para esto; desde el registro v5 viene activada sola.
   //
-  // El token (WHATSAPP_TOKEN) SI es secreto: se carga con
-  // `wrangler secret put`, nunca aca.
+  // Se dejo de usar el numero de prueba de Meta (+1 555 182 6499, phone
+  // 1303028729561183, cuenta 2223250614899939). Ese numero solo le podia
+  // escribir a cinco telefonos anotados a mano y su token vencia cada 24
+  // horas: no servia para atender clientes.
+  //
+  // EL TOKEN TIENE QUE SER DE USUARIO DEL SISTEMA, no el temporal de la
+  // pantalla de pruebas: ese vence cada 24 horas y el bot se queda mudo.
+  // Va como secreto con `wrangler secret put WHATSAPP_TOKEN`, nunca aca.
   "vars": {
-    "WHATSAPP_PHONE_ID": "1303028729561183",
-    "WHATSAPP_CUENTA_ID": "2223250614899939"
+    "WHATSAPP_PHONE_ID": "1336740542848389",
+    "WHATSAPP_CUENTA_ID": "1784146802921826"
   },
 
   // LA LIMPIEZA DE LAS CONVERSACIONES, UNA VEZ POR DIA.
