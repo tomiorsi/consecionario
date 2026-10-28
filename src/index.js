@@ -625,6 +625,7 @@ function mensajesDelAviso(aviso, nuestroId = null) {
             media_id: null,
             direccion: 'saliente',
             autor: 'persona',
+            desdeElCelular: true,
           });
         }
       }
@@ -769,6 +770,30 @@ async function guardarEntrantes(env, lista) {
       conv.id, m.mensaje_id ?? null, m.direccion ?? 'entrante', m.autor ?? null,
       m.tipo, m.texto, m.clase ?? 'mensaje', m.media_id ?? null
     ).run();
+
+    /* SI ALGUIEN DEL EQUIPO ESCRIBE DESDE EL CELULAR, EL CHAT ES SUYO.
+       Antes el bot se callaba sólo frente a ese mensaje y al siguiente
+       del cliente volvía a contestar, encima de la persona (Ram, 28/10:
+       el equipo se despidió y el bot le contestó al "Ok"). Ahora el chat
+       pasa a "lo atiende una persona" y el bot no vuelve hasta que lo
+       devuelvan desde el panel.
+       LOS AUTOMÁTICOS DE LA APP NO CUENTAN. El saludo y el mensaje de
+       ausencia de WhatsApp Business también llegan como eco, pero salen
+       al instante; una persona tarda más. Por eso un eco a menos de 15
+       segundos del último mensaje del cliente no toma el chat. */
+    if (r.meta?.changes && m.desdeElCelular) {
+      const ult = await env.DB.prepare(
+        `SELECT (julianday('now') - julianday(MAX(creado))) * 86400 AS seg
+           FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'`
+      ).bind(conv.id).first();
+      if (ult?.seg == null || ult.seg > 15) {
+        await env.DB.prepare(
+          `UPDATE conversaciones SET humano = 1,
+                  nota = COALESCE(nota, 'Lo tomó alguien del equipo desde el celular')
+            WHERE id = ? AND humano = 0`
+        ).bind(conv.id).run();
+      }
+    }
 
     if (r.meta?.changes && m.audio) audios.push({ fila: r.meta.last_row_id, ...m.audio });
     if (r.meta?.changes && m.foto) fotos.push({ fila: r.meta.last_row_id, texto: m.texto ?? null, ...m.foto });
