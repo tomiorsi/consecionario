@@ -2526,7 +2526,9 @@ ${instruccionesDelBot({ autos: [], posteo: null, canal: 'whatsapp', automatico: 
 Escribile a Maxi, el dueño, UN mensaje de WhatsApp corto (máximo 8
 renglones), rioplatense y sin vueltas:
 - hasta 3 cosas que hiciste mal o que no te salieron bien hoy, cada una
-  con el cliente (nombre y …últimos 4) y qué vas a hacer distinto;
+  con el cliente (nombre y …últimos 4) y qué vas a hacer distinto. Mirá
+  sobre todo la venta: dónde perdiste las riendas, dónde el cliente se
+  enfrió o no quedó un próximo paso, qué objeción no supiste responder;
 - hasta 3 preguntas concretas que necesitás que te conteste para mejorar,
   numeradas, así te responde "1. …".
 Si hoy no hubo nada que valga la pena, escribí sólo "Hoy sin dudas".`,
