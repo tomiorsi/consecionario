@@ -1965,15 +1965,13 @@ async function linkSinRepetir(env, chatId, autoId) {
   return yaEsta ? null : ficha.enlace;
 }
 
-/* LA UBICACIÓN TAMPOCO SE REPITE: si ya salió en esta conversación, el
-   cliente la tiene arriba. Mandarla dos veces es lo que hace un robot. */
-async function ubicacionSinRepetir(env, chatId, ubicacion) {
-  if (!ubicacion) return null;
-  const yaEsta = await env.DB.prepare(
-    `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
-        AND texto = ? LIMIT 1`
-  ).bind(chatId, UBICACION).first();
-  return yaEsta ? null : UBICACION;
+/* LA UBICACIÓN SALE SIEMPRE QUE SE PIDE, aunque ya se haya mandado.
+   Antes se bloqueaba la segunda vez y se le dejaba al bot decir "te la
+   mandamos más arriba". El 28/10 lo dijo sin haberla mandado nunca, y el
+   cliente —que además había borrado el chat— se enojó con razón. Si la
+   pide, la necesita: va de nuevo. */
+async function ubicacionSinRepetir(_env, _chatId, ubicacion) {
+  return ubicacion ? UBICACION : null;
 }
 
 async function mandarRespuesta(env, chat, {
@@ -2004,9 +2002,15 @@ async function mandarRespuesta(env, chat, {
       `SELECT COALESCE(MAX(id), 0) AS n FROM mensajes
         WHERE conversacion_id = ? AND direccion = 'entrante'`
     ).bind(chat.id).first())?.n ?? 0;
+    /* Si el chat ya estaba en manos de una persona al encolar —porque
+       esta misma respuesta lo pasó—, lo que falta sale igual: es parte de
+       lo que el bot decidió decir. Se corta sólo si alguien lo toma
+       después. */
+    const humanoAntes = (await env.DB.prepare('SELECT humano FROM conversaciones WHERE id = ?')
+      .bind(chat.id).first())?.humano ? 1 : 0;
     const cola = env.ENVIOS.get(env.ENVIOS.idFromName(String(chat.id)));
     await cola.encolar({ id: chat.id, canal: chat.canal, externo_id: chat.externo_id },
-      resto, autor, visto);
+      resto, autor, visto, humanoAntes);
   }
   return { link: Boolean(link), partes: pasos.length };
 }
@@ -2027,9 +2031,9 @@ async function mandarRespuesta(env, chat, {
    SI FALLA UNA PARTE, se cortan las que siguen: una respuesta a medias
    es mejor que una desordenada. */
 export class Envios extends DurableObject {
-  async encolar(chat, pasos, autor, visto) {
+  async encolar(chat, pasos, autor, visto, humanoAntes = 0) {
     /* Una respuesta nueva reemplaza a la que estaba saliendo. */
-    const cola = pasos.map((p) => ({ ...p, chat, autor, visto }));
+    const cola = pasos.map((p) => ({ ...p, chat, autor, visto, humanoAntes }));
     await this.ctx.storage.put('cola', cola);
     await this.ctx.storage.setAlarm(Date.now() + cola[0].espera);
   }
@@ -2043,9 +2047,11 @@ export class Envios extends DurableObject {
           `SELECT 1 FROM mensajes WHERE conversacion_id = ?
               AND direccion = 'entrante' AND id > ? LIMIT 1`
         ).bind(paso.chat.id, paso.visto).first();
-        const sigue = !escribio && (paso.autor !== 'ia' || !(await this.env.DB
+        const humanoAhora = (await this.env.DB
           .prepare('SELECT humano FROM conversaciones WHERE id = ?')
-          .bind(paso.chat.id).first())?.humano);
+          .bind(paso.chat.id).first())?.humano ? 1 : 0;
+        const sigue = !escribio &&
+          (paso.autor !== 'ia' || humanoAhora <= (paso.humanoAntes ?? 0));
         if (sigue) {
           const id = await mandarUno(this.env, paso.chat, paso.texto);
           await guardarSaliente(this.env, paso.chat.id, paso.texto, paso.autor, id);
