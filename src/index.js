@@ -1338,6 +1338,22 @@ TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
 Escribí "partes" siempre, aunque "responder" sea false: así se puede revisar
 qué hubieras dicho.`;
 
+/* TOLERANTE AL LEER, ESTRICTO AL DECIDIR.
+   La respuesta es el texto que viene después de la última búsqueda, y del
+   objeto JSON se toma de la primera llave a la última. Si no se entiende
+   nada, vuelve sin partes y arriba se repregunta. */
+function loQueDijo(respuesta) {
+  const bloques = respuesta.content ?? [];
+  const ultimaBusqueda = bloques.map((b) => b.type).lastIndexOf('web_search_tool_result');
+  const final = bloques.slice(ultimaBusqueda + 1)
+    .filter((b) => b.type === 'text').map((b) => b.text).join('');
+  let dato = null;
+  try { dato = JSON.parse(final.slice(final.indexOf('{'), final.lastIndexOf('}') + 1)); } catch { /* sin partes */ }
+  const partes = (Array.isArray(dato?.partes) ? dato.partes : [])
+    .map((t) => String(t ?? '').trim()).filter(Boolean).slice(0, 4);
+  return { ...(dato ?? {}), partes };
+}
+
 /* LO QUE NO ES TEXTO, DICHO CON PALABRAS.
    Antes un audio o una foto desaparecían del historial que veía el bot,
    y entonces pedía las fotos que el cliente ya había mandado. Ahora
@@ -1543,20 +1559,30 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     throw new Error('Claude no quiso contestar esta conversación');
   }
 
-  /* TOLERANTE AL LEER, ESTRICTO AL DECIDIR.
-     La respuesta es el texto que viene después de la última búsqueda, y
-     del objeto JSON se toma de la primera llave a la última. Lo que no se
-     perdona es que adentro falte el mensaje: ahí tira, y quien llama no
-     manda nada. */
-  const bloques = respuesta.content ?? [];
-  const ultimaBusqueda = bloques.map((b) => b.type).lastIndexOf('web_search_tool_result');
-  const final = bloques.slice(ultimaBusqueda + 1)
-    .filter((b) => b.type === 'text').map((b) => b.text).join('');
-  let dato = null;
-  try { dato = JSON.parse(final.slice(final.indexOf('{'), final.lastIndexOf('}') + 1)); } catch { /* abajo */ }
+  /* ANTES DE DEJARLO MUDO, SE LE PREGUNTA DE NUEVO.
+     Con la búsqueda web prendida la forma no se puede forzar: se pide en
+     las instrucciones y a veces el bot contesta en texto suelto. Pasó el
+     28/10 con un "hola, cómo estás" por Instagram: no hubo JSON, saltó el
+     error y el cliente se quedó sin respuesta. Ahora se repregunta una vez
+     sin buscar y con la forma obligada, que esa sí la garantiza la API.
+     Un cliente esperando es peor que una respuesta sin cita. */
+  let dato = loQueDijo(respuesta);
+  if (!dato.partes.length) {
+    /* Sin el texto del mensaje: en el log van el motivo del corte y los
+       tipos de bloque, que alcanzan para entender qué pasó. */
+    console.error('Sin JSON, repregunta:', JSON.stringify({
+      motivo: respuesta.stop_reason,
+      bloques: (respuesta.content ?? []).map((b) => b.type),
+    }));
+    const { tools: _sinUsar, ...sinBuscar } = pedido;
+    respuesta = await client.messages.create({
+      ...sinBuscar,
+      output_config: { effort: 'low', format: { type: 'json_schema', schema: FORMA_DE_RESPUESTA } },
+    });
+    dato = loQueDijo(respuesta);
+  }
 
-  const partes = (Array.isArray(dato?.partes) ? dato.partes : [])
-    .map((t) => String(t ?? '').trim()).filter(Boolean).slice(0, 4);
+  const { partes } = dato;
   if (!partes.length) throw new Error('Claude no devolvió una respuesta');
 
   /* El número de auto se cruza con el stock: uno inventado o vendido no
