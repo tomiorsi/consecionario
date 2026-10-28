@@ -591,6 +591,39 @@ function mensajesDelAviso(aviso, nuestroId = null) {
             anuncio: anuncioDe(m.referral, canal),
           });
         }
+
+        /* LO QUE CONTESTAN DESDE EL CELULAR, QUE TAMBIEN ES NUESTRO.
+
+           Con la coexistencia el numero vive en dos lados a la vez: el
+           panel y la app de WhatsApp del celular. Cuando alguien del
+           equipo contesta desde el celular, Meta no lo manda como un
+           mensaje mas: lo manda aparte, en 'smb_message_echoes'.
+
+           SIN ESTO EL PANEL VE MEDIA CHARLA. Y es peor que incompleto:
+           la IA no se entera de que ya le contestaron y vuelve a
+           contestar lo mismo, encima de una persona.
+
+           Guardarlos alcanza para las dos cosas. Van al contexto que lee
+           la IA, y como `atenderSolo` solo contesta si el ultimo mensaje
+           del chat es el que lo disparo, una respuesta desde el celular
+           lo deja callado sin que haya que avisarle nada.
+
+           `m.to` es el telefono del cliente: el eco va de nosotros hacia
+           el, asi que la conversacion es la misma de siempre. */
+        for (const m of valor.message_echoes ?? []) {
+          salida.push({
+            canal,
+            externo_id: m.to,
+            nombre: null,
+            mensaje_id: m.id,
+            tipo: tipoConocido(m.type),
+            texto: m.text?.body ?? m[m.type]?.caption ?? null,
+            clase: 'mensaje',
+            media_id: null,
+            direccion: 'saliente',
+            autor: 'persona',
+          });
+        }
       }
     } else {
       for (const ev of entrada.messaging ?? []) {
@@ -721,10 +754,10 @@ async function guardarEntrantes(env, lista) {
        Lo que no la trae es entrante, que es el caso normal. */
     const r = await env.DB.prepare(
       `INSERT OR IGNORE INTO mensajes
-         (conversacion_id, externo_id, direccion, tipo, texto, clase, media_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+         (conversacion_id, externo_id, direccion, autor, tipo, texto, clase, media_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
-      conv.id, m.mensaje_id ?? null, m.direccion ?? 'entrante',
+      conv.id, m.mensaje_id ?? null, m.direccion ?? 'entrante', m.autor ?? null,
       m.tipo, m.texto, m.clase ?? 'mensaje', m.media_id ?? null
     ).run();
 
