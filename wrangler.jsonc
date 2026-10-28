@@ -66,10 +66,9 @@
   // contesta por la API. Antes habia que ser proveedor de tecnologia de
   // Meta para esto; desde el registro v5 viene activada sola.
   //
-  // Se dejo de usar el numero de prueba de Meta (+1 555 182 6499, phone
-  // 1303028729561183, cuenta 2223250614899939). Ese numero solo le podia
-  // escribir a cinco telefonos anotados a mano y su token vencia cada 24
-  // horas: no servia para atender clientes.
+  // Se dejo de usar el numero de prueba de Meta: solo le podia escribir a
+  // cinco telefonos anotados a mano y su token vencia cada 24 horas. No
+  // servia para atender clientes y no queda escrito en ningun lado.
   //
   // EL TOKEN TIENE QUE SER DE USUARIO DEL SISTEMA, no el temporal de la
   // pantalla de pruebas: ese vence cada 24 horas y el bot se queda mudo.

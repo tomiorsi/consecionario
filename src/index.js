@@ -21,6 +21,7 @@
    sube. Ver `achicar()` en el panel. */
 
 import Anthropic from '@anthropic-ai/sdk';
+import { PLANTILLAS, comoLasPideMeta } from './plantillas.js';
 import { DurableObject } from 'cloudflare:workers';
 import { PANEL } from './admin.js';
 import { instruccionesDelBot } from './instrucciones.js';
@@ -536,7 +537,7 @@ function anuncioDe(ref, canal) {
   return a.id || a.titulo || a.texto ? JSON.stringify(a) : null;
 }
 
-function mensajesDelAviso(aviso) {
+function mensajesDelAviso(aviso, nuestroId = null) {
   const salida = [];
   if (!aviso?.entry) return salida;
 
@@ -553,6 +554,23 @@ function mensajesDelAviso(aviso) {
     if (canal === 'whatsapp') {
       for (const cambio of entrada.changes ?? []) {
         const valor = cambio.value ?? {};
+
+        /* SOLO EL NUMERO POR EL QUE CONTESTAMOS.
+
+           Una app de Meta puede estar suscrita a mas de un numero —el
+           de prueba quedo suscrito de cuando se usaba— y todos entran
+           por el mismo webhook. Atenderlos todos termina en lo peor que
+           puede pasar: alguien le escribe a un numero y le contesta
+           otro, porque el bot manda siempre por WHATSAPP_PHONE_ID.
+
+           Pasa aca y no al contestar porque un mensaje que no vamos a
+           poder contestar bien tampoco queremos guardarlo: ensucia la
+           bandeja con charlas que nadie puede seguir.
+
+           Si el aviso no dice a que numero entro, se atiende igual: no
+           saberlo no es razon para tirarlo. */
+        const entroA = valor.metadata?.phone_number_id;
+        if (nuestroId && entroA && String(entroA) !== String(nuestroId)) continue;
         /* El nombre llega en una lista aparte, emparejada por wa_id. */
         const nombres = {};
         for (const c of valor.contacts ?? []) {
@@ -1885,40 +1903,29 @@ async function configDelBot(env) {
      corrompe o viene de una versión vieja, queda apagada. */
   const encendida = g.encendida === true;
 
-  /* WHATSAPP DE DÍA: apagado salvo que Maxi o Tomás lo prendan a
-     propósito (ver `canalActivo`). Mismo criterio: sólo `true` lo prende. */
-  const whatsappDeDia = g.whatsappDeDia === true;
-
   return {
     desde: hora(g.desde), hasta: hora(g.hasta), encendida, apagado: !encendida,
-    whatsappDeDia, deNoche: esDeNoche(),
+    deNoche: esDeNoche(),
   };
 }
 
-/* DE NOCHE Y DE DÍA, COMO LO PIDIÓ MAXI (28/10).
-
-   De 8:00 a 20:00 (hora de Buenos Aires) hay gente: el bot contesta
-   Instagram y Facebook —privados y comentarios— y WhatsApp NO, salvo que
-   alguien lo prenda a propósito con "WhatsApp de día". WhatsApp es por
-   donde se cierran las ventas, y de día lo atiende una persona.
-
-   De 20:01 a 7:59 no hay nadie: el bot contesta los tres canales. Y
-   cuando tiene que pasar una charla a una persona, o no puede contestar
-   (un audio, un dato que no tiene), dice que es el asistente y que a la
-   mañana temprano lo contactan: de noche nadie va a seguir esa charla en
-   un rato, y prometerlo sería mentirle.
-
-   Todo esto vale con la IA prendida. Apagada, no contesta nada nunca. */
+/* SI ES DE NOCHE O NO. NO DECIDE SI CONTESTA —eso lo decide el botón y
+   nada más— sino CÓMO CONTESTA: de noche, cuando tiene que pasar una
+   charla a una persona o no puede contestar algo, dice que a la mañana
+   temprano lo contactan. De noche nadie va a seguir esa charla en un
+   rato, y prometerlo sería mentirle. */
 function esDeNoche(ahora = new Date()) {
   const min = ((ahora.getUTCHours() + 21) % 24) * 60 + ahora.getUTCMinutes();  // Buenos Aires, UTC-3
   return min >= 20 * 60 + 1 || min < 8 * 60;
 }
 
-function canalActivo(cfg, canal, ahora = new Date()) {
-  if (!cfg.encendida) return false;
-  if (canal !== 'whatsapp') return true;
-  return esDeNoche(ahora) || cfg.whatsappDeDia;
-}
+/* UN SOLO INTERRUPTOR PARA LOS TRES CANALES.
+
+   Hubo un tiempo en que WhatsApp tenía su propia regla por horario y su
+   propio botón. Dos interruptores para una sola decisión es una forma
+   segura de que alguien jure que la IA está prendida mientras un canal
+   no contesta. Prendida contesta WhatsApp, Instagram y Messenger;
+   apagada no contesta ninguno. */
 
 function enHorario(cfg, ahora = new Date()) {
   if (cfg.desde === null || cfg.hasta === null || cfg.desde === cfg.hasta) return true;
@@ -1950,7 +1957,7 @@ const ESPERA_ANTES_DE_CONTESTAR = 8000;
 
 async function atenderSolo(env, disparos) {
   const cfg = await configDelBot(env);
-  if (!disparos.some((d) => canalActivo(cfg, d.canal))) return;
+  if (!cfg.encendida) return;
   if (!enHorario(cfg)) return;
 
   await new Promise((listo) => setTimeout(listo, ESPERA_ANTES_DE_CONTESTAR));
@@ -1958,9 +1965,6 @@ async function atenderSolo(env, disparos) {
   /* UNA POR VEZ: en paralelo serían varias llamadas a Claude y a Meta
      desde la misma invocación, y Cloudflare corta por pedidos salientes. */
   for (const d of disparos) {
-    /* Se vuelve a mirar después de la espera: si en esos segundos dieron
-       las 8, WhatsApp ya no le toca al bot. */
-    if (!canalActivo(cfg, d.canal)) continue;
     try {
       const chat = await env.DB.prepare(
         'SELECT id, canal, externo_id, humano FROM conversaciones WHERE id = ?'
@@ -2149,7 +2153,7 @@ async function recibirDeMeta(peticion, env, ctx) {
   let guardados = 0;
   let disparos = [];
   try {
-    const lista = mensajesDelAviso(aviso);
+    const lista = mensajesDelAviso(aviso, env.WHATSAPP_PHONE_ID);
     if (lista.length) {
       disparos = await guardarEntrantes(env, lista);
       guardados = lista.length;
@@ -2175,9 +2179,26 @@ async function recibirDeMeta(peticion, env, ctx) {
   const CANALES_META = ['whatsapp_business_account', 'instagram', 'page'];
   const canal = CANALES_META.includes(aviso?.object) ? aviso.object : 'desconocido';
 
+  /* A QUE NUMERO NUESTRO ENTRO EL AVISO, y con que campo. Teniendo dos
+     numeros dados de alta —el de prueba y el del negocio— un aviso que
+     llega no dice por si solo cual de los dos lo recibio, y sin eso no
+     hay forma de saber si el numero nuevo esta andando.
+
+     ES UN DATO NUESTRO, NO DE NADIE MAS: el telefono del negocio esta
+     publicado en la web. El de la otra persona sigue sin ir al log.
+
+     `campo` es el tipo de aviso ('messages', 'smb_message_echoes',
+     'history'...). Hoy solo se leen los mensajes; ver cual llega es lo
+     que dice si falta atender alguno. */
+  const cambios = (aviso?.entry ?? []).flatMap((e) => e.changes ?? []);
+  const nuestro = cambios.map((c) => c?.value?.metadata?.display_phone_number).find(Boolean) ?? null;
+  const campos = [...new Set(cambios.map((c) => c?.field).filter(Boolean))];
+
   console.log(JSON.stringify({
     meta: verificado ? `verificado (${verificado})` : 'sin verificar (no hay claves cargadas)',
     canal,
+    a: nuestro,
+    campos,
     mensajes: guardados,
     contestando: verificado ? disparos.length : 0,
   }));
@@ -2868,8 +2889,6 @@ async function admin(peticion, env, ruta, metodo) {
       desde: 'desde' in (cuerpo ?? {}) ? entero(cuerpo.desde, 0, 23) : (antes.desde ?? null),
       hasta: 'hasta' in (cuerpo ?? {}) ? entero(cuerpo.hasta, 0, 23) : (antes.hasta ?? null),
       encendida: 'encendida' in (cuerpo ?? {}) ? cuerpo.encendida === true : antes.encendida === true,
-      whatsappDeDia: 'whatsappDeDia' in (cuerpo ?? {})
-        ? cuerpo.whatsappDeDia === true : antes.whatsappDeDia === true,
     });
     return json(await configDelBot(env));
   }
@@ -2922,6 +2941,85 @@ async function admin(peticion, env, ruta, metodo) {
       if (salida.intentos[salida.intentos.length - 1].respuesta?.messages) break;
       salida.intentos.push(await probar(forma));
     }
+    return json(salida);
+  }
+
+  /* QUE LA APP RECIBA LOS MENSAJES DE ESTA CUENTA.
+
+     Conectar el numero no alcanza. Meta no manda un solo aviso hasta
+     que la app queda suscrita a la cuenta de WhatsApp, y esa
+     suscripcion NO ESTA EN NINGUNA PANTALLA de Meta: se pide por la
+     API y nada mas. Cuando un numero entra por el registro embebido la
+     suscripcion sale sola; este numero ya estaba conectado de antes,
+     asi que hay que pedirla a mano una vez.
+
+     Sin ?activar=1 solo dice quien esta suscrito hoy, sin tocar nada. */
+  if (ruta === '/api/admin/whatsapp/suscribir' && metodo === 'GET') {
+    const pedida = (new URL(peticion.url).searchParams.get('cuenta') || '').replace(/\D/g, '');
+    const cuenta = pedida || env.WHATSAPP_CUENTA_ID;
+    if (!cuenta) return error('Falta WHATSAPP_CUENTA_ID', 400);
+    const pedir = async (verbo) => {
+      const r = await fetch(`${GRAPH}/${cuenta}/subscribed_apps`, {
+        method: verbo,
+        headers: { authorization: `Bearer ${env.WHATSAPP_TOKEN}` },
+      });
+      return { estado: r.status, respuesta: await r.json().catch(() => ({})) };
+    };
+    const salida = { cuenta };
+    const q = new URL(peticion.url).searchParams;
+    if (q.get('activar') === '1') salida.suscripcion = await pedir('POST');
+    if (q.get('sacar') === '1') salida.baja = await pedir('DELETE');
+    salida.suscritas = await pedir('GET');
+    return json(salida);
+  }
+
+  /* MANDAR LAS PLANTILLAS A REVISION.
+
+     El texto vive en src/plantillas.js; esto solo lo sube. Se separa a
+     proposito: lo que se aprueba y lo que se manda tienen que ser el
+     mismo texto, y si se pudiera escribir desde el panel dejarian de
+     serlo al primer retoque.
+
+     SIN ?crear=1 SOLO MUESTRA COMO ESTAN. Es lo que hay que mirar
+     despues: Meta las revisa y cada una queda en APPROVED o REJECTED,
+     con el motivo.
+
+     Subir dos veces la misma no rompe nada: Meta contesta que el nombre
+     ya existe y esa plantilla queda como estaba. */
+  if (ruta === '/api/admin/whatsapp/plantillas' && metodo === 'GET') {
+    const cuenta = env.WHATSAPP_CUENTA_ID;
+    if (!cuenta) return error('Falta WHATSAPP_CUENTA_ID', 400);
+
+    const salida = { cuenta };
+
+    if (new URL(peticion.url).searchParams.get('crear') === '1') {
+      salida.subidas = [];
+      for (const p of PLANTILLAS) {
+        const r = await fetch(`${GRAPH}/${cuenta}/message_templates`, {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${env.WHATSAPP_TOKEN}`,
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify(comoLasPideMeta(p)),
+        });
+        const d = await r.json().catch(() => ({}));
+        salida.subidas.push({
+          plantilla: p.nombre,
+          estado: r.status,
+          resultado: d?.error?.error_user_msg || d?.error?.message || d?.status || 'subida',
+        });
+      }
+    }
+
+    const r = await fetch(
+      `${GRAPH}/${cuenta}/message_templates?fields=name,status,category,rejected_reason&limit=100`,
+      { headers: { authorization: `Bearer ${env.WHATSAPP_TOKEN}` } });
+    const d = await r.json().catch(() => ({}));
+    salida.en_meta = (d?.data ?? []).map((t) =>
+      ({ nombre: t.name, estado: t.status, categoria: t.category, motivo: t.rejected_reason || null }));
+    if (d?.error) salida.en_meta = d.error;
+
     return json(salida);
   }
 

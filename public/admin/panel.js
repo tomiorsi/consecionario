@@ -1662,49 +1662,15 @@ function pintarIA(cfg) {
     ? 'La IA está contestando sola'
     : 'La IA está apagada';
 
-  /* QUÉ CONTESTA Y CUÁNDO (pedido de Maxi, 28/10): de 8 a 20, Instagram
-     y Messenger, y WhatsApp sólo si se lo prende de día; de 20:01 a 7:59,
-     los tres. */
+  /* LOS TRES CANALES O NINGUNO. Un solo botón: prendida contesta
+     WhatsApp, Instagram y Messenger; apagada no contesta ninguno. */
   $('#detalleIA').textContent = cfg.encendida
-    ? 'De 8 a 20 contesta Instagram y Messenger' +
-      (cfg.whatsappDeDia ? ' y también WhatsApp' : '; WhatsApp lo atienden ustedes') +
-      '. De 20:01 a 7:59 contesta los tres. Si alguien pide hablar con una persona, deja ese chat.'
+    ? 'Contesta sola por WhatsApp, Instagram y Messenger. Si alguien pide hablar con una persona, deja ese chat.'
     : 'Contestás vos. No sale ningún mensaje solo. El botón "Que escriba la IA" te arma el borrador igual.';
 
   $('#palancaIA').textContent = cfg.encendida ? 'Apagar' : 'Prender';
   $('#palancaIA').classList.toggle('btn--fuerte', cfg.encendida);
-
-  const wa = $('#interruptorWA');
-  wa.hidden = !cfg.encendida;
-  wa.classList.toggle('viva', cfg.whatsappDeDia);
-  $('#estadoWA').textContent = cfg.whatsappDeDia
-    ? 'WhatsApp de día: contesta la IA'
-    : 'WhatsApp de día: no contesta';
-  $('#detalleWA').textContent = cfg.whatsappDeDia
-    ? 'Está prendido a propósito: de 8 a 20 también contesta WhatsApp.'
-    : 'De 8 a 20 WhatsApp lo atienden ustedes. De noche contesta igual.';
-  $('#palancaWA').textContent = cfg.whatsappDeDia ? 'Apagar de día' : 'Prender de día';
-  $('#palancaWA').classList.toggle('btn--fuerte', cfg.whatsappDeDia);
 }
-
-$('#palancaWA').addEventListener('click', async () => {
-  const prendiendo = !$('#interruptorWA').classList.contains('viva');
-  if (prendiendo && !confirm(
-    'De 8 a 20 la IA también le va a contestar sola a los clientes por WhatsApp. ¿Seguimos?')) return;
-  const boton = $('#palancaWA');
-  boton.disabled = true;
-  try {
-    pintarIA(await api('/api/admin/bot', {
-      method: 'PUT',
-      body: JSON.stringify({ whatsappDeDia: prendiendo }),
-    }));
-    avisar(prendiendo ? 'WhatsApp de día quedó prendido' : 'WhatsApp de día quedó apagado');
-  } catch (err) {
-    avisar(err.message, true);
-  } finally {
-    boton.disabled = false;
-  }
-});
 
 async function cargarIA() {
   try { pintarIA(await api('/api/admin/bot')); } catch { /* el panel abre igual */ }
