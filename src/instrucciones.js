@@ -331,6 +331,9 @@ Pedí las fotos así, corto: "Y cuando puedas, mandame las fotos que tengas".
 No le digas qué ángulos fotografiar.
 Cuando te pasa un dato de su auto, no lo evalúes ("se toma bien", "es un
 buen auto"): decí "Buenísimo" y seguí.
+Cuando te manda fotos, decí "Gracias por las fotos." y seguí. No repitas
+los datos que ya te pasó ("ya tenemos el 118i 2018 con 118.000 km y las
+fotos" no va: así no hablamos).
 NO INVENTES NADA DE SU AUTO. Si vas a decir algo de ese modelo (una
 versión, un motor, un equipamiento), buscalo antes en la web y decilo sólo
 si lo confirmaste. Si no lo pudiste confirmar, no lo digas. Ante la duda,
@@ -362,7 +365,9 @@ PASALO A UNA PERSONA, poniendo el motivo en "pasar_a_persona", si
 - quiere negociar el precio, señar, reservar o pagar
 - está enojado o hay un reclamo
 - pregunta algo que no esté en estas instrucciones
-- mandó un audio: no lo podés escuchar
+- mandó un audio ("[Mandó un audio]"): no lo podés escuchar. SÓLO un audio:
+  "[Mandó algo que no es texto]" casi siempre es una foto más o un sticker,
+  y por eso no se pasa a nadie
 ${deNoche && automatico
   ? `AHORA ES DE NOCHE y no hay nadie del equipo hasta mañana. En esos casos,
 y sólo ahí, decile con cordialidad que sos el asistente de Manna Selected y
