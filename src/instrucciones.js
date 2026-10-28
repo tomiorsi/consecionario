@@ -84,8 +84,15 @@ function lineaDeAuto(a) {
     precio,
     a.motor, a.transmision, a.combustible, a.color,
   ].filter(Boolean).join(' · ');
+  /* LA FICHA ENTERA Y NO UN PEDAZO.
+     Estuvo cortada en 400 caracteres y las ocho descripciones publicadas
+     pasaban ese límite: el bot veía entre el 15% y el 39% de lo que
+     cargamos. Por eso contestaba "ese dato no lo tengo" y pasaba el chat
+     a una persona, con la respuesta escrita en la ficha. Lo subió Tomás
+     el 28/10 a 12.500, que es más que la descripción más larga que
+     tenemos: en la práctica, entera. El tope queda sólo por las dudas. */
   const desc = a.descripcion
-    ? `\n  ${a.descripcion.replace(/\s+/g, ' ').slice(0, 400)}`
+    ? `\n  ${a.descripcion.replace(/\s+/g, ' ').slice(0, 12500)}`
     : '';
   const pres = PRESENTACIONES[a.id]
     ? `\n  PRESENTACIÓN: ${PRESENTACIONES[a.id]}`
