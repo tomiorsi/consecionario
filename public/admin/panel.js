@@ -1662,15 +1662,51 @@ function pintarIA(cfg) {
     ? 'La IA está contestando sola'
     : 'La IA está apagada';
 
-  /* LOS TRES CANALES O NINGUNO. Un solo botón: prendida contesta
-     WhatsApp, Instagram y Messenger; apagada no contesta ninguno. */
+  /* EL DE ARRIBA MANDA. Apagado no contesta nadie y punto; prendido,
+     Instagram y Messenger van siempre y de WhatsApp decide el de abajo. */
   $('#detalleIA').textContent = cfg.encendida
-    ? 'Contesta sola por WhatsApp, Instagram y Messenger. Si alguien pide hablar con una persona, deja ese chat.'
-    : 'Contestás vos. No sale ningún mensaje solo. El botón "Que escriba la IA" te arma el borrador igual.';
+    ? 'Contesta Instagram y Messenger siempre, y WhatsApp de 20 a 8. '
+      + 'Si alguien pide hablar con una persona, deja ese chat.'
+    : 'Contestás vos, por los tres canales. No sale ningún mensaje solo. '
+      + 'El botón "Que escriba la IA" te arma el borrador igual.';
 
   $('#palancaIA').textContent = cfg.encendida ? 'Apagar' : 'Prender';
   $('#palancaIA').classList.toggle('btn--fuerte', cfg.encendida);
+
+  /* CON LA IA APAGADA, EL DE WHATSAPP NO SE VE. No decide nada mientras
+     ella esté apagada, y mostrarlo ahí sólo sirve para que las dos
+     tarjetas parezcan contradecirse. */
+  const wa = $('#interruptorWA');
+  wa.hidden = !cfg.encendida;
+  wa.classList.toggle('viva', cfg.whatsappDeDia);
+  $('#estadoWA').textContent = cfg.whatsappDeDia
+    ? 'WhatsApp de día: contesta la IA'
+    : 'WhatsApp de día: lo atienden ustedes';
+  $('#detalleWA').textContent = cfg.whatsappDeDia
+    ? 'Prendido a propósito: de 8 a 20 la IA también contesta WhatsApp.'
+    : 'De 8 a 20 la IA no contesta WhatsApp. De 20 a 8 contesta igual.';
+  $('#palancaWA').textContent = cfg.whatsappDeDia ? 'Apagar de día' : 'Prender de día';
+  $('#palancaWA').classList.toggle('btn--fuerte', cfg.whatsappDeDia);
 }
+
+$('#palancaWA').addEventListener('click', async () => {
+  const prendiendo = !$('#interruptorWA').classList.contains('viva');
+  if (prendiendo && !confirm(
+    'De 8 a 20 la IA también le va a contestar sola a los clientes por WhatsApp. ¿Seguimos?')) return;
+  const boton = $('#palancaWA');
+  boton.disabled = true;
+  try {
+    pintarIA(await api('/api/admin/bot', {
+      method: 'PUT',
+      body: JSON.stringify({ whatsappDeDia: prendiendo }),
+    }));
+    avisar(prendiendo ? 'WhatsApp de día quedó prendido' : 'WhatsApp de día quedó apagado');
+  } catch (err) {
+    avisar(err.message, true);
+  } finally {
+    boton.disabled = false;
+  }
+});
 
 async function cargarIA() {
   try { pintarIA(await api('/api/admin/bot')); } catch { /* el panel abre igual */ }

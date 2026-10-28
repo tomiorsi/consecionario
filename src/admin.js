@@ -507,6 +507,12 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
    mano en negro, de día quedaba texto oscuro sobre un rectángulo
    oscuro y las respuestas de la IA no se leían. */
 .globo--saliente{ margin-left:auto; background:var(--realce) }
+/* EL HIJO SE VE COMO HIJO: corrido a la derecha y con una línea que lo
+   ata al de arriba. Sin eso son dos tarjetas iguales y nada dice que
+   una manda sobre la otra. */
+.interruptor--hijo{
+  margin-left:2rem; border-left:2px solid var(--linea); border-radius:0 3px 3px 0;
+}
 .globo p{ font-size:.82rem; line-height:1.6; white-space:pre-wrap; overflow-wrap:anywhere }
 /* Un mensaje que no es texto. No guardamos el archivo —solo que llegó y
    de qué tipo— así que esto dice exactamente eso y no finge una vista
@@ -916,6 +922,18 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
           <small id="detalleIA">Contestás vos. No sale ningún mensaje solo.</small>
         </span>
         <button class="btn" id="palancaIA" type="button">Prender</button>
+      </div>
+
+      <!-- WHATSAPP DE DÍA, ADENTRO DEL DE ARRIBA. Con la IA apagada no
+           se ve: no decide nada y leerlo al lado de "La IA está apagada"
+           hace dudar de cuál de los dos manda. Con la IA prendida
+           aparece sangrado, que es lo que muestra que depende de ella. -->
+      <div class="interruptor interruptor--hijo" id="interruptorWA" hidden>
+        <span class="interruptor-texto">
+          <strong id="estadoWA">WhatsApp de día: lo atienden ustedes</strong>
+          <small id="detalleWA">De 8 a 20 la IA no contesta WhatsApp. De noche sí.</small>
+        </span>
+        <button class="btn" id="palancaWA" type="button">Prender de día</button>
       </div>
 
       <div class="barra-estado oculto" id="progreso">

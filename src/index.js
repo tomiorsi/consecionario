@@ -1903,9 +1903,13 @@ async function configDelBot(env) {
      corrompe o viene de una versión vieja, queda apagada. */
   const encendida = g.encendida === true;
 
+  /* WHATSAPP DE DÍA. Sólo significa algo con la IA prendida: ver
+     `canalActivo`. Mismo criterio que arriba, sólo `true` lo prende. */
+  const whatsappDeDia = g.whatsappDeDia === true;
+
   return {
     desde: hora(g.desde), hasta: hora(g.hasta), encendida, apagado: !encendida,
-    deNoche: esDeNoche(),
+    whatsappDeDia, deNoche: esDeNoche(),
   };
 }
 
@@ -1919,13 +1923,30 @@ function esDeNoche(ahora = new Date()) {
   return min >= 20 * 60 + 1 || min < 8 * 60;
 }
 
-/* UN SOLO INTERRUPTOR PARA LOS TRES CANALES.
+function canalActivo(cfg, canal, ahora = new Date()) {
+  if (!cfg.encendida) return false;
+  if (canal !== 'whatsapp') return true;
+  return esDeNoche(ahora) || cfg.whatsappDeDia;
+}
 
-   Hubo un tiempo en que WhatsApp tenía su propia regla por horario y su
-   propio botón. Dos interruptores para una sola decisión es una forma
-   segura de que alguien jure que la IA está prendida mientras un canal
-   no contesta. Prendida contesta WhatsApp, Instagram y Messenger;
-   apagada no contesta ninguno. */
+/* DOS BOTONES, UNO ADENTRO DEL OTRO. NO SON DOS DECISIONES SUELTAS.
+
+   El de arriba manda: APAGADO NO CONTESTA NADIE, NUNCA, por ningún
+   canal. No hay nada abajo que pueda contradecirlo, y por eso el panel
+   ni siquiera muestra el segundo mientras esté apagado: dos tarjetas
+   diciendo cosas distintas es como alguien termina creyendo que la IA
+   está contestando cuando no.
+
+   Prendido el de arriba, recién ahí decide el de abajo, y sólo sobre
+   WhatsApp:
+
+     Instagram y Messenger   contestan siempre.
+     WhatsApp de 20 a 8      contesta siempre: no hay nadie despierto.
+     WhatsApp de 8 a 20      lo atienden ustedes, salvo que lo prendan
+                             a propósito con "WhatsApp de día".
+
+   WhatsApp tiene su propia regla porque es por donde se cierran las
+   ventas: de día conviene que lo lea una persona. */
 
 function enHorario(cfg, ahora = new Date()) {
   if (cfg.desde === null || cfg.hasta === null || cfg.desde === cfg.hasta) return true;
@@ -1957,7 +1978,7 @@ const ESPERA_ANTES_DE_CONTESTAR = 8000;
 
 async function atenderSolo(env, disparos) {
   const cfg = await configDelBot(env);
-  if (!cfg.encendida) return;
+  if (!disparos.some((d) => canalActivo(cfg, d.canal))) return;
   if (!enHorario(cfg)) return;
 
   await new Promise((listo) => setTimeout(listo, ESPERA_ANTES_DE_CONTESTAR));
@@ -1965,6 +1986,9 @@ async function atenderSolo(env, disparos) {
   /* UNA POR VEZ: en paralelo serían varias llamadas a Claude y a Meta
      desde la misma invocación, y Cloudflare corta por pedidos salientes. */
   for (const d of disparos) {
+    /* Se vuelve a mirar después de la espera: si en esos segundos dieron
+       las 8, WhatsApp ya no le toca al bot. */
+    if (!canalActivo(cfg, d.canal)) continue;
     try {
       const chat = await env.DB.prepare(
         'SELECT id, canal, externo_id, humano FROM conversaciones WHERE id = ?'
@@ -2889,6 +2913,8 @@ async function admin(peticion, env, ruta, metodo) {
       desde: 'desde' in (cuerpo ?? {}) ? entero(cuerpo.desde, 0, 23) : (antes.desde ?? null),
       hasta: 'hasta' in (cuerpo ?? {}) ? entero(cuerpo.hasta, 0, 23) : (antes.hasta ?? null),
       encendida: 'encendida' in (cuerpo ?? {}) ? cuerpo.encendida === true : antes.encendida === true,
+      whatsappDeDia: 'whatsappDeDia' in (cuerpo ?? {})
+        ? cuerpo.whatsappDeDia === true : antes.whatsappDeDia === true,
     });
     return json(await configDelBot(env));
   }
