@@ -1392,14 +1392,41 @@ function esDeConsignacion(texto) {
   return /^¡hola! quiero mas informacion\.?$/.test(t);
 }
 
+/* ── EL TIEMPO QUE PASÓ, QUE ANTES SE PERDÍA ─────────────────────
+
+   El historial iba sin una sola fecha. Una charla de hace una semana le
+   llegaba al bot pegada a la de hoy, como si fuera todo seguido, y
+   entonces arrastraba lo que había quedado pendiente. El 28/10 pasó
+   justo eso: alguien escribió "Hola" y el bot volvió a pasar el chat a
+   una persona por una pregunta del 21 que desde el 23 ya tiene
+   respuesta.
+
+   Ahora, cuando entre dos mensajes pasaron horas, se lo decimos. Sólo
+   antes de uno del cliente: metido adentro de uno nuestro sonaría a que
+   lo dijimos nosotros. */
+const HUECO = 4 * 3600 * 1000;
+
+function haceCuanto(ms) {
+  const horas = Math.round(ms / 3600000);
+  if (horas < 48) return `${horas} horas`;
+  return `${Math.round(horas / 24)} días`;
+}
+
 function historialParaClaude(mensajes) {
   const turnos = [];
+  let anteriorCuando = null;
   for (const m of mensajes) {
     const nuestro = m.direccion === 'saliente';
-    const contenido = nuestro
+    let contenido = nuestro
       ? (m.tipo === 'texto' ? m.texto : m.texto && `[Le mandamos ${m.texto.toLowerCase()}]`)
       : (m.tipo === 'texto' ? m.texto : NO_ES_TEXTO[m.tipo] ?? NO_ES_TEXTO.otro);
     if (!contenido) continue;
+
+    const cuando = m.creado ? new Date(String(m.creado).replace(' ', 'T') + 'Z').getTime() : null;
+    if (!nuestro && cuando && anteriorCuando && cuando - anteriorCuando >= HUECO) {
+      contenido = `[Pasaron ${haceCuanto(cuando - anteriorCuando)} desde el mensaje de arriba]\n` + contenido;
+    }
+    if (cuando) anteriorCuando = cuando;
 
     const rol = nuestro ? 'assistant' : 'user';
     const anterior = turnos[turnos.length - 1];
