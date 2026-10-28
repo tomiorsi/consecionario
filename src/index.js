@@ -625,6 +625,7 @@ function mensajesDelAviso(aviso, nuestroId = null) {
             media_id: null,
             direccion: 'saliente',
             autor: 'persona',
+            desdeElCelular: true,
           });
         }
       }
@@ -769,6 +770,30 @@ async function guardarEntrantes(env, lista) {
       conv.id, m.mensaje_id ?? null, m.direccion ?? 'entrante', m.autor ?? null,
       m.tipo, m.texto, m.clase ?? 'mensaje', m.media_id ?? null
     ).run();
+
+    /* SI ALGUIEN DEL EQUIPO ESCRIBE DESDE EL CELULAR, EL CHAT ES SUYO.
+       Antes el bot se callaba sólo frente a ese mensaje y al siguiente
+       del cliente volvía a contestar, encima de la persona (Ram, 28/10:
+       el equipo se despidió y el bot le contestó al "Ok"). Ahora el chat
+       pasa a "lo atiende una persona" y el bot no vuelve hasta que lo
+       devuelvan desde el panel.
+       LOS AUTOMÁTICOS DE LA APP NO CUENTAN. El saludo y el mensaje de
+       ausencia de WhatsApp Business también llegan como eco, pero salen
+       al instante; una persona tarda más. Por eso un eco a menos de 15
+       segundos del último mensaje del cliente no toma el chat. */
+    if (r.meta?.changes && m.desdeElCelular) {
+      const ult = await env.DB.prepare(
+        `SELECT (julianday('now') - julianday(MAX(creado))) * 86400 AS seg
+           FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'`
+      ).bind(conv.id).first();
+      if (ult?.seg == null || ult.seg > 15) {
+        await env.DB.prepare(
+          `UPDATE conversaciones SET humano = 1,
+                  nota = COALESCE(nota, 'Lo tomó alguien del equipo desde el celular')
+            WHERE id = ? AND humano = 0`
+        ).bind(conv.id).run();
+      }
+    }
 
     if (r.meta?.changes && m.audio) audios.push({ fila: r.meta.last_row_id, ...m.audio });
     if (r.meta?.changes && m.foto) fotos.push({ fila: r.meta.last_row_id, texto: m.texto ?? null, ...m.foto });
@@ -1786,7 +1811,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     derivar: dato.pasar_a_persona ? String(dato.pasar_a_persona).slice(0, 200) : null,
     /* A un privado se le contesta siempre; a un comentario, si el bot
        decide que hay algo concreto que contestar. */
-    responder: esComentario ? dato.responder === true : true,
+    responder: esComentario ? dato.responder === true : dato.responder !== false,
     megusta: esComentario && dato.megusta === true,
     ubicacion: dato.ubicacion === true,
     /* Que siga por WhatsApp sin pasarlo a una persona: la Ranger, que se
@@ -2270,6 +2295,47 @@ const ESPERA_ANTES_DE_CONTESTAR = 8000;
    esto, así no hace falta otra columna en la base. */
 const PARA_TASAR = 'Para tasar';
 
+/* LO QUE QUEDÓ SIN CONTESTAR (Maxi, 28/10).
+   Si el bot estaba apagado cuando alguien escribió, ese chat quedaba
+   colgado para siempre: el bot sólo se despierta con un mensaje nuevo.
+   Esto lo busca cuando se prende y en cada vuelta del reloj (cada media
+   hora), y lo contesta como si recién hubiera llegado.
+
+   QUÉ CUENTA COMO PENDIENTE: el último mensaje es del cliente, tiene
+   entre 2 minutos y 12 horas (más viejo, ya se enfrió y la ventana de
+   Meta se achica), nadie del equipo escribió en esas 12 horas, y el chat
+   no lo atiende una persona. Si el equipo anda en la charla, no se mete. */
+async function ponerseAlDia(env, { hasta = 10 } = {}) {
+  const { results } = await env.DB.prepare(
+    `SELECT c.id AS conversacion, c.canal, m.id AS mensaje
+       FROM conversaciones c
+       JOIN mensajes m ON m.id = (
+         SELECT id FROM mensajes WHERE conversacion_id = c.id
+          ORDER BY creado DESC, id DESC LIMIT 1)
+      WHERE c.humano = 0
+        AND m.direccion = 'entrante'
+        AND m.clase = 'mensaje'
+        AND m.creado BETWEEN datetime('now','-12 hours') AND datetime('now','-2 minutes')
+        AND NOT EXISTS (
+          SELECT 1 FROM mensajes p WHERE p.conversacion_id = c.id
+             AND p.autor = 'persona' AND p.creado > datetime('now','-12 hours'))
+      ORDER BY m.creado
+      LIMIT 50`
+  ).all();
+
+  /* UNA VEZ POR MENSAJE. Si el bot decidió que un "Ok" no se contesta,
+     ese "Ok" sigue siendo el último; sin esta memoria lo volvería a
+     pensar cada media hora. */
+  const vistos = (await leerEstado(env, 'al_dia'))?.valor ?? [];
+  const nuevos = (results ?? []).filter((r) => !vistos.includes(r.mensaje)).slice(0, hasta);
+  if (!nuevos.length) return 0;
+  await guardarEstado(env, 'al_dia', [...vistos, ...nuevos.map((r) => r.mensaje)].slice(-300));
+
+  console.log(JSON.stringify({ alDia: 'pendientes', cuantos: nuevos.length }));
+  await atenderSolo(env, nuevos);
+  return nuevos.length;
+}
+
 async function atenderSolo(env, disparos) {
   const cfg = await configDelBot(env);
   if (!disparos.some((d) => canalActivo(cfg, d.canal))) return;
@@ -2348,6 +2414,12 @@ async function atenderSolo(env, disparos) {
       }
 
       if (r.esComentario) await atenderComentario(env, chat, r);
+      /* UN "OK" DESPUÉS DE DESPEDIRSE NO SE CONTESTA (Maxi, 28/10): el
+         bot puede decidir que no hace falta decir nada. */
+      else if (!r.responder && !r.derivar) {
+        console.log(JSON.stringify({ bot: 'no hacía falta', canal: chat.canal }));
+        continue;
+      }
       else await mandarRespuesta(env, chat, {
         partes: r.partes, autoId: r.autoId, ubicacion: r.ubicacion,
         aWhatsapp: Boolean(r.derivar || r.irAWhatsapp), autor: 'ia',
@@ -2901,7 +2973,7 @@ export default {
       /* ── DE ACÁ PARA ABAJO, TODO PIDE SESIÓN ─────────────────── */
       if (ruta.startsWith('/api/admin')) {
         if (!(await sesionValida(peticion, env))) return error('Sin sesión', 401);
-        return admin(peticion, env, ruta, metodo);
+        return admin(peticion, env, ruta, metodo, ctx);
       }
 
       return new Response('No está', { status: 404 });
@@ -2941,6 +3013,9 @@ export default {
      vuelta sigue por donde iba. */
   async scheduled(evento, env, _ctx) {
     const hora = new Date(evento.scheduledTime ?? Date.now()).getUTCHours();
+
+    try { await ponerseAlDia(env); }
+    catch (e) { console.error('No se pudo poner al día:', e?.message ?? e); }
 
     if (hora === 4) {
       const r = await env.DB.prepare(
@@ -3026,7 +3101,7 @@ function limpiar(cuerpo) {
 const TIPOS_EMBUDO = ['comprador', 'vendedor', 'permuta', 'ruido'];
 const ETAPAS = ['consulta', 'charla', 'precio', 'visita', 'vino', 'cerrado'];
 
-async function admin(peticion, env, ruta, metodo) {
+async function admin(peticion, env, ruta, metodo, ctx) {
   /* ══════════════════════════════════════════════════════════════
      LA BANDEJA DE MENSAJES
      ══════════════════════════════════════════════════════════════
@@ -3233,6 +3308,10 @@ async function admin(peticion, env, ruta, metodo) {
       whatsappDeDia: 'whatsappDeDia' in (cuerpo ?? {})
         ? cuerpo.whatsappDeDia === true : antes.whatsappDeDia === true,
     });
+    /* Al prenderlo, lo que quedó esperando se contesta ya, sin esperar
+       la vuelta del reloj. Pocos por vez: esto corre con poco tiempo. */
+    ctx?.waitUntil?.(ponerseAlDia(env, { hasta: 3 }).catch((e) =>
+      console.error('No se pudo poner al día:', e?.message ?? e)));
     return json(await configDelBot(env));
   }
 
