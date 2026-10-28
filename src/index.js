@@ -1810,12 +1810,17 @@ const OTRAS_FORMAS = (n) => {
 async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
   if (chat.canal === 'whatsapp') {
     /* `preview_url` es lo que hace que un link salga con su foto. */
+    /* LA UBICACIÓN, COMO UBICACIÓN DE WHATSAPP: el pin en el mapa con el
+       nombre y la dirección, que se toca y abre el mapa. Un link suelto
+       salía sin vista previa (Maxi, 28/10). */
+    const contenido = texto === UBICACION
+      ? { type: 'location', location: UBICACION_WHATSAPP }
+      : { type: 'text', text: { body: texto, preview_url: true } };
     const mandarA = (to) => graphMandar(env.WHATSAPP_TOKEN, 'WHATSAPP_TOKEN',
       `/${env.WHATSAPP_PHONE_ID}/messages`, {
         messaging_product: 'whatsapp',
         to,
-        type: 'text',
-        text: { body: texto, preview_url: true },
+        ...contenido,
       });
     /* LOS ULTIMOS CUATRO DIGITOS Y NADA MAS. Un telefono entero es un
        dato personal y no va al log, pero sin saber a quien se intento
@@ -1906,7 +1911,19 @@ const PAUSA_TRAS_EL_LINK = 12000;
    (con el nombre, las fotos y las reseñas), no el de la dirección suelta:
    lo pasó Maxi el 28/10. Escrita por el bot salía pegada a otra frase, y sin el
    mapa. El bot sólo dice que va (`ubicacion: true`). */
-const UBICACION = 'Pje. Lanín 154, Barracas\nhttps://share.google/mNeG7SYtUciJdSfq8';
+const UBICACION = 'Manna Selected · Pje. Lanín 154, Barracas\nhttps://www.google.com/maps?cid=11593578828243501902';
+
+/* En WhatsApp no va el texto de arriba: va una ubicación de verdad (ver
+   mandarUno). El texto queda igual en la base, que es lo que se mira para
+   no mandarla dos veces. En Instagram y Messenger, que no tienen
+   ubicación, va el texto: el link es la ficha de Manna Selected en Google
+   Maps (el `cid` sale de la ficha de Google del negocio). */
+const UBICACION_WHATSAPP = {
+  latitude: -34.6405727,
+  longitude: -58.3792391,
+  name: 'Manna Selected',
+  address: 'Pje. Lanín 154, Barracas, CABA',
+};
 
 /* A WHATSAPP, CUANDO SE PASA A UNA PERSONA DESDE INSTAGRAM O MESSENGER.
    Maxi sigue las charlas por WhatsApp (28/10). El bot le dice con
