@@ -1483,16 +1483,17 @@ const FORMA_DE_RESPUESTA = {
     ir_a_whatsapp: { type: 'boolean' },
     para_tasar: { anyOf: [{ type: 'string', enum: ['permuta', 'consignacion'] }, { type: 'null' }] },
     resumen_para_tasar: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    consulta_a_maxi: { anyOf: [{ type: 'string' }, { type: 'null' }] },
   },
   required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion',
-    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar'],
+    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'consulta_a_maxi'],
   additionalProperties: false,
 };
 
 const FORMA_EN_TEXTO = `
 
 TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
-{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null}
+{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "consulta_a_maxi": null}
 Escribí "partes" siempre, aunque "responder" sea false: así se puede revisar
 qué hubieras dicho.`;
 
@@ -1732,6 +1733,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     system: instruccionesDelBot({
       autos: autos ?? [], posteo, nuestro, anuncio, canal: chat.canal,
       automatico, esComentario, deNoche, nombre: chat.nombre, deConsignacion,
+      aprendizajes: await loAprendido(env),
       /* Si ya le escribimos por privado, no vuelve a saludar. Lo decide
          el código y no el bot: en una charla larga, el bot se olvidaba. */
       yaHablamos: privados.some((m) => m.direccion === 'saliente'),
@@ -1820,6 +1822,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     /* Un auto que dejan para evaluar, con lo que se juntó. */
     paraTasar: ['permuta', 'consignacion'].includes(dato.para_tasar) ? dato.para_tasar : null,
     resumenParaTasar: dato.resumen_para_tasar ? String(dato.resumen_para_tasar).slice(0, 300) : null,
+    consulta: !esComentario && dato.consulta_a_maxi ? String(dato.consulta_a_maxi).slice(0, 400) : null,
     conPosteo: Boolean(posteo),
     esComentario,
     ultimo,
@@ -2295,6 +2298,246 @@ const ESPERA_ANTES_DE_CONTESTAR = 8000;
    esto, así no hace falta otra columna en la base. */
 const PARA_TASAR = 'Para tasar';
 
+/* ── MAXI, EL QUE ENSEÑA ─────────────────────────────────────────
+   ══════════════════════════════════════════════════════════════════
+
+   Pedido de Maxi (28/10): "quiero que vayas evolucionando, que te des
+   cuenta de lo que hacés mal, y preguntame todo lo que necesites a mi
+   WhatsApp". Son tres cosas:
+
+   1. CONSULTAS. Cuando el bot no sabe algo, contesta lo que puede y le
+      manda la pregunta a Maxi por WhatsApp ("consulta_a_maxi").
+   2. SUS RESPUESTAS. Lo que Maxi le escribe al número del negocio no se
+      contesta como a un cliente: si responde una consulta, el bot sigue
+      la charla con ese cliente con lo que él dijo; si es una regla
+      ("no digas X", "la GLA tiene techo"), se guarda en "aprendizajes" y
+      entra en las instrucciones de todas las charlas desde ahí.
+   3. EL REPASO. A las 21 el bot relee las charlas del día, ve qué hizo
+      mal o dónde dudó, y le manda a Maxi lo que necesita preguntarle.
+
+   EL NÚMERO DE MAXI va en SUPERVISOR_WHATSAPP (wrangler.jsonc). Sin él,
+   nada de esto corre y el bot sigue como antes.
+
+   LA VENTANA DE 24 HORAS DE META vale también para él: si Maxi no le
+   escribió al número en el último día, WhatsApp no deja mandarle nada
+   suelto. La consulta queda guardada igual y sale en el repaso. */
+
+const soloDigitos = (n) => String(n ?? '').replace(/\D/g, '');
+
+function esElJefe(env, chat) {
+  const jefe = soloDigitos(env.SUPERVISOR_WHATSAPP);
+  return Boolean(jefe && chat?.canal === 'whatsapp' && soloDigitos(chat.externo_id) === jefe);
+}
+
+async function chatDelJefe(env) {
+  const jefe = soloDigitos(env.SUPERVISOR_WHATSAPP);
+  if (!jefe) return null;
+  return env.DB.prepare(
+    `INSERT INTO conversaciones (canal, externo_id, nombre) VALUES ('whatsapp', ?, 'Maxi')
+     ON CONFLICT (canal, externo_id) DO UPDATE SET ultimo = conversaciones.ultimo
+     RETURNING id, canal, externo_id`
+  ).bind(jefe).first();
+}
+
+/* Lo que Maxi le enseñó. Pocas y claras: entran en cada charla. */
+async function loAprendido(env) {
+  const lista = (await leerEstado(env, 'aprendizajes'))?.valor ?? [];
+  return lista.map((a) => a.texto).filter(Boolean).slice(-60);
+}
+
+async function escribirleAlJefe(env, texto) {
+  const jefe = await chatDelJefe(env);
+  if (!jefe) return false;
+  try {
+    const id = await mandarUno(env, jefe, texto);
+    await guardarSaliente(env, jefe.id, texto, 'ia', id);
+    return true;
+  } catch (e) {
+    console.error('No se pudo escribirle a Maxi:', e?.message ?? e);
+    return false;
+  }
+}
+
+/* Cómo se nombra a un cliente frente a Maxi: el nombre y los últimos
+   cuatro del teléfono, que es como lo encuentra en el celular. */
+const quienEs = (chat) =>
+  `${chat.nombre ?? 'Sin nombre'}${chat.canal === 'whatsapp' ? ` (…${String(chat.externo_id).slice(-4)})` : ` (${chat.canal})`}`;
+
+async function consultarAlJefe(env, chat, pregunta, loQueDijo) {
+  if (!soloDigitos(env.SUPERVISOR_WHATSAPP)) return;
+  const consultas = (await leerEstado(env, 'consultas'))?.valor ?? [];
+  /* Una por chat: si ya hay una esperando, no se lo vuelve a molestar. */
+  if (consultas.some((c) => c.chat === chat.id)) return;
+  const n = (consultas.reduce((m, c) => Math.max(m, c.n ?? 0), 0) || 0) + 1;
+  consultas.push({ n, chat: chat.id, pregunta, cuando: new Date().toISOString() });
+  await guardarEstado(env, 'consultas', consultas.slice(-30));
+
+  await escribirleAlJefe(env,
+    `Consulta ${n} · ${quienEs(chat)}\n${pregunta}` +
+    (loQueDijo ? `\n\nLo último que escribió: «${String(loQueDijo).slice(0, 200)}»` : '') +
+    `\n\nContestame acá y sigo yo con el cliente.`);
+}
+
+const FORMA_DEL_JEFE = {
+  type: 'object',
+  properties: {
+    consulta: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
+    al_cliente: { type: 'array', items: { type: 'string' } },
+    aprendizaje: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    olvidar: { type: 'array', items: { type: 'integer' } },
+    a_maxi: { type: 'string' },
+  },
+  required: ['consulta', 'al_cliente', 'aprendizaje', 'olvidar', 'a_maxi'],
+  additionalProperties: false,
+};
+
+async function atenderAlJefe(env, conversacionId, mensajeId) {
+  if (!env.ANTHROPIC_API_KEY) return;
+  /* Como con los clientes: si manda tres seguidos, se lee el último. */
+  await new Promise((listo) => setTimeout(listo, ESPERA_ANTES_DE_CONTESTAR));
+  const { results: ultimos } = await env.DB.prepare(
+    `SELECT id, direccion, texto FROM mensajes WHERE conversacion_id = ?
+      ORDER BY creado DESC, id DESC LIMIT 6`
+  ).bind(conversacionId).all();
+  const dijo = ultimos?.[0];
+  if (!dijo || dijo.id !== mensajeId || dijo.direccion !== 'entrante' || !dijo.texto) return;
+
+  const consultas = (await leerEstado(env, 'consultas'))?.valor ?? [];
+  const aprendizajes = (await leerEstado(env, 'aprendizajes'))?.valor ?? [];
+
+  /* Cada consulta con lo último de su charla, para que la respuesta al
+     cliente siga el hilo. */
+  const conHilo = [];
+  for (const c of consultas.slice(-8)) {
+    const chat = await env.DB.prepare('SELECT id, canal, externo_id, nombre FROM conversaciones WHERE id = ?')
+      .bind(c.chat).first();
+    if (!chat) continue;
+    const { results: hilo } = await env.DB.prepare(
+      `SELECT direccion, texto FROM mensajes WHERE conversacion_id = ? AND texto IS NOT NULL
+        ORDER BY creado DESC, id DESC LIMIT 8`
+    ).bind(c.chat).all();
+    conHilo.push(`CONSULTA ${c.n} · ${quienEs(chat)}: ${c.pregunta}\n` +
+      (hilo ?? []).reverse().map((m) => `  ${m.direccion === 'entrante' ? 'Cliente' : 'Nosotros'}: ${m.texto.slice(0, 200)}`).join('\n'));
+  }
+
+  const charla = (ultimos ?? []).slice().reverse()
+    .map((m) => `${m.direccion === 'entrante' ? 'Maxi' : 'Bot'}: ${m.texto ?? ''}`).join('\n');
+
+  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const r = await client.messages.create({
+    model: MODELO,
+    max_tokens: 1500,
+    output_config: { effort: 'low', format: { type: 'json_schema', schema: FORMA_DEL_JEFE } },
+    system: `Sos el asistente de ventas de Manna Selected (autos seleccionados,
+Barracas). Maxi es el dueño y te está escribiendo por WhatsApp: te contesta
+consultas que le hiciste o te enseña cómo trabajar. No es un cliente.
+
+CONSULTAS QUE ESTÁN ESPERANDO
+${conHilo.join('\n\n') || '(ninguna)'}
+
+LO QUE YA TE ENSEÑÓ (numerado)
+${aprendizajes.map((a, i) => `${i + 1}. ${a.texto}`).join('\n') || '(nada todavía)'}
+
+Qué hacer con lo que escribió:
+- Si contesta una consulta, "consulta" es su número (si cita el número o
+  si es obvio por el tema; si hay una sola esperando y habla de eso, es
+  esa). En "al_cliente" escribí lo que le decís al cliente con lo que
+  dijo Maxi: en partes cortas, rioplatense, de vos, sin signos de apertura,
+  sin dos puntos ni emojis, sin saludar de nuevo, como venía la charla.
+  Si Maxi dice que no le contestes o que lo sigue él, "al_cliente" va vacío.
+- Si dice algo que sirve para siempre (una regla, un dato de un auto, cómo
+  hablar), ponelo en "aprendizaje": una línea clara, en segunda persona,
+  para el bot ("No digas 'el dueño': hablale de vos"). Si sólo sirve para
+  ese cliente, null.
+- Si dice que algo de lo aprendido ya no va, poné sus números en "olvidar".
+- "a_maxi": lo que le contestás a él. Corto y natural ("Anotado", "Dale,
+  le escribo", "Listo, se lo dije"). Si no entendiste, preguntale.`,
+    messages: [{ role: 'user', content: charla }],
+  });
+  let dato = null;
+  try { dato = JSON.parse((r.content ?? []).find((b) => b.type === 'text')?.text ?? ''); }
+  catch { return; }
+
+  /* Lo aprendido, con lo que pidió olvidar afuera. */
+  const olvidar = new Set((dato.olvidar ?? []).map((n) => n - 1));
+  let lista = aprendizajes.filter((_, i) => !olvidar.has(i));
+  if (dato.aprendizaje) {
+    lista.push({ texto: String(dato.aprendizaje).slice(0, 300), cuando: new Date().toISOString() });
+  }
+  if (dato.aprendizaje || olvidar.size) await guardarEstado(env, 'aprendizajes', lista.slice(-60));
+
+  /* La consulta contestada: se sigue con el cliente y sale de la lista. */
+  const c = consultas.find((x) => x.n === dato.consulta);
+  if (c) {
+    await guardarEstado(env, 'consultas', consultas.filter((x) => x.n !== c.n));
+    const chat = await env.DB.prepare('SELECT id, canal, externo_id, humano FROM conversaciones WHERE id = ?')
+      .bind(c.chat).first();
+    const partes = (dato.al_cliente ?? []).map((t) => String(t).trim()).filter(Boolean);
+    if (chat && !chat.humano && partes.length) {
+      try { await mandarRespuesta(env, chat, { partes, autor: 'ia' }); }
+      catch (e) {
+        console.error('No se pudo seguir con el cliente:', e?.message ?? e);
+        dato.a_maxi = `${dato.a_maxi}\n\n(No le pude escribir al cliente: ${String(e?.message ?? e).slice(0, 120)})`;
+      }
+    }
+  }
+
+  if (dato.a_maxi) await escribirleAlJefe(env, String(dato.a_maxi).slice(0, 1500));
+}
+
+/* EL REPASO DE LAS 21. Relee lo que el bot contestó hoy y le manda a
+   Maxi sus dudas: dónde cree que se equivocó y qué necesita saber. Va
+   sin teléfonos completos: nombre y últimos cuatro, como en las
+   consultas. */
+async function repasarElDia(env) {
+  if (!env.ANTHROPIC_API_KEY || !soloDigitos(env.SUPERVISOR_WHATSAPP)) return;
+  const jefe = await chatDelJefe(env);
+  const { results: chats } = await env.DB.prepare(
+    `SELECT DISTINCT c.id, c.canal, c.externo_id, c.nombre FROM conversaciones c
+       JOIN mensajes m ON m.conversacion_id = c.id
+      WHERE m.autor = 'ia' AND m.creado > datetime('now','-24 hours') AND c.id != ?
+      LIMIT 25`
+  ).bind(jefe?.id ?? 0).all();
+  if (!chats?.length) return;
+
+  const charlas = [];
+  for (const c of chats) {
+    const { results: ms } = await env.DB.prepare(
+      `SELECT direccion, autor, texto FROM mensajes WHERE conversacion_id = ? AND texto IS NOT NULL
+         AND creado > datetime('now','-24 hours') ORDER BY creado, id LIMIT 40`
+    ).bind(c.id).all();
+    charlas.push(`### ${quienEs(c)}\n` + (ms ?? []).map((m) =>
+      `${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto.slice(0, 220)}`).join('\n'));
+  }
+  const pendientes = ((await leerEstado(env, 'consultas'))?.valor ?? [])
+    .map((c) => `Consulta ${c.n}: ${c.pregunta}`).join('\n');
+
+  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const r = await client.messages.create({
+    model: MODELO,
+    max_tokens: 1200,
+    output_config: { effort: 'medium' },
+    system: `Sos el bot de ventas de Manna Selected y estás repasando tus charlas
+de hoy para mejorar. Las reglas con las que trabajás son éstas:
+
+${instruccionesDelBot({ autos: [], posteo: null, canal: 'whatsapp', automatico: true,
+  aprendizajes: await loAprendido(env) })}
+
+Escribile a Maxi, el dueño, UN mensaje de WhatsApp corto (máximo 8
+renglones), rioplatense y sin vueltas:
+- hasta 3 cosas que hiciste mal o que no te salieron bien hoy, cada una
+  con el cliente (nombre y …últimos 4) y qué vas a hacer distinto;
+- hasta 3 preguntas concretas que necesitás que te conteste para mejorar,
+  numeradas, así te responde "1. …".
+Si hoy no hubo nada que valga la pena, escribí sólo "Hoy sin dudas".`,
+    messages: [{ role: 'user', content:
+      `CHARLAS DE HOY\n\n${charlas.join('\n\n')}` +
+      (pendientes ? `\n\nCONSULTAS QUE MAXI TODAVÍA NO CONTESTÓ\n${pendientes}` : '') }],
+  });
+  const texto = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+  if (texto && texto !== 'Hoy sin dudas') await escribirleAlJefe(env, `Repaso del día\n\n${texto}`);
+}
+
 /* LO QUE QUEDÓ SIN CONTESTAR (Maxi, 28/10).
    Si el bot estaba apagado cuando alguien escribió, ese chat quedaba
    colgado para siempre: el bot sólo se despierta con un mensaje nuevo.
@@ -2327,7 +2570,10 @@ async function ponerseAlDia(env, { hasta = 10 } = {}) {
      ese "Ok" sigue siendo el último; sin esta memoria lo volvería a
      pensar cada media hora. */
   const vistos = (await leerEstado(env, 'al_dia'))?.valor ?? [];
-  const nuevos = (results ?? []).filter((r) => !vistos.includes(r.mensaje)).slice(0, hasta);
+  const jefe = await chatDelJefe(env);
+  const nuevos = (results ?? [])
+    .filter((r) => !vistos.includes(r.mensaje) && r.conversacion !== jefe?.id)
+    .slice(0, hasta);
   if (!nuevos.length) return 0;
   await guardarEstado(env, 'al_dia', [...vistos, ...nuevos.map((r) => r.mensaje)].slice(-300));
 
@@ -2351,9 +2597,9 @@ async function atenderSolo(env, disparos) {
     if (!canalActivo(cfg, d.canal)) continue;
     try {
       const chat = await env.DB.prepare(
-        'SELECT id, canal, externo_id, humano FROM conversaciones WHERE id = ?'
+        'SELECT id, canal, externo_id, humano, nombre FROM conversaciones WHERE id = ?'
       ).bind(d.conversacion).first();
-      if (!chat || chat.humano) continue;
+      if (!chat || chat.humano || esElJefe(env, chat)) continue;
 
       const ultimo = await env.DB.prepare(
         `SELECT id FROM mensajes WHERE conversacion_id = ?
@@ -2424,6 +2670,11 @@ async function atenderSolo(env, disparos) {
         partes: r.partes, autoId: r.autoId, ubicacion: r.ubicacion,
         aWhatsapp: Boolean(r.derivar || r.irAWhatsapp), autor: 'ia',
       });
+
+      if (r.consulta && !r.derivar) {
+        await consultarAlJefe(env, chat, r.consulta, r.ultimo?.texto)
+          .catch((e) => console.error('No se pudo consultar a Maxi:', e?.message ?? e));
+      }
 
       /* Sin una palabra del mensaje: sólo qué hizo y por dónde. */
       console.log(JSON.stringify({
@@ -2582,7 +2833,19 @@ async function recibirDeMeta(peticion, env, ctx) {
         transcribirAudios(env, disparos.audios),
         describirFotos(env, disparos.fotos),
       ]);
-      await atenderSolo(env, disparos);
+      /* Lo que escribe Maxi no es una consulta: es el jefe. */
+      const delJefe = [];
+      const deClientes = [];
+      for (const d of disparos) {
+        const c = await env.DB.prepare('SELECT canal, externo_id FROM conversaciones WHERE id = ?')
+          .bind(d.conversacion).first();
+        (esElJefe(env, c) ? delJefe : deClientes).push(d);
+      }
+      for (const d of delJefe) {
+        await atenderAlJefe(env, d.conversacion, d.mensaje)
+          .catch((e) => console.error('No se pudo atender a Maxi:', e?.message ?? e));
+      }
+      if (deClientes.length) await atenderSolo(env, deClientes);
     })());
   }
 
@@ -3016,6 +3279,12 @@ export default {
 
     try { await ponerseAlDia(env); }
     catch (e) { console.error('No se pudo poner al día:', e?.message ?? e); }
+
+    const minuto = new Date(evento.scheduledTime ?? Date.now()).getUTCMinutes();
+    if (hora === 0 && minuto < 5) {
+      try { await repasarElDia(env); }
+      catch (e) { console.error('No se pudo repasar el día:', e?.message ?? e); }
+    }
 
     if (hora === 4) {
       const r = await env.DB.prepare(
