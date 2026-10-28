@@ -1696,10 +1696,12 @@ const PAUSA_ENTRE_PARTES = 10000;
 const PAUSA_TRAS_EL_LINK = 12000;
 
 /* LA UBICACIÓN ES UN MENSAJE FIJO, NO LO ESCRIBE EL BOT. Así la mandan en
-   los chats: la dirección y el link de Maps, solos, que el chat muestra
-   con el mapita. Escrita por el bot salía pegada a otra frase, y sin el
+   los chats: la dirección y el link, solos, que el chat muestra con su
+   vista previa. El link es el de la ficha de Manna Selected en Google
+   (con el nombre, las fotos y las reseñas), no el de la dirección suelta:
+   lo pasó Maxi el 28/10. Escrita por el bot salía pegada a otra frase, y sin el
    mapa. El bot sólo dice que va (`ubicacion: true`). */
-const UBICACION = 'Pje. Lanín 154, Barracas\nhttps://maps.app.goo.gl/CMLnmLY8MdnYsMyG6';
+const UBICACION = 'Pje. Lanín 154, Barracas\nhttps://share.google/mNeG7SYtUciJdSfq8';
 
 /* EL ORDEN DE LOS MENSAJES: lo que se cuenta, después lo fijo (el link
    del auto, la ubicación) y al final la pregunta, si la última parte es
