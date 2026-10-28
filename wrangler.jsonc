@@ -99,6 +99,11 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Envios"] }],
 
+  // WHISPER, EL DE CLOUDFLARE: pasa a texto los audios que mandan los
+  // clientes, sin que el audio salga de Cloudflare. Ver transcribirAudios
+  // en src/index.js.
+  "ai": { "binding": "AI" },
+
   "triggers": { "crons": ["0,30 * * * *"] },
 
   "observability": { "enabled": true }

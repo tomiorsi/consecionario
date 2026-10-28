@@ -1440,6 +1440,9 @@ function pintarHilo(chat, mensajes) {
 
     const cuerpo = m.tipo === 'texto'
       ? '<p>' + escapar(m.texto) + '</p>'
+      /* Un audio que se pasó a texto: se ve qué dijo. */
+      : !mio && m.tipo === 'audio' && m.texto
+      ? '<span class="adjunto">Un audio · dice</span><p>' + escapar(m.texto) + '</p>'
       : mio && m.texto
       ? '<span class="adjunto">' + escapar(m.texto) + '</span>'
       : '<span class="adjunto">' + (ADJUNTOS[m.tipo] || ADJUNTOS.otro) +
