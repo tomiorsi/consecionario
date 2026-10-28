@@ -37,5 +37,6 @@ Lo que sigue fue **declarado ante Meta** (revisión de la app "Manna Selected Hu
 - Pedidos de autoridades: `docs/solicitudes-de-autoridades.md`.
 - Webhook de Meta: `/api/meta/webhook` en `src/index.js`.
 - El bot: qué dice y cómo habla en `src/instrucciones.js`; cómo funciona y cómo se publica en `docs/bot.md`.
+- Los audios se pasan a texto con **Whisper en Workers AI**, o sea dentro de Cloudflare (`transcribirAudios` en `src/index.js`). El modelo se llama `@cf/openai/whisper-large-v3-turbo` y el nombre confunde: son los pesos abiertos de Whisper corriendo en Cloudflare, no la API de OpenAI. El audio no sale de Cloudflare y no se guarda —queda sólo la transcripción—, por eso no agrega un proveedor a la lista del punto 1. Si algún día se cambia por el de OpenAI, eso **sí** es un proveedor nuevo y va primero a `/privacidad/` y a Meta.
 
 Si cambia cualquiera de estos compromisos, se actualizan los tres lugares (este archivo, `/privacidad/` y Meta) el mismo día, y se cambia la fecha de "Última actualización" de la política.

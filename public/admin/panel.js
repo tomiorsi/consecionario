@@ -1445,6 +1445,11 @@ function pintarHilo(chat, mensajes) {
       ? '<span class="adjunto">Un audio · dice</span><p>' + escapar(m.texto) + '</p>'
       : mio && m.texto
       ? '<span class="adjunto">' + escapar(m.texto) + '</span>'
+      /* Una foto con leyenda: estaba guardada y no se mostraba, así que
+         había que abrir WhatsApp para saber qué escribió. */
+      : !mio && m.texto
+      ? '<span class="adjunto">' + (ADJUNTOS[m.tipo] || ADJUNTOS.otro) + ' · con este texto</span>' +
+        '<p>' + escapar(m.texto) + '</p>'
       : '<span class="adjunto">' + (ADJUNTOS[m.tipo] || ADJUNTOS.otro) +
         ' · se abre en ' + escapar(CANALES[chat.canal] || chat.canal) + '</span>';
 

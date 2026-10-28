@@ -1490,6 +1490,11 @@ function historialParaClaude(mensajes) {
       ? (m.tipo === 'texto' ? m.texto : m.texto && `[Le mandamos ${m.texto.toLowerCase()}]`)
       : m.tipo === 'texto' ? m.texto
       : m.tipo === 'audio' && m.texto ? `[Mandó un audio. Dice: «${m.texto}»]`
+      /* UNA FOTO PUEDE VENIR CON UNA LEYENDA, y suele ser lo que hay que
+         leer: "este es el mío, tiene 40 mil km". Llega en el mismo campo
+         que el texto y se guardaba bien, pero acá se perdía: para todo lo
+         que no fuera texto ni audio, el bot veía el cartel y nada más. */
+      : m.texto ? `${NO_ES_TEXTO[m.tipo] ?? NO_ES_TEXTO.otro} Escribió: «${m.texto}»`
       : (NO_ES_TEXTO[m.tipo] ?? NO_ES_TEXTO.otro);
     if (!contenido) continue;
 
