@@ -503,7 +503,7 @@ async function quitarFoto(i) {
    SE GUARDAN DOS TAMAÑOS. 1600 px para la ficha del auto y 640 para la
    grilla del catálogo. Sin el chico, la grilla bajaría diez imágenes de
    1600 px para mostrarlas del tamaño de una estampilla. */
-function achicar(archivo, lado) {
+function achicar(archivo, lado, tipo = 'image/webp', calidad = 0.82) {
   return new Promise((listo, fallo) => {
     const img = new Image();
     img.onload = () => {
@@ -516,10 +516,11 @@ function achicar(archivo, lado) {
       pincel.drawImage(img, 0, 0, lienzo.width, lienzo.height);
       URL.revokeObjectURL(img.src);
       lienzo.toBlob((b) => (b ? listo(b) : fallo(new Error('No se pudo convertir'))),
-        'image/webp', 0.82);
+        tipo, calidad);
     };
     img.onerror = () => fallo(new Error('Ese archivo no es una imagen'));
-    img.src = URL.createObjectURL(archivo);
+    /* Un archivo elegido o, para las fotos ya subidas, su dirección. */
+    img.src = typeof archivo === 'string' ? archivo : URL.createObjectURL(archivo);
   });
 }
 
@@ -529,6 +530,10 @@ async function preparar(archivo) {
   return {
     g: await achicar(archivo, 1600),
     ch: await achicar(archivo, 640),
+    /* LA DE WHATSAPP. La vista previa de un link sale con foto sólo si
+       la imagen es JPG y liviana: con el WebP de 1600 px salía el título
+       sin la foto (Maxi, 29/10). 800 px en JPG pesa unos 80 KB. */
+    og: await achicar(archivo, 800, 'image/jpeg', 0.8),
   };
 }
 
@@ -536,8 +541,41 @@ async function mandar(par) {
   const cuerpo = new FormData();
   cuerpo.append('1600', par.g, '1600.webp');
   cuerpo.append('640', par.ch, '640.webp');
+  if (par.og) cuerpo.append('og', par.og, 'og.jpg');
   return api('/api/admin/autos/' + actual.id + '/fotos', { method: 'POST', body: cuerpo });
 }
+
+/* LAS FOTOS QUE YA ESTABAN, PARA WHATSAPP. Las subidas antes del 29/10
+   no tienen su JPG. Esto lo arma acá, en el navegador, a partir de la de
+   1600, y lo sube. Sólo la primera foto de cada auto: es la que usa la
+   vista previa del link. Las que ya lo tienen se saltean. */
+async function fotosParaWhatsApp() {
+  const boton = $('#fotosWA');
+  boton.disabled = true;
+  let hechas = 0;
+  try {
+    const { autos: lista } = await api('/api/admin/autos');
+    for (const a of lista ?? []) {
+      const f = a.fotos?.[0];
+      if (!f) continue;
+      const ya = await fetch('/fotos/' + f.clave + '-og.jpg', { method: 'HEAD' });
+      if (ya.ok) continue;
+      boton.textContent = 'Armando ' + (hechas + 1) + '…';
+      const jpg = await achicar('/fotos/' + f.clave + '-1600.webp', 800, 'image/jpeg', 0.8);
+      const cuerpo = new FormData();
+      cuerpo.append('clave', f.clave);
+      cuerpo.append('og', jpg, 'og.jpg');
+      await api('/api/admin/fotos/og', { method: 'POST', body: cuerpo });
+      hechas++;
+    }
+    boton.textContent = hechas ? 'Listo: ' + hechas + ' fotos' : 'Ya estaban todas';
+  } catch (e) {
+    boton.textContent = 'Falló: ' + e.message;
+  } finally {
+    boton.disabled = false;
+  }
+}
+$('#fotosWA').addEventListener('click', fotosParaWhatsApp);
 
 /* PRIMERO LOS HUECOS, DESPUES EL TRABAJO.
 

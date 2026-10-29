@@ -384,9 +384,14 @@ async function paginaDeAuto(peticion, env, url, a) {
   /* LA FOTO DEL AUTO, O LA DE PORTADA SI TODAVÍA NO TIENE NINGUNA. Un
      og:image vacío no deja "sin foto": deja a WhatsApp mostrando un
      rectángulo gris con la dirección, que se ve peor que la portada. */
-  const foto = a.fotos[0]
-    ? `${SITIO}/fotos/${a.fotos[0].clave}-1600.webp`
-    : `${SITIO}/assets/video/portada-desktop-poster.jpg`;
+  /* PARA WHATSAPP, EL JPG CHICO SI ESTÁ. Con el WebP de 1600 px la
+     vista previa salía sin foto (Maxi, 29/10). */
+  const ogJpg = a.fotos[0] && await env.FOTOS.head(`${a.fotos[0].clave}-og.jpg`).catch(() => null);
+  const foto = !a.fotos[0]
+    ? `${SITIO}/assets/video/portada-desktop-poster.jpg`
+    : ogJpg
+    ? `${SITIO}/fotos/${a.fotos[0].clave}-og.jpg`
+    : `${SITIO}/fotos/${a.fotos[0].clave}-1600.webp`;
 
   const pagina = await env.ARCHIVOS.fetch(
     new Request(new URL('/garage/', url), { method: 'GET', headers: peticion.headers })
@@ -2027,8 +2032,13 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
    Meta se ve enseguida en el panel, y las pausas no dependen de que
    nadie espere: Cloudflare no deja que una tarea suelta siga más de
    treinta segundos. */
-const PAUSA_ENTRE_PARTES = 10000;
-const PAUSA_TRAS_EL_LINK = 12000;
+/* MÁS PAUSA Y NUNCA LA MISMA (Maxi, 29/10: "manejá más pausas"). Una
+   persona no escribe a intervalos exactos: entre 14 y 22 segundos entre
+   mensajes, y un poco más después del link, que es lo que el cliente se
+   queda mirando. */
+const PAUSA_ENTRE_PARTES = 14000;
+const PAUSA_TRAS_EL_LINK = 18000;
+const conVaivén = (ms) => ms + Math.floor(Math.random() * 8000);
 
 /* LA UBICACIÓN ES UN MENSAJE FIJO, NO LO ESCRIBE EL BOT. Así la mandan en
    los chats: la dirección y el link, solos, que el chat muestra con su
@@ -2108,7 +2118,7 @@ async function mandarRespuesta(env, chat, {
   const textos = armarTextos(partes, fijos);
   const pasos = textos.map((texto, n) => ({
     texto,
-    espera: n === 0 ? 0 : fijos.includes(textos[n - 1]) ? PAUSA_TRAS_EL_LINK : PAUSA_ENTRE_PARTES,
+    espera: n === 0 ? 0 : conVaivén(fijos.includes(textos[n - 1]) ? PAUSA_TRAS_EL_LINK : PAUSA_ENTRE_PARTES),
   }));
 
   const [primero, ...resto] = pasos;
@@ -4377,6 +4387,15 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       });
     }
 
+    /* La de WhatsApp (ver fotosParaWhatsApp en el panel). Opcional: un
+       panel viejo abierto en otra pestaña no la manda y igual sube. */
+    const og = form.get('og');
+    if (og instanceof File && og.size <= 1024 * 1024) {
+      await env.FOTOS.put(`${base}-og.jpg`, og.stream(), {
+        httpMetadata: { contentType: 'image/jpeg' },
+      });
+    }
+
     /* Al final de la fila, sin pisarle el lugar a las que ya están. */
     const ultimo = await env.DB
       .prepare('SELECT COALESCE(MAX(orden), -1) AS n FROM fotos WHERE auto_id = ?')
@@ -4388,6 +4407,22 @@ async function admin(peticion, env, ruta, metodo, ctx) {
 
     await tocar(env, auto.id);
     return json({ id: meta.last_row_id, clave: base }, 201);
+  }
+
+  /* LA FOTO DE WHATSAPP DE UNA FOTO QUE YA ESTABA. Sólo para claves
+     que existen en la base: no es una puerta para subir cualquier cosa
+     a cualquier lado. */
+  if (ruta === '/api/admin/fotos/og' && metodo === 'POST') {
+    const form = await peticion.formData();
+    const clave = String(form.get('clave') ?? '');
+    const og = form.get('og');
+    if (!(og instanceof File) || og.size > 1024 * 1024) return error('Falta la foto, o pesa demasiado');
+    const existe = await env.DB.prepare('SELECT 1 FROM fotos WHERE clave = ?').bind(clave).first();
+    if (!existe) return error('Esa foto no existe', 404);
+    await env.FOTOS.put(`${clave}-og.jpg`, og.stream(), {
+      httpMetadata: { contentType: 'image/jpeg' },
+    });
+    return json({ ok: true });
   }
 
   /* ── LAS IMÁGENES FIJAS DE LA HOME ────────────────────────────── */
@@ -4529,4 +4564,7 @@ const tocar = (env, id) =>
 
 /* Cada foto son DOS objetos en R2, uno por tamaño. */
 const borrarArchivos = (env, claves) =>
-  Promise.all(claves.flatMap((c) => TAMANOS.map((t) => env.FOTOS.delete(`${c}-${t}.webp`))));
+  Promise.all(claves.flatMap((c) => [
+    ...TAMANOS.map((t) => env.FOTOS.delete(`${c}-${t}.webp`)),
+    env.FOTOS.delete(`${c}-og.jpg`),
+  ]));
