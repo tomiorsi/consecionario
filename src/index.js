@@ -2176,8 +2176,8 @@ async function mandarRespuesta(env, chat, {
    es mejor que una desordenada. */
 export class Envios extends DurableObject {
   /* El resumen que pidió Maxi: se arma en la alarma, sin apuro. */
-  async resumen() {
-    await this.ctx.storage.put('cola', [{ resumen: true, espera: 0 }]);
+  async resumen(porPanel = false) {
+    await this.ctx.storage.put('cola', [{ resumen: true, porPanel, espera: 0 }]);
     await this.ctx.storage.setAlarm(Date.now() + 100);
   }
 
@@ -2192,11 +2192,12 @@ export class Envios extends DurableObject {
     const cola = (await this.ctx.storage.get('cola')) ?? [];
     const paso = cola.shift();
     if (paso?.resumen) {
-      try { await buenDia(this.env, { aPedido: true }); }
+      try { await buenDia(this.env, { aPedido: true, porPanel: paso.porPanel }); }
       catch (e) {
         console.error('No salió el resumen:', e?.message ?? e);
         await escribirleAlJefe(this.env,
-          `No pude armar el resumen: ${String(e?.message ?? e).slice(0, 200)}. Probá de nuevo en un rato.`);
+          `No pude armar el resumen: ${String(e?.message ?? e).slice(0, 200)}. Probá de nuevo en un rato.`,
+          { respuesta: true });
       }
       await this.ctx.storage.deleteAll();
       return;
@@ -2423,7 +2424,23 @@ async function loAprendido(env) {
   return lista.map((a) => a.texto).filter(Boolean).slice(-60);
 }
 
-async function escribirleAlJefe(env, texto) {
+/* LOS AVISOS YA NO VAN POR WHATSAPP (Maxi, 29/10: "no me manden más
+   mensajes de WhatsApp, avisame por acá"). Quedan guardados en el panel
+   (`estado.avisos`) y los lee el asistente que lo acompaña, que se los
+   pasa con una notificación. Por WhatsApp sólo sale lo que es RESPUESTA
+   a algo que él escribió (resumen, números, "anotado"): `respuesta`.
+   Los avisos dicen teléfonos y nombres de clientes: viven en la misma
+   base y se van con la limpieza; no salen del sistema. */
+async function anotarAviso(env, texto) {
+  const avisos = (await leerEstado(env, 'avisos'))?.valor ?? [];
+  const n = (avisos.at(-1)?.n ?? 0) + 1;
+  avisos.push({ n, cuando: new Date().toISOString(), texto: String(texto).slice(0, 3000) });
+  await guardarEstado(env, 'avisos', avisos.slice(-200));
+  return true;
+}
+
+async function escribirleAlJefe(env, texto, { respuesta = false } = {}) {
+  if (!respuesta) return anotarAviso(env, texto);
   const jefe = await chatDelJefe(env);
   if (!jefe) return false;
   try {
@@ -2521,10 +2538,11 @@ const FORMA_DEL_JEFE = {
   additionalProperties: false,
 };
 
-async function atenderAlJefe(env, conversacionId, mensajeId) {
+async function atenderAlJefe(env, conversacionId, mensajeId, { porPanel = false } = {}) {
   if (!env.ANTHROPIC_API_KEY) return;
-  /* Como con los clientes: si manda tres seguidos, se lee el último. */
-  await new Promise((listo) => setTimeout(listo, ESPERA_ANTES_DE_CONTESTAR));
+  /* Como con los clientes: si manda tres seguidos, se lee el último. Lo
+     que llega por el panel ya viene entero. */
+  if (!porPanel) await new Promise((listo) => setTimeout(listo, ESPERA_ANTES_DE_CONTESTAR));
   const { results: ultimos } = await env.DB.prepare(
     `SELECT id, direccion, texto FROM mensajes WHERE conversacion_id = ?
       ORDER BY creado DESC, id DESC LIMIT 6`
@@ -2733,8 +2751,8 @@ Qué hacer con lo que escribió:
     }
   }
 
-  if (dato.a_maxi) await escribirleAlJefe(env, String(dato.a_maxi).slice(0, 1500));
-  if (dato.numeros) await escribirleAlJefe(env, await numerosDelMes(env));
+  if (dato.a_maxi) await escribirleAlJefe(env, String(dato.a_maxi).slice(0, 1500), { respuesta: !porPanel });
+  if (dato.numeros) await escribirleAlJefe(env, await numerosDelMes(env), { respuesta: !porPanel });
 
   /* EL RESUMEN NO SE ARMA ACÁ. Esto corre colgado del aviso de Meta, que
      tiene treinta segundos en total, y leer todas las charlas y pensar el
@@ -2743,7 +2761,7 @@ Qué hacer con lo que escribió:
      límite. */
   if (dato.resumen) {
     const cola = env.ENVIOS.get(env.ENVIOS.idFromName(`resumen-${conversacionId}`));
-    await cola.resumen();
+    await cola.resumen(porPanel);
   }
 }
 
@@ -2960,7 +2978,7 @@ async function hacerSeguimientos(env) {
   }
 }
 
-async function buenDia(env, { aPedido = false } = {}) {
+async function buenDia(env, { aPedido = false, porPanel = false } = {}) {
   if (!env.ANTHROPIC_API_KEY || !soloDigitos(env.SUPERVISOR_WHATSAPP)) return;
   const jefe = await chatDelJefe(env);
 
@@ -3081,7 +3099,7 @@ escribí sólo "${aPedido ? 'Hoy no hay nada pendiente' : 'Buen día. Hoy sin no
       `CHARLAS DE LOS ÚLTIMOS 3 DÍAS\n\n${charlas.join('\n\n')}` }],
   });
   const texto = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
-  if (texto) await escribirleAlJefe(env, texto);
+  if (texto) await escribirleAlJefe(env, texto, { respuesta: aPedido && !porPanel });
 }
 
 /* LO QUE QUEDÓ SIN CONTESTAR (Maxi, 28/10).
@@ -4177,6 +4195,33 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     } catch (e) {
       return error(e?.message || 'Meta no aceptó el mensaje', 502);
     }
+  }
+
+  /* LO QUE MAXI LE DICE A LA IA, POR EL PANEL. Lo mismo que si se lo
+     escribiera por WhatsApp (contestar una consulta, "Richi compró", una
+     regla), pero sin WhatsApp: lo carga el asistente que lo acompaña. La
+     respuesta queda en los avisos. Se guarda en su chat, como sus
+     mensajes, para que la IA lo lea igual. */
+  if (ruta === '/api/admin/jefe' && metodo === 'POST') {
+    const cuerpo = await peticion.json().catch(() => ({}));
+    const dicho = texto(cuerpo?.texto, 2000);
+    if (!dicho) return error('Falta el texto');
+    const jefe = await chatDelJefe(env);
+    if (!jefe) return error('Falta SUPERVISOR_WHATSAPP');
+    const r = await env.DB.prepare(
+      `INSERT INTO mensajes (conversacion_id, direccion, tipo, texto, clase)
+       VALUES (?, 'entrante', 'texto', ?, 'mensaje')`
+    ).bind(jefe.id, dicho).run();
+    ctx?.waitUntil?.(atenderAlJefe(env, jefe.id, r.meta.last_row_id, { porPanel: true })
+      .catch((e) => console.error('No se pudo atender a Maxi por el panel:', e?.message ?? e)));
+    return json({ ok: true });
+  }
+
+  /* LOS AVISOS PARA MAXI, los más nuevos que `desde`. Ver `anotarAviso`. */
+  if (ruta === '/api/admin/avisos' && metodo === 'GET') {
+    const desde = Number(new URL(peticion.url).searchParams.get('desde') ?? 0) || 0;
+    const avisos = (await leerEstado(env, 'avisos'))?.valor ?? [];
+    return json({ avisos: avisos.filter((a) => a.n > desde) });
   }
 
   /* CÓMO CONTESTA EL BOT: borrador o automático, por canal, y en qué
