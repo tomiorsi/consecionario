@@ -2409,10 +2409,11 @@ const FORMA_DEL_JEFE = {
       n: { type: 'integer' }, visita: { type: 'string' } },
       required: ['n', 'visita'], additionalProperties: false }, { type: 'null' }] },
     ya_compraron: { type: 'array', items: { type: 'string' } },
+    vendidos: { type: 'array', items: { type: 'integer' } },
     a_maxi: { type: 'string' },
   },
   required: ['consulta', 'al_cliente', 'aprendizaje', 'olvidar', 'quitar_visitas', 'mover_visita',
-    'ya_compraron', 'a_maxi'],
+    'ya_compraron', 'vendidos', 'a_maxi'],
   additionalProperties: false,
 };
 
@@ -2431,6 +2432,9 @@ async function atenderAlJefe(env, conversacionId, mensajeId) {
   const aprendizajes = (await leerEstado(env, 'aprendizajes'))?.valor ?? [];
   const agenda = ((await leerEstado(env, 'agenda'))?.valor ?? [])
     .filter((v) => aMs(v.visita) > Date.now() - 12 * HORAS);
+  const { results: stock } = await env.DB.prepare(
+    `SELECT id, marca, modelo, anio, km FROM autos WHERE estado = 'publicado' ORDER BY id`
+  ).all();
 
   /* Cada consulta con lo último de su charla, para que la respuesta al
      cliente siga el hilo. */
@@ -2467,6 +2471,9 @@ HOY ES ${hoyEnBsAs()}.
 LA AGENDA (numerada)
 ${agenda.map((v, i) => `${i + 1}. ${v.visita} · ${v.quien} · ${v.auto ?? ''} · ${v.condiciones ?? v.motivo ?? ''}`).join('\n') || '(vacía)'}
 
+EL STOCK PUBLICADO (número entre corchetes)
+${(stock ?? []).map((a) => `[${a.id}] ${a.marca} ${a.modelo} ${a.anio} · ${a.km} km`).join('\n') || '(vacío)'}
+
 LO QUE YA TE ENSEÑÓ (numerado)
 ${aprendizajes.map((a, i) => `${i + 1}. ${a.texto}`).join('\n') || '(nada todavía)'}
 
@@ -2487,6 +2494,9 @@ Qué hacer con lo que escribió:
   qué condiciones. Si cancela una, sus números en "quitar_visitas". Si la
   cambia de día u hora, "mover_visita" con su número y la fecha nueva
   ("AAAA-MM-DD HH:MM"). Si no toca la agenda, [] y null.
+- LO QUE SE VENDIÓ. Si dice que un auto se vendió ("se vendió el 500"),
+  poné su número del stock en "vendidos" y confirmale cuál marcaste. Si
+  no queda claro cuál es, preguntale y dejá []. Si no, [].
 - LOS QUE YA COMPRARON. Si dice que alguien ya compró o que no le hables
   más ("Esteban 3944 ya compró", "a 5990 no le escribas"), poné en
   "ya_compraron" los dígitos de cada teléfono que dio (al menos los
@@ -2523,6 +2533,17 @@ Qué hacer con lo que escribió:
     } else {
       dato.a_maxi = `${dato.a_maxi}\n\n(${chats?.length ? `Hay ${chats.length} chats que terminan en ${cuatro}` : `No encontré ningún chat que termine en ${cuatro}`}: pasame el número completo.)`;
     }
+  }
+
+  /* LO VENDIDO SALE DEL STOCK AL INSTANTE (Maxi, 29/10: el bot le
+     ofreció a un cliente el 500C, que ya se había vendido). Es el mismo
+     cambio que el botón del panel: deja de verse en el sitio y el bot ya
+     no lo ofrece. Sólo autos que estaban publicados. */
+  const publicados = new Set((stock ?? []).map((a) => a.id));
+  for (const id of (dato.vendidos ?? []).filter((n) => publicados.has(n))) {
+    await env.DB.prepare(
+      `UPDATE autos SET estado = 'vendido', editado = datetime('now') WHERE id = ? AND estado = 'publicado'`
+    ).bind(id).run();
   }
 
   /* La agenda, como la dejó Maxi. */
