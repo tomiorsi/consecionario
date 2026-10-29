@@ -1003,14 +1003,25 @@ async function megustaEnInstagram(env, comentarioId) {
    `message` va en la dirección y no en el cuerpo porque así lo pide la
    API. Es texto nuestro y público: no hay nada de nadie ahí. */
 const AVISOS = [
-  'Te escribimos por privado.',
-  'Te acabamos de escribir al privado.',
-  'Listo, te mandamos un privado.',
-  'Te hablamos por privado.',
+  'Hola! Te escribimos por privado así te pasamos toda la info.',
+  'Hola, cómo estás? Te mandamos un privado con todos los datos.',
+  'Hola! Te acabamos de escribir por privado, fijate en tus mensajes.',
+  'Gracias por escribir! Te hablamos por privado y te contamos todo.',
 ];
 
-async function avisarEnElComentario(env, comentarioId) {
-  const texto = AVISOS[Math.floor(Math.random() * AVISOS.length)];
+/* A UN ELOGIO SE LE AGRADECE EN PÚBLICO (Maxi, 28/10: "no está
+   respondiendo los comentarios"). Con el mismo criterio que los avisos:
+   texto nuestro, de una lista, nunca escrito por el modelo. */
+const GRACIAS = [
+  'Gracias!',
+  'Muchas gracias!',
+  'Gracias, un gusto!',
+  'Gracias por bancarnos!',
+  'Qué bueno que te guste, gracias!',
+];
+
+async function avisarEnElComentario(env, comentarioId, lista = AVISOS) {
+  const texto = lista[Math.floor(Math.random() * lista.length)];
   return igLlamar(
     env,
     `/${comentarioId}/replies?message=${encodeURIComponent(texto)}`,
@@ -1485,16 +1496,18 @@ const FORMA_DE_RESPUESTA = {
     resumen_para_tasar: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     consulta_a_maxi: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     visita: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    visita_auto: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    visita_condiciones: { anyOf: [{ type: 'string' }, { type: 'null' }] },
   },
   required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion',
-    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'consulta_a_maxi', 'visita'],
+    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_condiciones'],
   additionalProperties: false,
 };
 
 const FORMA_EN_TEXTO = `
 
 TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
-{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "consulta_a_maxi": null, "visita": null}
+{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null}
 Escribí "partes" siempre, aunque "responder" sea false: así se puede revisar
 qué hubieras dicho.`;
 
@@ -1826,6 +1839,8 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     resumenParaTasar: dato.resumen_para_tasar ? String(dato.resumen_para_tasar).slice(0, 300) : null,
     consulta: !esComentario && dato.consulta_a_maxi ? String(dato.consulta_a_maxi).slice(0, 400) : null,
     visita: !esComentario && /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(dato.visita ?? '') ? dato.visita : null,
+    visitaAuto: dato.visita_auto ? String(dato.visita_auto).slice(0, 120) : null,
+    visitaCondiciones: dato.visita_condiciones ? String(dato.visita_condiciones).slice(0, 300) : null,
     conPosteo: Boolean(posteo),
     esComentario,
     ultimo,
@@ -2388,9 +2403,13 @@ const FORMA_DEL_JEFE = {
     al_cliente: { type: 'array', items: { type: 'string' } },
     aprendizaje: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     olvidar: { type: 'array', items: { type: 'integer' } },
+    quitar_visitas: { type: 'array', items: { type: 'integer' } },
+    mover_visita: { anyOf: [{ type: 'object', properties: {
+      n: { type: 'integer' }, visita: { type: 'string' } },
+      required: ['n', 'visita'], additionalProperties: false }, { type: 'null' }] },
     a_maxi: { type: 'string' },
   },
-  required: ['consulta', 'al_cliente', 'aprendizaje', 'olvidar', 'a_maxi'],
+  required: ['consulta', 'al_cliente', 'aprendizaje', 'olvidar', 'quitar_visitas', 'mover_visita', 'a_maxi'],
   additionalProperties: false,
 };
 
@@ -2407,6 +2426,8 @@ async function atenderAlJefe(env, conversacionId, mensajeId) {
 
   const consultas = (await leerEstado(env, 'consultas'))?.valor ?? [];
   const aprendizajes = (await leerEstado(env, 'aprendizajes'))?.valor ?? [];
+  const agenda = ((await leerEstado(env, 'agenda'))?.valor ?? [])
+    .filter((v) => aMs(v.visita) > Date.now() - 12 * HORAS);
 
   /* Cada consulta con lo último de su charla, para que la respuesta al
      cliente siga el hilo. */
@@ -2438,6 +2459,11 @@ consultas que le hiciste o te enseña cómo trabajar. No es un cliente.
 CONSULTAS QUE ESTÁN ESPERANDO
 ${conHilo.join('\n\n') || '(ninguna)'}
 
+HOY ES ${hoyEnBsAs()}.
+
+LA AGENDA (numerada)
+${agenda.map((v, i) => `${i + 1}. ${v.visita} · ${v.quien} · ${v.auto ?? ''} · ${v.condiciones ?? v.motivo ?? ''}`).join('\n') || '(vacía)'}
+
 LO QUE YA TE ENSEÑÓ (numerado)
 ${aprendizajes.map((a, i) => `${i + 1}. ${a.texto}`).join('\n') || '(nada todavía)'}
 
@@ -2453,6 +2479,11 @@ Qué hacer con lo que escribió:
   para el bot ("No digas 'el dueño': hablale de vos"). Si sólo sirve para
   ese cliente, null.
 - Si dice que algo de lo aprendido ya no va, poné sus números en "olvidar".
+- LA AGENDA. Si pregunta qué tiene ("qué tengo mañana?", "agenda"),
+  contestale en "a_maxi" con cada visita: día y hora, quién, qué auto y en
+  qué condiciones. Si cancela una, sus números en "quitar_visitas". Si la
+  cambia de día u hora, "mover_visita" con su número y la fecha nueva
+  ("AAAA-MM-DD HH:MM"). Si no toca la agenda, [] y null.
 - "a_maxi": lo que le contestás a él. Corto y natural ("Anotado", "Dale,
   le escribo", "Listo, se lo dije"). Si no entendiste, preguntale.`,
     messages: [{ role: 'user', content: charla }],
@@ -2468,6 +2499,18 @@ Qué hacer con lo que escribió:
     lista.push({ texto: String(dato.aprendizaje).slice(0, 300), cuando: new Date().toISOString() });
   }
   if (dato.aprendizaje || olvidar.size) await guardarEstado(env, 'aprendizajes', lista.slice(-60));
+
+  /* La agenda, como la dejó Maxi. */
+  const quitar = new Set((dato.quitar_visitas ?? []).map((n) => n - 1));
+  const mover = dato.mover_visita;
+  if (quitar.size || mover) {
+    const nueva = agenda
+      .map((v, i) => (mover && i === mover.n - 1 && /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(mover.visita)
+        ? { ...v, visita: mover.visita, recordada: false } : v))
+      .filter((_, i) => !quitar.has(i))
+      .sort((a, b) => aMs(a.visita) - aMs(b.visita));
+    await guardarEstado(env, 'agenda', nueva);
+  }
 
   /* La consulta contestada: se sigue con el cliente y sale de la lista. */
   const c = consultas.find((x) => x.n === dato.consulta);
@@ -2582,21 +2625,33 @@ const aMs = (visita) => new Date(
   `${visita.slice(0, 10)}T${visita.length > 10 ? visita.slice(11, 16) : '12:00'}:00-03:00`
 ).getTime();
 
-async function agendarVisita(env, chat, visita, motivo) {
+/* Cómo se le muestra una visita a Maxi: día y hora, quién, qué auto y en
+   qué condiciones. */
+function fichaDeVisita(v) {
+  const dia = new Intl.DateTimeFormat('es-AR', {
+    timeZone: 'America/Argentina/Buenos_Aires', weekday: 'long', day: 'numeric', month: 'long',
+    ...(v.visita.length > 10 ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } : {}),
+  }).format(new Date(aMs(v.visita)));
+  return [
+    `${dia}${v.visita.length > 10 ? ' h' : ' (sin hora)'}`,
+    v.quien,
+    v.auto ? `Viene a ver: ${v.auto}` : null,
+    v.condiciones ? `Condiciones: ${v.condiciones}` : null,
+  ].filter(Boolean).join('\n');
+}
+
+async function agendarVisita(env, chat, { visita, auto = null, condiciones = null, motivo = null }) {
   const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
   const resto = agenda.filter((v) => v.chat !== chat.id);
-  resto.push({ chat: chat.id, quien: quienEs(chat), visita, motivo: motivo ?? null, recordada: false });
+  const nueva = { chat: chat.id, quien: quienEs(chat), visita, auto, condiciones,
+    motivo: auto || condiciones ? null : motivo, recordada: false };
+  resto.push(nueva);
   resto.sort((a, b) => aMs(a.visita) - aMs(b.visita));
   await guardarEstado(env, 'agenda', resto.filter((v) => aMs(v.visita) > Date.now() - 12 * HORAS));
 
-  const dia = new Intl.DateTimeFormat('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires', weekday: 'long', day: 'numeric', month: 'long',
-    ...(visita.length > 10 ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } : {}),
-  }).format(new Date(aMs(visita)));
   await escribirleAlJefe(env,
-    `Visita para confirmar · ${quienEs(chat)}\n` +
-    `${dia}${visita.length > 10 ? '' : ' (sin hora)'}` +
-    (motivo ? `\n${motivo}` : '') +
+    `Visita para confirmar\n${fichaDeVisita(nueva)}` +
+    (nueva.motivo ? `\n${nueva.motivo}` : '') +
     `\n\nEl chat quedó para ustedes: confirmale vos.`);
 }
 
@@ -2608,8 +2663,7 @@ async function recordarVisitas(env) {
     if (v.recordada || v.visita.length <= 10) continue;
     const falta = aMs(v.visita) - ahora;
     if (falta > 0 && falta <= 1.5 * HORAS) {
-      await escribirleAlJefe(env,
-        `En un rato viene ${v.quien}, a las ${v.visita.slice(11, 16)}` + (v.motivo ? `\n${v.motivo}` : ''));
+      await escribirleAlJefe(env, `En un rato tenés visita\n${fichaDeVisita(v)}` + (v.motivo ? `\n${v.motivo}` : ''));
       v.recordada = true;
       cambio = true;
     }
@@ -2704,7 +2758,8 @@ Hoy es ${hoyEnBsAs()}.
 
 Escribile UN mensaje de WhatsApp, rioplatense, directo, sin relleno, de
 hasta 18 renglones, con estas partes y sólo las que tengan algo:
-- Hoy: las visitas del día con hora y a qué vienen.
+- Hoy: las visitas del día, cada una con hora, quién, qué auto viene a
+  ver y en qué condiciones. Si hay de mañana, mencionalas.
 - Llamar hoy: hasta 4 clientes calientes que conviene llamar o escribir
   (nombre y …últimos 4) y por qué, en media línea cada uno.
 - Para tasar: cuántos autos hay esperando propuesta y cuáles.
@@ -2716,7 +2771,7 @@ hasta 18 renglones, con estas partes y sólo las que tengan algo:
 Sin teléfonos completos. Si no hay nada en una parte, no la pongas. Si no
 hay nada en ninguna, escribí sólo "Buen día. Hoy sin novedades".`,
     messages: [{ role: 'user', content:
-      `VISITAS\n${agenda.map((v) => `${v.visita} · ${v.quien}${v.motivo ? ` · ${v.motivo}` : ''}`).join('\n') || '(ninguna)'}\n\n` +
+      `VISITAS\n${agenda.map((v) => `${v.visita} · ${v.quien} · ${v.auto ?? ''} · ${v.condiciones ?? v.motivo ?? ''}`).join('\n') || '(ninguna)'}\n\n` +
       `PARA TASAR\n${(tasar ?? []).map((c) => `${quienEs(c)}: ${c.nota}`).join('\n') || '(ninguno)'}\n\n` +
       `CONSULTAS SIN CONTESTAR\n${consultas.map((c) => `${c.n}. ${c.pregunta}`).join('\n') || '(ninguna)'}\n\n` +
       `STOCK\n${(autos ?? []).map((a) => `${a.marca} ${a.modelo} ${a.anio} · ${a.km} km · ${a.moneda} ${a.precio}`).join('\n')}\n\n` +
@@ -2785,7 +2840,7 @@ async function atenderSolo(env, disparos) {
     if (!canalActivo(cfg, d.canal)) continue;
     try {
       const chat = await env.DB.prepare(
-        'SELECT id, canal, externo_id, humano, nombre FROM conversaciones WHERE id = ?'
+        'SELECT id, canal, externo_id, humano, nombre, nota FROM conversaciones WHERE id = ?'
       ).bind(d.conversacion).first();
       if (!chat || chat.humano || esElJefe(env, chat)) continue;
 
@@ -2859,9 +2914,16 @@ async function atenderSolo(env, disparos) {
         aWhatsapp: Boolean(r.derivar || r.irAWhatsapp), autor: 'ia',
       });
 
+      /* LO QUE MAXI TIENE QUE SABER, en el momento: una visita, un chat
+         que pasa al equipo, un auto nuevo para tasar. Uno por evento. */
       if (r.visita) {
-        await agendarVisita(env, chat, r.visita, r.derivar)
-          .catch((e) => console.error('No se pudo agendar:', e?.message ?? e));
+        await agendarVisita(env, chat, {
+          visita: r.visita, auto: r.visitaAuto, condiciones: r.visitaCondiciones, motivo: r.derivar,
+        }).catch((e) => console.error('No se pudo agendar:', e?.message ?? e));
+      } else if (r.derivar) {
+        await escribirleAlJefe(env, `Te paso un chat · ${quienEs(chat)}\n${r.derivar}`);
+      } else if (notaTasar && notaTasar !== chat.nota) {
+        await escribirleAlJefe(env, `Para tasar · ${quienEs(chat)}\n${notaTasar.replace(/^Para tasar /, '')}`);
       }
 
       if (r.consulta && !r.derivar) {
@@ -2907,7 +2969,20 @@ async function atenderComentario(env, chat, r) {
     catch (e) { console.error('No se pudo dar me gusta:', e?.message ?? e); }
   }
 
-  if (!r.responder && !r.derivar) return;
+  if (!r.responder && !r.derivar) {
+    /* Un elogio: me gusta y un gracias abajo. Uno por persona y por
+       publicación, aunque deje cinco emojis. */
+    if (r.megusta) {
+      const clave = `${chat.id}:${comentario.media_id ?? comentario.externo_id}`;
+      const ya = (await leerEstado(env, 'gracias'))?.valor ?? [];
+      if (!ya.includes(clave)) {
+        await guardarEstado(env, 'gracias', [...ya, clave].slice(-500));
+        try { await avisarEnElComentario(env, comentario.externo_id, GRACIAS); }
+        catch (e) { console.error('No se pudo agradecer en el comentario:', e?.message ?? e); }
+      }
+    }
+    return;
+  }
 
   if (comentario.media_id) {
     const yaFuimos = await env.DB.prepare(
@@ -3751,6 +3826,33 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     /* `autor: persona` porque esto lo mandó alguien del equipo desde el
        panel, aunque el borrador lo haya escrito la IA: lo leyó y decidió
        mandarlo una persona. Lo que sale solo queda como 'ia'. */
+    /* SI SÓLO COMENTÓ, NO HAY PRIVADO ABIERTO: Instagram rechaza un
+       mensaje común ("outside of allowed window"). La única puerta es la
+       respuesta privada a su comentario, que es UN mensaje y se usa una
+       vez, así que las partes van juntas. */
+    if (chat.canal === 'instagram') {
+      const privado = await env.DB.prepare(
+        `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
+            AND clase = 'mensaje' AND creado > datetime('now','-24 hours') LIMIT 1`
+      ).bind(chat.id).first();
+      const comentario = privado ? null : await env.DB.prepare(
+        `SELECT externo_id, media_id FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
+            AND clase = 'comentario' ORDER BY creado DESC, id DESC LIMIT 1`
+      ).bind(chat.id).first();
+      if (comentario?.externo_id) {
+        try {
+          const link = await linkSinRepetir(env, chat.id, autoId);
+          const todo = armarTextos(partes, [link].filter(Boolean)).join('\n\n');
+          const id = await mandarUno(env, chat, todo, { comentarioId: comentario.externo_id });
+          await guardarSaliente(env, chat.id, todo, 'persona', id, { mediaId: comentario.media_id });
+          try { await avisarEnElComentario(env, comentario.externo_id); } catch { /* secundario */ }
+          return json({ ok: true, partes: 1, comoComentario: true });
+        } catch (e) {
+          return error(e?.message || 'Instagram no aceptó la respuesta al comentario', 502);
+        }
+      }
+    }
+
     try {
       return json({ ok: true, ...(await mandarRespuesta(env, chat, {
         partes, autoId, ubicacion, autor: 'persona',
