@@ -652,7 +652,15 @@ function mensajesDelAviso(aviso, nuestroId = null) {
           tipo: ev.message.text ? 'texto' : tipoConocido(ev.message.attachments?.[0]?.type),
           texto: ev.message.text ?? null,
           clase: 'mensaje',
-          media_id: null,
+          /* SI RESPONDE A UNA HISTORIA O COMPARTE UNA PUBLICACIÓN, de cuál
+             (Maxi, 29/10: un "Info" a la historia del C300 es por el C300).
+             La historia se borra a las 24 h: su imagen se guarda aparte
+             para poder reconocer el auto (`historias`). */
+          media_id: ev.message.reply_to?.story?.id
+            ?? ev.message.attachments?.[0]?.payload?.reel_video_id
+            ?? ev.message.attachments?.[0]?.payload?.ig_post_media_id
+            ?? null,
+          historiaUrl: ev.message.reply_to?.story?.url ?? null,
           anuncio: anuncioDe(ev.message.referral ?? ev.referral, canal),
           audio: ev.message.attachments?.[0]?.type === 'audio' && ev.message.attachments[0].payload?.url
             ? { url: ev.message.attachments[0].payload.url } : null,
@@ -763,6 +771,12 @@ async function guardarEntrantes(env, lista) {
       ).bind(m.canal, m.externo_id, m.nombre).first();
 
     if (!conv?.id || m.soloAnuncio) continue;
+
+    if (m.media_id && m.historiaUrl) {
+      const h = (await leerEstado(env, 'historias'))?.valor ?? {};
+      h[m.media_id] = m.historiaUrl;
+      await guardarEstado(env, 'historias', Object.fromEntries(Object.entries(h).slice(-200)));
+    }
 
     /* `direccion` puede venir en el aviso: un comentario nuestro es
        saliente aunque llegue por el mismo webhook que los entrantes.
@@ -1640,6 +1654,83 @@ function historialParaClaude(mensajes) {
    mandar y para cuando contesta solo: el contexto que junta es el mismo,
    y dos copias garantizan que el día que se arregle una, la otra quede
    vieja. */
+/* ── DE QUÉ AUTO ES UNA PUBLICACIÓN, UNA HISTORIA O UN ANUNCIO ────
+   Maxi (29/10): "si escriben 'info' o 'precio' en una publicación del
+   C300, ya tenés que saber que es el C300; nunca le vuelvas a preguntar
+   por qué auto". Antes el bot dependía de que el texto de la publicación
+   nombrara el modelo, y un reel con texto genérico lo dejaba a ciegas.
+   Ahora:
+   1. busca el modelo en el texto (rápido, sin costo);
+   2. si no aparece, MIRA LA IMAGEN y la compara con el stock;
+   3. si es de consignación ("vendé tu auto"), lo dice.
+   Se resuelve una vez por publicación y queda guardado
+   (`estado.publicaciones`). */
+const CLAVES_CONSIGNACION = /consign|vend[eé] tu auto|vendemos tu auto|quer[eé]s vender tu|te lo vendemos/i;
+const NO_DISTINGUE = /^(coupe|coupé|cabrio|cabriolet|sedan|plus|line|sport|mild|hybrid|sdrive|limited|lounge|gr|iii|ii|benz)$/;
+
+function clavesDe(a) {
+  const t = String(a.modelo ?? '').toLowerCase().split(/[^a-z0-9]+/).filter((x) => x.length >= 2 && !NO_DISTINGUE.test(x));
+  const primera = t[0] ?? '';
+  return /^\d+$/.test(primera) ? [String(a.marca ?? '').toLowerCase().split(/\s+/)[0]].filter(Boolean) : [primera].filter(Boolean);
+}
+
+async function deQueEs(env, clave, { texto = '', imagen = null } = {}) {
+  if (!clave) return null;
+  const guardadas = (await leerEstado(env, 'publicaciones'))?.valor ?? {};
+  if (guardadas[clave]) return guardadas[clave];
+
+  const { results: autos } = await env.DB.prepare(
+    `SELECT id, marca, modelo, anio, estado FROM autos WHERE estado IN ('publicado','vendido')
+      ORDER BY estado DESC, orden`
+  ).all();
+  const t = String(texto ?? '').toLowerCase();
+  let res = null;
+
+  if (CLAVES_CONSIGNACION.test(t)) res = { tipo: 'consignacion' };
+  else if (t) {
+    const coinciden = (autos ?? []).filter((a) => clavesDe(a).some((k) => new RegExp(`\\b${k}\\b`).test(t)));
+    const publicados = coinciden.filter((a) => a.estado === 'publicado');
+    const uno = publicados.length === 1 ? publicados[0] : coinciden.length === 1 ? coinciden[0] : null;
+    if (uno) res = { tipo: 'auto', auto: uno.id };
+  }
+
+  if (!res && env.ANTHROPIC_API_KEY && (t || imagen)) {
+    try {
+      const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+      const r = await client.messages.create({
+        model: MODELO,
+        max_tokens: 200,
+        output_config: { effort: 'low', format: { type: 'json_schema', schema: {
+          type: 'object',
+          properties: {
+            tipo: { type: 'string', enum: ['auto', 'consignacion', 'general'] },
+            auto: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
+          },
+          required: ['tipo', 'auto'], additionalProperties: false,
+        } } },
+        messages: [{ role: 'user', content: [
+          ...(imagen ? [{ type: 'image', source: { type: 'url', url: imagen } }] : []),
+          { type: 'text', text: `Es una publicación, historia o anuncio de Manna Selected, una concesionaria de autos.
+${t ? `Su texto: «${t.slice(0, 1500)}»` : 'No tiene texto.'}
+Estos son nuestros autos (número, auto, estado):
+${(autos ?? []).map((a) => `${a.id}: ${a.marca} ${a.modelo} ${a.anio ?? ''} (${a.estado})`).join('\n')}
+Decí de cuál de estos autos es ("tipo": "auto" y su número), si es para que la gente nos deje su auto en consignación ("consignacion"), o si es general, de varios autos o de ninguno ("general"). Mirá la imagen si la hay.` },
+        ] }],
+      });
+      const d = JSON.parse((r.content ?? []).find((b) => b.type === 'text')?.text ?? '{}');
+      if (d.tipo === 'auto' && (autos ?? []).some((a) => a.id === d.auto)) res = { tipo: 'auto', auto: d.auto };
+      else if (d.tipo === 'consignacion') res = { tipo: 'consignacion' };
+      else res = { tipo: 'general' };
+    } catch (e) {
+      console.error('No se pudo reconocer la publicación:', e?.message ?? e);
+    }
+  }
+  res = res ?? { tipo: 'general' };
+  guardadas[clave] = res;
+  await guardarEstado(env, 'publicaciones', Object.fromEntries(Object.entries(guardadas).slice(-400)));
+  return res;
+}
+
 async function pensarRespuesta(env, conversacionId, { automatico = false, deNoche = false, seguimiento = false } = {}) {
   if (!env.ANTHROPIC_API_KEY) {
     throw new Error('Falta cargar ANTHROPIC_API_KEY en Cloudflare');
@@ -1718,10 +1809,12 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
      diez mensajes atrás, ya no es de eso que están hablando. */
   const origen = esComentario
     ? ultimo
-    : [...todos].slice(-4).reverse().find((m) => m.media_id);
+    : [...todos].reverse().find((m) => m.media_id
+        && Date.now() - new Date(String(m.creado).replace(' ', 'T') + 'Z').getTime() < 72 * HORAS);
 
   let posteo = null;
   let nuestro = null;
+  let publicacion = null;
 
   if (origen?.media_id) {
     /* El texto sale de las estadísticas que ya tenemos guardadas, así
@@ -1733,14 +1826,18 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     /* Y SI NO ESTÁ GUARDADA, SE PREGUNTA. La gente comenta en posteos de
        hace meses, que no entraron en la última lectura. Una llamada y
        sólo cuando falta; si tampoco sale, se sigue sin ella. */
-    if (!posteo) {
+    let imagen = ((await leerEstado(env, 'historias'))?.valor ?? {})[origen.media_id] ?? null;
+    const yaSabida = ((await leerEstado(env, 'publicaciones'))?.valor ?? {})[`ig:${origen.media_id}`];
+    if (!posteo || (!yaSabida && !imagen)) {
       try {
-        const m = await igLlamar(env, `/${origen.media_id}?fields=caption`);
-        posteo = m?.caption ?? null;
+        const m = await igLlamar(env, `/${origen.media_id}?fields=caption,media_url,thumbnail_url`);
+        posteo = posteo ?? m?.caption ?? null;
+        imagen = imagen ?? m?.thumbnail_url ?? m?.media_url ?? null;
       } catch (e) {
         console.error('No se pudo leer la publicación:', e?.message ?? e);
       }
     }
+    publicacion = await deQueEs(env, `ig:${origen.media_id}`, { texto: posteo, imagen });
 
     /* Y EL COMENTARIO QUE PONEMOS NOSOTROS AL PUBLICAR, si hay: ahí
        suelen ir los datos que no entraron en la descripción. No las
@@ -1754,6 +1851,20 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     nuestro = propio?.texto ?? null;
   }
 
+  /* EL ANUNCIO TAMBIÉN SE RECONOCE, por si su título no dice el modelo. */
+  const delAnuncio = !publicacion && anuncio && (anuncio.titulo || anuncio.texto)
+    ? await deQueEs(env, `anuncio:${anuncio.id ?? `${anuncio.titulo}|${anuncio.texto}`.slice(0, 120)}`,
+      { texto: [anuncio.titulo, anuncio.texto].filter(Boolean).join('\n') })
+    : null;
+  const origenSabido = publicacion ?? delAnuncio;
+  let deQueAuto = null;
+  if (origenSabido?.tipo === 'auto') {
+    const a = (autos ?? []).find((x) => x.id === origenSabido.auto)
+      ?? await env.DB.prepare('SELECT id, marca, modelo, anio, estado FROM autos WHERE id = ?').bind(origenSabido.auto).first();
+    if (a) deQueAuto = `[${a.id}] ${[a.marca, a.modelo, a.anio].filter(Boolean).join(' ')}`
+      + (a.estado === 'vendido' ? ' (YA SE VENDIÓ)' : reservadosIds.includes(a.id) ? ' (RESERVADO CON SEÑA)' : '');
+  }
+
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
   const pedido = {
     model: MODELO,
@@ -1765,7 +1876,9 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     output_config: { effort: 'low' },
     system: instruccionesDelBot({
       autos: autos ?? [], posteo, nuestro, anuncio, canal: chat.canal,
-      automatico, esComentario, deNoche, nombre: chat.nombre, deConsignacion,
+      automatico, esComentario, deNoche, nombre: chat.nombre,
+      deConsignacion: deConsignacion || origenSabido?.tipo === 'consignacion',
+      deQueAuto,
       aprendizajes: await loAprendido(env),
       vendidos: (vendidos ?? []).map((a) => [a.marca, a.modelo, a.anio].filter(Boolean).join(' ')),
       reservados: reservados.map((a) => `[${a.id}] ${[a.marca, a.modelo, a.anio].filter(Boolean).join(' ')}`),
