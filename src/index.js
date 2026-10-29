@@ -1820,7 +1820,9 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     dato = loQueDijo(respuesta);
   }
 
-  const { partes } = dato;
+  /* SIN "¿" DE APERTURA, SIEMPRE. Es una regla de las instrucciones y
+     igual se escapaba alguno (Hugo, 28/10): se saca acá, que no falla. */
+  const partes = dato.partes.map((p) => String(p).replace(/¿/g, '').trim()).filter(Boolean);
   if (!partes.length) throw new Error('Claude no devolvió una respuesta');
 
   /* El número de auto se cruza con el stock: uno inventado o vendido no
