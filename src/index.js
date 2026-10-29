@@ -2480,6 +2480,12 @@ async function consultarAlJefe(env, chat, pregunta, loQueDijo) {
     `\n\nContestame acá y sigo yo con el cliente.`);
 }
 
+/* POR QUÉ SE PERDIÓ UNA VENTA, DE UNA LISTA CERRADA. El embudo no lleva
+   texto libre (ver esquema/009-embudo.sql): se anota el estado de la
+   consulta, nunca una opinión sobre la persona. */
+const MOTIVOS_PERDIDA = ['precio', 'km o estado', 'financiación', 'la permuta no cerró',
+  'se enfrió', 'compró en otro lado', 'otro'];
+
 const FORMA_DEL_JEFE = {
   type: 'object',
   properties: {
@@ -2494,10 +2500,16 @@ const FORMA_DEL_JEFE = {
     ya_compraron: { type: 'array', items: { type: 'string' } },
     vendidos: { type: 'array', items: { type: 'integer' } },
     resumen: { type: 'boolean' },
+    resultados: { type: 'array', items: { type: 'object', properties: {
+      quien: { type: 'string' },
+      resultado: { type: 'string', enum: ['vino', 'no_vino', 'compro', 'perdido'] },
+      motivo: { anyOf: [{ type: 'string', enum: MOTIVOS_PERDIDA }, { type: 'null' }] },
+    }, required: ['quien', 'resultado', 'motivo'], additionalProperties: false } },
+    numeros: { type: 'boolean' },
     a_maxi: { type: 'string' },
   },
   required: ['consulta', 'al_cliente', 'aprendizaje', 'olvidar', 'quitar_visitas', 'mover_visita',
-    'ya_compraron', 'vendidos', 'resumen', 'a_maxi'],
+    'ya_compraron', 'vendidos', 'resumen', 'resultados', 'numeros', 'a_maxi'],
   additionalProperties: false,
 };
 
@@ -2516,6 +2528,7 @@ async function atenderAlJefe(env, conversacionId, mensajeId) {
   const aprendizajes = (await leerEstado(env, 'aprendizajes'))?.valor ?? [];
   const agenda = ((await leerEstado(env, 'agenda'))?.valor ?? [])
     .filter((v) => aMs(v.visita) > Date.now() - 12 * HORAS);
+  const agendaFuera = new Set();
   const { results: stock } = await env.DB.prepare(
     `SELECT id, marca, modelo, anio, km FROM autos WHERE estado = 'publicado' ORDER BY id`
   ).all();
@@ -2578,6 +2591,18 @@ Qué hacer con lo que escribió:
   qué condiciones. Si cancela una, sus números en "quitar_visitas". Si la
   cambia de día u hora, "mover_visita" con su número y la fecha nueva
   ("AAAA-MM-DD HH:MM"). Si no toca la agenda, [] y null.
+- CÓMO TERMINÓ CADA CLIENTE (Maxi, 29/10). Si te cuenta que alguien vino,
+  no vino, compró o se perdió ("Jorge vino", "Richi compró", "el del
+  Cruze se perdió por precio", "6766 no vino"), poné una entrada por
+  cliente en "resultados": en "quien" los dígitos del teléfono que dio
+  (al menos los últimos 4) o, si no los dio, el nombre tal cual; en
+  "resultado" vino, no_vino, compro o perdido; y si es perdido, el
+  "motivo" de la lista (precio, km o estado, financiación, la permuta no
+  cerró, se enfrió, compró en otro lado, otro). Si no dijo el motivo,
+  "otro" y preguntáselo en "a_maxi". Si no, [].
+- LOS NÚMEROS. Si pregunta cómo vamos ("cómo venimos?", "números",
+  "cuántos vinieron?"), "numeros": true y en "a_maxi" sólo "Ya te los
+  paso". Si no, false.
 - EL RESUMEN. Si pide el resumen o qué tiene hoy ("resumen", "qué tengo
   hoy?", "pasame todo"), "resumen": true y en "a_maxi" sólo "Ya te lo
   armo". Si no, false.
@@ -2633,6 +2658,45 @@ Qué hacer con lo que escribió:
     ).bind(id).run();
   }
 
+  /* CÓMO TERMINÓ CADA CLIENTE. Va al embudo que ya existe: la etapa más
+     alta a la que llegó ('vino', 'cerrado') y la marca de perdido, con
+     el motivo de la lista en la nota. Si no se encuentra uno solo, no se
+     toca nada y se le pregunta. */
+  const hechos = [];
+  for (const r of dato.resultados ?? []) {
+    const digitos = soloDigitos(r.quien).slice(-10);
+    const { results: candidatos } = digitos.length >= 4
+      ? await env.DB.prepare(
+        `SELECT id, canal, externo_id, nombre, etapa, nota FROM conversaciones
+          WHERE canal = 'whatsapp' AND externo_id LIKE ?`).bind(`%${digitos}`).all()
+      : await env.DB.prepare(
+        `SELECT id, canal, externo_id, nombre, etapa, nota FROM conversaciones
+          WHERE nombre LIKE ? AND ultimo > datetime('now','-60 days') AND id != ?`)
+        .bind(`%${String(r.quien).trim()}%`, conversacionId).all();
+    if (candidatos?.length !== 1) {
+      hechos.push(`${r.quien}: ${candidatos?.length ? `hay ${candidatos.length} que coinciden` : 'no lo encontré'}, pasame el número`);
+      continue;
+    }
+    const c = candidatos[0];
+    const etapaNueva = r.resultado === 'compro' ? 'cerrado'
+      : r.resultado === 'vino' && c.etapa !== 'cerrado' ? 'vino' : c.etapa;
+    const nota = r.resultado === 'compro' ? 'Compró: el bot no le habla'
+      : r.resultado === 'perdido' ? `Perdido: ${MOTIVOS_PERDIDA.includes(r.motivo) ? r.motivo : 'otro'}`
+      : r.resultado === 'no_vino' ? 'No vino a la visita'
+      : c.nota;
+    await env.DB.prepare(
+      `UPDATE conversaciones SET etapa = ?, perdido = ?, nota = ?, etapa_cambio = datetime('now'),
+              humano = CASE WHEN ? THEN 1 ELSE humano END
+        WHERE id = ?`
+    ).bind(etapaNueva, r.resultado === 'perdido' ? 1 : 0, nota, r.resultado === 'compro' ? 1 : 0, c.id).run();
+    agendaFuera.add(c.id);
+    hechos.push(`${quienEs(c)}: ${{ vino: 'vino', no_vino: 'no vino', compro: 'compró', perdido: `perdido (${r.motivo ?? 'otro'})` }[r.resultado]}`);
+  }
+  if (hechos.length) dato.a_maxi = `${dato.a_maxi}\n\nAnotado:\n${hechos.join('\n')}`;
+  if (agendaFuera.size) {
+    await guardarEstado(env, 'agenda', agenda.filter((v) => !agendaFuera.has(v.chat)));
+  }
+
   /* La agenda, como la dejó Maxi. */
   const quitar = new Set((dato.quitar_visitas ?? []).map((n) => n - 1));
   const mover = dato.mover_visita;
@@ -2640,7 +2704,7 @@ Qué hacer con lo que escribió:
     const nueva = agenda
       .map((v, i) => (mover && i === mover.n - 1 && /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(mover.visita)
         ? { ...v, visita: mover.visita, recordada: false } : v))
-      .filter((_, i) => !quitar.has(i))
+      .filter((v, i) => !quitar.has(i) && !agendaFuera.has(v.chat))
       .sort((a, b) => aMs(a.visita) - aMs(b.visita));
     await guardarEstado(env, 'agenda', nueva);
   }
@@ -2662,6 +2726,8 @@ Qué hacer con lo que escribió:
   }
 
   if (dato.a_maxi) await escribirleAlJefe(env, String(dato.a_maxi).slice(0, 1500));
+  if (dato.numeros) await escribirleAlJefe(env, await numerosDelMes(env));
+
   /* EL RESUMEN NO SE ARMA ACÁ. Esto corre colgado del aviso de Meta, que
      tiene treinta segundos en total, y leer todas las charlas y pensar el
      resumen no entra: se cortaba en silencio después del "Ya te lo armo"
@@ -2671,6 +2737,40 @@ Qué hacer con lo que escribió:
     const cola = env.ENVIOS.get(env.ENVIOS.idFromName(`resumen-${conversacionId}`));
     await cola.resumen();
   }
+}
+
+/* LOS NÚMEROS DEL MES, para Maxi: cuántos llegaron a cada paso. Cuenta
+   las conversaciones que empezaron este mes (una camada por mes, como el
+   embudo del panel). Sin las marcas de "vino", "compró" y "perdido" que
+   carga Maxi, las últimas filas dan cero: por eso se le piden. */
+async function numerosDelMes(env) {
+  const mes = new Date(Date.now() - 3 * HORAS).toISOString().slice(0, 7);
+  const f = await env.DB.prepare(
+    `SELECT COUNT(*) AS nuevos,
+            SUM(CASE WHEN etapa IN ('vino','cerrado') THEN 1 ELSE 0 END) AS vinieron,
+            SUM(CASE WHEN etapa = 'cerrado' THEN 1 ELSE 0 END) AS cerrados,
+            SUM(perdido) AS perdidos,
+            SUM(CASE WHEN nota LIKE 'Para tasar%' THEN 1 ELSE 0 END) AS tasar
+       FROM conversaciones
+      WHERE substr(creado, 1, 7) = ? AND canal = 'whatsapp'`
+  ).bind(mes).first();
+  const { results: motivos } = await env.DB.prepare(
+    `SELECT substr(nota, 10) AS motivo, COUNT(*) AS n FROM conversaciones
+      WHERE substr(creado, 1, 7) = ? AND perdido = 1 AND nota LIKE 'Perdido: %'
+      GROUP BY motivo ORDER BY n DESC`
+  ).bind(mes).all();
+  const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
+  return [
+    `*NÚMEROS DE ${mes.slice(5)}/${mes.slice(0, 4)}* (WhatsApp)`,
+    `Consultas nuevas: ${f?.nuevos ?? 0}`,
+    `Para tasar: ${f?.tasar ?? 0}`,
+    `Visitas en agenda: ${agenda.length}`,
+    `Vinieron: ${f?.vinieron ?? 0}`,
+    `Compraron: ${f?.cerrados ?? 0}`,
+    `Perdidos: ${f?.perdidos ?? 0}${(motivos ?? []).length ? ` (${motivos.map((m) => `${m.motivo} ${m.n}`).join(', ')})` : ''}`,
+    '',
+    'Para que esto sirva, contame cómo termina cada uno: "Jorge vino", "Richi compró", "el del Cruze se perdió por precio".',
+  ].join('\n');
 }
 
 /* EL REPASO DE LAS 21. Relee lo que el bot contestó hoy y le manda a
