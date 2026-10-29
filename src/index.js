@@ -2414,8 +2414,28 @@ async function escribirleAlJefe(env, texto) {
 
 /* Cómo se nombra a un cliente frente a Maxi: el nombre y los últimos
    cuatro del teléfono, que es como lo encuentra en el celular. */
-const quienEs = (chat) =>
-  `${chat.nombre ?? 'Sin nombre'}${chat.canal === 'whatsapp' ? ` (…${String(chat.externo_id).slice(-4)})` : ` (${chat.canal})`}`;
+/* EL TELÉFONO COMO LO MUESTRA WHATSAPP, para que Maxi lo toque y le
+   abra el chat: "+54 9 11 1234-5678", "+54 9 2345 67-8901". Lo pidió él
+   (29/10): es su cliente y su teléfono, y lo ve en su propio WhatsApp. */
+function telefono(n) {
+  const d = soloDigitos(n);
+  if (!/^549\d{10}$/.test(d)) return `+${d}`;
+  const r = d.slice(3);
+  return r.startsWith('11')
+    ? `+54 9 11 ${r.slice(2, 6)}-${r.slice(6)}`
+    : `+54 9 ${r.slice(0, 4)} ${r.slice(4, 6)}-${r.slice(6)}`;
+}
+
+/* Cómo se nombra a un cliente frente a Maxi, en su formato (29/10):
+   "+54 9 11 1234-5678, Juan". En Instagram y Facebook, el usuario. */
+const quienEs = (chat) => chat.canal === 'whatsapp'
+  ? `${telefono(chat.externo_id)}${chat.nombre && chat.nombre !== '-' ? `, ${chat.nombre}` : ''}`
+  : `${chat.canal === 'instagram' ? '@' : ''}${chat.nombre ?? 'sin nombre'} (${chat.canal === 'instagram' ? 'Instagram' : 'Facebook'})`;
+
+/* Una línea por cliente, como las arma Maxi:
+   "+54 9 11 1234-5678, Juan (Para tasar)  Peugeot 2008 2020, 99.000 km → Hilux GR" */
+const lineaDe = (chat, estado, detalle) =>
+  `${quienEs(chat)} (${estado})${detalle ? `  ${detalle}` : ''}`;
 
 async function consultarAlJefe(env, chat, pregunta, loQueDijo) {
   if (!soloDigitos(env.SUPERVISOR_WHATSAPP)) return;
@@ -2427,7 +2447,7 @@ async function consultarAlJefe(env, chat, pregunta, loQueDijo) {
   await guardarEstado(env, 'consultas', consultas.slice(-30));
 
   await escribirleAlJefe(env,
-    `Consulta ${n} · ${quienEs(chat)}\n${pregunta}` +
+    `Consulta ${n}\n${lineaDe(chat, 'Esperando tu respuesta', '')}\n${pregunta}` +
     (loQueDijo ? `\n\nLo último que escribió: «${String(loQueDijo).slice(0, 200)}»` : '') +
     `\n\nContestame acá y sigo yo con el cliente.`);
 }
@@ -2445,10 +2465,11 @@ const FORMA_DEL_JEFE = {
       required: ['n', 'visita'], additionalProperties: false }, { type: 'null' }] },
     ya_compraron: { type: 'array', items: { type: 'string' } },
     vendidos: { type: 'array', items: { type: 'integer' } },
+    resumen: { type: 'boolean' },
     a_maxi: { type: 'string' },
   },
   required: ['consulta', 'al_cliente', 'aprendizaje', 'olvidar', 'quitar_visitas', 'mover_visita',
-    'ya_compraron', 'vendidos', 'a_maxi'],
+    'ya_compraron', 'vendidos', 'resumen', 'a_maxi'],
   additionalProperties: false,
 };
 
@@ -2529,11 +2550,14 @@ Qué hacer con lo que escribió:
   qué condiciones. Si cancela una, sus números en "quitar_visitas". Si la
   cambia de día u hora, "mover_visita" con su número y la fecha nueva
   ("AAAA-MM-DD HH:MM"). Si no toca la agenda, [] y null.
+- EL RESUMEN. Si pide el resumen o qué tiene hoy ("resumen", "qué tengo
+  hoy?", "pasame todo"), "resumen": true y en "a_maxi" sólo "Ya te lo
+  armo". Si no, false.
 - LO QUE SE VENDIÓ. Si dice que un auto se vendió ("se vendió el 500"),
   poné su número del stock en "vendidos" y confirmale cuál marcaste. Si
   no queda claro cuál es, preguntale y dejá []. Si no, [].
 - LOS QUE YA COMPRARON. Si dice que alguien ya compró o que no le hables
-  más ("Esteban 3944 ya compró", "a 5990 no le escribas"), poné en
+  más ("Juan 1234 ya compró", "a 5678 no le escribas"), poné en
   "ya_compraron" los dígitos de cada teléfono que dio (al menos los
   últimos 4; sólo los dígitos). Si no los dio, preguntáselos en "a_maxi". Si no, [].
 - "a_maxi": lo que le contestás a él. Corto y natural ("Anotado", "Dale,
@@ -2610,6 +2634,7 @@ Qué hacer con lo que escribió:
   }
 
   if (dato.a_maxi) await escribirleAlJefe(env, String(dato.a_maxi).slice(0, 1500));
+  if (dato.resumen) await buenDia(env, { aPedido: true });
 }
 
 /* EL REPASO DE LAS 21. Relee lo que el bot contestó hoy y le manda a
@@ -2713,15 +2738,11 @@ const aMs = (visita) => new Date(
    qué condiciones. */
 function fichaDeVisita(v) {
   const dia = new Intl.DateTimeFormat('es-AR', {
-    timeZone: 'America/Argentina/Buenos_Aires', weekday: 'long', day: 'numeric', month: 'long',
+    timeZone: 'America/Argentina/Buenos_Aires', weekday: 'long', day: 'numeric', month: 'numeric',
     ...(v.visita.length > 10 ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } : {}),
   }).format(new Date(aMs(v.visita)));
-  return [
-    `${dia}${v.visita.length > 10 ? ' h' : ' (sin hora)'}`,
-    v.quien,
-    v.auto ? `Viene a ver: ${v.auto}` : null,
-    v.condiciones ? `Condiciones: ${v.condiciones}` : null,
-  ].filter(Boolean).join('\n');
+  return `${dia}${v.visita.length > 10 ? ' h' : ' (sin hora)'}\n` +
+    `${v.quien} (Visita)  ${[v.condiciones, v.auto && `→ ${v.auto}`].filter(Boolean).join(' ')}`;
 }
 
 async function agendarVisita(env, chat, { visita, auto = null, condiciones = null, motivo = null }) {
@@ -2734,7 +2755,7 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
   await guardarEstado(env, 'agenda', resto.filter((v) => aMs(v.visita) > Date.now() - 12 * HORAS));
 
   await escribirleAlJefe(env,
-    `Visita para confirmar\n${fichaDeVisita(nueva)}` +
+    `Visita para confirmar · ${fichaDeVisita(nueva)}` +
     (nueva.motivo ? `\n${nueva.motivo}` : '') +
     `\n\nEl chat quedó para ustedes: confirmale vos.`);
 }
@@ -2795,7 +2816,7 @@ async function hacerSeguimientos(env) {
   }
 }
 
-async function buenDia(env) {
+async function buenDia(env, { aPedido = false } = {}) {
   if (!env.ANTHROPIC_API_KEY || !soloDigitos(env.SUPERVISOR_WHATSAPP)) return;
   const jefe = await chatDelJefe(env);
 
@@ -2834,26 +2855,36 @@ async function buenDia(env) {
     max_tokens: 1500,
     output_config: { effort: 'medium' },
     system: `Sos la mano derecha comercial de Maxi, dueño de Manna Selected (autos
-seleccionados, Barracas). Son las 8:30 y le mandás por WhatsApp el resumen
-para arrancar el día. Pensá como el mejor gerente de ventas: qué hay que
-hacer hoy para vender más.
+seleccionados, Barracas). ${aPedido ? 'Te pidió el resumen del día' : 'Son las 8:30 y le mandás el resumen para arrancar el día'} por
+WhatsApp. Pensá como el mejor gerente de ventas: qué hay que hacer hoy
+para vender más.
+
+EL FORMATO ES EL DE MAXI. Cada cliente en UNA línea, exactamente así, sin
+viñetas ni guiones al principio:
++54 9 11 1234-5678, Juan (Para tasar)  Peugeot 2008 2020, 99.000 km → Hilux GR
+Primero el teléfono y el nombre tal como vienen, entre paréntesis el
+estado (Visita, Para tasar, Responder, Lo atiende el equipo, Oportunidad),
+y después su auto con año y km → el auto que le interesa, o en pocas
+palabras qué hay que hacer. Los títulos de cada parte, solos en su línea.
 
 Hoy es ${hoyEnBsAs()}.
 
-Escribile UN mensaje de WhatsApp, rioplatense, directo, sin relleno, de
-hasta 18 renglones, con estas partes y sólo las que tengan algo:
-- Hoy: las visitas del día, cada una con hora, quién, qué auto viene a
-  ver y en qué condiciones. Si hay de mañana, mencionalas.
-- Llamar hoy: hasta 4 clientes calientes que conviene llamar o escribir
-  (nombre y …últimos 4) y por qué, en media línea cada uno.
-- Para tasar: cuántos autos hay esperando propuesta y cuáles.
+Escribile UN mensaje de WhatsApp, rioplatense, directo, sin relleno, con
+estas partes y sólo las que tengan algo, en este orden:
+- Hoy en el salón: las visitas de hoy, con la hora adelante. Si hay de
+  mañana, en otra parte "Mañana".
+- Responder primero: los clientes que esperan respuesta, el más caliente
+  arriba, con qué hay que contestarle.
+- Para agendar: los que quieren venir y todavía no tienen día confirmado.
+- Para tasar: los autos que esperan propuesta.
 - Me debés: consultas del bot sin contestar.
+- Tener en cuenta: lo que no es urgente pero no hay que olvidar.
 - Oportunidades: lo que veas en las charlas que puede ser plata. Gente que
   busca un auto que no tenemos (para salir a buscarlo), un auto que nos
   ofrecen que encaja con lo que otro busca, un dueño que podría dejarnos
   el suyo en consignación, una permuta que cierra con algo del stock.
-Sin teléfonos completos. Si no hay nada en una parte, no la pongas. Si no
-hay nada en ninguna, escribí sólo "Buen día. Hoy sin novedades".`,
+Si no hay nada en una parte, no la pongas. Si no hay nada en ninguna,
+escribí sólo "${aPedido ? 'Hoy no hay nada pendiente' : 'Buen día. Hoy sin novedades'}".`,
     messages: [{ role: 'user', content:
       `VISITAS\n${agenda.map((v) => `${v.visita} · ${v.quien} · ${v.auto ?? ''} · ${v.condiciones ?? v.motivo ?? ''}`).join('\n') || '(ninguna)'}\n\n` +
       `PARA TASAR\n${(tasar ?? []).map((c) => `${quienEs(c)}: ${c.nota}`).join('\n') || '(ninguno)'}\n\n` +
@@ -3010,9 +3041,12 @@ async function atenderSolo(env, disparos) {
           visita: r.visita, auto: r.visitaAuto, condiciones: r.visitaCondiciones, motivo: r.derivar,
         }).catch((e) => console.error('No se pudo agendar:', e?.message ?? e));
       } else if (r.derivar) {
-        await escribirleAlJefe(env, `Te paso un chat · ${quienEs(chat)}\n${r.derivar}`);
-      } else if (notaTasar && notaTasar !== chat.nota) {
-        await escribirleAlJefe(env, `Para tasar · ${quienEs(chat)}\n${notaTasar.replace(/^Para tasar /, '')}`);
+        await escribirleAlJefe(env, `Te paso un chat\n${lineaDe(chat, 'Lo atiende el equipo', r.derivar)}`);
+      } else if (notaTasar && !String(chat.nota ?? '').startsWith(PARA_TASAR)) {
+        /* UNA VEZ POR CLIENTE: cada dato nuevo reescribe la nota y antes
+           salía un aviso por cada uno (29/10, tres del mismo Cruze). */
+        await escribirleAlJefe(env,
+          lineaDe(chat, 'Para tasar', notaTasar.replace(/^Para tasar \([^)]*\):\s*/, '')));
       }
 
       if (r.consulta && !r.derivar) {
