@@ -2167,6 +2167,12 @@ async function mandarRespuesta(env, chat, {
    SI FALLA UNA PARTE, se cortan las que siguen: una respuesta a medias
    es mejor que una desordenada. */
 export class Envios extends DurableObject {
+  /* El resumen que pidió Maxi: se arma en la alarma, sin apuro. */
+  async resumen() {
+    await this.ctx.storage.put('cola', [{ resumen: true, espera: 0 }]);
+    await this.ctx.storage.setAlarm(Date.now() + 100);
+  }
+
   async encolar(chat, pasos, autor, visto, humanoAntes = 0) {
     /* Una respuesta nueva reemplaza a la que estaba saliendo. */
     const cola = pasos.map((p) => ({ ...p, chat, autor, visto, humanoAntes }));
@@ -2177,6 +2183,16 @@ export class Envios extends DurableObject {
   async alarm() {
     const cola = (await this.ctx.storage.get('cola')) ?? [];
     const paso = cola.shift();
+    if (paso?.resumen) {
+      try { await buenDia(this.env, { aPedido: true }); }
+      catch (e) {
+        console.error('No salió el resumen:', e?.message ?? e);
+        await escribirleAlJefe(this.env,
+          `No pude armar el resumen: ${String(e?.message ?? e).slice(0, 200)}. Probá de nuevo en un rato.`);
+      }
+      await this.ctx.storage.deleteAll();
+      return;
+    }
     if (paso) {
       try {
         const escribio = await this.env.DB.prepare(
@@ -2646,7 +2662,15 @@ Qué hacer con lo que escribió:
   }
 
   if (dato.a_maxi) await escribirleAlJefe(env, String(dato.a_maxi).slice(0, 1500));
-  if (dato.resumen) await buenDia(env, { aPedido: true });
+  /* EL RESUMEN NO SE ARMA ACÁ. Esto corre colgado del aviso de Meta, que
+     tiene treinta segundos en total, y leer todas las charlas y pensar el
+     resumen no entra: se cortaba en silencio después del "Ya te lo armo"
+     (Maxi, 29/10). Lo arma la cola de envíos de su chat, que no tiene ese
+     límite. */
+  if (dato.resumen) {
+    const cola = env.ENVIOS.get(env.ENVIOS.idFromName(`resumen-${conversacionId}`));
+    await cola.resumen();
+  }
 }
 
 /* EL REPASO DE LAS 21. Relee lo que el bot contestó hoy y le manda a
@@ -3706,7 +3730,10 @@ export default {
     /* 11:30 UTC = 8:30 en Buenos Aires. */
     if (hora === 11 && minuto >= 30 && minuto < 35) {
       try { await buenDia(env); }
-      catch (e) { console.error('No salió el buen día:', e?.message ?? e); }
+      catch (e) {
+        console.error('No salió el buen día:', e?.message ?? e);
+        await escribirleAlJefe(env, `No pude armar el resumen de la mañana: ${String(e?.message ?? e).slice(0, 200)}. Escribime "resumen" y lo intento de nuevo.`);
+      }
     }
     if (hora === 0 && minuto < 5) {
       try { await repasarElDia(env); }
