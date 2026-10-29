@@ -98,6 +98,44 @@ export const PLANTILLAS = [
          + '¿Te paso los detalles?',
     ejemplo: ['Martín', 'BMW 330i'],
   },
+  /* POSVENTA (Maxi, 29/10). A las 48 horas de la compra, un gracias y
+     "acá estamos"; a las 72, el pedido de reseña en tres mensajes, con el
+     texto de Maxi. Van como plantillas porque a esa altura la ventana de
+     24 horas casi siempre se cerró. */
+  {
+    nombre: 'posventa_gracias',
+    categoria: 'UTILITY',
+    porque: 'A las 48 horas de la compra: gracias y que estamos presentes.',
+    texto: 'Hola {{1}}! Cómo va todo con el auto? Te escribo para agradecerte de nuevo '
+         + 'por confiar en Manna Selected. Cualquier cosa que necesites, acá estamos.',
+    ejemplo: ['Esteban'],
+  },
+  {
+    nombre: 'posventa_resena_1',
+    categoria: 'MARKETING',
+    porque: 'A las 72 horas: saludo y agradecimiento de Maxi.',
+    texto: 'Hola {{1}}! Buen día! Acá Maxi. Cómo andás? Nos encantó acompañarte en la '
+         + 'elección de tu auto y quiero agradecerte en nombre de todos por habernos '
+         + 'elegido y confiar en nosotros.',
+    ejemplo: ['Esteban'],
+  },
+  {
+    nombre: 'posventa_resena_2',
+    categoria: 'MARKETING',
+    porque: 'A las 72 horas: el pedido de reseña en Google.',
+    texto: 'Si te llevaste una buena experiencia, nos encantaría que la compartieras en '
+         + 'una reseña de Google. Para nosotros vale muchísimo y nos ayuda a que más '
+         + 'personas nos conozcan 🚀\n\nTe paso el link acá, es un minutito 👇\n'
+         + '⭐ https://g.page/r/CU6D8dSEquSgEAE/review',
+    ejemplo: [],
+  },
+  {
+    nombre: 'posventa_resena_3',
+    categoria: 'MARKETING',
+    porque: 'A las 72 horas: el cierre.',
+    texto: 'Gracias de corazón! Un abrazo grande de todo el equipo de Manna Selected.',
+    ejemplo: [],
+  },
 ];
 
 /* EL IDIOMA ES UNO SOLO Y ES EL DE ACÁ. 'es_AR' y no 'es': el texto está
@@ -114,6 +152,14 @@ export const comoLasPideMeta = (p) => ({
   components: [{
     type: 'BODY',
     text: p.texto,
-    example: { body_text: [p.ejemplo] },
+    /* Sin variables no va el ejemplo: Meta lo rechaza vacío. */
+    ...(p.ejemplo.length ? { example: { body_text: [p.ejemplo] } } : {}),
   }],
 });
+
+/* El texto final de una plantilla, con sus variables puestas: es lo que
+   se guarda en la charla, igual a lo que le llega a la persona. */
+export const textoDe = (nombre, valores = []) => {
+  const p = PLANTILLAS.find((x) => x.nombre === nombre);
+  return p ? p.texto.replace(/\{\{(\d+)\}\}/g, (_, i) => valores[i - 1] ?? '') : '';
+};
