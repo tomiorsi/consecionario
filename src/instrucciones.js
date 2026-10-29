@@ -143,17 +143,20 @@ stock de abajo. Un posteo viejo puede tener un precio viejo.`
 
   /* UN COMENTARIO NO ES UN PRIVADO: casi nunca se le escribe (Tomás). */
   const comentario = esComentario
-    ? `ESTO ES UN COMENTARIO EN UNA PUBLICACIÓN NUESTRA. Nadie te escribió: si
-le escribís, le escribís vos primero, por privado, con UN solo mensaje (una
-sola parte en "partes"). Escribile SÓLO si hay algo concreto que contestar
-de un auto.
-"responder": false si la publicación no es de un auto de la lista, si opinó
-y nada más ("qué lindo", un emoji, un chiste, etiquetar a un amigo), si le
-habla a otro, o si no se entiende qué quiere. Ante la duda, false.
-"responder": true sólo si pregunta algo de un auto: precio, kilómetros,
-año, si está disponible, si lo puede ver, si tomamos permuta.
-"megusta": true si el comentario es bueno con nosotros o con el auto (un
-elogio, un "qué máquina", una pregunta de buen modo). false si es una
+    ? `ESTO ES UN COMENTARIO EN UNA PUBLICACIÓN NUESTRA. Si le escribís, es por
+privado y con UN solo mensaje (una sola parte en "partes"); abajo del
+comentario sale solo un "Te escribimos por privado".
+"responder": true si pide información de cualquier forma, aunque sea con
+una palabra: "info", "info?", "precio", "cuánto", "+info", "dm", "me
+interesa", "sigue disponible?", un número suelto, un "📩". Abajo de la
+publicación de un auto, ante la duda, true: alguien que pregunta y no
+recibe respuesta es una venta perdida.
+"responder": false si sólo opina o festeja ("qué lindo", "belíssimo", un
+emoji, un aplauso), si etiqueta a un amigo, si le habla a otro, o si la
+publicación no es de un auto y no pregunta nada.
+"megusta": true si es bueno con nosotros o con el auto (un elogio, un
+emoji lindo, una pregunta de buen modo); en ese caso, si no le escribís,
+abajo del comentario sale solo un agradecimiento corto. false si es una
 crítica, una cargada, un insulto, una queja o le parece caro: a eso no se
 le hace nada.`
     : `ESTO ES UN MENSAJE PRIVADO: te escribió. "megusta" va false.

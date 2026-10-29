@@ -1003,14 +1003,25 @@ async function megustaEnInstagram(env, comentarioId) {
    `message` va en la dirección y no en el cuerpo porque así lo pide la
    API. Es texto nuestro y público: no hay nada de nadie ahí. */
 const AVISOS = [
-  'Te escribimos por privado.',
-  'Te acabamos de escribir al privado.',
-  'Listo, te mandamos un privado.',
-  'Te hablamos por privado.',
+  'Hola! Te escribimos por privado así te pasamos toda la info.',
+  'Hola, cómo estás? Te mandamos un privado con todos los datos.',
+  'Hola! Te acabamos de escribir por privado, fijate en tus mensajes.',
+  'Gracias por escribir! Te hablamos por privado y te contamos todo.',
 ];
 
-async function avisarEnElComentario(env, comentarioId) {
-  const texto = AVISOS[Math.floor(Math.random() * AVISOS.length)];
+/* A UN ELOGIO SE LE AGRADECE EN PÚBLICO (Maxi, 28/10: "no está
+   respondiendo los comentarios"). Con el mismo criterio que los avisos:
+   texto nuestro, de una lista, nunca escrito por el modelo. */
+const GRACIAS = [
+  'Gracias!',
+  'Muchas gracias!',
+  'Gracias, un gusto!',
+  'Gracias por bancarnos!',
+  'Qué bueno que te guste, gracias!',
+];
+
+async function avisarEnElComentario(env, comentarioId, lista = AVISOS) {
+  const texto = lista[Math.floor(Math.random() * lista.length)];
   return igLlamar(
     env,
     `/${comentarioId}/replies?message=${encodeURIComponent(texto)}`,
@@ -2958,7 +2969,20 @@ async function atenderComentario(env, chat, r) {
     catch (e) { console.error('No se pudo dar me gusta:', e?.message ?? e); }
   }
 
-  if (!r.responder && !r.derivar) return;
+  if (!r.responder && !r.derivar) {
+    /* Un elogio: me gusta y un gracias abajo. Uno por persona y por
+       publicación, aunque deje cinco emojis. */
+    if (r.megusta) {
+      const clave = `${chat.id}:${comentario.media_id ?? comentario.externo_id}`;
+      const ya = (await leerEstado(env, 'gracias'))?.valor ?? [];
+      if (!ya.includes(clave)) {
+        await guardarEstado(env, 'gracias', [...ya, clave].slice(-500));
+        try { await avisarEnElComentario(env, comentario.externo_id, GRACIAS); }
+        catch (e) { console.error('No se pudo agradecer en el comentario:', e?.message ?? e); }
+      }
+    }
+    return;
+  }
 
   if (comentario.media_id) {
     const yaFuimos = await env.DB.prepare(
@@ -3802,6 +3826,33 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     /* `autor: persona` porque esto lo mandó alguien del equipo desde el
        panel, aunque el borrador lo haya escrito la IA: lo leyó y decidió
        mandarlo una persona. Lo que sale solo queda como 'ia'. */
+    /* SI SÓLO COMENTÓ, NO HAY PRIVADO ABIERTO: Instagram rechaza un
+       mensaje común ("outside of allowed window"). La única puerta es la
+       respuesta privada a su comentario, que es UN mensaje y se usa una
+       vez, así que las partes van juntas. */
+    if (chat.canal === 'instagram') {
+      const privado = await env.DB.prepare(
+        `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
+            AND clase = 'mensaje' AND creado > datetime('now','-24 hours') LIMIT 1`
+      ).bind(chat.id).first();
+      const comentario = privado ? null : await env.DB.prepare(
+        `SELECT externo_id, media_id FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
+            AND clase = 'comentario' ORDER BY creado DESC, id DESC LIMIT 1`
+      ).bind(chat.id).first();
+      if (comentario?.externo_id) {
+        try {
+          const link = await linkSinRepetir(env, chat.id, autoId);
+          const todo = armarTextos(partes, [link].filter(Boolean)).join('\n\n');
+          const id = await mandarUno(env, chat, todo, { comentarioId: comentario.externo_id });
+          await guardarSaliente(env, chat.id, todo, 'persona', id, { mediaId: comentario.media_id });
+          try { await avisarEnElComentario(env, comentario.externo_id); } catch { /* secundario */ }
+          return json({ ok: true, partes: 1, comoComentario: true });
+        } catch (e) {
+          return error(e?.message || 'Instagram no aceptó la respuesta al comentario', 502);
+        }
+      }
+    }
+
     try {
       return json({ ok: true, ...(await mandarRespuesta(env, chat, {
         partes, autoId, ubicacion, autor: 'persona',
