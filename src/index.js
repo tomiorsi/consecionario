@@ -21,7 +21,7 @@
    sube. Ver `achicar()` en el panel. */
 
 import Anthropic from '@anthropic-ai/sdk';
-import { PLANTILLAS, comoLasPideMeta } from './plantillas.js';
+import { PLANTILLAS, comoLasPideMeta, textoDe, IDIOMA } from './plantillas.js';
 import { DurableObject } from 'cloudflare:workers';
 import { PANEL } from './admin.js';
 import { instruccionesDelBot } from './instrucciones.js';
@@ -2239,6 +2239,18 @@ export class Envios extends DurableObject {
                 espera: conVaivén(PAUSA_ENTRE_PARTES) })));
             }
           }
+        } else if (sigue && paso.plantilla) {
+          /* POSVENTA: texto libre si la persona escribió hace menos de 23
+             horas (la ventana sigue abierta); si no, la plantilla aprobada,
+             con el mismo texto. */
+          const reciente = await this.env.DB.prepare(
+            `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
+                AND creado > datetime('now','-23 hours') LIMIT 1`
+          ).bind(paso.chat.id).first();
+          const id = reciente
+            ? await mandarUno(this.env, paso.chat, paso.texto)
+            : await mandarPlantilla(this.env, paso.chat, paso.plantilla, paso.valores ?? []);
+          await guardarSaliente(this.env, paso.chat.id, paso.texto, paso.autor, id);
         } else if (sigue) {
           const id = await mandarUno(this.env, paso.chat, paso.texto);
           await guardarSaliente(this.env, paso.chat.id, paso.texto, paso.autor, id);
@@ -3109,6 +3121,92 @@ escribí sólo "${aPedido ? 'Hoy no hay nada pendiente' : 'Buen día. Hoy sin no
   if (texto) await escribirleAlJefe(env, texto, { respuesta: aPedido && !porPanel });
 }
 
+/* MANDAR UNA PLANTILLA APROBADA (ver src/plantillas.js). Es lo único que
+   se puede escribir pasadas las 24 horas del último mensaje de la persona. */
+async function mandarPlantilla(env, chat, nombre, valores = []) {
+  const r = await graphMandar(env.WHATSAPP_TOKEN, 'WHATSAPP_TOKEN',
+    `/${env.WHATSAPP_PHONE_ID}/messages`, {
+      messaging_product: 'whatsapp',
+      to: chat.externo_id,
+      type: 'template',
+      template: {
+        name: nombre,
+        language: { code: IDIOMA },
+        ...(valores.length ? { components: [{ type: 'body',
+          parameters: valores.map((t) => ({ type: 'text', text: String(t) })) }] } : {}),
+      },
+    });
+  return r?.messages?.[0]?.id ?? null;
+}
+
+/* ── POSVENTA (Maxi, 29/10) ──────────────────────────────────────
+   "Que vean que estamos presentes, que no nos borramos". Cuenta desde
+   que el cliente queda como "compró" (etapa 'cerrado': Maxi lo dice por
+   WhatsApp o desde el panel).
+   - A las 48 horas: un gracias corto y "acá estamos", con palabras que
+     varían si la ventana está abierta, o la plantilla si no.
+   - A las 72 horas: el pedido de reseña de Google, en los tres mensajes
+     que escribió Maxi, con 5 y 2 segundos entre uno y otro.
+   SI CONTESTA EN EL MEDIO, LO QUE FALTA NO SALE (la cola se corta sola)
+   y le llega un aviso a Maxi: a un cliente que ya compró le contesta una
+   persona. WhatsApp no avisa cuando alguien está escribiendo o grabando,
+   así que no se puede esperar a eso; lo que sí se respeta es si escribió.
+   Sólo de 10 a 20, y una sola vez cada cosa por cliente. */
+const GRACIAS_POSVENTA = [
+  (n) => `Hola ${n}! Cómo va todo con el auto? Te escribo para agradecerte de nuevo por confiar en nosotros. Cualquier cosa que necesites, acá estamos.`,
+  (n) => `${n}, cómo andás? Pasaba a saludarte y a darte las gracias otra vez por elegirnos. Si necesitás algo del auto, escribime cuando quieras.`,
+  (n) => `Hola ${n}! Qué tal los primeros días con el auto? Gracias de nuevo por la confianza. Acá estamos para lo que haga falta.`,
+];
+
+const primerNombre = (nombre) => {
+  const n = String(nombre ?? '').trim().split(/\s+/)[0] ?? '';
+  return /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{1,20}$/.test(n) ? n : '';
+};
+
+async function hacerPosventa(env) {
+  const horaBsAs = new Date(Date.now() - 3 * HORAS).getUTCHours();
+  if (horaBsAs < 10 || horaBsAs >= 20) return;
+  const { results } = await env.DB.prepare(
+    `SELECT id, canal, externo_id, nombre, etapa_cambio,
+            (julianday('now') - julianday(etapa_cambio)) * 24 AS horas
+       FROM conversaciones
+      WHERE etapa = 'cerrado' AND canal = 'whatsapp'
+        AND etapa_cambio > datetime('now','-6 days')`
+  ).all();
+  if (!results?.length) return;
+
+  const hechos = (await leerEstado(env, 'posventa'))?.valor ?? {};
+  for (const c of results) {
+    const h = hechos[c.id] ?? {};
+    const nombre = primerNombre(c.nombre);
+    const chat = { id: c.id, canal: c.canal, externo_id: c.externo_id };
+    let pasos = null;
+    if (!h.gracias && c.horas >= 48 && c.horas < 96) {
+      const libre = GRACIAS_POSVENTA[Math.floor(Math.random() * GRACIAS_POSVENTA.length)](nombre || 'qué tal')
+        .replace(/^qué tal, /, 'Qué tal, ');
+      pasos = [{ plantilla: 'posventa_gracias', valores: [nombre || 'qué tal'], texto: libre, espera: 0 }];
+      h.gracias = new Date().toISOString();
+    } else if (h.gracias && !h.resena && c.horas >= 72 && c.horas < 120) {
+      const valores = [nombre || 'qué tal'];
+      pasos = [
+        { plantilla: 'posventa_resena_1', valores, texto: textoDe('posventa_resena_1', valores), espera: 0 },
+        { plantilla: 'posventa_resena_2', valores: [], texto: textoDe('posventa_resena_2'), espera: 5000 },
+        { plantilla: 'posventa_resena_3', valores: [], texto: textoDe('posventa_resena_3'), espera: 2000 },
+      ];
+      h.resena = new Date().toISOString();
+    }
+    if (!pasos) continue;
+    hechos[c.id] = h;
+    await guardarEstado(env, 'posventa', hechos);
+    const visto = (await env.DB.prepare(
+      `SELECT COALESCE(MAX(id), 0) AS n FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'`
+    ).bind(c.id).first())?.n ?? 0;
+    /* humanoAntes = 1: el chat ya es del equipo y eso no lo corta. */
+    await env.ENVIOS.get(env.ENVIOS.idFromName(`posventa-${c.id}`))
+      .encolar(chat, pasos, 'ia', visto, 1);
+  }
+}
+
 /* LO QUE QUEDÓ SIN CONTESTAR (Maxi, 28/10).
    Si el bot estaba apagado cuando alguien escribió, ese chat quedaba
    colgado para siempre: el bot sólo se despierta con un mensaje nuevo.
@@ -3168,8 +3266,16 @@ async function atenderSolo(env, disparos) {
     if (!canalActivo(cfg, d.canal)) continue;
     try {
       const chat = await env.DB.prepare(
-        'SELECT id, canal, externo_id, humano, nombre, nota FROM conversaciones WHERE id = ?'
+        'SELECT id, canal, externo_id, humano, nombre, nota, etapa FROM conversaciones WHERE id = ?'
       ).bind(d.conversacion).first();
+      /* UN CLIENTE QUE YA COMPRÓ CONTESTA (casi siempre, a la posventa):
+         no le habla el bot, se le avisa a Maxi para que le conteste él. */
+      if (chat?.humano && chat.etapa === 'cerrado' && !esElJefe(env, chat)) {
+        const dijo = await env.DB.prepare('SELECT texto, tipo FROM mensajes WHERE id = ?')
+          .bind(d.mensaje).first();
+        await anotarAviso(env, `Te escribió un cliente que ya compró\n${lineaDe(chat, 'Compró', `«${(dijo?.texto ?? `[${dijo?.tipo ?? 'mensaje'}]`).slice(0, 300)}»`)}`);
+        continue;
+      }
       if (!chat || chat.humano || esElJefe(env, chat)) continue;
 
       const ultimo = await env.DB.prepare(
@@ -3889,6 +3995,8 @@ export default {
 
     const minuto = new Date(evento.scheduledTime ?? Date.now()).getUTCMinutes();
 
+    try { await hacerPosventa(env); }
+    catch (e) { console.error('No se pudo hacer la posventa:', e?.message ?? e); }
     try { await hacerSeguimientos(env); }
     catch (e) { console.error('No se pudieron hacer los seguimientos:', e?.message ?? e); }
     try { await recordarVisitas(env); }
@@ -4351,13 +4459,14 @@ async function admin(peticion, env, ruta, metodo, ctx) {
 
      Subir dos veces la misma no rompe nada: Meta contesta que el nombre
      ya existe y esa plantilla queda como estaba. */
-  if (ruta === '/api/admin/whatsapp/plantillas' && metodo === 'GET') {
+  if (ruta === '/api/admin/whatsapp/plantillas' && (metodo === 'GET' || metodo === 'POST')) {
     const cuenta = env.WHATSAPP_CUENTA_ID;
     if (!cuenta) return error('Falta WHATSAPP_CUENTA_ID', 400);
 
     const salida = { cuenta };
 
-    if (new URL(peticion.url).searchParams.get('crear') === '1') {
+    /* Subir: con ?crear=1, o con POST (sin nada en la dirección). */
+    if (metodo === 'POST' || new URL(peticion.url).searchParams.get('crear') === '1') {
       salida.subidas = [];
       for (const p of PLANTILLAS) {
         const r = await fetch(`${GRAPH}/${cuenta}/message_templates`, {
