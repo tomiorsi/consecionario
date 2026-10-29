@@ -93,7 +93,7 @@ function lineaDeAuto(a) {
 export function instruccionesDelBot({
   autos, posteo, nuestro = null, anuncio = null, canal, automatico,
   yaHablamos = false, saludamosHoy = false, esComentario = false, deNoche = false, nombre = null,
-  deConsignacion = false, aprendizajes = [], hoy = null, seguimiento = false, vendidos = [], reservados = [],
+  deConsignacion = false, aprendizajes = [], hoy = null, seguimiento = false, vendidos = [], reservados = [], deQueAuto = null,
 }) {
   const stock = autos.map(lineaDeAuto).join('\n') || '(no hay autos publicados)';
 
@@ -187,8 +187,18 @@ una consulta.`;
 ${aprendizajes.map((a) => `- ${a}`).join('\n')}`
     : '';
 
+  /* DE QUÉ AUTO VIENE, YA RESUELTO (publicación, historia o anuncio). */
+  const yaSabeElAuto = deQueAuto
+    ? `\nTE ESCRIBE POR ESTE AUTO, SALE DE LA PUBLICACIÓN, HISTORIA O ANUNCIO DE
+DONDE VINO: ${deQueAuto}. Aunque sólo diga "info", "precio" o "+info", es
+por ESE. Contestá por ese auto y NUNCA le preguntes por cuál auto
+consulta: queda mal, ya lo sabemos (Maxi, 29/10). Si después pregunta por
+otro, contestá por el otro.
+`
+    : '';
+
   return `${quien}
-${hoy ? `\nHoy es ${hoy}, hora de Buenos Aires.` : ''}
+${yaSabeElAuto}${hoy ? `\nHoy es ${hoy}, hora de Buenos Aires.` : ''}
 
 ${deDonde}
 
