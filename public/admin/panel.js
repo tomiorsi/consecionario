@@ -230,6 +230,7 @@ function verOrdenando(prende) {
   ordenando = prende;
   if (prende) ordenAntes = autos.slice();
   $('#ordenar').classList.toggle('oculto', prende);
+  $('#fotosWA').classList.toggle('oculto', prende);
   $('#guardarOrden').classList.toggle('oculto', !prende);
   $('#cancelarOrden').classList.toggle('oculto', !prende);
   $('#nuevo').classList.toggle('oculto', prende);
@@ -1809,6 +1810,7 @@ function verPestania(cual) {
   $('#grilla').classList.toggle('oculto', !autos);
   $('#nuevo').classList.toggle('oculto', !autos || ordenando);
   $('#ordenar').classList.toggle('oculto', !autos || ordenando);
+  $('#fotosWA').classList.toggle('oculto', !autos || ordenando);
   $('#guardarOrden').classList.toggle('oculto', !autos || !ordenando);
   $('#cancelarOrden').classList.toggle('oculto', !autos || !ordenando);
   $('#zonaMedios').classList.toggle('oculto', cual !== 'medios');

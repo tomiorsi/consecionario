@@ -15,10 +15,21 @@ export const PANEL = `<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <title>Panel · Manna Motors Selected</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<!-- EL PANEL COMO APP DEL CELULAR (Maxi, 29/10). Se instala desde el
+     navegador con "Agregar a inicio": ícono propio y pantalla completa,
+     sin barra del navegador. Es la misma página: lo que se hace ahí es
+     lo mismo que en la compu. -->
+<link rel="manifest" href="/admin/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/assets/logo/icono-app-1024.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Panel Manna">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0b0b0b">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&family=Montserrat:wght@300..800&display=swap" rel="stylesheet">
@@ -83,6 +94,18 @@ a{color:inherit}
 }
 .barra img{ height:34px; width:auto; display:block }
 .barra .der{ display:flex; align-items:center; gap:.6rem }
+/* EN EL CELULAR. Instalado como app ocupa toda la pantalla, así que la
+   barra deja lugar a la hora y a la muesca (safe-area), y abajo queda
+   aire para la barra de gestos. Los botones de arriba se achican para
+   que entren los tres sin cortarse. */
+.barra{ padding-top:max(1rem, env(safe-area-inset-top)) }
+body{ padding-bottom:env(safe-area-inset-bottom) }
+@media (max-width:560px){
+  .barra{ gap:.5rem; padding-left:.9rem; padding-right:.9rem }
+  .barra img{ height:24px }
+  .barra .der{ gap:.3rem }
+  .barra .der .btn{ padding:.6em .7em; font-size:.5rem; letter-spacing:.08em }
+}
 
 /* ── botones ── */
 button{ font-family:inherit; cursor:pointer }
