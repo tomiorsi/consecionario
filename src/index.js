@@ -2432,6 +2432,18 @@ const quienEs = (chat) => chat.canal === 'whatsapp'
   ? `${telefono(chat.externo_id)}${chat.nombre && chat.nombre !== '-' ? `, ${chat.nombre}` : ''}`
   : `${chat.canal === 'instagram' ? '@' : ''}${chat.nombre ?? 'sin nombre'} (${chat.canal === 'instagram' ? 'Instagram' : 'Facebook'})`;
 
+/* LAS LISTAS DE WHATSAPP DE MAXI (las de la app, 29/10). El bot no puede
+   poner un chat en una lista —Meta no lo deja desde el sistema—, así que
+   le dice en cuál va, con el mismo nombre, y él lo mueve en un toque. */
+const LISTAS = {
+  permuta: 'Importante',
+  consignacion: 'Consignaciones Posibles',
+  visita: 'Visita posible',
+  comprador: 'Posible Comprador',
+  potencial: 'Cliente potencial',
+  reservado: 'Reservado',
+};
+
 /* Una línea por cliente, como las arma Maxi:
    "+54 9 11 1234-5678, Juan (Para tasar)  Peugeot 2008 2020, 99.000 km → Hilux GR" */
 const lineaDe = (chat, estado, detalle) =>
@@ -2742,7 +2754,7 @@ function fichaDeVisita(v) {
     ...(v.visita.length > 10 ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } : {}),
   }).format(new Date(aMs(v.visita)));
   return `${dia}${v.visita.length > 10 ? ' h' : ' (sin hora)'}\n` +
-    `${v.quien} (Visita)  ${[v.condiciones, v.auto && `→ ${v.auto}`].filter(Boolean).join(' ')}`;
+    `${v.quien} (${LISTAS.visita})  ${[v.condiciones, v.auto && `→ ${v.auto}`].filter(Boolean).join(' ')}`;
 }
 
 async function agendarVisita(env, chat, { visita, auto = null, condiciones = null, motivo = null }) {
@@ -2833,7 +2845,8 @@ async function buenDia(env, { aPedido = false } = {}) {
      y qué oportunidades hay. Los últimos mensajes de cada una alcanzan. */
   const { results: chats } = await env.DB.prepare(
     `SELECT id, canal, externo_id, nombre, humano, nota FROM conversaciones
-      WHERE ultimo > datetime('now','-3 days') AND id != ? ORDER BY ultimo DESC LIMIT 30`
+      WHERE ultimo > datetime('now','-3 days') AND id != ?
+      ORDER BY (nota IS NULL), (canal != 'whatsapp'), ultimo DESC LIMIT 40`
   ).bind(jefe?.id ?? 0).all();
   const charlas = [];
   for (const c of chats ?? []) {
@@ -2862,10 +2875,20 @@ para vender más.
 EL FORMATO ES EL DE MAXI. Cada cliente en UNA línea, exactamente así, sin
 viñetas ni guiones al principio:
 +54 9 11 1234-5678, Juan (Para tasar)  Peugeot 2008 2020, 99.000 km → Hilux GR
-Primero el teléfono y el nombre tal como vienen, entre paréntesis el
-estado (Visita, Para tasar, Responder, Lo atiende el equipo, Oportunidad),
-y después su auto con año y km → el auto que le interesa, o en pocas
+Primero el teléfono y el nombre tal como vienen. Entre paréntesis, LA LISTA
+DE WHATSAPP DE MAXI donde va ese chat, con estos nombres exactos:
+- Importante: todo lo que está para tasar (permuta o consignación con
+  datos o fotos) y cualquier cliente caliente para cerrar
+- Visita posible: quiere venir o ya tiene día
+- Consignaciones Posibles: quiere que le vendamos su auto, pero todavía
+  no pasó datos ni fotos
+- Posible Comprador: pregunta por un auto, sin auto para entregar
+- Cliente potencial: interés todavía tibio
+- Reservado: ya reservó
+Después, su auto con año y km → el auto que le interesa, o en pocas
 palabras qué hay que hacer. Los títulos de cada parte, solos en su línea.
+NO DEJES AFUERA A NADIE que esté para tasar, con visita o esperando
+respuesta: cada uno aparece en alguna parte.
 
 Hoy es ${hoyEnBsAs()}.
 
@@ -3045,8 +3068,11 @@ async function atenderSolo(env, disparos) {
       } else if (notaTasar && !String(chat.nota ?? '').startsWith(PARA_TASAR)) {
         /* UNA VEZ POR CLIENTE: cada dato nuevo reescribe la nota y antes
            salía un aviso por cada uno (29/10, tres del mismo Cruze). */
-        await escribirleAlJefe(env,
-          lineaDe(chat, 'Para tasar', notaTasar.replace(/^Para tasar \([^)]*\):\s*/, '')));
+        /* PARA TASAR ES IMPORTANTE, permuta o consignación: ya hay un auto
+           con datos y fotos esperando propuesta (Maxi, 29/10). */
+        await escribirleAlJefe(env, 'Para tasar\n' +
+          lineaDe(chat, LISTAS.permuta,
+            notaTasar.replace(/^Para tasar \([^)]*\):\s*/, '')));
       }
 
       if (r.consulta && !r.derivar) {
