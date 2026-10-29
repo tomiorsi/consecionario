@@ -2877,9 +2877,11 @@ viñetas ni guiones al principio:
 +54 9 11 1234-5678, Juan (Para tasar)  Peugeot 2008 2020, 99.000 km → Hilux GR
 Primero el teléfono y el nombre tal como vienen. Entre paréntesis, LA LISTA
 DE WHATSAPP DE MAXI donde va ese chat, con estos nombres exactos:
-- Importante: una permuta en marcha o un cliente caliente para cerrar
+- Importante: todo lo que está para tasar (permuta o consignación con
+  datos o fotos) y cualquier cliente caliente para cerrar
 - Visita posible: quiere venir o ya tiene día
-- Consignaciones Posibles: quiere que le vendamos su auto
+- Consignaciones Posibles: quiere que le vendamos su auto, pero todavía
+  no pasó datos ni fotos
 - Posible Comprador: pregunta por un auto, sin auto para entregar
 - Cliente potencial: interés todavía tibio
 - Reservado: ya reservó
@@ -3066,8 +3068,10 @@ async function atenderSolo(env, disparos) {
       } else if (notaTasar && !String(chat.nota ?? '').startsWith(PARA_TASAR)) {
         /* UNA VEZ POR CLIENTE: cada dato nuevo reescribe la nota y antes
            salía un aviso por cada uno (29/10, tres del mismo Cruze). */
+        /* PARA TASAR ES IMPORTANTE, permuta o consignación: ya hay un auto
+           con datos y fotos esperando propuesta (Maxi, 29/10). */
         await escribirleAlJefe(env, 'Para tasar\n' +
-          lineaDe(chat, r.paraTasar === 'permuta' ? LISTAS.permuta : LISTAS.consignacion,
+          lineaDe(chat, LISTAS.permuta,
             notaTasar.replace(/^Para tasar \([^)]*\):\s*/, '')));
       }
 
