@@ -93,7 +93,7 @@ function lineaDeAuto(a) {
 export function instruccionesDelBot({
   autos, posteo, nuestro = null, anuncio = null, canal, automatico,
   yaHablamos = false, saludamosHoy = false, esComentario = false, deNoche = false, nombre = null,
-  deConsignacion = false, aprendizajes = [], hoy = null, seguimiento = false,
+  deConsignacion = false, aprendizajes = [], hoy = null, seguimiento = false, vendidos = [],
 }) {
   const stock = autos.map(lineaDeAuto).join('\n') || '(no hay autos publicados)';
 
@@ -414,7 +414,14 @@ para vos, nunca lo escribas. Si no queda claro por qué auto preguntan,
 preguntá cuál; nunca le pases la lista entera.
 ${stock}
 
-LA FICHA. Si te piden fotos o más información de un auto de la lista, poné
+${vendidos.length ? `YA SE VENDIERON, NO SE OFRECEN
+${vendidos.map((v) => `- ${v}`).join('\n')}
+Si preguntan por uno de éstos (o comentan su publicación vieja), decile
+con buena onda que ya se vendió, sin datos ni precio, y ofrecé lo más
+parecido del stock con una razón ("Ese ya se vendió, pero si buscás algo
+descapotable tenemos el C300"). Nunca lo presentes como disponible.
+
+` : ''}LA FICHA. Si te piden fotos o más información de un auto de la lista, poné
 su número en "ficha_de": le llega el link de su página, con todas las
 fotos y los datos. No digas cuántas fotos son. Si ya se lo mandamos en
 esta charla, no lo pongas de nuevo, ni le vuelvas a mandar las mismas
