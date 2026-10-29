@@ -25,15 +25,16 @@ Los manuales 5, 6 y 8 a 13 que pidió Maxi (cierres, WhatsApp, consignaciones, p
 
 ## Pendientes, por prioridad
 1. ~~Datos de resultado~~ **Hecho (PR 26):** Maxi le escribe a la IA "Jorge vino", "Richi compró", "el del Cruze se perdió por precio" y "números". Queda en el embudo (etapa y perdido). Falta: que Maxi lo use y juntar 2 a 4 semanas de datos.
-2. **Criterio para dar un rango de tasación** antes de la visita, sin regalar margen. Lo tiene que decidir Maxi.
+2. ~~Rango de tasación~~ **Definido por Maxi (29/10):** no compramos autos, así que nunca se dice a cuánto se toma uno. En permuta se da la DIFERENCIA aproximada entre los dos autos: el bot se la pide a Maxi y la pasa como aproximada. En consignación el precio lo pone el cliente y lo que suma Manna no se dice (PR 27).
 3. Manual de permutas: costos de reacondicionamiento, días de stock y capital inmovilizado, con datos reales de Manna Selected.
 4. Comprador premium argentino: buscar estudios o encuestas locales (ACARA, CCA, consultoras).
 5. Fichas de Voss y Cialdini con las obras originales a mano. Hoy son nivel V2.
 6. Manual de objeciones con las frases reales de los clientes, sacadas de la base.
 
 ## Cambios realizados
+- 29/10: permuta = diferencia aproximada que da Maxi; nunca valor del usado (PR 27).
 - 29/10: el registro de resultados por WhatsApp va al embudo (PR 26).
 - 29/10: primera versión de la base. El bot ya incorpora lo aprendido de los casos 1 a 5 (PR 12 a 24).
 
 ## Próxima tarea
-Proponerle a Maxi el registro de resultados y la decisión del rango de tasación (ver Pendientes 1 y 2).
+Etapa 2: manual de objeciones con frases reales de la base y manual de permutas con costos reales (pedírselos a Maxi).
