@@ -2105,7 +2105,7 @@ async function ubicacionSinRepetir(_env, _chatId, ubicacion) {
 }
 
 async function mandarRespuesta(env, chat, {
-  partes, autoId = null, ubicacion = false, aWhatsapp = false, autor,
+  partes, autoId = null, ubicacion = false, aWhatsapp = false, autor, despues = null,
 }) {
   const link = await linkSinRepetir(env, chat.id, autoId);
   const fijos = [
@@ -2122,6 +2122,10 @@ async function mandarRespuesta(env, chat, {
   }));
 
   const [primero, ...resto] = pasos;
+  /* Un paso para más tarde (ver SEGUIMIENTO DEL PRECIO en `Envios`): va
+     al final de la cola y se cancela igual que las partes si el cliente
+     escribe antes. */
+  if (despues) resto.push(despues);
   const id = await mandarUno(env, chat, primero.texto);
   await guardarSaliente(env, chat.id, primero.texto, autor, id);
 
@@ -2182,7 +2186,26 @@ export class Envios extends DurableObject {
           .bind(paso.chat.id).first())?.humano ? 1 : 0;
         const sigue = !escribio &&
           (paso.autor !== 'ia' || humanoAhora <= (paso.humanoAntes ?? 0));
-        if (sigue) {
+        if (sigue && paso.pensar) {
+          /* SEGUIMIENTO DEL PRECIO (Maxi, 29/10): le pasamos el precio y
+             a los 20 minutos no contestó. El bot piensa en el momento si
+             le escribe —preguntarle si lo pudo ver y algo cordial— o si
+             no corresponde. Las partes van por esta misma cola: llamar a
+             `mandarRespuesta` desde acá sería pedirle algo a esta cola
+             mientras está ocupada. */
+          const cfg = await configDelBot(this.env);
+          const horaBsAs = new Date(Date.now() - 3 * HORAS).getUTCHours();
+          if (!humanoAhora && canalActivo(cfg, paso.chat.canal) && horaBsAs >= 8 && horaBsAs < 23) {
+            const r = await pensarRespuesta(this.env, paso.chat.id, { automatico: true, seguimiento: paso.pensar });
+            if (r.responder && !r.derivar && r.partes.length) {
+              const [uno, ...otros] = r.partes.slice(0, 2);
+              const id = await mandarUno(this.env, paso.chat, uno);
+              await guardarSaliente(this.env, paso.chat.id, uno, 'ia', id);
+              cola.unshift(...otros.map((texto) => ({ ...paso, pensar: null, texto,
+                espera: conVaivén(PAUSA_ENTRE_PARTES) })));
+            }
+          }
+        } else if (sigue) {
           const id = await mandarUno(this.env, paso.chat, paso.texto);
           await guardarSaliente(this.env, paso.chat.id, paso.texto, paso.autor, id);
         } else {
@@ -2667,6 +2690,9 @@ Si hoy no hubo nada que valga la pena, escribí sólo "Hoy sin dudas".`,
 
 const HORAS = 3600 * 1000;
 
+/* Un precio en lo que dijo el bot: "USD 23.900", "US$ 69.000". */
+const DIO_PRECIO = /\b(USD|US\$|U\$S)\s?\d{1,3}(\.\d{3})+/i;
+
 /* "martes 28 de octubre de 2026, 19:45" en Buenos Aires. */
 function hoyEnBsAs(cuando = new Date()) {
   return new Intl.DateTimeFormat('es-AR', {
@@ -2757,7 +2783,7 @@ async function hacerSeguimientos(env) {
 
   for (const chat of nuevos) {
     try {
-      const r = await pensarRespuesta(env, chat.id, { automatico: true, seguimiento: true });
+      const r = await pensarRespuesta(env, chat.id, { automatico: true, seguimiento: 'dia' });
       if (!r.responder || r.derivar || !r.partes.length) continue;
       await mandarRespuesta(env, chat, { partes: r.partes.slice(0, 1), autoId: r.autoId, autor: 'ia' });
       console.log(JSON.stringify({ bot: 'seguimiento', canal: chat.canal }));
@@ -2969,6 +2995,10 @@ async function atenderSolo(env, disparos) {
       else await mandarRespuesta(env, chat, {
         partes: r.partes, autoId: r.autoId, ubicacion: r.ubicacion,
         aWhatsapp: Boolean(r.derivar || r.irAWhatsapp), autor: 'ia',
+        /* Si le pasó un precio, a los 20 minutos de silencio se piensa un
+           seguimiento (ver `Envios`). */
+        despues: !r.derivar && DIO_PRECIO.test(r.partes.join(' '))
+          ? { pensar: 'precio', texto: null, espera: 20 * 60 * 1000 } : null,
       });
 
       /* LO QUE MAXI TIENE QUE SABER, en el momento: una visita, un chat
