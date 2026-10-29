@@ -1484,16 +1484,17 @@ const FORMA_DE_RESPUESTA = {
     para_tasar: { anyOf: [{ type: 'string', enum: ['permuta', 'consignacion'] }, { type: 'null' }] },
     resumen_para_tasar: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     consulta_a_maxi: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    visita: { anyOf: [{ type: 'string' }, { type: 'null' }] },
   },
   required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion',
-    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'consulta_a_maxi'],
+    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'consulta_a_maxi', 'visita'],
   additionalProperties: false,
 };
 
 const FORMA_EN_TEXTO = `
 
 TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
-{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "consulta_a_maxi": null}
+{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "consulta_a_maxi": null, "visita": null}
 Escribí "partes" siempre, aunque "responder" sea false: así se puede revisar
 qué hubieras dicho.`;
 
@@ -1620,7 +1621,7 @@ function historialParaClaude(mensajes) {
    mandar y para cuando contesta solo: el contexto que junta es el mismo,
    y dos copias garantizan que el día que se arregle una, la otra quede
    vieja. */
-async function pensarRespuesta(env, conversacionId, { automatico = false, deNoche = false } = {}) {
+async function pensarRespuesta(env, conversacionId, { automatico = false, deNoche = false, seguimiento = false } = {}) {
   if (!env.ANTHROPIC_API_KEY) {
     throw new Error('Falta cargar ANTHROPIC_API_KEY en Cloudflare');
   }
@@ -1734,6 +1735,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
       autos: autos ?? [], posteo, nuestro, anuncio, canal: chat.canal,
       automatico, esComentario, deNoche, nombre: chat.nombre, deConsignacion,
       aprendizajes: await loAprendido(env),
+      hoy: hoyEnBsAs(), seguimiento,
       /* Si ya le escribimos por privado, no vuelve a saludar. Lo decide
          el código y no el bot: en una charla larga, el bot se olvidaba. */
       yaHablamos: privados.some((m) => m.direccion === 'saliente'),
@@ -1823,6 +1825,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     paraTasar: ['permuta', 'consignacion'].includes(dato.para_tasar) ? dato.para_tasar : null,
     resumenParaTasar: dato.resumen_para_tasar ? String(dato.resumen_para_tasar).slice(0, 300) : null,
     consulta: !esComentario && dato.consulta_a_maxi ? String(dato.consulta_a_maxi).slice(0, 400) : null,
+    visita: !esComentario && /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(dato.visita ?? '') ? dato.visita : null,
     conPosteo: Boolean(posteo),
     esComentario,
     ultimo,
@@ -2540,6 +2543,189 @@ Si hoy no hubo nada que valga la pena, escribí sólo "Hoy sin dudas".`,
   if (texto && texto !== 'Hoy sin dudas') await escribirleAlJefe(env, `Repaso del día\n\n${texto}`);
 }
 
+/* ── LA AGENDA Y EL SEGUIMIENTO ──────────────────────────────────
+   ══════════════════════════════════════════════════════════════════
+
+   Pedido de Maxi (28/10): "especialista en retargeting, no un pesado
+   sino estratégico; organizame agenda, recordatorios, novedades, avisos,
+   posibles negocios y oportunidades". Cuatro piezas:
+
+   1. VISITAS. Cuando un cliente da un día, el bot lo anota ("visita") y
+      le avisa a Maxi en el momento para que lo confirme.
+   2. RECORDATORIO. Una hora y media antes de cada visita, aviso a Maxi.
+   3. SEGUIMIENTO. Si un cliente con interés real dejó de contestar, a las
+      20 horas el bot decide si le escribe UNA vez, con algo que aporte.
+      Por qué ahí: WhatsApp sólo deja escribir libremente dentro de las 24
+      horas desde el último mensaje del cliente. Pasado eso hace falta una
+      plantilla aprobada por Meta, que además se paga. Uno solo por
+      silencio: después del seguimiento la ventana se cierra sola.
+   4. BUEN DÍA. A las 8:30, a Maxi: visitas del día, a quién llamar,
+      autos para tasar, consultas sin contestar y oportunidades.
+
+   La agenda vive en `estado` ('agenda'), con nombre y los últimos cuatro
+   del teléfono, como todo lo que se le manda a Maxi. Se borra sola una
+   vez pasada la visita. */
+
+const HORAS = 3600 * 1000;
+
+/* "martes 28 de octubre de 2026, 19:45" en Buenos Aires. */
+function hoyEnBsAs(cuando = new Date()) {
+  return new Intl.DateTimeFormat('es-AR', {
+    timeZone: 'America/Argentina/Buenos_Aires', weekday: 'long', day: 'numeric',
+    month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).format(cuando);
+}
+
+/* "2026-10-30 12:00" (hora de Buenos Aires) a milisegundos. Sin hora,
+   se toma el mediodía para ordenar, y no se recuerda a una hora fija. */
+const aMs = (visita) => new Date(
+  `${visita.slice(0, 10)}T${visita.length > 10 ? visita.slice(11, 16) : '12:00'}:00-03:00`
+).getTime();
+
+async function agendarVisita(env, chat, visita, motivo) {
+  const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
+  const resto = agenda.filter((v) => v.chat !== chat.id);
+  resto.push({ chat: chat.id, quien: quienEs(chat), visita, motivo: motivo ?? null, recordada: false });
+  resto.sort((a, b) => aMs(a.visita) - aMs(b.visita));
+  await guardarEstado(env, 'agenda', resto.filter((v) => aMs(v.visita) > Date.now() - 12 * HORAS));
+
+  const dia = new Intl.DateTimeFormat('es-AR', {
+    timeZone: 'America/Argentina/Buenos_Aires', weekday: 'long', day: 'numeric', month: 'long',
+    ...(visita.length > 10 ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } : {}),
+  }).format(new Date(aMs(visita)));
+  await escribirleAlJefe(env,
+    `Visita para confirmar · ${quienEs(chat)}\n` +
+    `${dia}${visita.length > 10 ? '' : ' (sin hora)'}` +
+    (motivo ? `\n${motivo}` : '') +
+    `\n\nEl chat quedó para ustedes: confirmale vos.`);
+}
+
+async function recordarVisitas(env) {
+  const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
+  const ahora = Date.now();
+  let cambio = false;
+  for (const v of agenda) {
+    if (v.recordada || v.visita.length <= 10) continue;
+    const falta = aMs(v.visita) - ahora;
+    if (falta > 0 && falta <= 1.5 * HORAS) {
+      await escribirleAlJefe(env,
+        `En un rato viene ${v.quien}, a las ${v.visita.slice(11, 16)}` + (v.motivo ? `\n${v.motivo}` : ''));
+      v.recordada = true;
+      cambio = true;
+    }
+  }
+  if (cambio) await guardarEstado(env, 'agenda', agenda);
+}
+
+async function hacerSeguimientos(env) {
+  const cfg = await configDelBot(env);
+  if (!enHorario(cfg)) return;
+  /* De día y de tarde: un mensaje de venta a la madrugada es de pesado. */
+  const horaBsAs = new Date(Date.now() - 3 * HORAS).getUTCHours();
+  if (horaBsAs < 9 || horaBsAs >= 21) return;
+
+  const jefe = await chatDelJefe(env);
+  const { results } = await env.DB.prepare(
+    `SELECT c.id, c.canal, c.externo_id, c.nombre, e.id AS suyo
+       FROM conversaciones c
+       JOIN mensajes e ON e.id = (
+         SELECT id FROM mensajes WHERE conversacion_id = c.id AND direccion = 'entrante'
+          AND clase = 'mensaje' ORDER BY creado DESC, id DESC LIMIT 1)
+       JOIN mensajes u ON u.id = (
+         SELECT id FROM mensajes WHERE conversacion_id = c.id
+          ORDER BY creado DESC, id DESC LIMIT 1)
+      WHERE c.humano = 0 AND c.id != ?
+        AND u.direccion = 'saliente' AND u.autor = 'ia'
+        AND e.creado BETWEEN datetime('now','-23 hours','-30 minutes') AND datetime('now','-20 hours')
+      LIMIT 20`
+  ).bind(jefe?.id ?? 0).all();
+
+  const vistos = (await leerEstado(env, 'seguidos'))?.valor ?? [];
+  const nuevos = (results ?? []).filter((c) => canalActivo(cfg, c.canal) && !vistos.includes(c.suyo)).slice(0, 4);
+  if (!nuevos.length) return;
+  await guardarEstado(env, 'seguidos', [...vistos, ...nuevos.map((c) => c.suyo)].slice(-300));
+
+  for (const chat of nuevos) {
+    try {
+      const r = await pensarRespuesta(env, chat.id, { automatico: true, seguimiento: true });
+      if (!r.responder || r.derivar || !r.partes.length) continue;
+      await mandarRespuesta(env, chat, { partes: r.partes.slice(0, 1), autoId: r.autoId, autor: 'ia' });
+      console.log(JSON.stringify({ bot: 'seguimiento', canal: chat.canal }));
+    } catch (e) {
+      console.error('Seguimiento fallido:', e?.message ?? e);
+    }
+  }
+}
+
+async function buenDia(env) {
+  if (!env.ANTHROPIC_API_KEY || !soloDigitos(env.SUPERVISOR_WHATSAPP)) return;
+  const jefe = await chatDelJefe(env);
+
+  const hoy = diaDeBsAs();
+  const agenda = ((await leerEstado(env, 'agenda'))?.valor ?? [])
+    .filter((v) => v.visita.slice(0, 10) >= hoy);
+  const consultas = (await leerEstado(env, 'consultas'))?.valor ?? [];
+  const { results: tasar } = await env.DB.prepare(
+    `SELECT id, canal, externo_id, nombre, nota FROM conversaciones
+      WHERE nota LIKE ? AND ultimo > datetime('now','-14 days') LIMIT 15`
+  ).bind(`${PARA_TASAR}%`).all();
+
+  /* Las charlas de los últimos tres días, para leer quién está caliente
+     y qué oportunidades hay. Los últimos mensajes de cada una alcanzan. */
+  const { results: chats } = await env.DB.prepare(
+    `SELECT id, canal, externo_id, nombre, humano, nota FROM conversaciones
+      WHERE ultimo > datetime('now','-3 days') AND id != ? ORDER BY ultimo DESC LIMIT 30`
+  ).bind(jefe?.id ?? 0).all();
+  const charlas = [];
+  for (const c of chats ?? []) {
+    const { results: ms } = await env.DB.prepare(
+      `SELECT direccion, autor, texto, creado FROM mensajes WHERE conversacion_id = ? AND texto IS NOT NULL
+        ORDER BY creado DESC, id DESC LIMIT 10`
+    ).bind(c.id).all();
+    charlas.push(`### ${quienEs(c)}${c.humano ? ' (lo atiende el equipo)' : ''}${c.nota ? ` · ${c.nota}` : ''}\n` +
+      (ms ?? []).reverse().map((m) =>
+        `${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto.slice(0, 180)}`).join('\n'));
+  }
+  const { results: autos } = await env.DB.prepare(
+    `SELECT marca, modelo, anio, km, precio, moneda FROM autos WHERE estado = 'publicado'`
+  ).all().catch(() => ({ results: [] }));
+
+  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const r = await client.messages.create({
+    model: MODELO,
+    max_tokens: 1500,
+    output_config: { effort: 'medium' },
+    system: `Sos la mano derecha comercial de Maxi, dueño de Manna Selected (autos
+seleccionados, Barracas). Son las 8:30 y le mandás por WhatsApp el resumen
+para arrancar el día. Pensá como el mejor gerente de ventas: qué hay que
+hacer hoy para vender más.
+
+Hoy es ${hoyEnBsAs()}.
+
+Escribile UN mensaje de WhatsApp, rioplatense, directo, sin relleno, de
+hasta 18 renglones, con estas partes y sólo las que tengan algo:
+- Hoy: las visitas del día con hora y a qué vienen.
+- Llamar hoy: hasta 4 clientes calientes que conviene llamar o escribir
+  (nombre y …últimos 4) y por qué, en media línea cada uno.
+- Para tasar: cuántos autos hay esperando propuesta y cuáles.
+- Me debés: consultas del bot sin contestar.
+- Oportunidades: lo que veas en las charlas que puede ser plata. Gente que
+  busca un auto que no tenemos (para salir a buscarlo), un auto que nos
+  ofrecen que encaja con lo que otro busca, un dueño que podría dejarnos
+  el suyo en consignación, una permuta que cierra con algo del stock.
+Sin teléfonos completos. Si no hay nada en una parte, no la pongas. Si no
+hay nada en ninguna, escribí sólo "Buen día. Hoy sin novedades".`,
+    messages: [{ role: 'user', content:
+      `VISITAS\n${agenda.map((v) => `${v.visita} · ${v.quien}${v.motivo ? ` · ${v.motivo}` : ''}`).join('\n') || '(ninguna)'}\n\n` +
+      `PARA TASAR\n${(tasar ?? []).map((c) => `${quienEs(c)}: ${c.nota}`).join('\n') || '(ninguno)'}\n\n` +
+      `CONSULTAS SIN CONTESTAR\n${consultas.map((c) => `${c.n}. ${c.pregunta}`).join('\n') || '(ninguna)'}\n\n` +
+      `STOCK\n${(autos ?? []).map((a) => `${a.marca} ${a.modelo} ${a.anio} · ${a.km} km · ${a.moneda} ${a.precio}`).join('\n')}\n\n` +
+      `CHARLAS DE LOS ÚLTIMOS 3 DÍAS\n\n${charlas.join('\n\n')}` }],
+  });
+  const texto = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+  if (texto) await escribirleAlJefe(env, texto);
+}
+
 /* LO QUE QUEDÓ SIN CONTESTAR (Maxi, 28/10).
    Si el bot estaba apagado cuando alguien escribió, ese chat quedaba
    colgado para siempre: el bot sólo se despierta con un mensaje nuevo.
@@ -2672,6 +2858,11 @@ async function atenderSolo(env, disparos) {
         partes: r.partes, autoId: r.autoId, ubicacion: r.ubicacion,
         aWhatsapp: Boolean(r.derivar || r.irAWhatsapp), autor: 'ia',
       });
+
+      if (r.visita) {
+        await agendarVisita(env, chat, r.visita, r.derivar)
+          .catch((e) => console.error('No se pudo agendar:', e?.message ?? e));
+      }
 
       if (r.consulta && !r.derivar) {
         await consultarAlJefe(env, chat, r.consulta, r.ultimo?.texto)
@@ -3283,6 +3474,16 @@ export default {
     catch (e) { console.error('No se pudo poner al día:', e?.message ?? e); }
 
     const minuto = new Date(evento.scheduledTime ?? Date.now()).getUTCMinutes();
+
+    try { await hacerSeguimientos(env); }
+    catch (e) { console.error('No se pudieron hacer los seguimientos:', e?.message ?? e); }
+    try { await recordarVisitas(env); }
+    catch (e) { console.error('No se pudieron recordar las visitas:', e?.message ?? e); }
+    /* 11:30 UTC = 8:30 en Buenos Aires. */
+    if (hora === 11 && minuto >= 30 && minuto < 35) {
+      try { await buenDia(env); }
+      catch (e) { console.error('No salió el buen día:', e?.message ?? e); }
+    }
     if (hora === 0 && minuto < 5) {
       try { await repasarElDia(env); }
       catch (e) { console.error('No se pudo repasar el día:', e?.message ?? e); }

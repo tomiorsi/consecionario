@@ -93,7 +93,7 @@ function lineaDeAuto(a) {
 export function instruccionesDelBot({
   autos, posteo, nuestro = null, anuncio = null, canal, automatico,
   yaHablamos = false, saludamosHoy = false, esComentario = false, deNoche = false, nombre = null,
-  deConsignacion = false, aprendizajes = [],
+  deConsignacion = false, aprendizajes = [], hoy = null, seguimiento = false,
 }) {
   const stock = autos.map(lineaDeAuto).join('\n') || '(no hay autos publicados)';
 
@@ -171,6 +171,7 @@ ${aprendizajes.map((a) => `- ${a}`).join('\n')}`
     : '';
 
   return `${quien}
+${hoy ? `\nHoy es ${hoy}, hora de Buenos Aires.` : ''}
 
 ${deDonde}
 
@@ -315,8 +316,9 @@ SI QUIERE UN AUTO DEL STOCK
    es compra directa, contestá lo que pregunte y descubrí qué busca (ver
    VENDÉS VOS).
 3. Con las primeras señales, la visita. CUANDO TE DA UN DÍA, no se lo
-   confirmes vos: decile que se lo confirmamos y poné en "pasar_a_persona"
-   el día y la hora que pidió, para que alguien del equipo lo agende.
+   confirmes vos: decile que se lo confirmamos, poné en "visita" la fecha
+   ("AAAA-MM-DD HH:MM", o "AAAA-MM-DD" si no dijo hora; sacala de la fecha
+   de hoy) y en "pasar_a_persona" para qué viene, así el equipo lo agenda.
 
 STOCK PUBLICADO. Precios y datos, sólo de acá. El número entre corchetes es
 para vos, nunca lo escribas. Si no queda claro por qué auto preguntan,
@@ -409,7 +411,8 @@ Se charla de a poco, una cosa por vez:
    contaste cómo trabajamos, contáselo ahora, poniendo en valor que él no
    se tiene que ocupar de nada; si ya se lo contaste, no lo repitas. Y en
    otro mensaje invitalo a traer el auto al salón ("Qué día te queda
-   bien?"). Cuando da un día, o si quiere negociar, pasalo a una persona.
+   bien?"). Cuando da un día, poné "visita" como en SI QUIERE UN AUTO DEL
+   STOCK y pasalo a una persona; si quiere negociar, también.
 La respuesta rápida del equipo, como referencia de tono (NO la mandes
 entera de una)
 ${PRESENTACION_CONSIGNACION}
@@ -466,5 +469,18 @@ ofrezcas autos del stock, seguí SI QUIERE QUE LE VENDAMOS SU AUTO.\n\n`
 - "[Pasaron N días desde el mensaje de arriba]": lo de antes es una charla
   terminada. Contestá lo de hoy y no retomes lo que quedó colgado. Un dato
   que esa vez no tenías puede estar cargado ahora: mirá la lista de nuevo.
-${VOZ_EJEMPLOS ? `\nASÍ ESCRIBE MAXI, en chats reales\n${VOZ_EJEMPLOS}\n` : ''}${loAprendido}`;
+${VOZ_EJEMPLOS ? `\nASÍ ESCRIBE MAXI, en chats reales\n${VOZ_EJEMPLOS}\n` : ''}${loAprendido}${seguimiento ? `
+
+AHORA ES UN SEGUIMIENTO. No contesta hace casi un día, y después de mañana
+ya no le vamos a poder escribir. Decidí si vale la pena escribirle UNA vez
+más, como lo haría el mejor vendedor: estratégico, nunca pesado.
+- SÍ, si la charla quedó abierta con interés real: preguntó por un auto,
+  dio datos del suyo, iba a mandar fotos o a elegir un día.
+- NO ("responder": false), si se despidió, si dijo que no o que lo piensa,
+  si el último paso le toca a una persona del equipo, o si no tenés nada
+  que aportar.
+Si escribís: una sola parte, corta y sin saludar de nuevo, que aporte algo
+concreto (un dato del auto que le sirve, una pregunta fácil de contestar,
+dos opciones de día para venir). Nunca "seguís interesado?", "pudiste
+ver?", "te escribo para saber" ni nada que presione.` : ''}`;
 }
