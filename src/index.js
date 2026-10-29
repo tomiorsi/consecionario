@@ -2408,9 +2408,11 @@ const FORMA_DEL_JEFE = {
     mover_visita: { anyOf: [{ type: 'object', properties: {
       n: { type: 'integer' }, visita: { type: 'string' } },
       required: ['n', 'visita'], additionalProperties: false }, { type: 'null' }] },
+    ya_compraron: { type: 'array', items: { type: 'string' } },
     a_maxi: { type: 'string' },
   },
-  required: ['consulta', 'al_cliente', 'aprendizaje', 'olvidar', 'quitar_visitas', 'mover_visita', 'a_maxi'],
+  required: ['consulta', 'al_cliente', 'aprendizaje', 'olvidar', 'quitar_visitas', 'mover_visita',
+    'ya_compraron', 'a_maxi'],
   additionalProperties: false,
 };
 
@@ -2485,6 +2487,10 @@ Qué hacer con lo que escribió:
   qué condiciones. Si cancela una, sus números en "quitar_visitas". Si la
   cambia de día u hora, "mover_visita" con su número y la fecha nueva
   ("AAAA-MM-DD HH:MM"). Si no toca la agenda, [] y null.
+- LOS QUE YA COMPRARON. Si dice que alguien ya compró o que no le hables
+  más ("Esteban 3944 ya compró", "a 5990 no le escribas"), poné en
+  "ya_compraron" los dígitos de cada teléfono que dio (al menos los
+  últimos 4; sólo los dígitos). Si no los dio, preguntáselos en "a_maxi". Si no, [].
 - "a_maxi": lo que le contestás a él. Corto y natural ("Anotado", "Dale,
   le escribo", "Listo, se lo dije"). Si no entendiste, preguntale.`,
     messages: [{ role: 'user', content: charla }],
@@ -2500,6 +2506,24 @@ Qué hacer con lo que escribió:
     lista.push({ texto: String(dato.aprendizaje).slice(0, 300), cuando: new Date().toISOString() });
   }
   if (dato.aprendizaje || olvidar.size) await guardarEstado(env, 'aprendizajes', lista.slice(-60));
+
+  /* LOS QUE YA COMPRARON: el bot no les vuelve a hablar. Se buscan por
+     los últimos cuatro del teléfono, que es lo que Maxi ve en el celular.
+     Si hay más de un chat que termina igual, no se toca ninguno y se le
+     avisa: mejor preguntar que callar a quien no era. */
+  for (const cuatro of (dato.ya_compraron ?? []).map((d) => soloDigitos(d).slice(-10)).filter((d) => d.length >= 4)) {
+    const { results: chats } = await env.DB.prepare(
+      `SELECT id, canal, externo_id, nombre FROM conversaciones
+        WHERE canal = 'whatsapp' AND externo_id LIKE ?`
+    ).bind(`%${cuatro}`).all();
+    if (chats?.length === 1) {
+      await env.DB.prepare(
+        `UPDATE conversaciones SET humano = 1, nota = 'Ya compró: el bot no le habla' WHERE id = ?`
+      ).bind(chats[0].id).run();
+    } else {
+      dato.a_maxi = `${dato.a_maxi}\n\n(${chats?.length ? `Hay ${chats.length} chats que terminan en ${cuatro}` : `No encontré ningún chat que termine en ${cuatro}`}: pasame el número completo.)`;
+    }
+  }
 
   /* La agenda, como la dejó Maxi. */
   const quitar = new Set((dato.quitar_visitas ?? []).map((n) => n - 1));
@@ -2905,10 +2929,11 @@ async function atenderSolo(env, disparos) {
 
       if (r.esComentario) await atenderComentario(env, chat, r);
       /* UN "OK" DESPUÉS DE DESPEDIRSE NO SE CONTESTA (Maxi, 28/10): el
-         bot puede decidir que no hace falta decir nada. */
-      else if (!r.responder && !r.derivar) {
-        console.log(JSON.stringify({ bot: 'no hacía falta', canal: chat.canal }));
-        continue;
+         bot puede decidir que no hace falta decir nada. Y A QUIEN YA
+         COMPRÓ, NI UNA PALABRA: pasa al equipo en silencio (Esteban,
+         28/10: el bot le habló como a un desconocido). */
+      else if (!r.responder) {
+        console.log(JSON.stringify({ bot: r.derivar ? 'pasó en silencio' : 'no hacía falta', canal: chat.canal }));
       }
       else await mandarRespuesta(env, chat, {
         partes: r.partes, autoId: r.autoId, ubicacion: r.ubicacion,
