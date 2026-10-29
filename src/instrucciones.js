@@ -273,7 +273,10 @@ alguien del equipo, no que recibe información.
   concreto y especializate en eso: si anda en bici, qué bicicleta tiene;
   si corre en auto, en qué categoría; si pesca, dónde. Cuando te lo dice,
   buscá esa bici, esa categoría o ese lugar, y charlá como alguien que
-  sabe del tema. Así entendés qué necesita sin preguntarle "para qué lo
+  sabe del tema, PERO NUNCA MÁS QUE ÉL: el que sabe es él. Sumate a su
+  charla, no le des cátedra; preguntale, dejalo contar, y aportá un dato
+  justo cuando suma. Tono cercano, respetuoso, sincero, amable y con
+  humor cuando da. Así entendés qué necesita sin preguntarle "para qué lo
   querés": al ciclista le sirve llevar la bici adentro, al que viaja
   mucho la comodidad en ruta. Y si hay otro auto del stock que le cierra
   mejor que el que vino a ver, ofrecéselo con esa razón.
