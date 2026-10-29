@@ -2229,7 +2229,8 @@ export class Envios extends DurableObject {
              mientras está ocupada. */
           const cfg = await configDelBot(this.env);
           const horaBsAs = new Date(Date.now() - 3 * HORAS).getUTCHours();
-          if (!humanoAhora && canalActivo(cfg, paso.chat.canal) && horaBsAs >= 8 && horaBsAs < 23) {
+          if (!humanoAhora && !(await loAtendioElEquipo(this.env, paso.chat.id))
+              && canalActivo(cfg, paso.chat.canal) && horaBsAs >= 8 && horaBsAs < 23) {
             const r = await pensarRespuesta(this.env, paso.chat.id, { automatico: true, seguimiento: paso.pensar });
             if (r.responder && !r.derivar && r.partes.length) {
               const [uno, ...otros] = r.partes.slice(0, 2);
@@ -2898,6 +2899,18 @@ Si hoy no hubo nada que valga la pena, escribí sólo "Hoy sin dudas".`,
 
 const HORAS = 3600 * 1000;
 
+/* LO QUE ATENDIÓ EL EQUIPO NO LO TOCA EL BOT, NUNCA MÁS (Maxi, 29/10:
+   "todo lo que atendimos nosotros, no les hables"). Alcanza con un
+   mensaje de una persona —desde el celular o desde el panel— en
+   cualquier momento de la charla. Sólo la posventa le escribe después,
+   y eso es a propósito. */
+async function loAtendioElEquipo(env, chatId) {
+  return Boolean(await env.DB.prepare(
+    `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
+        AND autor = 'persona' LIMIT 1`
+  ).bind(chatId).first());
+}
+
 /* Un precio en lo que dijo el bot: "USD 23.900", "US$ 69.000". */
 const DIO_PRECIO = /\b(USD|US\$|U\$S)\s?\d{1,3}(\.\d{3})+/i;
 
@@ -2987,6 +3000,7 @@ async function hacerSeguimientos(env) {
 
   for (const chat of nuevos) {
     try {
+      if (await loAtendioElEquipo(env, chat.id)) continue;
       const r = await pensarRespuesta(env, chat.id, { automatico: true, seguimiento: 'dia' });
       if (!r.responder || r.derivar || !r.partes.length) continue;
       await mandarRespuesta(env, chat, { partes: r.partes.slice(0, 1), autoId: r.autoId, autor: 'ia' });
@@ -3230,7 +3244,7 @@ async function ponerseAlDia(env, { hasta = 10 } = {}) {
         AND m.creado BETWEEN datetime('now','-12 hours') AND datetime('now','-2 minutes')
         AND NOT EXISTS (
           SELECT 1 FROM mensajes p WHERE p.conversacion_id = c.id
-             AND p.autor = 'persona' AND p.creado > datetime('now','-12 hours'))
+             AND p.direccion = 'saliente' AND p.autor = 'persona')
       ORDER BY m.creado
       LIMIT 50`
   ).all();
@@ -3277,6 +3291,7 @@ async function atenderSolo(env, disparos) {
         continue;
       }
       if (!chat || chat.humano || esElJefe(env, chat)) continue;
+      if (await loAtendioElEquipo(env, chat.id)) continue;
 
       const ultimo = await env.DB.prepare(
         `SELECT id FROM mensajes WHERE conversacion_id = ?
