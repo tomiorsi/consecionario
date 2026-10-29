@@ -1503,16 +1503,17 @@ const FORMA_DE_RESPUESTA = {
     visita: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     visita_auto: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     visita_condiciones: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    interesado_reservado: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
   },
   required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion',
-    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_condiciones'],
+    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_condiciones', 'interesado_reservado'],
   additionalProperties: false,
 };
 
 const FORMA_EN_TEXTO = `
 
 TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
-{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null}
+{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "interesado_reservado": null}
 Escribí "partes" siempre, aunque "responder" sea false: así se puede revisar
 qué hubieras dicho.`;
 
@@ -1698,6 +1699,12 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
       ORDER BY a.orden, a.creado DESC`
   ).all();
 
+  /* LO RESERVADO CON SEÑA (Maxi, 29/10): sigue publicado, pero no se
+     ofrece como disponible. Vive en `estado.reservados` porque la tabla
+     de autos no tiene ese estado y agregarlo pide cambiar la base. */
+  const reservadosIds = (await leerEstado(env, 'reservados'))?.valor ?? [];
+  const reservados = (autos ?? []).filter((a) => reservadosIds.includes(a.id));
+
   /* LO QUE YA SE VENDIÓ, para no ofrecerlo (Maxi, 29/10: el bot seguía
      ofreciendo el 500C en Instagram, abajo de su publicación vieja). */
   const { results: vendidos } = await env.DB.prepare(
@@ -1761,6 +1768,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
       automatico, esComentario, deNoche, nombre: chat.nombre, deConsignacion,
       aprendizajes: await loAprendido(env),
       vendidos: (vendidos ?? []).map((a) => [a.marca, a.modelo, a.anio].filter(Boolean).join(' ')),
+      reservados: reservados.map((a) => `[${a.id}] ${[a.marca, a.modelo, a.anio].filter(Boolean).join(' ')}`),
       hoy: hoyEnBsAs(), seguimiento,
       /* Si ya le escribimos por privado, no vuelve a saludar. Lo decide
          el código y no el bot: en una charla larga, el bot se olvidaba. */
@@ -1857,6 +1865,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     visita: !esComentario && /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(dato.visita ?? '') ? dato.visita : null,
     visitaAuto: dato.visita_auto ? String(dato.visita_auto).slice(0, 120) : null,
     visitaCondiciones: dato.visita_condiciones ? String(dato.visita_condiciones).slice(0, 300) : null,
+    interesadoReservado: reservados.some((a) => a.id === dato.interesado_reservado) ? dato.interesado_reservado : null,
     conPosteo: Boolean(posteo),
     esComentario,
     ultimo,
@@ -2544,6 +2553,8 @@ const FORMA_DEL_JEFE = {
       required: ['n', 'visita'], additionalProperties: false }, { type: 'null' }] },
     ya_compraron: { type: 'array', items: { type: 'string' } },
     vendidos: { type: 'array', items: { type: 'integer' } },
+    reservar: { type: 'array', items: { type: 'integer' } },
+    se_cayo_reserva: { type: 'array', items: { type: 'integer' } },
     resumen: { type: 'boolean' },
     resultados: { type: 'array', items: { type: 'object', properties: {
       quien: { type: 'string' },
@@ -2554,7 +2565,7 @@ const FORMA_DEL_JEFE = {
     a_maxi: { type: 'string' },
   },
   required: ['consulta', 'al_cliente', 'aprendizaje', 'olvidar', 'quitar_visitas', 'mover_visita',
-    'ya_compraron', 'vendidos', 'resumen', 'resultados', 'numeros', 'a_maxi'],
+    'ya_compraron', 'vendidos', 'reservar', 'se_cayo_reserva', 'resumen', 'resultados', 'numeros', 'a_maxi'],
   additionalProperties: false,
 };
 
@@ -2652,6 +2663,10 @@ Qué hacer con lo que escribió:
 - EL RESUMEN. Si pide el resumen o qué tiene hoy ("resumen", "qué tengo
   hoy?", "pasame todo"), "resumen": true y en "a_maxi" sólo "Ya te lo
   armo". Si no, false.
+- RESERVAS. Si dice que un auto se reservó o se señó ("el C300 se
+  reservó con una seña"), su número del stock en "reservar". Si dice que
+  se cayó la reserva, en "se_cayo_reserva". Si no queda claro cuál es,
+  preguntale. Si no, [] y [].
 - LO QUE SE VENDIÓ. Si dice que un auto se vendió ("se vendió el 500"),
   poné su número del stock en "vendidos" y confirmale cuál marcaste. Si
   no queda claro cuál es, preguntale y dejá []. Si no, [].
@@ -2693,11 +2708,41 @@ Qué hacer con lo que escribió:
     }
   }
 
+  /* RESERVAS: se marca o se desmarca. Si se cae, se le pasa a Maxi la
+     lista de los que preguntaron mientras tanto, para avisarles. */
+  let reservados = (await leerEstado(env, 'reservados'))?.valor ?? [];
+  const reservar = (dato.reservar ?? []).filter((n) => (stock ?? []).some((a) => a.id === n));
+  const caidas = (dato.se_cayo_reserva ?? []).filter((n) => reservados.includes(n));
+  if (reservar.length || caidas.length) {
+    reservados = [...new Set([...reservados, ...reservar])].filter((n) => !caidas.includes(n));
+    await guardarEstado(env, 'reservados', reservados);
+  }
+  if (caidas.length) {
+    const esperan = (await leerEstado(env, 'esperan_reserva'))?.valor ?? {};
+    for (const id of caidas) {
+      const auto = (stock ?? []).find((a) => a.id === id);
+      const lineas = [];
+      for (const chatId of esperan[id] ?? []) {
+        const c = await env.DB.prepare('SELECT id, canal, externo_id, nombre FROM conversaciones WHERE id = ?')
+          .bind(chatId).first();
+        if (c) lineas.push(lineaDe(c, 'Importante', `Preguntó por el ${auto?.modelo ?? 'auto'} mientras estaba reservado. Avisale que se liberó.`));
+      }
+      delete esperan[id];
+      await anotarAviso(env, `Se cayó la reserva del ${auto ? `${auto.marca} ${auto.modelo}` : 'auto'}` +
+        (lineas.length ? `. Avisales a los que preguntaron:\n${lineas.join('\n')}` : '. Nadie preguntó mientras estuvo reservado.'));
+    }
+    await guardarEstado(env, 'esperan_reserva', esperan);
+  }
+
   /* LO VENDIDO SALE DEL STOCK AL INSTANTE (Maxi, 29/10: el bot le
      ofreció a un cliente el 500C, que ya se había vendido). Es el mismo
      cambio que el botón del panel: deja de verse en el sitio y el bot ya
      no lo ofrece. Sólo autos que estaban publicados. */
   const publicados = new Set((stock ?? []).map((a) => a.id));
+  if ((dato.vendidos ?? []).some((n) => reservados.includes(n))) {
+    reservados = reservados.filter((n) => !(dato.vendidos ?? []).includes(n));
+    await guardarEstado(env, 'reservados', reservados);
+  }
   for (const id of (dato.vendidos ?? []).filter((n) => publicados.has(n))) {
     await env.DB.prepare(
       `UPDATE autos SET estado = 'vendido', editado = datetime('now') WHERE id = ? AND estado = 'publicado'`
@@ -3384,6 +3429,16 @@ async function atenderSolo(env, disparos) {
         await escribirleAlJefe(env, 'Para tasar\n' +
           lineaDe(chat, LISTAS.permuta,
             notaTasar.replace(/^Para tasar \([^)]*\):\s*/, '')));
+      }
+
+      /* A QUIÉN AVISARLE SI SE CAE LA RESERVA. */
+      if (r.interesadoReservado) {
+        const esperan = (await leerEstado(env, 'esperan_reserva'))?.valor ?? {};
+        const lista = esperan[r.interesadoReservado] ?? [];
+        if (!lista.includes(chat.id)) {
+          esperan[r.interesadoReservado] = [...lista, chat.id].slice(-50);
+          await guardarEstado(env, 'esperan_reserva', esperan);
+        }
       }
 
       if (r.consulta && !r.derivar) {

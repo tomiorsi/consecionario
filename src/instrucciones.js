@@ -93,7 +93,7 @@ function lineaDeAuto(a) {
 export function instruccionesDelBot({
   autos, posteo, nuestro = null, anuncio = null, canal, automatico,
   yaHablamos = false, saludamosHoy = false, esComentario = false, deNoche = false, nombre = null,
-  deConsignacion = false, aprendizajes = [], hoy = null, seguimiento = false, vendidos = [],
+  deConsignacion = false, aprendizajes = [], hoy = null, seguimiento = false, vendidos = [], reservados = [],
 }) {
   const stock = autos.map(lineaDeAuto).join('\n') || '(no hay autos publicados)';
 
@@ -416,7 +416,15 @@ para vos, nunca lo escribas. Si no queda claro por qué auto preguntan,
 preguntá cuál; nunca le pases la lista entera.
 ${stock}
 
-${vendidos.length ? `YA SE VENDIERON, NO SE OFRECEN
+${reservados.length ? `RESERVADOS CON SEÑA. Siguen en la lista, pero NO están disponibles
+${reservados.map((v) => `- ${v}`).join('\n')}
+No los ofrezcas. Si preguntan por uno, con buena onda: que lo reservaron
+hace poco y que si llega a caerse la reserva le avisamos, y en otro
+mensaje ofrecé lo más parecido del stock con una razón. Sin precio ni
+datos del reservado. Poné su número en "interesado_reservado" para
+avisarle si se libera.
+
+` : ''}${vendidos.length ? `YA SE VENDIERON, NO SE OFRECEN
 ${vendidos.map((v) => `- ${v}`).join('\n')}
 Si preguntan por uno de éstos (o comentan su publicación vieja), decile
 con buena onda que ya se vendió, sin datos ni precio, y ofrecé lo más
