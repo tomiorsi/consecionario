@@ -1698,6 +1698,13 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
       ORDER BY a.orden, a.creado DESC`
   ).all();
 
+  /* LO QUE YA SE VENDIÓ, para no ofrecerlo (Maxi, 29/10: el bot seguía
+     ofreciendo el 500C en Instagram, abajo de su publicación vieja). */
+  const { results: vendidos } = await env.DB.prepare(
+    `SELECT marca, modelo, anio FROM autos WHERE estado = 'vendido'
+      AND COALESCE(editado, creado) > datetime('now','-180 days')`
+  ).all();
+
   /* DE QUÉ PUBLICACIÓN SALE ESTO.
      En un comentario, la suya. En un privado, la del comentario que lo
      originó — pero sólo si fue de lo último que pasó: si hay que irse
@@ -1753,6 +1760,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
       autos: autos ?? [], posteo, nuestro, anuncio, canal: chat.canal,
       automatico, esComentario, deNoche, nombre: chat.nombre, deConsignacion,
       aprendizajes: await loAprendido(env),
+      vendidos: (vendidos ?? []).map((a) => [a.marca, a.modelo, a.anio].filter(Boolean).join(' ')),
       hoy: hoyEnBsAs(), seguimiento,
       /* Si ya le escribimos por privado, no vuelve a saludar. Lo decide
          el código y no el bot: en una charla larga, el bot se olvidaba. */
