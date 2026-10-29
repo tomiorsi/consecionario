@@ -384,9 +384,14 @@ async function paginaDeAuto(peticion, env, url, a) {
   /* LA FOTO DEL AUTO, O LA DE PORTADA SI TODAVÍA NO TIENE NINGUNA. Un
      og:image vacío no deja "sin foto": deja a WhatsApp mostrando un
      rectángulo gris con la dirección, que se ve peor que la portada. */
-  const foto = a.fotos[0]
-    ? `${SITIO}/fotos/${a.fotos[0].clave}-1600.webp`
-    : `${SITIO}/assets/video/portada-desktop-poster.jpg`;
+  /* PARA WHATSAPP, EL JPG CHICO SI ESTÁ. Con el WebP de 1600 px la
+     vista previa salía sin foto (Maxi, 29/10). */
+  const ogJpg = a.fotos[0] && await env.FOTOS.head(`${a.fotos[0].clave}-og.jpg`).catch(() => null);
+  const foto = !a.fotos[0]
+    ? `${SITIO}/assets/video/portada-desktop-poster.jpg`
+    : ogJpg
+    ? `${SITIO}/fotos/${a.fotos[0].clave}-og.jpg`
+    : `${SITIO}/fotos/${a.fotos[0].clave}-1600.webp`;
 
   const pagina = await env.ARCHIVOS.fetch(
     new Request(new URL('/garage/', url), { method: 'GET', headers: peticion.headers })
@@ -1755,11 +1760,12 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
       /* "Hoy" es el día de Buenos Aires. Las fechas de la base son UTC. */
       saludamosHoy: privados.some((m) => m.direccion === 'saliente' && diaDeBsAs(m.creado) === diaDeBsAs()),
     }) + FORMA_EN_TEXTO,
-    /* BUSCAR EN LA WEB, PARA NO INVENTAR: si el bot va a decir algo del
-       modelo del auto del cliente (una versión, un motor), lo verifica
-       antes. La búsqueda es sobre el modelo, nunca sobre la persona, y la
-       hace Anthropic, que ya está declarado. Dos por respuesta como mucho. */
-    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }],
+    /* BUSCAR EN LA WEB, PARA NO INVENTAR: el modelo del auto del cliente
+       (una versión, un motor) y, desde el 28/10, el tema que traiga a la
+       charla (Maxi: "que converse de cualquier tema e investigue"). Se
+       busca el tema, NUNCA a la persona, y lo hace Anthropic, que ya está
+       declarado. Tres por respuesta como mucho. */
+    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
     messages: turnos,
   };
 
@@ -2026,8 +2032,13 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
    Meta se ve enseguida en el panel, y las pausas no dependen de que
    nadie espere: Cloudflare no deja que una tarea suelta siga más de
    treinta segundos. */
-const PAUSA_ENTRE_PARTES = 10000;
-const PAUSA_TRAS_EL_LINK = 12000;
+/* MÁS PAUSA Y NUNCA LA MISMA (Maxi, 29/10: "manejá más pausas"). Una
+   persona no escribe a intervalos exactos: entre 14 y 22 segundos entre
+   mensajes, y un poco más después del link, que es lo que el cliente se
+   queda mirando. */
+const PAUSA_ENTRE_PARTES = 14000;
+const PAUSA_TRAS_EL_LINK = 18000;
+const conVaivén = (ms) => ms + Math.floor(Math.random() * 8000);
 
 /* LA UBICACIÓN ES UN MENSAJE FIJO, NO LO ESCRIBE EL BOT. Así la mandan en
    los chats: la dirección y el link, solos, que el chat muestra con su
@@ -2094,7 +2105,7 @@ async function ubicacionSinRepetir(_env, _chatId, ubicacion) {
 }
 
 async function mandarRespuesta(env, chat, {
-  partes, autoId = null, ubicacion = false, aWhatsapp = false, autor,
+  partes, autoId = null, ubicacion = false, aWhatsapp = false, autor, despues = null,
 }) {
   const link = await linkSinRepetir(env, chat.id, autoId);
   const fijos = [
@@ -2107,10 +2118,14 @@ async function mandarRespuesta(env, chat, {
   const textos = armarTextos(partes, fijos);
   const pasos = textos.map((texto, n) => ({
     texto,
-    espera: n === 0 ? 0 : fijos.includes(textos[n - 1]) ? PAUSA_TRAS_EL_LINK : PAUSA_ENTRE_PARTES,
+    espera: n === 0 ? 0 : conVaivén(fijos.includes(textos[n - 1]) ? PAUSA_TRAS_EL_LINK : PAUSA_ENTRE_PARTES),
   }));
 
   const [primero, ...resto] = pasos;
+  /* Un paso para más tarde (ver SEGUIMIENTO DEL PRECIO en `Envios`): va
+     al final de la cola y se cancela igual que las partes si el cliente
+     escribe antes. */
+  if (despues) resto.push(despues);
   const id = await mandarUno(env, chat, primero.texto);
   await guardarSaliente(env, chat.id, primero.texto, autor, id);
 
@@ -2171,7 +2186,26 @@ export class Envios extends DurableObject {
           .bind(paso.chat.id).first())?.humano ? 1 : 0;
         const sigue = !escribio &&
           (paso.autor !== 'ia' || humanoAhora <= (paso.humanoAntes ?? 0));
-        if (sigue) {
+        if (sigue && paso.pensar) {
+          /* SEGUIMIENTO DEL PRECIO (Maxi, 29/10): le pasamos el precio y
+             a los 20 minutos no contestó. El bot piensa en el momento si
+             le escribe —preguntarle si lo pudo ver y algo cordial— o si
+             no corresponde. Las partes van por esta misma cola: llamar a
+             `mandarRespuesta` desde acá sería pedirle algo a esta cola
+             mientras está ocupada. */
+          const cfg = await configDelBot(this.env);
+          const horaBsAs = new Date(Date.now() - 3 * HORAS).getUTCHours();
+          if (!humanoAhora && canalActivo(cfg, paso.chat.canal) && horaBsAs >= 8 && horaBsAs < 23) {
+            const r = await pensarRespuesta(this.env, paso.chat.id, { automatico: true, seguimiento: paso.pensar });
+            if (r.responder && !r.derivar && r.partes.length) {
+              const [uno, ...otros] = r.partes.slice(0, 2);
+              const id = await mandarUno(this.env, paso.chat, uno);
+              await guardarSaliente(this.env, paso.chat.id, uno, 'ia', id);
+              cola.unshift(...otros.map((texto) => ({ ...paso, pensar: null, texto,
+                espera: conVaivén(PAUSA_ENTRE_PARTES) })));
+            }
+          }
+        } else if (sigue) {
           const id = await mandarUno(this.env, paso.chat, paso.texto);
           await guardarSaliente(this.env, paso.chat.id, paso.texto, paso.autor, id);
         } else {
@@ -2407,9 +2441,12 @@ const FORMA_DEL_JEFE = {
     mover_visita: { anyOf: [{ type: 'object', properties: {
       n: { type: 'integer' }, visita: { type: 'string' } },
       required: ['n', 'visita'], additionalProperties: false }, { type: 'null' }] },
+    ya_compraron: { type: 'array', items: { type: 'string' } },
+    vendidos: { type: 'array', items: { type: 'integer' } },
     a_maxi: { type: 'string' },
   },
-  required: ['consulta', 'al_cliente', 'aprendizaje', 'olvidar', 'quitar_visitas', 'mover_visita', 'a_maxi'],
+  required: ['consulta', 'al_cliente', 'aprendizaje', 'olvidar', 'quitar_visitas', 'mover_visita',
+    'ya_compraron', 'vendidos', 'a_maxi'],
   additionalProperties: false,
 };
 
@@ -2428,6 +2465,9 @@ async function atenderAlJefe(env, conversacionId, mensajeId) {
   const aprendizajes = (await leerEstado(env, 'aprendizajes'))?.valor ?? [];
   const agenda = ((await leerEstado(env, 'agenda'))?.valor ?? [])
     .filter((v) => aMs(v.visita) > Date.now() - 12 * HORAS);
+  const { results: stock } = await env.DB.prepare(
+    `SELECT id, marca, modelo, anio, km FROM autos WHERE estado = 'publicado' ORDER BY id`
+  ).all();
 
   /* Cada consulta con lo último de su charla, para que la respuesta al
      cliente siga el hilo. */
@@ -2464,6 +2504,9 @@ HOY ES ${hoyEnBsAs()}.
 LA AGENDA (numerada)
 ${agenda.map((v, i) => `${i + 1}. ${v.visita} · ${v.quien} · ${v.auto ?? ''} · ${v.condiciones ?? v.motivo ?? ''}`).join('\n') || '(vacía)'}
 
+EL STOCK PUBLICADO (número entre corchetes)
+${(stock ?? []).map((a) => `[${a.id}] ${a.marca} ${a.modelo} ${a.anio} · ${a.km} km`).join('\n') || '(vacío)'}
+
 LO QUE YA TE ENSEÑÓ (numerado)
 ${aprendizajes.map((a, i) => `${i + 1}. ${a.texto}`).join('\n') || '(nada todavía)'}
 
@@ -2484,6 +2527,13 @@ Qué hacer con lo que escribió:
   qué condiciones. Si cancela una, sus números en "quitar_visitas". Si la
   cambia de día u hora, "mover_visita" con su número y la fecha nueva
   ("AAAA-MM-DD HH:MM"). Si no toca la agenda, [] y null.
+- LO QUE SE VENDIÓ. Si dice que un auto se vendió ("se vendió el 500"),
+  poné su número del stock en "vendidos" y confirmale cuál marcaste. Si
+  no queda claro cuál es, preguntale y dejá []. Si no, [].
+- LOS QUE YA COMPRARON. Si dice que alguien ya compró o que no le hables
+  más ("Esteban 3944 ya compró", "a 5990 no le escribas"), poné en
+  "ya_compraron" los dígitos de cada teléfono que dio (al menos los
+  últimos 4; sólo los dígitos). Si no los dio, preguntáselos en "a_maxi". Si no, [].
 - "a_maxi": lo que le contestás a él. Corto y natural ("Anotado", "Dale,
   le escribo", "Listo, se lo dije"). Si no entendiste, preguntale.`,
     messages: [{ role: 'user', content: charla }],
@@ -2499,6 +2549,35 @@ Qué hacer con lo que escribió:
     lista.push({ texto: String(dato.aprendizaje).slice(0, 300), cuando: new Date().toISOString() });
   }
   if (dato.aprendizaje || olvidar.size) await guardarEstado(env, 'aprendizajes', lista.slice(-60));
+
+  /* LOS QUE YA COMPRARON: el bot no les vuelve a hablar. Se buscan por
+     los últimos cuatro del teléfono, que es lo que Maxi ve en el celular.
+     Si hay más de un chat que termina igual, no se toca ninguno y se le
+     avisa: mejor preguntar que callar a quien no era. */
+  for (const cuatro of (dato.ya_compraron ?? []).map((d) => soloDigitos(d).slice(-10)).filter((d) => d.length >= 4)) {
+    const { results: chats } = await env.DB.prepare(
+      `SELECT id, canal, externo_id, nombre FROM conversaciones
+        WHERE canal = 'whatsapp' AND externo_id LIKE ?`
+    ).bind(`%${cuatro}`).all();
+    if (chats?.length === 1) {
+      await env.DB.prepare(
+        `UPDATE conversaciones SET humano = 1, nota = 'Ya compró: el bot no le habla' WHERE id = ?`
+      ).bind(chats[0].id).run();
+    } else {
+      dato.a_maxi = `${dato.a_maxi}\n\n(${chats?.length ? `Hay ${chats.length} chats que terminan en ${cuatro}` : `No encontré ningún chat que termine en ${cuatro}`}: pasame el número completo.)`;
+    }
+  }
+
+  /* LO VENDIDO SALE DEL STOCK AL INSTANTE (Maxi, 29/10: el bot le
+     ofreció a un cliente el 500C, que ya se había vendido). Es el mismo
+     cambio que el botón del panel: deja de verse en el sitio y el bot ya
+     no lo ofrece. Sólo autos que estaban publicados. */
+  const publicados = new Set((stock ?? []).map((a) => a.id));
+  for (const id of (dato.vendidos ?? []).filter((n) => publicados.has(n))) {
+    await env.DB.prepare(
+      `UPDATE autos SET estado = 'vendido', editado = datetime('now') WHERE id = ? AND estado = 'publicado'`
+    ).bind(id).run();
+  }
 
   /* La agenda, como la dejó Maxi. */
   const quitar = new Set((dato.quitar_visitas ?? []).map((n) => n - 1));
@@ -2611,6 +2690,9 @@ Si hoy no hubo nada que valga la pena, escribí sólo "Hoy sin dudas".`,
 
 const HORAS = 3600 * 1000;
 
+/* Un precio en lo que dijo el bot: "USD 23.900", "US$ 69.000". */
+const DIO_PRECIO = /\b(USD|US\$|U\$S)\s?\d{1,3}(\.\d{3})+/i;
+
 /* "martes 28 de octubre de 2026, 19:45" en Buenos Aires. */
 function hoyEnBsAs(cuando = new Date()) {
   return new Intl.DateTimeFormat('es-AR', {
@@ -2701,7 +2783,7 @@ async function hacerSeguimientos(env) {
 
   for (const chat of nuevos) {
     try {
-      const r = await pensarRespuesta(env, chat.id, { automatico: true, seguimiento: true });
+      const r = await pensarRespuesta(env, chat.id, { automatico: true, seguimiento: 'dia' });
       if (!r.responder || r.derivar || !r.partes.length) continue;
       await mandarRespuesta(env, chat, { partes: r.partes.slice(0, 1), autoId: r.autoId, autor: 'ia' });
       console.log(JSON.stringify({ bot: 'seguimiento', canal: chat.canal }));
@@ -2904,14 +2986,19 @@ async function atenderSolo(env, disparos) {
 
       if (r.esComentario) await atenderComentario(env, chat, r);
       /* UN "OK" DESPUÉS DE DESPEDIRSE NO SE CONTESTA (Maxi, 28/10): el
-         bot puede decidir que no hace falta decir nada. */
-      else if (!r.responder && !r.derivar) {
-        console.log(JSON.stringify({ bot: 'no hacía falta', canal: chat.canal }));
-        continue;
+         bot puede decidir que no hace falta decir nada. Y A QUIEN YA
+         COMPRÓ, NI UNA PALABRA: pasa al equipo en silencio (Esteban,
+         28/10: el bot le habló como a un desconocido). */
+      else if (!r.responder) {
+        console.log(JSON.stringify({ bot: r.derivar ? 'pasó en silencio' : 'no hacía falta', canal: chat.canal }));
       }
       else await mandarRespuesta(env, chat, {
         partes: r.partes, autoId: r.autoId, ubicacion: r.ubicacion,
         aWhatsapp: Boolean(r.derivar || r.irAWhatsapp), autor: 'ia',
+        /* Si le pasó un precio, a los 20 minutos de silencio se piensa un
+           seguimiento (ver `Envios`). */
+        despues: !r.derivar && DIO_PRECIO.test(r.partes.join(' '))
+          ? { pensar: 'precio', texto: null, espera: 20 * 60 * 1000 } : null,
       });
 
       /* LO QUE MAXI TIENE QUE SABER, en el momento: una visita, un chat
@@ -4330,6 +4417,15 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       });
     }
 
+    /* La de WhatsApp (ver fotosParaWhatsApp en el panel). Opcional: un
+       panel viejo abierto en otra pestaña no la manda y igual sube. */
+    const og = form.get('og');
+    if (og instanceof File && og.size <= 1024 * 1024) {
+      await env.FOTOS.put(`${base}-og.jpg`, og.stream(), {
+        httpMetadata: { contentType: 'image/jpeg' },
+      });
+    }
+
     /* Al final de la fila, sin pisarle el lugar a las que ya están. */
     const ultimo = await env.DB
       .prepare('SELECT COALESCE(MAX(orden), -1) AS n FROM fotos WHERE auto_id = ?')
@@ -4341,6 +4437,22 @@ async function admin(peticion, env, ruta, metodo, ctx) {
 
     await tocar(env, auto.id);
     return json({ id: meta.last_row_id, clave: base }, 201);
+  }
+
+  /* LA FOTO DE WHATSAPP DE UNA FOTO QUE YA ESTABA. Sólo para claves
+     que existen en la base: no es una puerta para subir cualquier cosa
+     a cualquier lado. */
+  if (ruta === '/api/admin/fotos/og' && metodo === 'POST') {
+    const form = await peticion.formData();
+    const clave = String(form.get('clave') ?? '');
+    const og = form.get('og');
+    if (!(og instanceof File) || og.size > 1024 * 1024) return error('Falta la foto, o pesa demasiado');
+    const existe = await env.DB.prepare('SELECT 1 FROM fotos WHERE clave = ?').bind(clave).first();
+    if (!existe) return error('Esa foto no existe', 404);
+    await env.FOTOS.put(`${clave}-og.jpg`, og.stream(), {
+      httpMetadata: { contentType: 'image/jpeg' },
+    });
+    return json({ ok: true });
   }
 
   /* ── LAS IMÁGENES FIJAS DE LA HOME ────────────────────────────── */
@@ -4482,4 +4594,7 @@ const tocar = (env, id) =>
 
 /* Cada foto son DOS objetos en R2, uno por tamaño. */
 const borrarArchivos = (env, claves) =>
-  Promise.all(claves.flatMap((c) => TAMANOS.map((t) => env.FOTOS.delete(`${c}-${t}.webp`))));
+  Promise.all(claves.flatMap((c) => [
+    ...TAMANOS.map((t) => env.FOTOS.delete(`${c}-${t}.webp`)),
+    env.FOTOS.delete(`${c}-og.jpg`),
+  ]));

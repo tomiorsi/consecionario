@@ -807,6 +807,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
         <button class="pestania" type="button" id="pesNumeros" aria-pressed="false">Instagram</button>
       </div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <button class="btn" id="fotosWA" type="button" title="Arma la foto que usa WhatsApp en la vista previa de cada auto">Fotos para WhatsApp</button>
         <button class="btn" id="ordenar" type="button">Ordenar</button>
         <button class="btn oculto" id="cancelarOrden" type="button">Cancelar</button>
         <button class="btn btn--fuerte oculto" id="guardarOrden" type="button">Guardar orden</button>
