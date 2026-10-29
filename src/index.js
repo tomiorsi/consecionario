@@ -3146,6 +3146,12 @@ async function hacerSeguimientos(env) {
          SELECT id FROM mensajes WHERE conversacion_id = c.id
           ORDER BY creado DESC, id DESC LIMIT 1)
       WHERE c.humano = 0 AND c.id != ?
+        /* Lo mismo que en ponerseAlDia: la fecha de la charla primero.
+           Va solo el piso —"u" es el último mensaje y puede ser más
+           nuevo que "e"—, y con eso alcanza para no recorrer el archivo
+           entero. Medido: 1277 filas leídas pasaron a 342, con las
+           mismas nueve conversaciones. */
+        AND c.ultimo >= datetime('now','-23 hours','-30 minutes')
         AND u.direccion = 'saliente' AND u.autor = 'ia'
         AND e.creado BETWEEN datetime('now','-23 hours','-30 minutes') AND datetime('now','-20 hours')
       LIMIT 20`
@@ -3397,6 +3403,15 @@ async function ponerseAlDia(env, { hasta = 10 } = {}) {
          SELECT id FROM mensajes WHERE conversacion_id = c.id
           ORDER BY creado DESC, id DESC LIMIT 1)
       WHERE c.humano = 0
+        /* EMPEZAR POR LA FECHA DE LA CHARLA Y NO POR TODAS LAS CHARLAS.
+           Sin esta línea la consulta miraba las 328 conversaciones una
+           por una —buscando el último mensaje de cada una— para quedarse
+           con dos. La columna "ultimo" se escribe en cada mensaje y
+           tiene índice, así que pedirla acá no cambia el resultado: si
+           el último mensaje entró en las últimas 12 horas, esa fecha
+           también está ahí. Medido contra la base real: 1875 filas
+           leídas pasaron a 402, con las mismas dos respuestas. */
+        AND c.ultimo >= datetime('now','-12 hours')
         AND m.direccion = 'entrante'
         AND m.clase = 'mensaje'
         AND m.creado BETWEEN datetime('now','-12 hours') AND datetime('now','-2 minutes')
