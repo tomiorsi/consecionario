@@ -1755,11 +1755,12 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
       /* "Hoy" es el día de Buenos Aires. Las fechas de la base son UTC. */
       saludamosHoy: privados.some((m) => m.direccion === 'saliente' && diaDeBsAs(m.creado) === diaDeBsAs()),
     }) + FORMA_EN_TEXTO,
-    /* BUSCAR EN LA WEB, PARA NO INVENTAR: si el bot va a decir algo del
-       modelo del auto del cliente (una versión, un motor), lo verifica
-       antes. La búsqueda es sobre el modelo, nunca sobre la persona, y la
-       hace Anthropic, que ya está declarado. Dos por respuesta como mucho. */
-    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 2 }],
+    /* BUSCAR EN LA WEB, PARA NO INVENTAR: el modelo del auto del cliente
+       (una versión, un motor) y, desde el 28/10, el tema que traiga a la
+       charla (Maxi: "que converse de cualquier tema e investigue"). Se
+       busca el tema, NUNCA a la persona, y lo hace Anthropic, que ya está
+       declarado. Tres por respuesta como mucho. */
+    tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
     messages: turnos,
   };
 
