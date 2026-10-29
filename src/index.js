@@ -2044,10 +2044,10 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
    treinta segundos. */
 /* MÁS PAUSA Y NUNCA LA MISMA (Maxi, 29/10: "manejá más pausas"). Una
    persona no escribe a intervalos exactos: entre 14 y 22 segundos entre
-   mensajes, y un poco más después del link, que es lo que el cliente se
-   queda mirando. */
+   mensajes, y más después del link (24 a 32 s): WhatsApp tarda en armar la
+   vista previa con la foto, y lo que sigue no puede taparla (Maxi, 29/10). */
 const PAUSA_ENTRE_PARTES = 14000;
-const PAUSA_TRAS_EL_LINK = 18000;
+const PAUSA_TRAS_EL_LINK = 24000;
 const conVaivén = (ms) => ms + Math.floor(Math.random() * 8000);
 
 /* LA UBICACIÓN ES UN MENSAJE FIJO, NO LO ESCRIBE EL BOT. Así la mandan en
