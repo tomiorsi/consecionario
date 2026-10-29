@@ -2889,7 +2889,7 @@ async function buenDia(env, { aPedido = false } = {}) {
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
   const r = await client.messages.create({
     model: MODELO,
-    max_tokens: 1500,
+    max_tokens: 3000,
     output_config: { effort: 'medium' },
     system: `Sos la mano derecha comercial de Maxi, dueño de Manna Selected (autos
 seleccionados, Barracas). ${aPedido ? 'Te pidió el resumen del día' : 'Son las 8:30 y le mandás el resumen para arrancar el día'} por
@@ -2916,20 +2916,53 @@ respuesta: cada uno aparece en alguna parte.
 
 Hoy es ${hoyEnBsAs()}.
 
-Escribile UN mensaje de WhatsApp, rioplatense, directo, sin relleno, con
-estas partes y sólo las que tengan algo, en este orden:
-- Hoy en el salón: las visitas de hoy, con la hora adelante. Si hay de
-  mañana, en otra parte "Mañana".
-- Responder primero: los clientes que esperan respuesta, el más caliente
+ARMÁ EL MENSAJE IGUAL A ESTE MODELO (es el que Maxi aprobó, 29/10): los
+mismos títulos en negrita con asteriscos, en este orden, y sólo las
+partes que tengan algo. Los datos del modelo son inventados; usá los
+reales.
+
+*RESUMEN JUEVES 29/10*
+
+*HOY EN EL SALÓN*
++54 9 11 1234-5678, Carla (Visita posible)  Quiere ver el C300 hoy a la tarde o mañana a la mañana. Confirmale horario.
+
+*DOMINGO 1/11*
++54 9 2345 67-8901 (Importante)  10:00 h  Chevrolet Cruze 2020, 105.000 km → Ranger LTD. Quiere un rango por su auto antes de venir.
+
+*RESPONDER PRIMERO*
++54 9 11 2222-3333, Enrique (Importante)  Mercedes-Benz C 400 2018, 85.000 km → C300. Fotos pendientes.
++54 9 11 4444-5555 (Importante)  BMW 330i 2008, 158.000 km → C300. Ojo: más de 150.000 km.
+
+*PARA AGENDAR*
++54 9 11 6666-7777 (Posible Comprador)  GLA 200, compra directa de contado. Falta día de visita.
+
+*SIN RESPUESTA DEL CLIENTE*
++54 9 11 8888-9999 (Cliente potencial)  C300 Cabrio.
+
+*INSTAGRAM*
+@usuario (Cliente potencial)  Comentó "Info?" en el C300. Sin respuesta.
+
+*TENER EN CUENTA*
++54 9 11 1111-2222, Gonzalo (Lo atiende el equipo)  Ofrece un lote en Ezeiza como parte de pago.
+
+*OPORTUNIDADES*
+Ranger LTD: 3 consultas hoy. Hay demanda.
+
+Cómo llenar cada parte:
+- El título lleva el día de hoy. Las visitas de hoy en "HOY EN EL
+  SALÓN"; las de otros días, cada día con su propio título.
+- "RESPONDER PRIMERO": los que esperan respuesta nuestra, el más caliente
   arriba, con qué hay que contestarle.
-- Para agendar: los que quieren venir y todavía no tienen día confirmado.
-- Para tasar: los autos que esperan propuesta.
-- Me debés: consultas del bot sin contestar.
-- Tener en cuenta: lo que no es urgente pero no hay que olvidar.
-- Oportunidades: lo que veas en las charlas que puede ser plata. Gente que
-  busca un auto que no tenemos (para salir a buscarlo), un auto que nos
-  ofrecen que encaja con lo que otro busca, un dueño que podría dejarnos
-  el suyo en consignación, una permuta que cierra con algo del stock.
+- "PARA AGENDAR": los que quieren venir y no tienen día.
+- "SIN RESPUESTA DEL CLIENTE": los que dejaron de contestar.
+- "INSTAGRAM": lo de Instagram y Facebook que quedó pendiente.
+- "TENER EN CUENTA": lo que no es urgente pero no hay que olvidar.
+- "OPORTUNIDADES": lo que puede ser plata (demanda de un auto, un auto
+  que nos ofrecen que encaja con lo que otro busca, una consignación
+  posible, una permuta que cierra con el stock).
+- Si un auto que ofrecen tiene más de 150.000 km, agregá "Ojo: más de
+  150.000 km". Si un cliente pidió un horario para que lo llamen,
+  ponelo.
 Si no hay nada en una parte, no la pongas. Si no hay nada en ninguna,
 escribí sólo "${aPedido ? 'Hoy no hay nada pendiente' : 'Buen día. Hoy sin novedades'}".`,
     messages: [{ role: 'user', content:
