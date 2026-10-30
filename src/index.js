@@ -3029,6 +3029,8 @@ async function repasarElDia(env) {
   const r = await client.messages.create({
     model: MODELO,
     max_tokens: 6000,
+    /* SIN PENSAR: para resumir no hace falta y se comía todo el espacio. */
+    thinking: { type: 'disabled' },
     output_config: { effort: 'low' },
     system: `Sos el bot de ventas de Manna Selected y estás repasando tus charlas
 de hoy para mejorar. Las reglas con las que trabajás son éstas:
@@ -3234,6 +3236,8 @@ async function buenDia(env, { aPedido = false, porPanel = false, devolver = fals
   const r = await client.messages.create({
     model: MODELO,
     max_tokens: 8000,
+    /* SIN PENSAR: para resumir no hace falta y se comía todo el espacio. */
+    thinking: { type: 'disabled' },
     output_config: { effort: 'low' },
     system: `Sos la mano derecha comercial de Maxi, dueño de Manna Selected (autos
 seleccionados, Barracas). ${aPedido ? 'Te pidió el resumen del día' : 'Son las 8:30 y le mandás el resumen para arrancar el día'} por
