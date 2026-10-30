@@ -3090,6 +3090,14 @@ Si hoy no hubo nada que valga la pena, escribí sólo "Hoy sin dudas".`,
 
 const HORAS = 3600 * 1000;
 
+/* WHATSAPP EN CUARENTENA (Maxi, 30/10): Meta avisó "es posible que se
+   restrinja tu cuenta pronto" por posible spam, después de una tanda de
+   mensajes a clientes que no escribían hacía días. Hasta esta fecha el
+   bot sólo contesta en WhatsApp: no hace seguimientos a quien no
+   respondió ni manda posventa. Instagram y Messenger siguen igual. */
+const WHATSAPP_SOLO_RESPONDE_HASTA = Date.parse('2026-11-07T03:00:00Z');
+const whatsappEnCuarentena = (canal) => canal === 'whatsapp' && Date.now() < WHATSAPP_SOLO_RESPONDE_HASTA;
+
 /* LO QUE ATENDIÓ EL EQUIPO NO LO TOCA EL BOT, NUNCA MÁS (Maxi, 29/10:
    "todo lo que atendimos nosotros, no les hables"). Alcanza con un
    mensaje de una persona —desde el celular o desde el panel— en
@@ -3246,7 +3254,8 @@ async function hacerSeguimientos(env) {
   ).bind(jefe?.id ?? 0).all();
 
   const vistos = (await leerEstado(env, 'seguidos'))?.valor ?? [];
-  const nuevos = (results ?? []).filter((c) => canalActivo(cfg, c.canal) && !vistos.includes(c.suyo)).slice(0, 4);
+  const nuevos = (results ?? []).filter((c) => canalActivo(cfg, c.canal) && !whatsappEnCuarentena(c.canal)
+    && !vistos.includes(c.suyo)).slice(0, 4);
   if (!nuevos.length) return;
   await guardarEstado(env, 'seguidos', [...vistos, ...nuevos.map((c) => c.suyo)].slice(-300));
 
@@ -3443,6 +3452,7 @@ const primerNombre = (nombre) => {
 };
 
 async function hacerPosventa(env) {
+  if (whatsappEnCuarentena('whatsapp')) return;
   const horaBsAs = new Date(Date.now() - 3 * HORAS).getUTCHours();
   if (horaBsAs < 10 || horaBsAs >= 20) return;
   const { results } = await env.DB.prepare(
@@ -3650,7 +3660,7 @@ async function atenderSolo(env, disparos) {
         aWhatsapp: Boolean(r.derivar || r.irAWhatsapp), autor: 'ia',
         /* Si le pasó un precio, a los 20 minutos de silencio se piensa un
            seguimiento (ver `Envios`). */
-        despues: !r.derivar && DIO_PRECIO.test(r.partes.join(' '))
+        despues: !r.derivar && !whatsappEnCuarentena(chat.canal) && DIO_PRECIO.test(r.partes.join(' '))
           ? { pensar: 'precio', texto: null, espera: 20 * 60 * 1000 } : null,
       });
 
