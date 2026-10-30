@@ -2329,8 +2329,16 @@ export class Envios extends DurableObject {
     const paso = cola.shift();
     if (paso?.tarea) {
       try {
-        if (paso.tarea === 'buenDia') await buenDia(this.env);
-        else if (paso.tarea === 'repaso') await repasarElDia(this.env);
+        if (paso.tarea === 'buenDia') {
+          /* Primero las confirmaciones a los clientes: son lo que más
+             importa que salga temprano. */
+          await confirmarVisitasDeHoy(this.env).catch((e) =>
+            anotarAviso(this.env, `No pude confirmar las visitas de hoy: ${String(e?.message ?? e).slice(0, 200)}`));
+          await buenDia(this.env);
+        } else if (paso.tarea === 'repaso') {
+          await agendaDeManana(this.env).catch(() => {});
+          await repasarElDia(this.env);
+        }
       } catch (e) {
         console.error('No salió la tarea', paso.tarea, e?.message ?? e);
         await anotarAviso(this.env, `No pude armar ${paso.tarea === 'buenDia' ? 'el resumen de la mañana' : 'el repaso del día'}: ${String(e?.message ?? e).slice(0, 200)}`);
@@ -3137,6 +3145,61 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
     `\n\nEl chat quedó para ustedes: confirmale vos.`);
 }
 
+/* ── EL DÍA DE LA VISITA (Maxi, 30/10) ───────────────────────────
+   "Con los que agendás una cita, el día de la cita a la mañana mandales
+   un mensaje: si sigue en pie, confirmás día y hora, que los estamos
+   esperando. Y a nosotros, la agenda al día: mañana tenés tal, hoy viene
+   tal." Clientes tibios, sin ser pesados: UN mensaje, temprano (8:30).
+   - Al cliente: texto libre si la ventana de 24 h está abierta; si no,
+     la plantilla aprobada `visita_recordatorio`.
+   - A Maxi: "Hoy en el salón" a las 8:30 y "Mañana" a las 21.
+   - Si el cliente contesta, aviso a Maxi con lo que dijo: el chat ya
+     es del equipo y el bot no le responde.
+   Una sola confirmación por visita. */
+async function confirmarVisitasDeHoy(env) {
+  const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
+  const hoy = diaDeBsAs();
+  const deHoy = agenda.filter((v) => v.visita.slice(0, 10) === hoy);
+  if (!deHoy.length) return;
+  const lineas = [];
+  for (const v of deHoy) {
+    const c = await env.DB.prepare('SELECT id, canal, externo_id, nombre FROM conversaciones WHERE id = ?')
+      .bind(v.chat).first();
+    if (!c) continue;
+    let enviada = Boolean(v.confirmacion);
+    if (!enviada && c.canal === 'whatsapp') {
+      const nombre = primerNombre(c.nombre);
+      const hora = v.visita.length > 10 ? v.visita.slice(11, 16) : null;
+      const libre = `Hola${nombre ? ` ${nombre}` : ''}! Buen día. Te escribo para confirmar que hoy`
+        + `${hora ? ` a las ${hora}` : ''} te esperamos en el salón, en Pje. Lanín 154, Barracas`
+        + `${v.auto ? `, para ver el ${v.auto}` : ''}. Sigue todo en pie?`;
+      const visto = (await env.DB.prepare(
+        `SELECT COALESCE(MAX(id), 0) AS n FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'`
+      ).bind(c.id).first())?.n ?? 0;
+      await env.ENVIOS.get(env.ENVIOS.idFromName(`visita-${c.id}`)).encolar(
+        { id: c.id, canal: c.canal, externo_id: c.externo_id },
+        [{ plantilla: 'visita_recordatorio',
+           valores: [nombre || 'qué tal', 'hoy', hora ?? 'la hora que acordamos', v.auto ?? 'auto'],
+           texto: libre, espera: 0 }],
+        'ia', visto, 1);
+      v.confirmacion = new Date().toISOString();
+      enviada = true;
+    }
+    lineas.push(`${fichaDeVisita(v)}${enviada ? '\nLe mandé la confirmación.' : '\nConfirmale vos (no es WhatsApp).'}`);
+  }
+  await guardarEstado(env, 'agenda', agenda);
+  if (lineas.length) await anotarAviso(env, `*HOY EN EL SALÓN*\n\n${lineas.join('\n\n')}`);
+}
+
+async function agendaDeManana(env) {
+  const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
+  const manana = diaDeBsAs(new Date(Date.now() + 24 * HORAS).toISOString().replace('T', ' ').slice(0, 19));
+  const deManana = agenda.filter((v) => v.visita.slice(0, 10) === manana);
+  if (deManana.length) {
+    await anotarAviso(env, `*MAÑANA*\n\n${deManana.map(fichaDeVisita).join('\n\n')}\n\nA la mañana les mando la confirmación.`);
+  }
+}
+
 async function recordarVisitas(env) {
   const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
   const ahora = Date.now();
@@ -3495,6 +3558,18 @@ async function atenderSolo(env, disparos) {
       ).bind(d.conversacion).first();
       /* UN CLIENTE QUE YA COMPRÓ CONTESTA (casi siempre, a la posventa):
          no le habla el bot, se le avisa a Maxi para que le conteste él. */
+      /* CONTESTA LA CONFIRMACIÓN DE SU VISITA: lo que dijo, a Maxi. */
+      if (chat?.humano && !esElJefe(env, chat)) {
+        const agendaHoy = (await leerEstado(env, 'agenda'))?.valor ?? [];
+        const suya = agendaHoy.find((v) => v.chat === chat.id && v.confirmacion
+          && Date.now() - new Date(v.confirmacion).getTime() < 24 * HORAS);
+        if (suya) {
+          const dijo = await env.DB.prepare('SELECT texto, tipo FROM mensajes WHERE id = ?').bind(d.mensaje).first();
+          await anotarAviso(env, `Contestó la confirmación de su visita\n${lineaDe(chat, LISTAS.permuta,
+            `${suya.visita.slice(11, 16) || 'hoy'}: «${(dijo?.texto ?? `[${dijo?.tipo ?? 'mensaje'}]`).slice(0, 300)}»`)}`);
+          continue;
+        }
+      }
       if (chat?.humano && chat.etapa === 'cerrado' && !esElJefe(env, chat)) {
         const dijo = await env.DB.prepare('SELECT texto, tipo FROM mensajes WHERE id = ?')
           .bind(d.mensaje).first();
