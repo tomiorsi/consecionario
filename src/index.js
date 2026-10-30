@@ -2642,7 +2642,7 @@ async function consultarAlJefe(env, chat, pregunta, loQueDijo) {
   await guardarEstado(env, 'consultas', consultas.slice(-30));
 
   await escribirleAlJefe(env,
-    `Consulta ${n}\n${lineaDe(chat, 'Esperando tu respuesta', '')}\n${pregunta}` +
+    `Consulta ${n}\n${lineaDe(chat, LISTAS.permuta, 'Esperando tu respuesta')}\n${pregunta}` +
     (loQueDijo ? `\n\nLo último que escribió: «${String(loQueDijo).slice(0, 200)}»` : '') +
     `\n\nContestame acá y sigo yo con el cliente.`);
 }
@@ -3094,7 +3094,7 @@ function fichaDeVisita(v) {
     ...(v.visita.length > 10 ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } : {}),
   }).format(new Date(aMs(v.visita)));
   return `${dia}${v.visita.length > 10 ? ' h' : ' (sin hora)'}\n` +
-    `${v.quien} (${LISTAS.visita})  ${[v.condiciones, v.auto && `→ ${v.auto}`].filter(Boolean).join(' ')}`;
+    `${v.quien} (${LISTAS.permuta})  ${[v.condiciones, v.auto && `→ ${v.auto}`].filter(Boolean).join(' ')}`;
 }
 
 async function agendarVisita(env, chat, { visita, auto = null, condiciones = null, motivo = null }) {
@@ -3224,8 +3224,10 @@ viñetas ni guiones al principio:
 +54 9 11 1234-5678, Juan (Para tasar)  Peugeot 2008 2020, 99.000 km → Hilux GR
 Primero el teléfono y el nombre tal como vienen. Entre paréntesis, LA LISTA
 DE WHATSAPP DE MAXI donde va ese chat, con estos nombres exactos:
-- Importante: todo lo que está para tasar (permuta o consignación con
-  datos o fotos) y cualquier cliente caliente para cerrar
+- Importante: TODO lo que necesita que intervenga una persona hoy: para
+  tasar (permuta o consignación con datos o fotos), chats pasados al
+  equipo, consultas sin contestar, negociaciones, visitas por confirmar,
+  y cualquier cliente caliente para cerrar
 - Visita posible: quiere venir o ya tiene día
 - Consignaciones Posibles: quiere que le vendamos su auto, pero todavía
   no pasó datos ni fotos
@@ -3460,7 +3462,7 @@ async function atenderSolo(env, disparos) {
       if (chat?.humano && chat.etapa === 'cerrado' && !esElJefe(env, chat)) {
         const dijo = await env.DB.prepare('SELECT texto, tipo FROM mensajes WHERE id = ?')
           .bind(d.mensaje).first();
-        await anotarAviso(env, `Te escribió un cliente que ya compró\n${lineaDe(chat, 'Compró', `«${(dijo?.texto ?? `[${dijo?.tipo ?? 'mensaje'}]`).slice(0, 300)}»`)}`);
+        await anotarAviso(env, `Te escribió un cliente que ya compró\n${lineaDe(chat, LISTAS.permuta, `«${(dijo?.texto ?? `[${dijo?.tipo ?? 'mensaje'}]`).slice(0, 300)}»`)}`);
         continue;
       }
       if (!chat || chat.humano || esElJefe(env, chat)) continue;
@@ -3548,7 +3550,8 @@ async function atenderSolo(env, disparos) {
           visita: r.visita, auto: r.visitaAuto, condiciones: r.visitaCondiciones, motivo: r.derivar,
         }).catch((e) => console.error('No se pudo agendar:', e?.message ?? e));
       } else if (r.derivar) {
-        await escribirleAlJefe(env, `Te paso un chat\n${lineaDe(chat, 'Lo atiende el equipo', r.derivar)}`);
+        /* TODO LO QUE PIDE UNA PERSONA VA A IMPORTANTE (Maxi, 30/10). */
+        await escribirleAlJefe(env, `Te paso un chat\n${lineaDe(chat, LISTAS.permuta, r.derivar)}`);
       } else if (notaTasar && !String(chat.nota ?? '').startsWith(PARA_TASAR)) {
         /* UNA VEZ POR CLIENTE: cada dato nuevo reescribe la nota y antes
            salía un aviso por cada uno (29/10, tres del mismo Cruze). */
