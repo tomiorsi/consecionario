@@ -2305,6 +2305,13 @@ async function mandarRespuesta(env, chat, {
    es mejor que una desordenada. */
 export class Envios extends DurableObject {
   /* El resumen que pidió Maxi: se arma en la alarma, sin apuro. */
+  /* Una tarea grande que no entra en la vuelta del reloj: el buen día o
+     el repaso. Se arma en la alarma, sin apuro. */
+  async tarea(cual) {
+    await this.ctx.storage.put('cola', [{ tarea: cual, espera: 0 }]);
+    await this.ctx.storage.setAlarm(Date.now() + 100);
+  }
+
   async resumen(porPanel = false) {
     await this.ctx.storage.put('cola', [{ resumen: true, porPanel, espera: 0 }]);
     await this.ctx.storage.setAlarm(Date.now() + 100);
@@ -2320,6 +2327,17 @@ export class Envios extends DurableObject {
   async alarm() {
     const cola = (await this.ctx.storage.get('cola')) ?? [];
     const paso = cola.shift();
+    if (paso?.tarea) {
+      try {
+        if (paso.tarea === 'buenDia') await buenDia(this.env);
+        else if (paso.tarea === 'repaso') await repasarElDia(this.env);
+      } catch (e) {
+        console.error('No salió la tarea', paso.tarea, e?.message ?? e);
+        await anotarAviso(this.env, `No pude armar ${paso.tarea === 'buenDia' ? 'el resumen de la mañana' : 'el repaso del día'}: ${String(e?.message ?? e).slice(0, 200)}`);
+      }
+      await this.ctx.storage.deleteAll();
+      return;
+    }
     if (paso?.resumen) {
       try { await buenDia(this.env, { aPedido: true, porPanel: paso.porPanel }); }
       catch (e) {
@@ -4190,6 +4208,23 @@ export default {
      vuelta sigue por donde iba. */
   async scheduled(evento, env, _ctx) {
     const hora = new Date(evento.scheduledTime ?? Date.now()).getUTCHours();
+    const minutoDelReloj = new Date(evento.scheduledTime ?? Date.now()).getUTCMinutes();
+
+    /* LO QUE MANDA A MAXI VA PRIMERO Y EN LA COLA (30/10: el buen día de
+       las 8:30 y el repaso de las 21 no llegaban). Antes corrían al final
+       de esta vuelta, después de ponerse al día y de los seguimientos, que
+       piensan con Claude y tardan: la vuelta se cortaba antes. Ahora se
+       encargan a la cola de envíos, que corre aparte y sin ese límite. */
+    if (hora === 11 && minutoDelReloj >= 30 && minutoDelReloj < 35) {
+      await env.ENVIOS.get(env.ENVIOS.idFromName('tareas-buen-dia')).tarea('buenDia').catch(() => {});
+    }
+    if (hora === 0 && minutoDelReloj < 5) {
+      await env.ENVIOS.get(env.ENVIOS.idFromName('tareas-repaso')).tarea('repaso').catch(() => {});
+    }
+    /* Constancia de que la vuelta arrancó, para poder verificarlo sin
+       mirar el log (ver /api/admin/reloj). */
+    await guardarEstado(env, 'reloj', { cuando: new Date().toISOString(), hora, minuto: minutoDelReloj })
+      .catch(() => {});
 
     try { await ponerseAlDia(env); }
     catch (e) { console.error('No se pudo poner al día:', e?.message ?? e); }
@@ -4202,18 +4237,7 @@ export default {
     catch (e) { console.error('No se pudieron hacer los seguimientos:', e?.message ?? e); }
     try { await recordarVisitas(env); }
     catch (e) { console.error('No se pudieron recordar las visitas:', e?.message ?? e); }
-    /* 11:30 UTC = 8:30 en Buenos Aires. */
-    if (hora === 11 && minuto >= 30 && minuto < 35) {
-      try { await buenDia(env); }
-      catch (e) {
-        console.error('No salió el buen día:', e?.message ?? e);
-        await escribirleAlJefe(env, `No pude armar el resumen de la mañana: ${String(e?.message ?? e).slice(0, 200)}. Escribime "resumen" y lo intento de nuevo.`);
-      }
-    }
-    if (hora === 0 && minuto < 5) {
-      try { await repasarElDia(env); }
-      catch (e) { console.error('No se pudo repasar el día:', e?.message ?? e); }
-    }
+    void minuto;
 
     if (hora === 4) {
       const r = await env.DB.prepare(
@@ -4531,6 +4555,11 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     ctx?.waitUntil?.(atenderAlJefe(env, jefe.id, r.meta.last_row_id, { porPanel: true })
       .catch((e) => console.error('No se pudo atender a Maxi por el panel:', e?.message ?? e)));
     return json({ ok: true });
+  }
+
+  /* CUÁNDO CORRIÓ EL RELOJ POR ÚLTIMA VEZ (ver `scheduled`). */
+  if (ruta === '/api/admin/reloj' && metodo === 'GET') {
+    return json((await leerEstado(env, 'reloj'))?.valor ?? {});
   }
 
   /* LOS AVISOS PARA MAXI, los más nuevos que `desde`. Ver `anotarAviso`. */
