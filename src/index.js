@@ -1882,6 +1882,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
       aprendizajes: await loAprendido(env),
       vendidos: (vendidos ?? []).map((a) => [a.marca, a.modelo, a.anio].filter(Boolean).join(' ')),
       reservados: reservados.map((a) => `[${a.id}] ${[a.marca, a.modelo, a.anio].filter(Boolean).join(' ')}`),
+      porEntrar: ((await leerEstado(env, 'por_entrar'))?.valor ?? []).map((a) => a.texto),
       hoy: hoyEnBsAs(), seguimiento,
       /* Si ya le escribimos por privado, no vuelve a saludar. Lo decide
          el código y no el bot: en una charla larga, el bot se olvidaba. */
@@ -2697,6 +2698,8 @@ const FORMA_DEL_JEFE = {
     vendidos: { type: 'array', items: { type: 'integer' } },
     reservar: { type: 'array', items: { type: 'integer' } },
     se_cayo_reserva: { type: 'array', items: { type: 'integer' } },
+    por_entrar: { type: 'array', items: { type: 'string' } },
+    ya_no_entran: { type: 'array', items: { type: 'integer' } },
     resumen: { type: 'boolean' },
     resultados: { type: 'array', items: { type: 'object', properties: {
       quien: { type: 'string' },
@@ -2707,7 +2710,7 @@ const FORMA_DEL_JEFE = {
     a_maxi: { type: 'string' },
   },
   required: ['consulta', 'al_cliente', 'aprendizaje', 'olvidar', 'quitar_visitas', 'mover_visita',
-    'ya_compraron', 'vendidos', 'reservar', 'se_cayo_reserva', 'resumen', 'resultados', 'numeros', 'a_maxi'],
+    'ya_compraron', 'vendidos', 'reservar', 'se_cayo_reserva', 'por_entrar', 'ya_no_entran', 'resumen', 'resultados', 'numeros', 'a_maxi'],
   additionalProperties: false,
 };
 
@@ -2725,6 +2728,7 @@ async function atenderAlJefe(env, conversacionId, mensajeId, { porPanel = false 
 
   const consultas = (await leerEstado(env, 'consultas'))?.valor ?? [];
   const aprendizajes = (await leerEstado(env, 'aprendizajes'))?.valor ?? [];
+  const porEntrar = (await leerEstado(env, 'por_entrar'))?.valor ?? [];
   const agenda = ((await leerEstado(env, 'agenda'))?.valor ?? [])
     .filter((v) => aMs(v.visita) > Date.now() - 12 * HORAS);
   const agendaFuera = new Set();
@@ -2770,6 +2774,9 @@ ${agenda.map((v, i) => `${i + 1}. ${v.visita} · ${v.quien} · ${v.auto ?? ''} �
 EL STOCK PUBLICADO (número entre corchetes)
 ${(stock ?? []).map((a) => `[${a.id}] ${a.marca} ${a.modelo} ${a.anio} · ${a.km} km`).join('\n') || '(vacío)'}
 
+LOS AUTOS QUE ESTÁN POR ENTRAR (numerados)
+${porEntrar.map((a, i) => `${i + 1}. ${a.texto}`).join('\n') || '(ninguno)'}
+
 LO QUE YA TE ENSEÑÓ (numerado)
 ${aprendizajes.map((a, i) => `${i + 1}. ${a.texto}`).join('\n') || '(nada todavía)'}
 
@@ -2811,6 +2818,11 @@ Qué hacer con lo que escribió:
   reservó con una seña"), su número del stock en "reservar". Si dice que
   se cayó la reserva, en "se_cayo_reserva". Si no queda claro cuál es,
   preguntale. Si no, [] y [].
+- LO QUE ESTÁ POR ENTRAR (Maxi, 30/10). Si cuenta que está por entrar un
+  auto (una permuta que estamos por tomar, una consignación, una compra:
+  "está por entrar un Audi A4 2019"), ponelo en "por_entrar": una línea
+  con marca, modelo, año, km y lo que sepa (precio, cuándo llega). Si dice
+  que uno ya entró o que se cayó, su número en "ya_no_entran". Si no, [] y [].
 - LO QUE SE VENDIÓ. Si dice que un auto se vendió ("se vendió el 500"),
   poné su número del stock en "vendidos" y confirmale cuál marcaste. Si
   no queda claro cuál es, preguntale y dejá []. Si no, [].
@@ -2850,6 +2862,16 @@ Qué hacer con lo que escribió:
     } else {
       dato.a_maxi = `${dato.a_maxi}\n\n(${chats?.length ? `Hay ${chats.length} chats que terminan en ${cuatro}` : `No encontré ningún chat que termine en ${cuatro}`}: pasame el número completo.)`;
     }
+  }
+
+  /* LO QUE ESTÁ POR ENTRAR: el bot lo ofrece cuando es más parecido a lo
+     que busca el cliente que lo publicado. */
+  if ((dato.por_entrar ?? []).length || (dato.ya_no_entran ?? []).length) {
+    const fuera = new Set((dato.ya_no_entran ?? []).map((n) => n - 1));
+    await guardarEstado(env, 'por_entrar', [
+      ...porEntrar.filter((_, i) => !fuera.has(i)),
+      ...(dato.por_entrar ?? []).filter((t) => t?.trim()).map((texto) => ({ texto: texto.trim(), desde: new Date().toISOString() })),
+    ].slice(-20));
   }
 
   /* RESERVAS: se marca o se desmarca. Si se cae, se le pasa a Maxi la

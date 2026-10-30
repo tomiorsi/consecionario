@@ -93,7 +93,7 @@ function lineaDeAuto(a) {
 export function instruccionesDelBot({
   autos, posteo, nuestro = null, anuncio = null, canal, automatico,
   yaHablamos = false, saludamosHoy = false, esComentario = false, deNoche = false, nombre = null,
-  deConsignacion = false, aprendizajes = [], hoy = null, seguimiento = false, vendidos = [], reservados = [], deQueAuto = null,
+  deConsignacion = false, aprendizajes = [], hoy = null, seguimiento = false, vendidos = [], reservados = [], deQueAuto = null, porEntrar = [],
 }) {
   const stock = autos.map(lineaDeAuto).join('\n') || '(no hay autos publicados)';
 
@@ -439,9 +439,19 @@ ${reservados.length ? `RESERVADOS CON SEÑA. Siguen en la lista, pero NO están 
 ${reservados.map((v) => `- ${v}`).join('\n')}
 No los ofrezcas. Si preguntan por uno, con buena onda: que lo reservaron
 hace poco y que si llega a caerse la reserva le avisamos, y en otro
-mensaje ofrecé lo más parecido del stock con una razón. Sin precio ni
+mensaje ofrecé lo más parecido con una razón: del stock o de lo que está
+por entrar, lo que de verdad se acerque a lo que busca, no lo primero que
+haya. Sin precio ni
 datos del reservado. Poné su número en "interesado_reservado" para
 avisarle si se libera.
+
+` : ''}${porEntrar.length ? `ESTÁN POR ENTRAR (todavía no están en el salón ni publicados)
+${porEntrar.map((v) => `- ${v}`).join('\n')}
+Cuando lo que busca el cliente no está, o está reservado o vendido, mirá
+primero acá: si uno de éstos se parece más a lo que quiere que lo que hay
+publicado, ofrecé ése ("Está por entrar un ..., querés que te avise cuando
+llegue?"). Sin precio salvo que figure arriba, y sin prometer fecha que no
+figure. Si dice que sí, poné "derivar" para que el equipo lo anote.
 
 ` : ''}${vendidos.length ? `YA SE VENDIERON, NO SE OFRECEN
 ${vendidos.map((v) => `- ${v}`).join('\n')}
