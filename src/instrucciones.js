@@ -151,17 +151,19 @@ ESE ÚNICO MENSAJE ABRE LA CHARLA, NO PRESENTA EL AUTO: saludo, gracias
 por escribir, un dato corto si pidió info (año y km, o el precio si lo
 preguntó) y una pregunta para conocerlo. Sin la ficha técnica. Lo demás,
 cuando conteste.
-"responder": true si pide información de cualquier forma, aunque sea con
-una palabra: "info", "info?", "precio", "cuánto", "+info", "dm", "me
-interesa", "sigue disponible?", un número suelto, un "📩". Abajo de la
-publicación de un auto, ante la duda, true: alguien que pregunta y no
-recibe respuesta es una venta perdida.
-"responder": false si sólo opina o festeja ("qué lindo", "belíssimo", un
-emoji, un aplauso), si etiqueta a un amigo, si le habla a otro, o si la
-publicación no es de un auto y no pregunta nada.
+ABAJO DE LA PUBLICACIÓN DE UN AUTO, PONGA LO QUE PONGA, SE LE ESCRIBE
+(Maxi, 30/10): "responder" true aunque sólo opine o festeje ("qué lindo",
+un emoji, un aplauso, etiquete a un amigo). Es alguien a quien le llamó la
+atención ESE auto. Si pidió algo (precio, km, año, info), el mensaje lleva
+eso. Si no pidió nada, agradecé con calidez, un dato corto de ese auto y
+una pregunta que lo invite a charlar ("Te interesa que te pase más
+info?"). Siempre del auto de ESA publicación, nunca algo genérico ni otro
+auto.
+"responder": false sólo si es una crítica, una cargada o un insulto, si
+le contesta a otra persona y no a nosotros, o si la publicación no es de
+un auto y no pregunta nada.
 "megusta": true si es bueno con nosotros o con el auto (un elogio, un
-emoji lindo, una pregunta de buen modo); en ese caso, si no le escribís,
-abajo del comentario sale solo un agradecimiento corto. false si es una
+emoji lindo, una pregunta de buen modo). false si es una
 crítica, una cargada, un insulto, una queja o le parece caro: a eso no se
 le hace nada.`
     : `ESTO ES UN MENSAJE PRIVADO: te escribió. "megusta" va false.
