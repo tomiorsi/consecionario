@@ -3028,8 +3028,8 @@ async function repasarElDia(env) {
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
   const r = await client.messages.create({
     model: MODELO,
-    max_tokens: 1200,
-    output_config: { effort: 'medium' },
+    max_tokens: 6000,
+    output_config: { effort: 'low' },
     system: `Sos el bot de ventas de Manna Selected y estás repasando tus charlas
 de hoy para mejorar. Las reglas con las que trabajás son éstas:
 
@@ -3233,8 +3233,8 @@ async function buenDia(env, { aPedido = false, porPanel = false, devolver = fals
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
   const r = await client.messages.create({
     model: MODELO,
-    max_tokens: 3000,
-    output_config: { effort: 'medium' },
+    max_tokens: 8000,
+    output_config: { effort: 'low' },
     system: `Sos la mano derecha comercial de Maxi, dueño de Manna Selected (autos
 seleccionados, Barracas). ${aPedido ? 'Te pidió el resumen del día' : 'Son las 8:30 y le mandás el resumen para arrancar el día'} por
 WhatsApp. Pensá como el mejor gerente de ventas: qué hay que hacer hoy
@@ -3319,6 +3319,9 @@ escribí sólo "${aPedido ? 'Hoy no hay nada pendiente' : 'Buen día. Hoy sin no
       `CHARLAS DE LOS ÚLTIMOS 3 DÍAS\n\n${charlas.join('\n\n')}` }],
   });
   const texto = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+  /* VACÍO NO ES "NADA QUE CONTAR": es que se cortó (30/10: se gastaba el
+     espacio pensando y no escribía nada). Que se note. */
+  if (!texto) throw new Error(`Claude no escribió el resumen (corte: ${r.stop_reason})`);
   if (texto) await escribirleAlJefe(env, texto, { respuesta: aPedido && !porPanel });
   if (devolver) return texto;
 }
