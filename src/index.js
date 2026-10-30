@@ -3196,7 +3196,7 @@ async function hacerSeguimientos(env) {
   }
 }
 
-async function buenDia(env, { aPedido = false, porPanel = false } = {}) {
+async function buenDia(env, { aPedido = false, porPanel = false, devolver = false } = {}) {
   if (!env.ANTHROPIC_API_KEY || !soloDigitos(env.SUPERVISOR_WHATSAPP)) return;
   const jefe = await chatDelJefe(env);
 
@@ -3320,6 +3320,7 @@ escribí sólo "${aPedido ? 'Hoy no hay nada pendiente' : 'Buen día. Hoy sin no
   });
   const texto = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
   if (texto) await escribirleAlJefe(env, texto, { respuesta: aPedido && !porPanel });
+  if (devolver) return texto;
 }
 
 /* MANDAR UNA PLANTILLA APROBADA (ver src/plantillas.js). Es lo único que
@@ -4558,6 +4559,19 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     ctx?.waitUntil?.(atenderAlJefe(env, jefe.id, r.meta.last_row_id, { porPanel: true })
       .catch((e) => console.error('No se pudo atender a Maxi por el panel:', e?.message ?? e)));
     return json({ ok: true });
+  }
+
+  /* EL RESUMEN, ARMADO EN EL MOMENTO y devuelto en la respuesta (30/10:
+     por la cola no terminaba nunca). Un pedido HTTP puede esperar lo que
+     tarde Claude mientras quien lo pidió siga conectado. Queda además en
+     los avisos. Si falla, devuelve el motivo. */
+  if (ruta === '/api/admin/resumen' && metodo === 'POST') {
+    try {
+      const texto = await buenDia(env, { aPedido: true, porPanel: true, devolver: true });
+      return json({ ok: true, texto });
+    } catch (e) {
+      return error(`No se pudo armar el resumen: ${String(e?.message ?? e).slice(0, 500)}`, 500);
+    }
   }
 
   /* CUÁNDO CORRIÓ EL RELOJ POR ÚLTIMA VEZ (ver `scheduled`). */
