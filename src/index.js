@@ -4375,6 +4375,38 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     return json({ chats: results });
   }
 
+  /* BUSCAR EN LOS MENSAJES (30/10: los que preguntaron por el 118).
+     POST con el texto en el cuerpo, no en la dirección. Devuelve cada
+     chat con lo que hace falta para decidir si escribirle: si le dijimos
+     que estaba reservado, si habló alguien del equipo, cómo terminó y
+     cuándo escribió por última vez. */
+  if (ruta === '/api/admin/buscar' && metodo === 'POST') {
+    const cuerpo = await peticion.json().catch(() => ({}));
+    const q = texto(cuerpo?.q, 80);
+    if (!q) return error('Falta qué buscar');
+    const { results } = await env.DB.prepare(
+      `SELECT c.id, c.canal, c.externo_id, c.nombre, c.humano, c.nota, c.etapa, c.perdido, c.ultimo,
+              (SELECT MAX(creado) FROM mensajes WHERE conversacion_id = c.id AND direccion = 'entrante') AS ultimo_suyo,
+              (SELECT COUNT(*) FROM mensajes WHERE conversacion_id = c.id AND direccion = 'saliente'
+                 AND instr(lower(texto), 'reservad') > 0) AS dijimos_reservado,
+              (SELECT COUNT(*) FROM mensajes WHERE conversacion_id = c.id AND direccion = 'saliente'
+                 AND autor = 'persona') AS hablo_equipo
+         FROM conversaciones c
+        WHERE EXISTS (SELECT 1 FROM mensajes m WHERE m.conversacion_id = c.id
+                       AND instr(lower(m.texto), lower(?)) > 0)
+        ORDER BY c.ultimo DESC LIMIT 300`
+    ).bind(q).all();
+    for (const c of results ?? []) {
+      const { results: ms } = await env.DB.prepare(
+        `SELECT creado, direccion, autor, texto FROM mensajes WHERE conversacion_id = ?
+          AND texto IS NOT NULL ORDER BY creado DESC, id DESC LIMIT 6`
+      ).bind(c.id).all();
+      c.ultimos = (ms ?? []).reverse().map((m) =>
+        `[${String(m.creado).slice(5, 16)}] ${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto.slice(0, 160)}`);
+    }
+    return json({ chats: results ?? [] });
+  }
+
   /* Un chat con su historial. */
   const unChat = ruta.match(/^\/api\/admin\/chats\/(\d+)$/);
   if (unChat && metodo === 'GET') {
