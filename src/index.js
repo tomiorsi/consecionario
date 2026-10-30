@@ -2794,9 +2794,11 @@ Qué hacer con lo que escribió:
 - LOS NÚMEROS. Si pregunta cómo vamos ("cómo venimos?", "números",
   "cuántos vinieron?"), "numeros": true y en "a_maxi" sólo "Ya te los
   paso". Si no, false.
-- EL RESUMEN. Si pide el resumen o qué tiene hoy ("resumen", "qué tengo
-  hoy?", "pasame todo"), "resumen": true y en "a_maxi" sólo "Ya te lo
-  armo". Si no, false.
+- EL RESUMEN. SÓLO si pide explícitamente el resumen o qué tiene hoy
+  ("resumen", "qué tengo hoy?", "pasame todo"), "resumen": true y en
+  "a_maxi" sólo "Ya te lo armo". Si te cuenta algo (una reserva, una
+  venta, que alguien vino), eso NO es pedir el resumen: false, y
+  contestale sobre lo que te contó.
 - RESERVAS. Si dice que un auto se reservó o se señó ("el C300 se
   reservó con una seña"), su número del stock en "reservar". Si dice que
   se cayó la reserva, en "se_cayo_reserva". Si no queda claro cuál es,
@@ -3215,7 +3217,7 @@ async function buenDia(env, { aPedido = false, porPanel = false, devolver = fals
      y qué oportunidades hay. Los últimos mensajes de cada una alcanzan. */
   const { results: chats } = await env.DB.prepare(
     `SELECT id, canal, externo_id, nombre, humano, nota FROM conversaciones
-      WHERE ultimo > datetime('now','-3 days') AND id != ?
+      WHERE ultimo > datetime('now','-36 hours') AND id != ?
       ORDER BY (nota IS NULL), (canal != 'whatsapp'), ultimo DESC LIMIT 40`
   ).bind(jefe?.id ?? 0).all();
   const charlas = [];
@@ -3226,7 +3228,7 @@ async function buenDia(env, { aPedido = false, porPanel = false, devolver = fals
     ).bind(c.id).all();
     charlas.push(`### ${quienEs(c)}${c.humano ? ' (lo atiende el equipo)' : ''}${c.nota ? ` · ${c.nota}` : ''}\n` +
       (ms ?? []).reverse().map((m) =>
-        `${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto.slice(0, 180)}`).join('\n'));
+        `[${String(m.creado).slice(5, 16)}] ${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto.slice(0, 180)}`).join('\n'));
   }
   const { results: autos } = await env.DB.prepare(
     `SELECT marca, modelo, anio, km, precio, moneda FROM autos WHERE estado = 'publicado'`
@@ -3313,6 +3315,11 @@ Cómo llenar cada parte:
 - Si un auto que ofrecen tiene más de 150.000 km, agregá "Ojo: más de
   150.000 km". Si un cliente pidió un horario para que lo llamen,
   ponelo.
+- SÓLO LO VIGENTE. Mirá la fecha de cada mensaje: una visita "de hoy" que
+  era de ayer ya pasó, alguien que "está en la puerta" ayer ya vino, y lo
+  que el equipo ya resolvió no va. Nunca repitas a un cliente en dos
+  partes ni pongas líneas de "ya figura arriba". Los teléfonos, tal cual
+  vienen: nunca inventes ni completes uno.
 Si no hay nada en una parte, no la pongas. Si no hay nada en ninguna,
 escribí sólo "${aPedido ? 'Hoy no hay nada pendiente' : 'Buen día. Hoy sin novedades'}".`,
     messages: [{ role: 'user', content:
@@ -3320,7 +3327,7 @@ escribí sólo "${aPedido ? 'Hoy no hay nada pendiente' : 'Buen día. Hoy sin no
       `PARA TASAR\n${(tasar ?? []).map((c) => `${quienEs(c)}: ${c.nota}`).join('\n') || '(ninguno)'}\n\n` +
       `CONSULTAS SIN CONTESTAR\n${consultas.map((c) => `${c.n}. ${c.pregunta}`).join('\n') || '(ninguna)'}\n\n` +
       `STOCK\n${(autos ?? []).map((a) => `${a.marca} ${a.modelo} ${a.anio} · ${a.km} km · ${a.moneda} ${a.precio}`).join('\n')}\n\n` +
-      `CHARLAS DE LOS ÚLTIMOS 3 DÍAS\n\n${charlas.join('\n\n')}` }],
+      `CHARLAS DE LAS ÚLTIMAS 36 HORAS (cada mensaje con su fecha y hora UTC; Buenos Aires es UTC-3)\n\n${charlas.join('\n\n')}` }],
   });
   const texto = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
   /* VACÍO NO ES "NADA QUE CONTAR": es que se cortó (30/10: se gastaba el
