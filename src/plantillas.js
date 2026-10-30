@@ -47,8 +47,8 @@ export const PLANTILLAS = [
     nombre: 'visita_recordatorio',
     categoria: 'UTILITY',
     porque: 'Recordatorio de una visita acordada.',
-    texto: 'Hola {{1}}, ¿cómo estás? Te recuerdo que {{2}} a las {{3}} te esperamos '
-         + 'en Pje. Lanín 154, Barracas, para ver el {{4}}. Cualquier cosa avisame.',
+    texto: 'Hola {{1}}! Buen día. Te escribo para confirmar que {{2}} a las {{3}} te esperamos '
+         + 'en el salón, en Pje. Lanín 154, Barracas, para ver el {{4}}. Sigue todo en pie?',
     ejemplo: ['Martín', 'el jueves', '16:00', 'BMW 330i'],
   },
   {
