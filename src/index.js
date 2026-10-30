@@ -2342,9 +2342,12 @@ export class Envios extends DurableObject {
       try { await buenDia(this.env, { aPedido: true, porPanel: paso.porPanel }); }
       catch (e) {
         console.error('No salió el resumen:', e?.message ?? e);
-        await escribirleAlJefe(this.env,
-          `No pude armar el resumen: ${String(e?.message ?? e).slice(0, 200)}. Probá de nuevo en un rato.`,
-          { respuesta: true });
+        /* El error queda SIEMPRE en el panel, además de intentar decírselo
+           por WhatsApp: si el WhatsApp también falla, sin esto no queda
+           rastro (30/10). */
+        const motivo = `No pude armar el resumen: ${String(e?.message ?? e).slice(0, 300)}`;
+        await anotarAviso(this.env, motivo);
+        if (!paso.porPanel) await escribirleAlJefe(this.env, `${motivo}. Probá de nuevo en un rato.`, { respuesta: true });
       }
       await this.ctx.storage.deleteAll();
       return;
