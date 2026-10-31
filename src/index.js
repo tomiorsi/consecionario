@@ -4761,9 +4761,16 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       `INSERT INTO mensajes (conversacion_id, direccion, tipo, texto, clase)
        VALUES (?, 'entrante', 'texto', ?, 'mensaje')`
     ).bind(jefe.id, dicho).run();
-    ctx?.waitUntil?.(atenderAlJefe(env, jefe.id, r.meta.last_row_id, { porPanel: true })
-      .catch((e) => console.error('No se pudo atender a Maxi por el panel:', e?.message ?? e)));
-    return json({ ok: true });
+    /* SE ESPERA ACÁ Y NO EN waitUntil (31/10): con la agenda, las
+       consultas y lo aprendido, Claude tarda más de los 30 segundos que
+       da waitUntil, y el pedido se cortaba sin rastro. Un pedido HTTP
+       puede esperar; si falla, devuelve el motivo. */
+    try {
+      await atenderAlJefe(env, jefe.id, r.meta.last_row_id, { porPanel: true });
+      return json({ ok: true });
+    } catch (e) {
+      return error(`No se pudo atender: ${String(e?.message ?? e).slice(0, 500)}`, 500);
+    }
   }
 
   /* EL RESUMEN, ARMADO EN EL MOMENTO y devuelto en la respuesta (30/10:
