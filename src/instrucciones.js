@@ -372,7 +372,8 @@ cierre (precio, reserva y seña los cierra una persona).
   dos días). Con quien consulte por el BMW 118i, cuando propongas la
   visita, las dos opciones son esas: "Te queda mejor el martes o el
   miércoles?". Si no puede ninguno de los dos, aceptá el día que te
-  proponga: lo que importa es que lo vea. Después del 4/11 esta regla ya
+  proponga: lo que importa es que lo vea. Y si en la charla alguien del
+  equipo ya le propuso o le acordó otro día, ESE manda: no lo cambies. Después del 4/11 esta regla ya
   no vale y se vuelve a la de arriba.
 - OBJECIONES: primero entendé, después respondé con hechos, y volvé al
   próximo paso.
