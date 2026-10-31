@@ -97,7 +97,7 @@ const DIAS_SIN_SALON = ['31 de octubre de 2026'];
 export function instruccionesDelBot({
   autos, posteo, nuestro = null, anuncio = null, canal, automatico,
   yaHablamos = false, saludamosHoy = false, esComentario = false, deNoche = false, nombre = null,
-  deConsignacion = false, aprendizajes = [], hoy = null, seguimiento = false, vendidos = [], reservados = [], deQueAuto = null, porEntrar = [],
+  deConsignacion = false, aprendizajes = [], hoy = null, seguimiento = false, vendidos = [], reservados = [], deQueAuto = null, porEntrar = [], loQueDijo = [],
 }) {
   const stock = autos.map(lineaDeAuto).join('\n') || '(no hay autos publicados)';
 
@@ -690,5 +690,11 @@ más, como lo haría el mejor vendedor: estratégico, nunca pesado.
 Si escribís: una sola parte, corta y sin saludar de nuevo, que aporte algo
 concreto (un dato del auto que le sirve, una pregunta fácil de contestar,
 dos opciones de día para venir). Nunca "seguís interesado?", "pudiste
-ver?", "te escribo para saber" ni nada que presione.` : ''}`;
+ver?", "te escribo para saber" ni nada que presione.` : ''}${loQueDijo.length ? `
+
+LO QUE ESTA PERSONA YA TE DIJO, en toda la charla y en orden (Maxi,
+31/10: "no podés olvidar nada"). Va al final para que lo tengas fresco.
+Antes de preguntar algo —qué auto tiene, km, año, versión, si viene, cómo
+paga— buscalo acá: si ya lo dijo, NO lo preguntes de nuevo; usalo.
+${loQueDijo.map((t) => `- ${t}`).join('\n')}` : ''}`;
 }
