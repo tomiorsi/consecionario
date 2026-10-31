@@ -626,10 +626,10 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 
 /* ── los avisos del bot ── */
 .avisos{ display:grid; gap:.8rem; max-width:44rem; margin:1.2rem auto 0 }
-.aviso{ border:1px solid rgba(127,127,127,.25); border-radius:10px; padding:.9rem 1rem }
-.aviso-cuando{ font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:var(--apagado); margin-bottom:.4rem }
-.aviso-texto{ white-space:pre-wrap; font-size:.86rem; line-height:1.55; overflow-wrap:anywhere }
-.aviso-texto a{ color:inherit; text-decoration:underline }
+.bot-aviso{ border:1px solid rgba(127,127,127,.25); border-radius:10px; padding:.9rem 1rem }
+.bot-aviso-cuando{ font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:var(--apagado); margin-bottom:.4rem }
+.bot-aviso-texto{ white-space:pre-wrap; font-size:.86rem; line-height:1.55; overflow-wrap:anywhere }
+.bot-aviso-texto a{ color:inherit; text-decoration:underline }
 
 .seccion-rotulo{
   font-family:var(--display); font-size:.72rem; font-weight:700;
