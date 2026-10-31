@@ -1906,6 +1906,12 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
        forma se pide en las instrucciones y se lee con tolerancia abajo. */
     output_config: { effort: 'low' },
     system: instruccionesDelBot({
+      /* TODO LO QUE DIJO EL CLIENTE, no sólo lo de los últimos 20
+         mensajes: lo que contó al principio de una charla larga (qué
+         auto tiene, los km) se perdía y el bot lo volvía a preguntar. */
+      loQueDijo: todos.filter((m) => m.clase !== 'comentario' && m.direccion === 'entrante' && m.texto)
+        .map((m) => `[${String(m.creado).slice(5, 16)}] ${m.texto.replace(/\s+/g, ' ').slice(0, 300)}`)
+        .slice(-80),
       autos: autos ?? [], posteo, nuestro, anuncio, canal: chat.canal,
       automatico, esComentario, deNoche, nombre: chat.nombre,
       deConsignacion: deConsignacion || origenSabido?.tipo === 'consignacion',
