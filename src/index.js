@@ -1178,6 +1178,37 @@ async function traerDeInstagram(env, { limite = 25 } = {}) {
   return { vistas, leidos, guardados };
 }
 
+/* LA CHARLA DE ANTES, ANTES DE CONTESTAR (Maxi, 31/10: un cliente había
+   dicho en septiembre que tenía un A250 2014, y el bot le contestó como
+   a un desconocido). El webhook sólo trae lo nuevo: si de esta persona
+   no hay nada guardado de antes de hoy, se le piden a Instagram sus
+   últimos mensajes. Una sola vez por charla. */
+async function historialDeInstagram(env, chat) {
+  if (chat?.canal !== 'instagram') return;
+  const viejo = await env.DB.prepare(
+    `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND creado < datetime('now','-2 hours') LIMIT 1`
+  ).bind(chat.id).first();
+  if (viejo) return;
+  const ya = (await leerEstado(env, 'historial_ig'))?.valor ?? [];
+  if (ya.includes(chat.id)) return;
+  await guardarEstado(env, 'historial_ig', [...ya, chat.id].slice(-500));
+
+  const r = await igLlamar(env, `/me/conversations?platform=instagram&user_id=${encodeURIComponent(chat.externo_id)}`
+    + `&fields=messages.limit(25){id,created_time,from{id},message,attachments}`);
+  for (const m of r?.data?.[0]?.messages?.data ?? []) {
+    const suyo = m.from?.id === chat.externo_id;
+    const adjunto = m.attachments?.data?.[0];
+    const tipo = m.message ? 'texto' : adjunto?.image_data ? 'imagen' : adjunto?.video_data ? 'video' : adjunto ? 'otro' : 'texto';
+    const campos = ['conversacion_id', 'externo_id', 'direccion', 'autor', 'tipo', 'texto'];
+    const valores = [chat.id, m.id, suyo ? 'entrante' : 'saliente', suyo ? null : 'persona', tipo, m.message || null];
+    const cuando = (m.created_time || '').replace('T', ' ').slice(0, 19);
+    if (cuando) { campos.push('creado'); valores.push(cuando); }
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO mensajes (${campos.join(', ')}) VALUES (${campos.map(() => '?').join(', ')})`
+    ).bind(...valores).run();
+  }
+}
+
 /* ── TRAER EL PASADO ─────────────────────────────────────────────
 
    EL WEBHOOK SÓLO TRAE EL PRESENTE. Avisa de lo que pasa de ahora en
@@ -3633,6 +3664,8 @@ async function atenderSolo(env, disparos) {
       const chat = await env.DB.prepare(
         'SELECT id, canal, externo_id, humano, nombre, nota, etapa FROM conversaciones WHERE id = ?'
       ).bind(d.conversacion).first();
+      await historialDeInstagram(env, chat)
+        .catch((e) => console.error('No se pudo traer la charla anterior:', e?.message ?? e));
       /* UN CLIENTE QUE YA COMPRÓ CONTESTA (casi siempre, a la posventa):
          no le habla el bot, se le avisa a Maxi para que le conteste él. */
       /* CONTESTA LA CONFIRMACIÓN DE SU VISITA: lo que dijo, a Maxi. */
