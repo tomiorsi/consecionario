@@ -3228,7 +3228,15 @@ async function confirmarVisitasDeHoy(env) {
     lineas.push(`${fichaDeVisita(v)}${enviada ? '\nLe mandé la confirmación.' : '\nConfirmale vos: no escribió en las últimas 23 horas y por Instagram o Facebook no se le puede mandar.'}`);
   }
   await guardarEstado(env, 'agenda', agenda);
-  if (lineas.length) await anotarAviso(env, `*HOY EN EL SALÓN*\n\n${lineas.join('\n\n')}`);
+  if (lineas.length) await anotarAviso(env, `*CONFIRMACIONES DE HOY*\n\n${lineas.join('\n\n')}`);
+}
+
+async function hoyEnElSalon(env) {
+  const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
+  const deHoy = agenda.filter((v) => v.visita.slice(0, 10) === diaDeBsAs());
+  if (deHoy.length) {
+    await anotarAviso(env, `*HOY EN EL SALÓN*\n\n${deHoy.map(fichaDeVisita).join('\n\n')}\n\nA las 8:30 les mando la confirmación.`);
+  }
 }
 
 async function agendaDeManana(env) {
@@ -4350,6 +4358,11 @@ export default {
        de esta vuelta, después de ponerse al día y de los seguimientos, que
        piensan con Claude y tardan: la vuelta se cortaba antes. Ahora se
        encargan a la cola de envíos, que corre aparte y sin ese límite. */
+    /* HOY EN EL SALÓN, A LAS 7:30 (Maxi, 31/10). A los clientes se les
+       sigue escribiendo a las 8:30: a las 7:30 es temprano para ellos. */
+    if (hora === 10 && minutoDelReloj >= 30 && minutoDelReloj < 35) {
+      await hoyEnElSalon(env).catch((e) => console.error('No salió hoy en el salón:', e?.message ?? e));
+    }
     if (hora === 11 && minutoDelReloj >= 30 && minutoDelReloj < 35) {
       await env.ENVIOS.get(env.ENVIOS.idFromName('tareas-buen-dia')).tarea('buenDia').catch(() => {});
     }

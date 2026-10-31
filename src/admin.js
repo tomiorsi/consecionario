@@ -624,6 +624,13 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
    publicaciones. Es el orden en el que se pregunta —cómo vengo, a quién
    le llego, qué funcionó— y no el orden en el que la API los devuelve. */
 
+/* ── los avisos del bot ── */
+.avisos{ display:grid; gap:.8rem; max-width:44rem; margin:1.2rem auto 0 }
+.aviso{ border:1px solid rgba(127,127,127,.25); border-radius:10px; padding:.9rem 1rem }
+.aviso-cuando{ font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:var(--apagado); margin-bottom:.4rem }
+.aviso-texto{ white-space:pre-wrap; font-size:.86rem; line-height:1.55; overflow-wrap:anywhere }
+.aviso-texto a{ color:inherit; text-decoration:underline }
+
 .seccion-rotulo{
   font-family:var(--display); font-size:.72rem; font-weight:700;
   letter-spacing:.14em; text-transform:uppercase; color:var(--chrome);
@@ -824,6 +831,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   <main class="hoja" id="vistaLista">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
       <div class="pestanias">
+        <button class="pestania" type="button" id="pesAvisos" aria-pressed="false">Avisos</button>
         <button class="pestania" type="button" id="pesAutos" aria-pressed="true">Autos</button>
         <button class="pestania" type="button" id="pesMedios" aria-pressed="false">Imágenes del sitio</button>
         <button class="pestania" type="button" id="pesBandeja" aria-pressed="false">Mensajes</button>
@@ -840,6 +848,20 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
     <div class="filtros" id="filtros"></div>
     <div class="grilla" id="grilla"></div>
     <div class="vacio oculto" id="sinAutos">Todavía no hay autos cargados.</div>
+
+    <!-- LOS AVISOS DEL BOT PARA MAXI (31/10): hoy en el salón, mañana,
+         el resumen, las consultas que esperan respuesta, lo que pasa al
+         equipo. Lo más nuevo arriba. -->
+    <section id="zonaAvisos" class="oculto">
+      <p class="aclara">
+        Lo que el bot te avisa: las visitas de hoy (7:30) y de mañana
+        (21 h), el resumen, las consultas que esperan tu respuesta y los
+        chats que pasan al equipo. Lo más nuevo arriba. Tocá un número
+        para abrir el chat en WhatsApp.
+      </p>
+      <div class="avisos" id="avisos"></div>
+      <div class="vacio oculto" id="sinAvisos">Todavía no hay avisos.</div>
+    </section>
 
     <!-- LAS IMÁGENES FIJAS DE LA HOME -->
     <section id="zonaMedios" class="oculto">
