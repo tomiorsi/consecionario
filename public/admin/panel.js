@@ -1800,9 +1800,37 @@ $('#palancaIA').addEventListener('click', async () => {
   }
 });
 
+/* ── los avisos del bot ─────────────────────────────────────────── */
+
+/* Un número "+54 9 11 6384-9094" pasa a ser un link a su chat. El texto
+   se escapa primero: los links se arman sobre texto ya seguro. */
+function conLinks(texto) {
+  return escapar(texto)
+    .replace(/\*([^*\n]+)\*/g, '<strong>$1</strong>')
+    .replace(/\+54 9 [\d -]{8,14}\d/g, (tel) =>
+      '<a href="https://wa.me/' + tel.replace(/\D/g, '') + '" target="_blank" rel="noopener">' + tel + '</a>');
+}
+
+async function cargarAvisos() {
+  try {
+    const { avisos = [] } = await api('/api/admin/avisos');
+    const lista = avisos.slice().reverse();
+    $('#sinAvisos').classList.toggle('oculto', lista.length > 0);
+    $('#avisos').innerHTML = lista.map((a) =>
+      '<article class="aviso">' +
+        '<div class="aviso-cuando">' + escapar(new Date(a.cuando).toLocaleString('es-AR', {
+          timeZone: 'America/Argentina/Buenos_Aires', weekday: 'short', day: 'numeric',
+          month: 'numeric', hour: '2-digit', minute: '2-digit' })) + '</div>' +
+        '<div class="aviso-texto">' + conLinks(a.texto) + '</div>' +
+      '</article>').join('');
+  } catch (err) {
+    avisar(err.message, true);
+  }
+}
+
 function verPestania(cual) {
   const autos = cual === 'autos';
-  [['autos', '#pesAutos'], ['medios', '#pesMedios'],
+  [['avisos', '#pesAvisos'], ['autos', '#pesAutos'], ['medios', '#pesMedios'],
    ['bandeja', '#pesBandeja'], ['numeros', '#pesNumeros']]
     .forEach(([c, sel]) => $(sel).setAttribute('aria-pressed', String(cual === c)));
 
@@ -1813,6 +1841,7 @@ function verPestania(cual) {
   $('#fotosWA').classList.toggle('oculto', !autos || ordenando);
   $('#guardarOrden').classList.toggle('oculto', !autos || !ordenando);
   $('#cancelarOrden').classList.toggle('oculto', !autos || !ordenando);
+  $('#zonaAvisos').classList.toggle('oculto', cual !== 'avisos');
   $('#zonaMedios').classList.toggle('oculto', cual !== 'medios');
   $('#zonaBandeja').classList.toggle('oculto', cual !== 'bandeja');
   $('#zonaNumeros').classList.toggle('oculto', cual !== 'numeros');
@@ -1820,6 +1849,7 @@ function verPestania(cual) {
   $('#sinChats').classList.add('oculto');
 
   if (autos) pintarLista();
+  else if (cual === 'avisos') cargarAvisos();
   else if (cual === 'medios') cargarMedios();
   else if (cual === 'numeros') cargarNumeros();
   else {
@@ -1830,6 +1860,7 @@ function verPestania(cual) {
   }
 }
 
+$('#pesAvisos').addEventListener('click', () => verPestania('avisos'));
 $('#pesAutos').addEventListener('click', () => verPestania('autos'));
 $('#pesMedios').addEventListener('click', () => verPestania('medios'));
 $('#pesBandeja').addEventListener('click', () => verPestania('bandeja'));
