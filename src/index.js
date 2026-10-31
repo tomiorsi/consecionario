@@ -2603,10 +2603,10 @@ async function loAprendido(env) {
    a algo que él escribió (resumen, números, "anotado"): `respuesta`.
    Los avisos dicen teléfonos y nombres de clientes: viven en la misma
    base y se van con la limpieza; no salen del sistema. */
-async function anotarAviso(env, texto) {
+async function anotarAviso(env, texto, { tipo = null } = {}) {
   const avisos = (await leerEstado(env, 'avisos'))?.valor ?? [];
   const n = (avisos.at(-1)?.n ?? 0) + 1;
-  avisos.push({ n, cuando: new Date().toISOString(), texto: String(texto).slice(0, 3000) });
+  avisos.push({ n, cuando: new Date().toISOString(), texto: String(texto).slice(0, 3000), ...(tipo ? { tipo } : {}) });
   await guardarEstado(env, 'avisos', avisos.slice(-200));
   return true;
 }
@@ -2699,6 +2699,9 @@ const FORMA_DEL_JEFE = {
     reservar: { type: 'array', items: { type: 'integer' } },
     se_cayo_reserva: { type: 'array', items: { type: 'integer' } },
     por_entrar: { type: 'array', items: { type: 'string' } },
+    recordar: { type: 'array', items: { type: 'object', properties: {
+      cuando: { type: 'string' }, texto: { type: 'string' } },
+      required: ['cuando', 'texto'], additionalProperties: false } },
     ya_no_entran: { type: 'array', items: { type: 'integer' } },
     resumen: { type: 'boolean' },
     resultados: { type: 'array', items: { type: 'object', properties: {
@@ -2710,7 +2713,7 @@ const FORMA_DEL_JEFE = {
     a_maxi: { type: 'string' },
   },
   required: ['consulta', 'al_cliente', 'aprendizaje', 'olvidar', 'quitar_visitas', 'mover_visita',
-    'ya_compraron', 'vendidos', 'reservar', 'se_cayo_reserva', 'por_entrar', 'ya_no_entran', 'resumen', 'resultados', 'numeros', 'a_maxi'],
+    'ya_compraron', 'vendidos', 'reservar', 'se_cayo_reserva', 'por_entrar', 'ya_no_entran', 'recordar', 'resumen', 'resultados', 'numeros', 'a_maxi'],
   additionalProperties: false,
 };
 
@@ -2818,6 +2821,11 @@ Qué hacer con lo que escribió:
   reservó con una seña"), su número del stock en "reservar". Si dice que
   se cayó la reserva, en "se_cayo_reserva". Si no queda claro cuál es,
   preguntale. Si no, [] y [].
+- LOS RECORDATORIOS (Maxi, 31/10). Si pide que le recuerdes algo para un
+  día ("el martes recordame escribirle a Federico"), poné en "recordar" una
+  entrada con "cuando" ("AAAA-MM-DD HH:MM", sacado de la fecha de hoy; sin
+  hora, 10:00) y en "texto" qué hay que hacer, con nombre, teléfono y lo
+  que se habló, como para que lo haga sin abrir el chat. Si no, [].
 - LO QUE ESTÁ POR ENTRAR (Maxi, 30/10). Si cuenta que está por entrar un
   auto (una permuta que estamos por tomar, una consignación, una compra:
   "está por entrar un Audi A4 2019"), ponelo en "por_entrar": una línea
@@ -2862,6 +2870,13 @@ Qué hacer con lo que escribió:
     } else {
       dato.a_maxi = `${dato.a_maxi}\n\n(${chats?.length ? `Hay ${chats.length} chats que terminan en ${cuatro}` : `No encontré ningún chat que termine en ${cuatro}`}: pasame el número completo.)`;
     }
+  }
+
+  /* LOS RECORDATORIOS: salen en los avisos, en verde, el día que dijo. */
+  const recordar = (dato.recordar ?? []).filter((r) => /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(r.cuando) && r.texto?.trim());
+  if (recordar.length) {
+    const ya = (await leerEstado(env, 'recordatorios'))?.valor ?? [];
+    await guardarEstado(env, 'recordatorios', [...ya, ...recordar].slice(-50));
   }
 
   /* LO QUE ESTÁ POR ENTRAR: el bot lo ofrece cuando es más parecido a lo
@@ -3229,6 +3244,18 @@ async function confirmarVisitasDeHoy(env) {
   }
   await guardarEstado(env, 'agenda', agenda);
   if (lineas.length) await anotarAviso(env, `*CONFIRMACIONES DE HOY*\n\n${lineas.join('\n\n')}`);
+}
+
+/* RECORDATORIOS PARA MAXI (31/10): "el martes escribile a Federico".
+   Corren en el reloj del Worker, así que salen aunque nadie tenga la
+   compu prendida. En el panel se ven en verde: es algo para hacer. */
+async function recordatoriosDeHoy(env) {
+  const todos = (await leerEstado(env, 'recordatorios'))?.valor ?? [];
+  const toca = (r) => aMs(r.cuando) <= Date.now();
+  const ahora = todos.filter(toca);
+  if (!ahora.length) return;
+  await guardarEstado(env, 'recordatorios', todos.filter((r) => !toca(r)));
+  for (const r of ahora) await anotarAviso(env, `*PARA HACER HOY*\n${r.texto}`, { tipo: 'hacer' });
 }
 
 async function hoyEnElSalon(env) {
@@ -4383,6 +4410,8 @@ export default {
     catch (e) { console.error('No se pudo hacer la posventa:', e?.message ?? e); }
     try { await hacerSeguimientos(env); }
     catch (e) { console.error('No se pudieron hacer los seguimientos:', e?.message ?? e); }
+    try { await recordatoriosDeHoy(env); }
+    catch (e) { console.error('No salieron los recordatorios:', e?.message ?? e); }
     try { await recordarVisitas(env); }
     catch (e) { console.error('No se pudieron recordar las visitas:', e?.message ?? e); }
     void minuto;
