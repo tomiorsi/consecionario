@@ -3197,7 +3197,15 @@ async function confirmarVisitasDeHoy(env) {
       .bind(v.chat).first();
     if (!c) continue;
     let enviada = Boolean(v.confirmacion);
-    if (!enviada && c.canal === 'whatsapp') {
+    /* INSTAGRAM Y MESSENGER TAMBIÉN (Maxi, 31/10: "lo que agendás por
+       Instagram o Facebook, es todo lo mismo"). Ahí no hay plantillas:
+       sólo se puede escribir si la persona habló en las últimas 23 horas.
+       Si no, se lo confirma el equipo. */
+    const abierta = c.canal === 'whatsapp' || Boolean(await env.DB.prepare(
+      `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
+          AND creado > datetime('now','-23 hours') LIMIT 1`
+    ).bind(c.id).first());
+    if (!enviada && abierta) {
       const nombre = primerNombre(c.nombre);
       const hora = v.visita.length > 10 ? v.visita.slice(11, 16) : null;
       const libre = `Hola${nombre ? ` ${nombre}` : ''}! Buen día. Te escribo para confirmar que hoy`
@@ -3208,14 +3216,16 @@ async function confirmarVisitasDeHoy(env) {
       ).bind(c.id).first())?.n ?? 0;
       await env.ENVIOS.get(env.ENVIOS.idFromName(`visita-${c.id}`)).encolar(
         { id: c.id, canal: c.canal, externo_id: c.externo_id },
-        [{ plantilla: 'visita_recordatorio',
-           valores: [nombre || 'qué tal', 'hoy', hora ?? 'la hora que acordamos', v.auto ?? 'auto'],
-           texto: libre, espera: 0 }],
+        [c.canal === 'whatsapp'
+          ? { plantilla: 'visita_recordatorio',
+              valores: [nombre || 'qué tal', 'hoy', hora ?? 'la hora que acordamos', v.auto ?? 'auto'],
+              texto: libre, espera: 0 }
+          : { texto: libre, espera: 0 }],
         'ia', visto, 1);
       v.confirmacion = new Date().toISOString();
       enviada = true;
     }
-    lineas.push(`${fichaDeVisita(v)}${enviada ? '\nLe mandé la confirmación.' : '\nConfirmale vos (no es WhatsApp).'}`);
+    lineas.push(`${fichaDeVisita(v)}${enviada ? '\nLe mandé la confirmación.' : '\nConfirmale vos: no escribió en las últimas 23 horas y por Instagram o Facebook no se le puede mandar.'}`);
   }
   await guardarEstado(env, 'agenda', agenda);
   if (lineas.length) await anotarAviso(env, `*HOY EN EL SALÓN*\n\n${lineas.join('\n\n')}`);
