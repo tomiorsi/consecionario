@@ -1817,7 +1817,7 @@ async function cargarAvisos() {
     const lista = avisos.slice().reverse();
     $('#sinAvisos').classList.toggle('oculto', lista.length > 0);
     $('#avisos').innerHTML = lista.map((a) =>
-      '<article class="bot-aviso">' +
+      '<article class="bot-aviso' + (a.tipo === 'hacer' ? ' bot-aviso--hacer' : '') + '">' +
         '<div class="bot-aviso-cuando">' + escapar(new Date(a.cuando).toLocaleString('es-AR', {
           timeZone: 'America/Argentina/Buenos_Aires', weekday: 'short', day: 'numeric',
           month: 'numeric', hour: '2-digit', minute: '2-digit' })) + '</div>' +
