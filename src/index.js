@@ -4875,6 +4875,28 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     return json((await leerEstado(env, 'reloj'))?.valor ?? {});
   }
 
+  /* EL TABLERO DE LA AGENDA (Maxi, 31/10): las visitas, lo que hay que
+     hacer, las consultas que esperan y los avisos, por separado, para
+     que el panel los muestre cada uno en su lugar. */
+  if (ruta === '/api/admin/tablero' && metodo === 'GET') {
+    const deChat = async (id) => id ? env.DB.prepare(
+      'SELECT id, canal, externo_id, nombre FROM conversaciones WHERE id = ?').bind(id).first() : null;
+    const conQuien = async (x) => {
+      const c = await deChat(x.chat);
+      return { ...x, quien: c ? quienEs(c) : (x.quien ?? ''), canal: c?.canal ?? null,
+        tel: c?.canal === 'whatsapp' ? c.externo_id : null };
+    };
+    const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
+    const consultas = (await leerEstado(env, 'consultas'))?.valor ?? [];
+    return json({
+      hoy: diaDeBsAs(),
+      agenda: await Promise.all(agenda.map(conQuien)),
+      consultas: await Promise.all(consultas.map(conQuien)),
+      recordatorios: (await leerEstado(env, 'recordatorios'))?.valor ?? [],
+      avisos: ((await leerEstado(env, 'avisos'))?.valor ?? []).slice(-150),
+    });
+  }
+
   /* LOS AVISOS PARA MAXI, los más nuevos que `desde`. Ver `anotarAviso`. */
   if (ruta === '/api/admin/avisos' && metodo === 'GET') {
     const desde = Number(new URL(peticion.url).searchParams.get('desde') ?? 0) || 0;
