@@ -1039,6 +1039,23 @@ const GRACIAS = [
   'Qué bueno que te guste, gracias!',
 ];
 
+/* LOS TEXTOS FIJOS EN OTROS IDIOMAS (Maxi, 1/11: "si te hablan en otro
+   idioma, contestá en ese idioma"). Lo que escribe el modelo ya sale en el
+   idioma del cliente; esto es lo poco que no escribe él. */
+const EN_OTRO_IDIOMA = {
+  en: { avisos: ['Hi! We just sent you a DM with all the info.', 'Thanks for writing! Check your messages, we wrote to you.'],
+    gracias: ['Thanks!', 'Thank you so much!'], link: "Here's the link so you can see more details and photos." },
+  pt: { avisos: ['Oi! Te mandamos uma mensagem no privado com todas as informações.', 'Obrigado por escrever! Te respondemos no privado.'],
+    gracias: ['Obrigado!', 'Muito obrigado!'], link: 'Te mando o link para você ver mais informações e fotos.' },
+  it: { avisos: ['Ciao! Ti abbiamo scritto in privato con tutte le informazioni.', 'Grazie per averci scritto! Ti rispondiamo in privato.'],
+    gracias: ['Grazie!', 'Grazie mille!'], link: 'Ti mando il link per vedere più informazioni e foto.' },
+  fr: { avisos: ['Bonjour ! Nous vous avons écrit en privé avec toutes les infos.', 'Merci de nous avoir écrit ! On vous répond en privé.'],
+    gracias: ['Merci !', 'Merci beaucoup !'], link: 'Voici le lien pour voir plus d’informations et de photos.' },
+  de: { avisos: ['Hallo! Wir haben dir privat mit allen Infos geschrieben.', 'Danke für deine Nachricht! Wir antworten dir privat.'],
+    gracias: ['Danke!', 'Vielen Dank!'], link: 'Hier ist der Link mit mehr Infos und Fotos.' },
+};
+const enIdioma = (idioma) => EN_OTRO_IDIOMA[String(idioma ?? 'es').slice(0, 2).toLowerCase()] ?? null;
+
 async function avisarEnElComentario(env, comentarioId, lista = AVISOS) {
   const texto = lista[Math.floor(Math.random() * lista.length)];
   return igLlamar(
@@ -1549,16 +1566,17 @@ const FORMA_DE_RESPUESTA = {
     visita_auto: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     visita_condiciones: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     interesado_reservado: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
+    idioma: { type: 'string' },
   },
   required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion',
-    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_condiciones', 'interesado_reservado'],
+    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_condiciones', 'interesado_reservado', 'idioma'],
   additionalProperties: false,
 };
 
 const FORMA_EN_TEXTO = `
 
 TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
-{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "interesado_reservado": null}
+{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "interesado_reservado": null, "idioma": "es"}
 Escribí "partes" siempre, aunque "responder" sea false: así se puede revisar
 qué hubieras dicho.`;
 
@@ -2035,6 +2053,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
 
   return {
     partes,
+    idioma: /^[a-z]{2}$/i.test(dato.idioma ?? '') ? dato.idioma.toLowerCase() : 'es',
     texto: partes.join('\n\n'),
     autoId: auto?.id ?? null,
     derivar: dato.pasar_a_persona ? String(dato.pasar_a_persona).slice(0, 200) : null,
@@ -2249,9 +2268,10 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
 /* EN INSTAGRAM Y MESSENGER VA EL LINK SOLO (Maxi, 31/10): ahí la vista
    previa sale como una burbuja aparte y el texto con el link como otra, y
    se veía el link dos veces. Con el link solo queda la tarjeta con la foto. */
-const conPresentacion = (link, canal = 'whatsapp') => !link ? null
-  : canal === 'whatsapp' ? `Te mando el link para que vayas viendo un poco más de información.\n${link}`
-  : link;
+const conPresentacion = (link, canal = 'whatsapp', idioma = 'es') => !link ? null
+  : canal !== 'whatsapp' ? link
+  : enIdioma(idioma) ? `${enIdioma(idioma).link}\n${link}`
+  : `Te mando el link para que vayas viendo un poco más de información.\n${link}`;
 
 const PAUSA_ENTRE_PARTES = 14000;
 const PAUSA_TRAS_EL_LINK = 24000;
@@ -2322,9 +2342,9 @@ async function ubicacionSinRepetir(_env, _chatId, ubicacion) {
 }
 
 async function mandarRespuesta(env, chat, {
-  partes, autoId = null, ubicacion = false, aWhatsapp = false, autor, despues = null,
+  partes, autoId = null, ubicacion = false, aWhatsapp = false, autor, despues = null, idioma = 'es',
 }) {
-  const link = conPresentacion(await linkSinRepetir(env, chat.id, autoId), chat.canal);
+  const link = conPresentacion(await linkSinRepetir(env, chat.id, autoId), chat.canal, idioma);
   const fijos = [
     link,
     await ubicacionSinRepetir(env, chat.id, ubicacion),
@@ -2441,7 +2461,7 @@ export class Envios extends DurableObject {
         if (ultimo?.id === paso.mensaje && canalActivo(cfg, paso.chat.canal) && horaBsAs >= 9 && horaBsAs < 21) {
           const r = await pensarRespuesta(this.env, paso.chat.id, { automatico: true, soloDatos: true });
           if (r.responder && !r.derivar && r.partes.length) {
-            await mandarRespuesta(this.env, paso.chat, { partes: r.partes.slice(0, 2), autor: 'ia' });
+            await mandarRespuesta(this.env, paso.chat, { partes: r.partes.slice(0, 2), autor: 'ia', idioma: r.idioma });
           }
         }
       } catch (e) {
@@ -3878,7 +3898,7 @@ async function atenderSolo(env, disparos) {
         console.log(JSON.stringify({ bot: r.derivar ? 'pasó en silencio' : 'no hacía falta', canal: chat.canal }));
       }
       else await mandarRespuesta(env, chat, {
-        partes: r.partes, autoId: r.autoId, ubicacion: r.ubicacion,
+        partes: r.partes, autoId: r.autoId, ubicacion: r.ubicacion, idioma: r.idioma,
         aWhatsapp: Boolean(r.derivar || r.irAWhatsapp), autor: 'ia',
         /* Si le pasó un precio, a los 20 minutos de silencio se piensa un
            seguimiento (ver `Envios`). */
@@ -3966,7 +3986,7 @@ async function atenderComentario(env, chat, r) {
       const ya = (await leerEstado(env, 'gracias'))?.valor ?? [];
       if (!ya.includes(clave)) {
         await guardarEstado(env, 'gracias', [...ya, clave].slice(-500));
-        try { await avisarEnElComentario(env, comentario.externo_id, GRACIAS); }
+        try { await avisarEnElComentario(env, comentario.externo_id, enIdioma(r.idioma)?.gracias ?? GRACIAS); }
         catch (e) { console.error('No se pudo agradecer en el comentario:', e?.message ?? e); }
       }
     }
@@ -3991,7 +4011,7 @@ async function atenderComentario(env, chat, r) {
   const id = await mandarUno(env, chat, texto, { comentarioId: comentario.externo_id });
   await guardarSaliente(env, chat.id, texto, 'ia', id, { mediaId: comentario.media_id });
 
-  try { await avisarEnElComentario(env, comentario.externo_id); }
+  try { await avisarEnElComentario(env, comentario.externo_id, enIdioma(r.idioma)?.avisos ?? AVISOS); }
   catch (e) { console.error('No se pudo avisar en el comentario:', e?.message ?? e); }
 }
 
