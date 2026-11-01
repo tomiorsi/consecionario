@@ -1935,7 +1935,13 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
         .slice(-80),
       autos: autos ?? [], posteo, nuestro, anuncio, canal: chat.canal,
       automatico, esComentario, deNoche, nombre: chat.nombre,
-      deConsignacion: deConsignacion || origenSabido?.tipo === 'consignacion',
+      /* "¡Hola! Quiero más información." es el mensaje de cualquier
+         anuncio, no sólo el de consignaciones (Maxi, 1/11: un cliente del
+         anuncio del 118i recibió "Querés vender tu auto?"). Si se sabe que
+         viene de un auto, manda el auto; si no se sabe de dónde viene, se
+         pregunta en vez de suponer. */
+      deConsignacion: origenSabido?.tipo === 'consignacion'
+        || (deConsignacion && !origenSabido ? 'dudoso' : false),
       deQueAuto,
       aprendizajes: await loAprendido(env),
       vendidos: (vendidos ?? []).map((a) => [a.marca, a.modelo, a.anio].filter(Boolean).join(' ')),
@@ -2023,7 +2029,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
      reservado, ese es el auto: el link sale (una sola vez, ver
      `linkSinRepetir`) salvo que la charla sea de una consignación. */
   const delOrigen = origenSabido?.tipo === 'auto' && !reservadosIds.includes(origenSabido.auto)
-    && !deConsignacion ? origenSabido.auto : null;
+    ? origenSabido.auto : null;
   const auto = (autos ?? []).find((a) => a.id === dato.ficha_de)
     ?? (autos ?? []).find((a) => a.id === delOrigen);
 
