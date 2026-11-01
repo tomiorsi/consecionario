@@ -639,7 +639,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 }
 .tablero a{ color:#ffd9b0; text-decoration:none; border-bottom:1px solid rgba(255,217,176,.35) }
 .tab-cabeza{ display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem }
-.tab-titulo{ font-family:var(--display); font-size:1.6rem; font-weight:700; letter-spacing:.02em }
+.tab-titulo{ font-family:var(--display); font-size:1.5rem; font-weight:700; letter-spacing:.14em; text-transform:uppercase }
 .tab-sub{ font-size:.78rem; opacity:.7; text-transform:capitalize }
 .tab-refrescar{ width:2.4rem; height:2.4rem; border-radius:50%; border:1px solid rgba(255,255,255,.25);
   background:rgba(255,255,255,.08); color:inherit; font-size:1.1rem; cursor:pointer; backdrop-filter:blur(10px) }
@@ -673,6 +673,9 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   text-transform:uppercase; opacity:.7; margin-bottom:.35rem }
 .tarjeta-num{ font-family:var(--display); font-size:1rem; font-weight:700; opacity:1; color:#ffd9b0 }
 .tarjeta-texto{ white-space:pre-wrap; overflow-wrap:anywhere }
+.tarjeta-acciones{ margin-top:.7rem; display:flex; justify-content:flex-end }
+.tarjeta-acciones button{ border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.08); color:inherit;
+  border-radius:999px; padding:.3rem .8rem; font-size:.72rem; cursor:pointer }
 .tab-vacio{ padding:2rem; text-align:center; opacity:.65; font-size:.9rem }
 .resumen-tab{ padding:1.2rem 1.4rem; white-space:pre-wrap; font-size:.88rem; line-height:1.6; max-width:48rem }
 @media (max-width:760px){

@@ -1910,7 +1910,8 @@ function pintarTablero() {
   else if (vistaTab === 'consultas') {
     html = grilla(tablero.consultas.map((c) => '<article class="vidrio tarjeta"><div class="tarjeta-cabeza">' +
       '<span class="tarjeta-num">Consulta ' + c.n + '</span><span>' + escapar(fechaCorta(c.cuando)) + '</span></div>' +
-      '<div class="tarjeta-texto">' + linkTel(c.tel, c.quien) + '\n' + escapar(c.pregunta) + '</div></article>').join(''))
+      '<div class="tarjeta-texto">' + linkTel(c.tel, c.quien) + '\n' + escapar(c.pregunta) + '</div>' +
+      '<div class="tarjeta-acciones"><button type="button" data-resuelta="' + c.n + '">Ya está resuelta</button></div></article>').join(''))
       || vacio('No hay consultas esperando.');
   } else if (vistaTab === 'resumen') {
     const r = de('resumen')[0];
@@ -1918,6 +1919,14 @@ function pintarTablero() {
       escapar(fechaCorta(r.cuando)) + '</span></div>' + conLinks(r.texto) + '</div>' : vacio('Todavía no hay resumen.');
   } else html = grilla(avisos.map((a) => tarjeta(a, a.tipo === 'hacer' ? ' tarjeta--hacer' : '')).join('')) || vacio('Sin avisos.');
   $('#tabCuerpo').innerHTML = html;
+  $$('#tabCuerpo [data-resuelta]').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try {
+      await api('/api/admin/consultas/' + b.dataset.resuelta + '/resuelta', { method: 'POST', body: '{}' });
+      tablero.consultas = tablero.consultas.filter((c) => String(c.n) !== b.dataset.resuelta);
+      pintarTablero();
+    } catch (err) { avisar(err.message, true); b.disabled = false; }
+  }));
   $$('#tabCuerpo [data-semana]').forEach((b) => b.addEventListener('click', () => {
     semanaDesde += Number(b.dataset.semana);
     pintarTablero();
