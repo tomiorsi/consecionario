@@ -1869,7 +1869,11 @@ function pintarCalendario() {
       return '<div class="vidrio dia' + (k === tablero.hoy ? ' dia--hoy' : '') + '">' +
         '<div class="dia-nombre">' + DIAS[d.getDay()] + '</div><div class="dia-num">' + d.getDate() + '</div>' +
         citas.map((v) => {
-          const trae = /permuta|consign|trae|tasar/i.test((v.condiciones ?? '') + (v.motivo ?? ''));
+          /* Trae un auto si hay permuta o consignación de verdad: "no
+             mencionó permuta" o "compra directa" no cuentan. */
+          const cond = (v.condiciones ?? '') + ' ' + (v.motivo ?? '');
+          const trae = /permuta con|en permuta|consignaci|trae (la|el|su)|para tasar/i.test(cond)
+            && !/compra directa|no mencion|sin (auto|veh)/i.test(cond);
           return '<div class="cita' + (v.aConfirmar ? ' cita--confirmar' : trae ? ' cita--auto' : '') + '">' +
             '<span class="cita-hora">' + escapar(v.visita.slice(11, 16) || 'Sin hora') + (v.aConfirmar ? ' · A confirmar' : '') + '</span>' +
             '<span class="cita-quien">' + linkTel(v.tel, v.quien) + '</span>' +
