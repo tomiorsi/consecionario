@@ -660,12 +660,12 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .dia--cerrado{ opacity:.55 }
 .dia-nombre{ font-size:.68rem; letter-spacing:.12em; text-transform:uppercase; opacity:.7 }
 .dia-num{ font-family:var(--display); font-size:1.4rem; font-weight:700; margin-bottom:.4rem }
-.cita{ border-radius:10px; padding:.5rem .55rem; margin-top:.4rem; font-size:.74rem; line-height:1.4;
+.cita{ border-radius:10px; padding:.5rem .55rem; margin-top:.4rem; font-size:.74rem; line-height:1.4; overflow-wrap:anywhere;
   background:rgba(224,136,74,.22); border-left:3px solid #e0884a }
 .cita--auto{ background:rgba(120,170,220,.2); border-left-color:#78aadc }
 .cita-hora{ font-weight:700 }
 .cita-quien{ display:block; margin:.1rem 0 }
-.cita-auto{ opacity:.85 }
+.cita-auto{ opacity:.85; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden }
 .lista-tab{ display:grid; gap:.7rem; grid-template-columns:repeat(auto-fill, minmax(18rem,1fr)) }
 .tarjeta{ padding:.9rem 1rem; font-size:.84rem; line-height:1.5 }
 .tarjeta--hacer{ background:rgba(46,158,91,.22); border-color:rgba(90,210,140,.6) }
