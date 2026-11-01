@@ -2209,9 +2209,12 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
 /* EL LINK DE LA FICHA SALE PRESENTADO, en el mismo mensaje, con la frase
    que usa Maxi (29/10). La vista previa con la foto se arma igual, abajo
    del texto. */
-const conPresentacion = (link) => link
-  ? `Te mando el link para que vayas viendo un poco más de información.\n${link}`
-  : null;
+/* EN INSTAGRAM Y MESSENGER VA EL LINK SOLO (Maxi, 31/10): ahí la vista
+   previa sale como una burbuja aparte y el texto con el link como otra, y
+   se veía el link dos veces. Con el link solo queda la tarjeta con la foto. */
+const conPresentacion = (link, canal = 'whatsapp') => !link ? null
+  : canal === 'whatsapp' ? `Te mando el link para que vayas viendo un poco más de información.\n${link}`
+  : link;
 
 const PAUSA_ENTRE_PARTES = 14000;
 const PAUSA_TRAS_EL_LINK = 24000;
@@ -2284,7 +2287,7 @@ async function ubicacionSinRepetir(_env, _chatId, ubicacion) {
 async function mandarRespuesta(env, chat, {
   partes, autoId = null, ubicacion = false, aWhatsapp = false, autor, despues = null,
 }) {
-  const link = conPresentacion(await linkSinRepetir(env, chat.id, autoId));
+  const link = conPresentacion(await linkSinRepetir(env, chat.id, autoId), chat.canal);
   const fijos = [
     link,
     await ubicacionSinRepetir(env, chat.id, ubicacion),
@@ -3865,7 +3868,7 @@ async function atenderComentario(env, chat, r) {
     if (yaFuimos) return;
   }
 
-  const link = conPresentacion(await linkSinRepetir(env, chat.id, r.autoId));
+  const link = conPresentacion(await linkSinRepetir(env, chat.id, r.autoId), chat.canal);
   const texto = armarTextos(r.partes, [
     link,
     await ubicacionSinRepetir(env, chat.id, r.ubicacion),
@@ -4764,7 +4767,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       ).bind(chat.id).first();
       if (comentario?.externo_id) {
         try {
-          const link = conPresentacion(await linkSinRepetir(env, chat.id, autoId));
+          const link = conPresentacion(await linkSinRepetir(env, chat.id, autoId), chat.canal);
           const todo = armarTextos(partes, [link].filter(Boolean)).join('\n\n');
           const id = await mandarUno(env, chat, todo, { comentarioId: comentario.externo_id });
           await guardarSaliente(env, chat.id, todo, 'persona', id, { mediaId: comentario.media_id });
