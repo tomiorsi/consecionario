@@ -2893,7 +2893,7 @@ async function atenderAlJefe(env, conversacionId, mensajeId, { porPanel = false 
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
   const r = await client.messages.create({
     model: MODELO,
-    max_tokens: 1500,
+    max_tokens: 4000,
     output_config: { effort: 'low', format: { type: 'json_schema', schema: FORMA_DEL_JEFE } },
     system: `Sos el asistente de ventas de Manna Selected (autos seleccionados,
 Barracas). Maxi es el dueño y te está escribiendo por WhatsApp: te contesta
@@ -2982,7 +2982,11 @@ Qué hacer con lo que escribió:
   });
   let dato = null;
   try { dato = JSON.parse((r.content ?? []).find((b) => b.type === 'text')?.text ?? ''); }
-  catch { return; }
+  catch {
+    /* Que no se pierda en silencio (1/11): si no se entendió, queda dicho. */
+    await anotarAviso(env, `No pude procesar lo que me dijiste («${String(dijo.texto).slice(0, 120)}»). Probá de nuevo.`);
+    return;
+  }
 
   /* Lo aprendido, con lo que pidió olvidar afuera. */
   const olvidar = new Set((dato.olvidar ?? []).map((n) => n - 1));
