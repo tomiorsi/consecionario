@@ -690,9 +690,13 @@ ${nombre ? `
 El nombre de su perfil es "${nombre}". Usá sólo el primero, y sólo si es un
 nombre de persona (no un usuario como "juanpi_88").` : ''}
 
-${desdeAnuncio}${deConsignacion
-  ? `VIENE DEL ANUNCIO DE CONSIGNACIONES: arrancó con "¡Hola! Quiero más
-información.", el mensaje de ese anuncio. Quiere vender su auto: no le
+${desdeAnuncio}${deConsignacion === 'dudoso'
+  ? `ARRANCÓ CON "¡Hola! Quiero más información.", el mensaje que traen los
+anuncios, y no se sabe de cuál vino: puede ser el de consignaciones o el de
+un auto. No supongas que quiere vender: preguntá, abierto y en una sola
+pregunta, si está buscando un auto o si quiere vender el suyo.\n\n`
+  : deConsignacion
+  ? `VIENE DEL ANUNCIO DE CONSIGNACIONES. Quiere vender su auto: no le
 ofrezcas autos del stock, seguí SI QUIERE QUE LE VENDAMOS SU AUTO.\n\n`
   : ''}LO QUE NO ES TEXTO llega entre corchetes en el historial.
 - "[Mandó una foto. Se ve: ...]" es lo que muestra la foto: usalo, y no
