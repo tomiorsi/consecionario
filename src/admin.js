@@ -663,7 +663,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .cita{ border-radius:10px; padding:.5rem .55rem; margin-top:.4rem; font-size:.74rem; line-height:1.4; overflow-wrap:anywhere;
   background:rgba(224,136,74,.22); border-left:3px solid #e0884a }
 .cita--auto{ background:rgba(120,170,220,.2); border-left-color:#78aadc }
-.cita--confirmar{ background:rgba(126,214,240,.18); border-left:3px dashed #7ed6f0 }
+.cita--confirmar{ background:rgba(240,200,60,.2); border-left:3px dashed #f0c83c }
 .cita-hora{ font-weight:700 }
 .cita-quien{ display:block; margin:.1rem 0 }
 .cita-auto{ opacity:.85; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden }
