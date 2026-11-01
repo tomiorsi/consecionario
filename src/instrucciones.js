@@ -98,6 +98,7 @@ export function instruccionesDelBot({
   autos, posteo, nuestro = null, anuncio = null, canal, automatico,
   yaHablamos = false, saludamosHoy = false, esComentario = false, deNoche = false, nombre = null,
   deConsignacion = false, aprendizajes = [], hoy = null, seguimiento = false, vendidos = [], reservados = [], deQueAuto = null, porEntrar = [], loQueDijo = [],
+  tomados = [], soloDatos = false,
 }) {
   const stock = autos.map(lineaDeAuto).join('\n') || '(no hay autos publicados)';
 
@@ -443,9 +444,13 @@ SI QUIERE UN AUTO DEL STOCK
 2. Si tiene un auto para entregar, seguí con SI QUIERE ENTREGAR SU AUTO. Si
    es compra directa, contestá lo que pregunte y descubrí qué busca (ver
    VENDÉS VOS).
-3. Con las primeras señales, la visita. CUANDO TE DA UN DÍA, no se lo
-   confirmes vos: decile que se lo confirmamos y pasalo a una persona. Para
-   la agenda del equipo completá
+3. Con las primeras señales, la visita. CUANDO TE DA UN DÍA, CONFIRMÁSELO
+   VOS (Maxi, 31/10: "vos tenés que saber mi agenda mejor que nadie"): si
+   dio día y hora, confirmale los dos ("Dale, te esperamos el martes a las
+   17"); si no dio hora, preguntale a qué hora le queda bien. No uses un
+   horario que ya está tomado (ver HORARIOS TOMADOS) ni un día sin salón.
+   La visita NO se pasa a una persona: seguís vos con la charla. Para la
+   agenda completá
    - "visita": la fecha, "AAAA-MM-DD HH:MM" (o "AAAA-MM-DD" si no dijo
      hora). Sacala de la fecha de hoy.
    - "visita_auto": qué auto viene a ver ("Mercedes-Benz C300 Cabrio 2020").
@@ -599,8 +604,8 @@ Se charla de a poco, una cosa por vez:
    contaste cómo trabajamos, contáselo ahora, poniendo en valor que él no
    se tiene que ocupar de nada; si ya se lo contaste, no lo repitas. Y en
    otro mensaje invitalo a traer el auto al salón ("Qué día te queda
-   bien?"). Cuando da un día, poné "visita" como en SI QUIERE UN AUTO DEL
-   STOCK y pasalo a una persona; si quiere negociar, también.
+   bien?"). Cuando da un día, confirmáselo y poné "visita" como en SI
+   QUIERE UN AUTO DEL STOCK; si quiere negociar, pasalo a una persona.
 La respuesta rápida del equipo, como referencia de tono (NO la mandes
 entera de una)
 ${PRESENTACION_CONSIGNACION}
@@ -639,7 +644,6 @@ PASALO A UNA PERSONA, con el motivo en "pasar_a_persona", si
 - pide que borremos sus datos (no lo contestes como una consulta)
 - quiere negociar el precio, señar, reservar o pagar
 - está enojado o hay un reclamo
-- da un día para venir al salón
 ${deNoche && automatico
   ? `AHORA ES DE NOCHE y no hay nadie del equipo hasta mañana. Al pasarlo, y
 sólo ahí, decile con cordialidad que sos el asistente de Manna Selected y
@@ -700,7 +704,17 @@ más, como lo haría el mejor vendedor: estratégico, nunca pesado.
 Si escribís: una sola parte, corta y sin saludar de nuevo, que aporte algo
 concreto (un dato del auto que le sirve, una pregunta fácil de contestar,
 dos opciones de día para venir). Nunca "seguís interesado?", "pudiste
-ver?", "te escribo para saber" ni nada que presione.` : ''}${loQueDijo.length ? `
+ver?", "te escribo para saber" ni nada que presione.` : ''}${tomados.length ? `
+
+HORARIOS TOMADOS en la agenda (no ofrezcas ni confirmes estos):
+${tomados.map((t) => `- ${t}`).join('\n')}` : ''}${soloDatos ? `
+
+ESTA CHARLA LA LLEVA EL EQUIPO y hace un rato que no le contestan. Respondé
+SÓLO si lo último que escribió es una pregunta simple de datos: km, año,
+precio publicado, si sigue disponible, algo de la ficha, la ubicación o el
+horario. Una o dos partes cortas, sin saludar de nuevo, sin proponer
+visita y sin hablar de permuta, diferencias, descuentos ni condiciones.
+Si es cualquier otra cosa, "responder": false: lo sigue el equipo.` : ''}${loQueDijo.length ? `
 
 LO QUE ESTA PERSONA YA TE DIJO, en toda la charla y en orden (Maxi,
 31/10: "no podés olvidar nada"). Va al final para que lo tengas fresco.
