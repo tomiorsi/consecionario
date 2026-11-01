@@ -1762,7 +1762,7 @@ Decí de cuál de estos autos es ("tipo": "auto" y su número), si es para que l
   return res;
 }
 
-async function pensarRespuesta(env, conversacionId, { automatico = false, deNoche = false, seguimiento = false } = {}) {
+async function pensarRespuesta(env, conversacionId, { automatico = false, deNoche = false, seguimiento = false, soloDatos = false } = {}) {
   if (!env.ANTHROPIC_API_KEY) {
     throw new Error('Falta cargar ANTHROPIC_API_KEY en Cloudflare');
   }
@@ -1920,7 +1920,9 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
       vendidos: (vendidos ?? []).map((a) => [a.marca, a.modelo, a.anio].filter(Boolean).join(' ')),
       reservados: reservados.map((a) => `[${a.id}] ${[a.marca, a.modelo, a.anio].filter(Boolean).join(' ')}`),
       porEntrar: ((await leerEstado(env, 'por_entrar'))?.valor ?? []).map((a) => a.texto),
-      hoy: hoyEnBsAs(), seguimiento,
+      hoy: hoyEnBsAs(), seguimiento, soloDatos,
+      tomados: ((await leerEstado(env, 'agenda'))?.valor ?? [])
+        .filter((v) => v.chat !== conversacionId && v.visita.length > 10).map((v) => v.visita),
       /* Si ya le escribimos por privado, no vuelve a saludar. Lo decide
          el código y no el bot: en una charla larga, el bot se olvidaba. */
       yaHablamos: privados.some((m) => m.direccion === 'saliente'),
@@ -2353,6 +2355,12 @@ export class Envios extends DurableObject {
     await this.ctx.storage.setAlarm(Date.now() + 100);
   }
 
+  /* 20 MINUTOS PARA QUE CONTESTE EL EQUIPO; si no, datos simples. */
+  async esperarAlEquipo(chat, mensaje) {
+    await this.ctx.storage.put('cola', [{ equipo: true, chat, mensaje, espera: 0 }]);
+    await this.ctx.storage.setAlarm(Date.now() + 20 * 60 * 1000);
+  }
+
   async resumen(porPanel = false) {
     await this.ctx.storage.put('cola', [{ resumen: true, porPanel, espera: 0 }]);
     await this.ctx.storage.setAlarm(Date.now() + 100);
@@ -2385,6 +2393,25 @@ export class Envios extends DurableObject {
         await anotarAviso(this.env, `No pude armar ${paso.tarea === 'buenDia' ? 'el resumen de la mañana' : 'el repaso del día'}: ${String(e?.message ?? e).slice(0, 200)}`);
       }
       await this.ctx.storage.deleteAll();
+      return;
+    }
+    if (paso?.equipo) {
+      await this.ctx.storage.deleteAll();
+      try {
+        const cfg = await configDelBot(this.env);
+        const horaBsAs = new Date(Date.now() - 3 * HORAS).getUTCHours();
+        const ultimo = await this.env.DB.prepare(
+          `SELECT id FROM mensajes WHERE conversacion_id = ? ORDER BY creado DESC, id DESC LIMIT 1`
+        ).bind(paso.chat.id).first();
+        if (ultimo?.id === paso.mensaje && canalActivo(cfg, paso.chat.canal) && horaBsAs >= 9 && horaBsAs < 21) {
+          const r = await pensarRespuesta(this.env, paso.chat.id, { automatico: true, soloDatos: true });
+          if (r.responder && !r.derivar && r.partes.length) {
+            await mandarRespuesta(this.env, paso.chat, { partes: r.partes.slice(0, 2), autor: 'ia' });
+          }
+        }
+      } catch (e) {
+        console.error('No salió la respuesta de datos:', e?.message ?? e);
+      }
       return;
     }
     if (paso?.resumen) {
@@ -3225,9 +3252,9 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
   await guardarEstado(env, 'agenda', resto.filter((v) => aMs(v.visita) > Date.now() - 12 * HORAS));
 
   await escribirleAlJefe(env,
-    `Visita para confirmar · ${fichaDeVisita(nueva)}` +
+    `Visita agendada · ${fichaDeVisita(nueva)}` +
     (nueva.motivo ? `\n${nueva.motivo}` : '') +
-    `\n\nEl chat quedó para ustedes: confirmale vos.`);
+    `\n\nSe la confirmé yo. Ponelo en Visita posible.`);
 }
 
 /* ── EL DÍA DE LA VISITA (Maxi, 30/10) ───────────────────────────
@@ -3695,8 +3722,17 @@ async function atenderSolo(env, disparos) {
         await anotarAviso(env, `Te escribió un cliente que ya compró\n${lineaDe(chat, LISTAS.permuta, `«${(dijo?.texto ?? `[${dijo?.tipo ?? 'mensaje'}]`).slice(0, 300)}»`)}`);
         continue;
       }
-      if (!chat || chat.humano || esElJefe(env, chat)) continue;
-      if (await loAtendioElEquipo(env, chat.id)) continue;
+      if (!chat || esElJefe(env, chat)) continue;
+      /* CHATS DEL EQUIPO (Maxi, 31/10): si el cliente pregunta un dato y
+         en 20 minutos nadie le contestó, contesta el bot, sólo datos. */
+      if (chat.humano || await loAtendioElEquipo(env, chat.id)) {
+        if (chat.etapa !== 'cerrado' && !/borr/i.test(chat.nota ?? '')) {
+          await env.ENVIOS.get(env.ENVIOS.idFromName(`equipo-${chat.id}`))
+            .esperarAlEquipo({ id: chat.id, canal: chat.canal, externo_id: chat.externo_id }, d.mensaje)
+            .catch((e) => console.error('No se pudo programar la espera:', e?.message ?? e));
+        }
+        continue;
+      }
 
       const ultimo = await env.DB.prepare(
         `SELECT id FROM mensajes WHERE conversacion_id = ?
@@ -3749,6 +3785,12 @@ async function atenderSolo(env, disparos) {
       if (notaTasar) {
         await env.DB.prepare('UPDATE conversaciones SET nota = ?, tipo = ? WHERE id = ?')
           .bind(notaTasar, r.paraTasar === 'permuta' ? 'permuta' : 'vendedor', chat.id).run();
+      }
+      /* UNA VISITA NO CORTA LA CHARLA (Maxi, 31/10): el bot la confirma y
+         sigue contestando. Si lo único que pasó fue la visita, no se pasa. */
+      if (r.derivar && r.visita && /visita|venir|viene|salón|salon/i.test(r.derivar)
+          && !/negoci|señ|reserv|pag|enoj|reclam|borr|persona|equipo|150\.000|130\.000/i.test(r.derivar)) {
+        r.derivar = null;
       }
       if (r.derivar) {
         /* Si es para tasar, la nota de tasar se queda: dice más. */
