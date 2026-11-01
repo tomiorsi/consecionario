@@ -4954,6 +4954,17 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     return json({ ok: true });
   }
 
+  /* SACAR LAS RESPUESTAS PROGRAMADAS de unos chats (porque ya se
+     mandaron a mano, o se cancelan). Sin `chats`, se sacan todas. */
+  if (ruta === '/api/admin/programados/sacar' && metodo === 'POST') {
+    const c = await peticion.json().catch(() => ({}));
+    const chats = Array.isArray(c?.chats) ? c.chats.map(Number) : null;
+    const ya = (await leerEstado(env, 'programados'))?.valor ?? [];
+    const quedan = chats ? ya.filter((p) => !chats.includes(p.chat)) : [];
+    await guardarEstado(env, 'programados', quedan);
+    return json({ ok: true, sacados: ya.length - quedan.length });
+  }
+
   /* UNA CONSULTA QUE YA SE RESOLVIÓ POR OTRO LADO: sale de la lista. */
   const resuelta = ruta.match(/^\/api\/admin\/consultas\/(\d+)\/resuelta$/);
   if (resuelta && metodo === 'POST') {
