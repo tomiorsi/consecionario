@@ -4883,7 +4883,8 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       'SELECT id, canal, externo_id, nombre FROM conversaciones WHERE id = ?').bind(id).first() : null;
     const conQuien = async (x) => {
       const c = await deChat(x.chat);
-      return { ...x, quien: c ? quienEs(c) : (x.quien ?? ''), canal: c?.canal ?? null,
+      const nombre = c?.nombre?.trim() || null;
+      return { ...x, quien: nombre || (c ? quienEs(c) : (x.quien ?? '')), canal: c?.canal ?? null,
         tel: c?.canal === 'whatsapp' ? c.externo_id : null };
     };
     const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
