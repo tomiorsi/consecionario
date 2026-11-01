@@ -2887,7 +2887,10 @@ async function atenderAlJefe(env, conversacionId, mensajeId, { porPanel = false 
       (hilo ?? []).reverse().map((m) => `  ${m.direccion === 'entrante' ? 'Cliente' : 'Nosotros'}: ${m.texto.slice(0, 200)}`).join('\n'));
   }
 
-  const charla = (ultimos ?? []).slice().reverse()
+  /* POR EL PANEL, SÓLO LO ÚLTIMO (1/11): las respuestas del panel van a
+     los avisos y no quedan en el chat, así que los pedidos anteriores se
+     veían sin contestar y se volvían a hacer (recordatorios duplicados). */
+  const charla = (porPanel ? (ultimos ?? []).slice(0, 1) : (ultimos ?? []).slice().reverse())
     .map((m) => `${m.direccion === 'entrante' ? 'Maxi' : 'Bot'}: ${m.texto ?? ''}`).join('\n');
 
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
@@ -3018,7 +3021,11 @@ Qué hacer con lo que escribió:
   const recordar = (dato.recordar ?? []).filter((r) => /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(r.cuando) && r.texto?.trim());
   if (recordar.length) {
     const ya = (await leerEstado(env, 'recordatorios'))?.valor ?? [];
-    await guardarEstado(env, 'recordatorios', [...ya, ...recordar].slice(-50));
+    /* Uno por persona y momento: el mismo teléfono a la misma hora no se
+       anota dos veces. */
+    const clave = (r) => `${r.cuando}|${(soloDigitos(r.texto).match(/\d{10,13}/) ?? [r.texto.slice(0, 30)])[0]}`;
+    const vistos = new Set(ya.map(clave));
+    await guardarEstado(env, 'recordatorios', [...ya, ...recordar.filter((r) => !vistos.has(clave(r)))].slice(-50));
   }
 
   /* LO QUE ESTÁ POR ENTRAR: el bot lo ofrece cuando es más parecido a lo
@@ -5014,6 +5021,20 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     const ya = (await leerEstado(env, 'programados'))?.valor ?? [];
     await guardarEstado(env, 'programados', [...ya, { chat, cuando: c.cuando, partes }].slice(-100));
     return json({ ok: true });
+  }
+
+  /* RECORDATORIOS DUPLICADOS: queda el primero de cada momento y persona. */
+  if (ruta === '/api/admin/recordatorios/limpiar' && metodo === 'POST') {
+    const ya = (await leerEstado(env, 'recordatorios'))?.valor ?? [];
+    const vistos = new Set();
+    const quedan = ya.filter((r) => {
+      const k = `${r.cuando}|${(soloDigitos(r.texto).match(/\d{10,13}/) ?? [r.texto.slice(0, 30)])[0]}`;
+      if (vistos.has(k)) return false;
+      vistos.add(k);
+      return true;
+    });
+    await guardarEstado(env, 'recordatorios', quedan);
+    return json({ ok: true, sacados: ya.length - quedan.length });
   }
 
   /* SACAR LAS RESPUESTAS PROGRAMADAS de unos chats (porque ya se
