@@ -1567,16 +1567,17 @@ const FORMA_DE_RESPUESTA = {
     visita_condiciones: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     interesado_reservado: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
     idioma: { type: 'string' },
+    visita_a_confirmar: { type: 'boolean' },
   },
   required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion',
-    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_condiciones', 'interesado_reservado', 'idioma'],
+    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_condiciones', 'interesado_reservado', 'idioma', 'visita_a_confirmar'],
   additionalProperties: false,
 };
 
 const FORMA_EN_TEXTO = `
 
 TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
-{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "interesado_reservado": null, "idioma": "es"}
+{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "interesado_reservado": null, "idioma": "es", "visita_a_confirmar": false}
 Escribí "partes" siempre, aunque "responder" sea false: así se puede revisar
 qué hubieras dicho.`;
 
@@ -2078,6 +2079,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     visita: !esComentario && /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(dato.visita ?? '') ? dato.visita : null,
     visitaAuto: dato.visita_auto ? String(dato.visita_auto).slice(0, 120) : null,
     visitaCondiciones: dato.visita_condiciones ? String(dato.visita_condiciones).slice(0, 300) : null,
+    visitaAConfirmar: dato.visita_a_confirmar === true,
     interesadoReservado: reservados.some((a) => a.id === dato.interesado_reservado) ? dato.interesado_reservado : null,
     conPosteo: Boolean(posteo),
     esComentario,
@@ -2827,6 +2829,9 @@ const FORMA_DEL_JEFE = {
     reservar: { type: 'array', items: { type: 'integer' } },
     se_cayo_reserva: { type: 'array', items: { type: 'integer' } },
     por_entrar: { type: 'array', items: { type: 'string' } },
+    a_confirmar: { type: 'array', items: { type: 'object', properties: {
+      quien: { type: 'string' }, visita: { type: 'string' }, auto: { anyOf: [{ type: 'string' }, { type: 'null' }] } },
+      required: ['quien', 'visita', 'auto'], additionalProperties: false } },
     recordar: { type: 'array', items: { type: 'object', properties: {
       cuando: { type: 'string' }, texto: { type: 'string' } },
       required: ['cuando', 'texto'], additionalProperties: false } },
@@ -2841,7 +2846,7 @@ const FORMA_DEL_JEFE = {
     a_maxi: { type: 'string' },
   },
   required: ['consulta', 'al_cliente', 'aprendizaje', 'olvidar', 'quitar_visitas', 'mover_visita',
-    'ya_compraron', 'vendidos', 'reservar', 'se_cayo_reserva', 'por_entrar', 'ya_no_entran', 'recordar', 'resumen', 'resultados', 'numeros', 'a_maxi'],
+    'ya_compraron', 'vendidos', 'reservar', 'se_cayo_reserva', 'por_entrar', 'ya_no_entran', 'recordar', 'a_confirmar', 'resumen', 'resultados', 'numeros', 'a_maxi'],
   additionalProperties: false,
 };
 
@@ -2949,6 +2954,11 @@ Qué hacer con lo que escribió:
   reservó con una seña"), su número del stock en "reservar". Si dice que
   se cayó la reserva, en "se_cayo_reserva". Si no queda claro cuál es,
   preguntale. Si no, [] y [].
+- VISITAS A CONFIRMAR (Maxi, 1/11). Si dice que alguien viene un día pero
+  sin confirmar ("Federico calcula el jueves, ponelo a confirmar"), poné en
+  "a_confirmar" una entrada: en "quien" los dígitos de su teléfono (o el
+  nombre si no los dio), en "visita" "AAAA-MM-DD" o "AAAA-MM-DD HH:MM", y
+  en "auto" qué viene a ver o null. Si no, [].
 - LOS RECORDATORIOS (Maxi, 31/10). Si pide que le recuerdes algo para un
   día ("el martes recordame escribirle a Federico"), poné en "recordar" una
   entrada con "cuando" ("AAAA-MM-DD HH:MM", sacado de la fecha de hoy; sin
@@ -3107,6 +3117,19 @@ Qué hacer con lo que escribió:
       .filter((v, i) => !quitar.has(i) && !agendaFuera.has(v.chat))
       .sort((a, b) => aMs(a.visita) - aMs(b.visita));
     await guardarEstado(env, 'agenda', nueva);
+  }
+
+  /* VISITAS A CONFIRMAR: en el calendario en celeste, sin confirmación
+     automática a la mañana. */
+  for (const v of dato.a_confirmar ?? []) {
+    if (!/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(v.visita ?? '')) continue;
+    const digitos = soloDigitos(v.quien).slice(-10);
+    const { results: cs } = digitos.length >= 4
+      ? await env.DB.prepare(`SELECT id, canal, externo_id, nombre FROM conversaciones WHERE externo_id LIKE ?`).bind(`%${digitos}`).all()
+      : await env.DB.prepare(`SELECT id, canal, externo_id, nombre FROM conversaciones WHERE nombre LIKE ? AND id != ?`)
+        .bind(`%${String(v.quien).trim()}%`, conversacionId).all();
+    if (cs?.length === 1) await agendarVisita(env, cs[0], { visita: v.visita, auto: v.auto, aConfirmar: true, avisar: false });
+    else dato.a_maxi = `${dato.a_maxi}\n\n${v.quien}: ${cs?.length ? 'hay varios que coinciden' : 'no lo encontré'}, pasame el número.`;
   }
 
   /* La consulta contestada: se sigue con el cliente y sale de la lista. */
@@ -3299,23 +3322,25 @@ function fichaDeVisita(v) {
     timeZone: 'America/Argentina/Buenos_Aires', weekday: 'long', day: 'numeric', month: 'numeric',
     ...(v.visita.length > 10 ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } : {}),
   }).format(new Date(aMs(v.visita)));
-  return `${dia}${v.visita.length > 10 ? ' h' : ' (sin hora)'}\n` +
+  return `${dia}${v.visita.length > 10 ? ' h' : ' (sin hora)'}${v.aConfirmar ? ' · A CONFIRMAR' : ''}\n` +
     `${v.quien} (${LISTAS.permuta})  ${[v.condiciones, v.auto && `→ ${v.auto}`].filter(Boolean).join(' ')}`;
 }
 
-async function agendarVisita(env, chat, { visita, auto = null, condiciones = null, motivo = null }) {
+async function agendarVisita(env, chat, { visita, auto = null, condiciones = null, motivo = null, aConfirmar = false, avisar = true }) {
   const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
   const resto = agenda.filter((v) => v.chat !== chat.id);
   const nueva = { chat: chat.id, quien: quienEs(chat), visita, auto, condiciones,
-    motivo: auto || condiciones ? null : motivo, recordada: false };
+    motivo: auto || condiciones ? null : motivo, recordada: false, ...(aConfirmar ? { aConfirmar: true } : {}) };
   resto.push(nueva);
   resto.sort((a, b) => aMs(a.visita) - aMs(b.visita));
   await guardarEstado(env, 'agenda', resto.filter((v) => aMs(v.visita) > Date.now() - 12 * HORAS));
 
+  if (!avisar) return;
   await escribirleAlJefe(env,
-    `Visita agendada · ${fichaDeVisita(nueva)}` +
+    `${aConfirmar ? 'Visita a confirmar' : 'Visita agendada'} · ${fichaDeVisita(nueva)}` +
     (nueva.motivo ? `\n${nueva.motivo}` : '') +
-    `\n\nSe la confirmé yo. Ponelo en Visita posible.`);
+    (aConfirmar ? `\n\nDijo un día pero no lo cerró: queda en celeste y no le sale la confirmación de la mañana.`
+      : `\n\nSe la confirmé yo. Ponelo en Visita posible.`));
 }
 
 /* ── EL DÍA DE LA VISITA (Maxi, 30/10) ───────────────────────────
@@ -3348,7 +3373,7 @@ async function confirmarVisitasDeHoy(env) {
       `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
           AND creado > datetime('now','-23 hours') LIMIT 1`
     ).bind(c.id).first());
-    if (!enviada && abierta) {
+    if (!enviada && abierta && !v.aConfirmar) {
       const nombre = primerNombre(c.nombre);
       const hora = v.visita.length > 10 ? v.visita.slice(11, 16) : null;
       const libre = `Hola${nombre ? ` ${nombre}` : ''}! Buen día. Te escribo para confirmar que hoy`
@@ -3368,7 +3393,7 @@ async function confirmarVisitasDeHoy(env) {
       v.confirmacion = new Date().toISOString();
       enviada = true;
     }
-    lineas.push(`${fichaDeVisita(v)}${enviada ? '\nLe mandé la confirmación.' : '\nConfirmale vos: no escribió en las últimas 23 horas y por Instagram o Facebook no se le puede mandar.'}`);
+    lineas.push(`${fichaDeVisita(v)}${v.aConfirmar ? '\nEs a confirmar: no le mandé nada.' : enviada ? '\nLe mandé la confirmación.' : '\nConfirmale vos: no escribió en las últimas 23 horas y por Instagram o Facebook no se le puede mandar.'}`);
   }
   await guardarEstado(env, 'agenda', agenda);
   if (lineas.length) await anotarAviso(env, `*CONFIRMACIONES DE HOY*\n\n${lineas.join('\n\n')}`);
@@ -3917,6 +3942,7 @@ async function atenderSolo(env, disparos) {
       if (r.visita) {
         await agendarVisita(env, chat, {
           visita: r.visita, auto: r.visitaAuto, condiciones: r.visitaCondiciones, motivo: r.derivar,
+          aConfirmar: r.visitaAConfirmar,
         }).catch((e) => console.error('No se pudo agendar:', e?.message ?? e));
       } else if (r.derivar) {
         /* TODO LO QUE PIDE UNA PERSONA VA A IMPORTANTE (Maxi, 30/10). */

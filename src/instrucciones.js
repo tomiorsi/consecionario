@@ -473,6 +473,10 @@ SI QUIERE UN AUTO DEL STOCK
    agenda completá
    - "visita": la fecha, "AAAA-MM-DD HH:MM" (o "AAAA-MM-DD" si no dijo
      hora). Sacala de la fecha de hoy.
+   - "visita_a_confirmar": true si dio un día pero no lo cerró ("calculo el
+     jueves", "capaz el martes", "si puedo"): no se lo des por cerrado
+     ("Dale, lo dejamos para el jueves, cualquier cosa me avisás"). false
+     si lo confirmó.
    - "visita_auto": qué auto viene a ver ("Mercedes-Benz C300 Cabrio 2020").
    - "visita_condiciones": en qué condiciones, con lo que se sabe: contado,
      permuta con su auto (modelo, año, km, si mandó fotos) o consignación
