@@ -1887,7 +1887,28 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     ? await deQueEs(env, `anuncio:${anuncio.id ?? `${anuncio.titulo}|${anuncio.texto}`.slice(0, 120)}`,
       { texto: [anuncio.titulo, anuncio.texto].filter(Boolean).join('\n') })
     : null;
-  const origenSabido = publicacion ?? delAnuncio;
+  /* UN LINK A UNA PUBLICACIÓN NUESTRA DE INSTAGRAM, pegado en el chat
+     (Maxi, 1/11: lo mandaron por WhatsApp y el bot pidió que le dijeran
+     qué auto era). Se busca entre nuestras publicaciones por el código
+     del link y se reconoce el auto por su texto. */
+  let delLink = null;
+  if (!publicacion && !delAnuncio) {
+    const codigo = [...privados].reverse().map((m) => String(m.texto ?? '')
+      .match(/instagram\.com\/(?:p|reel|reels)\/([\w-]+)/i)?.[1]).find(Boolean);
+    if (codigo) {
+      try {
+        const media = await igLlamar(env, '/me/media?fields=id,permalink,caption&limit=50');
+        const p = (media?.data ?? []).find((x) => String(x.permalink ?? '').includes(`/${codigo}`));
+        if (p) {
+          delLink = await deQueEs(env, `ig:${p.id}`, { texto: p.caption ?? '' });
+          if (!posteo && p.caption) posteo = p.caption;
+        }
+      } catch (e) {
+        console.error('No se pudo leer el link de Instagram:', e?.message ?? e);
+      }
+    }
+  }
+  const origenSabido = publicacion ?? delAnuncio ?? delLink;
   let deQueAuto = null;
   if (origenSabido?.tipo === 'auto') {
     const a = (autos ?? []).find((x) => x.id === origenSabido.auto)
@@ -3806,6 +3827,13 @@ async function atenderSolo(env, disparos) {
       }
 
       const r = await pensarRespuesta(env, chat.id, { automatico: true, deNoche: esDeNoche() });
+      /* SI MIENTRAS PENSABA ESCRIBIÓ OTRA COSA, esta respuesta ya llega
+         tarde (Maxi, 1/11: le preguntó qué auto era justo después de que
+         lo dijo). La contesta el aviso de su mensaje nuevo. */
+      const despues = await env.DB.prepare(
+        `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante' AND id > ? LIMIT 1`
+      ).bind(chat.id, d.mensaje).first();
+      if (despues) continue;
       if (r.ultimo?.direccion !== 'entrante') continue;
 
       /* PASAR A UNA PERSONA ES AUTOMÁTICO TAMBIÉN. Si pide hablar con
