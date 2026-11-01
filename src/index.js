@@ -5023,6 +5023,20 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     return json({ ok: true });
   }
 
+  /* AGENDAR A MANO una visita (o una "a confirmar") por teléfono, sin
+     pasar por la IA. */
+  if (ruta === '/api/admin/agenda' && metodo === 'POST') {
+    const c = await peticion.json().catch(() => ({}));
+    const digitos = soloDigitos(c?.telefono).slice(-10);
+    if (digitos.length < 8 || !/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(c?.visita ?? '')) return error('Faltan datos');
+    const { results: cs } = await env.DB.prepare(
+      `SELECT id, canal, externo_id, nombre FROM conversaciones WHERE externo_id LIKE ?`).bind(`%${digitos}`).all();
+    if (cs?.length !== 1) return error(cs?.length ? 'Hay varios con ese número' : 'No encontré ese número', 404);
+    await agendarVisita(env, cs[0], { visita: c.visita, auto: texto(c?.auto, 120), condiciones: texto(c?.condiciones, 300),
+      aConfirmar: c?.aConfirmar === true, avisar: false });
+    return json({ ok: true });
+  }
+
   /* RECORDATORIOS DUPLICADOS: queda el primero de cada momento y persona. */
   if (ruta === '/api/admin/recordatorios/limpiar' && metodo === 'POST') {
     const ya = (await leerEstado(env, 'recordatorios'))?.valor ?? [];
