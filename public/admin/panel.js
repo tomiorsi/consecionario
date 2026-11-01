@@ -1811,22 +1811,133 @@ function conLinks(texto) {
       '<a href="https://wa.me/' + tel.replace(/\D/g, '') + '" target="_blank" rel="noopener">' + tel + '</a>');
 }
 
+/* LA AGENDA COMO TABLERO (Maxi, 31/10): cada cosa en su lugar. Los avisos
+   se ordenan por su primera línea, que el bot escribe siempre igual. */
+let tablero = null;
+let vistaTab = 'calendario';
+let semanaDesde = 0;
+
+const DIAS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const fechaCorta = (iso) => new Date(iso).toLocaleString('es-AR', {
+  timeZone: 'America/Argentina/Buenos_Aires', weekday: 'short', day: 'numeric',
+  month: 'numeric', hour: '2-digit', minute: '2-digit' });
+const linkTel = (tel, quien) => tel
+  ? '<a href="https://wa.me/' + String(tel).replace(/\D/g, '') + '" target="_blank" rel="noopener">' + escapar(quien) + '</a>'
+  : escapar(quien);
+
+function claseDe(a) {
+  const t = a.texto;
+  if (a.tipo === 'hacer' || t.startsWith('*PARA HACER')) return 'hacer';
+  if (t.startsWith('*RESUMEN')) return 'resumen';
+  if (t.startsWith('Para tasar')) return 'tasar';
+  if (/^(Te paso un chat|Contestó la confirmación|Te escribió un cliente)/.test(t)) return 'responder';
+  return 'otro';
+}
+
+/* El último aviso de cada persona, para no ver tres veces al mismo. */
+function unoPorPersona(lista) {
+  const vistos = new Set();
+  return lista.filter((a) => {
+    const tel = (a.texto.match(/\+54 9 [\d -]{8,14}\d|@[\w.]+/) ?? [a.n])[0];
+    if (vistos.has(tel)) return false;
+    vistos.add(tel);
+    return true;
+  });
+}
+
+function tarjeta(a, extra = '') {
+  const lineas = a.texto.split('\n');
+  return '<article class="vidrio tarjeta' + extra + '">' +
+    '<div class="tarjeta-cabeza"><span>' + escapar(lineas[0].replace(/\*/g, '')) + '</span><span>' + escapar(fechaCorta(a.cuando)) + '</span></div>' +
+    '<div class="tarjeta-texto">' + conLinks(lineas.slice(1).join('\n').trim()) + '</div></article>';
+}
+
+function pintarCalendario() {
+  const hoy = new Date(tablero.hoy + 'T12:00:00-03:00');
+  const lunes = new Date(hoy);
+  lunes.setDate(hoy.getDate() - ((hoy.getDay() + 6) % 7) + semanaDesde * 7);
+  const dias = [...Array(7)].map((_, i) => { const d = new Date(lunes); d.setDate(lunes.getDate() + i); return d; });
+  const clave = (d) => d.toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' });
+  const fin = dias[6];
+  return '<div class="semana-nav"><button type="button" data-semana="-1">‹ Anterior</button>' +
+    '<span>' + dias[0].getDate() + '/' + (dias[0].getMonth() + 1) + ' al ' + fin.getDate() + '/' + (fin.getMonth() + 1) + '</span>' +
+    '<button type="button" data-semana="1">Siguiente ›</button></div>' +
+    '<div class="semana">' + dias.map((d) => {
+      const k = clave(d);
+      const citas = tablero.agenda.filter((v) => v.visita.slice(0, 10) === k)
+        .sort((a, b) => (a.visita.slice(11) || '99').localeCompare(b.visita.slice(11) || '99'));
+      return '<div class="vidrio dia' + (k === tablero.hoy ? ' dia--hoy' : '') + '">' +
+        '<div class="dia-nombre">' + DIAS[d.getDay()] + '</div><div class="dia-num">' + d.getDate() + '</div>' +
+        citas.map((v) => {
+          const trae = /permuta|consign|trae|tasar/i.test((v.condiciones ?? '') + (v.motivo ?? ''));
+          return '<div class="cita' + (trae ? ' cita--auto' : '') + '">' +
+            '<span class="cita-hora">' + escapar(v.visita.slice(11, 16) || 'Sin hora') + '</span>' +
+            '<span class="cita-quien">' + linkTel(v.tel, v.quien) + '</span>' +
+            '<span class="cita-auto">' + escapar(v.auto ?? '') + (trae ? ' · trae auto' : '') + '</span></div>';
+        }).join('') + '</div>';
+    }).join('') + '</div>';
+}
+
+function pintarTablero() {
+  const avisos = tablero.avisos.slice().reverse();
+  const de = (c) => avisos.filter((a) => claseDe(a) === c);
+  const pendientes = tablero.recordatorios.slice().sort((a, b) => a.cuando.localeCompare(b.cuando));
+  const cuentas = {
+    hacer: de('hacer').length + pendientes.length,
+    responder: unoPorPersona(de('responder')).length,
+    tasar: unoPorPersona(de('tasar')).length,
+    consultas: tablero.consultas.length,
+  };
+  $$('#tabChips button').forEach((b) => {
+    b.setAttribute('aria-pressed', String(b.dataset.v === vistaTab));
+    const n = b.querySelector('span');
+    if (n) n.textContent = cuentas[b.dataset.v] || '';
+  });
+  $('#tabHoy').textContent = new Date(tablero.hoy + 'T12:00:00-03:00')
+    .toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  const vacio = (t) => '<div class="tab-vacio">' + t + '</div>';
+  const grilla = (html) => html ? '<div class="lista-tab">' + html + '</div>' : '';
+  let html = '';
+  if (vistaTab === 'calendario') html = pintarCalendario();
+  else if (vistaTab === 'hacer') {
+    html = grilla(de('hacer').map((a) => tarjeta(a, ' tarjeta--hacer')).join('') +
+      pendientes.map((r) => '<article class="vidrio tarjeta"><div class="tarjeta-cabeza"><span>Programado</span><span>' +
+        escapar(r.cuando) + '</span></div><div class="tarjeta-texto">' + conLinks(r.texto) + '</div></article>').join(''))
+      || vacio('Nada para hacer.');
+  } else if (vistaTab === 'responder') html = grilla(unoPorPersona(de('responder')).map((a) => tarjeta(a)).join('')) || vacio('Nadie esperando.');
+  else if (vistaTab === 'tasar') html = grilla(unoPorPersona(de('tasar')).map((a) => tarjeta(a)).join('')) || vacio('Nada para tasar.');
+  else if (vistaTab === 'consultas') {
+    html = grilla(tablero.consultas.map((c) => '<article class="vidrio tarjeta"><div class="tarjeta-cabeza">' +
+      '<span class="tarjeta-num">Consulta ' + c.n + '</span><span>' + escapar(fechaCorta(c.cuando)) + '</span></div>' +
+      '<div class="tarjeta-texto">' + linkTel(c.tel, c.quien) + '\n' + escapar(c.pregunta) + '</div></article>').join(''))
+      || vacio('No hay consultas esperando.');
+  } else if (vistaTab === 'resumen') {
+    const r = de('resumen')[0];
+    html = r ? '<div class="vidrio resumen-tab"><div class="tarjeta-cabeza"><span>Último resumen</span><span>' +
+      escapar(fechaCorta(r.cuando)) + '</span></div>' + conLinks(r.texto) + '</div>' : vacio('Todavía no hay resumen.');
+  } else html = grilla(avisos.map((a) => tarjeta(a, a.tipo === 'hacer' ? ' tarjeta--hacer' : '')).join('')) || vacio('Sin avisos.');
+  $('#tabCuerpo').innerHTML = html;
+  $$('#tabCuerpo [data-semana]').forEach((b) => b.addEventListener('click', () => {
+    semanaDesde += Number(b.dataset.semana);
+    pintarTablero();
+  }));
+}
+
 async function cargarAvisos() {
   try {
-    const { avisos = [] } = await api('/api/admin/avisos');
-    const lista = avisos.slice().reverse();
-    $('#sinAvisos').classList.toggle('oculto', lista.length > 0);
-    $('#avisos').innerHTML = lista.map((a) =>
-      '<article class="bot-aviso' + (a.tipo === 'hacer' ? ' bot-aviso--hacer' : '') + '">' +
-        '<div class="bot-aviso-cuando">' + escapar(new Date(a.cuando).toLocaleString('es-AR', {
-          timeZone: 'America/Argentina/Buenos_Aires', weekday: 'short', day: 'numeric',
-          month: 'numeric', hour: '2-digit', minute: '2-digit' })) + '</div>' +
-        '<div class="bot-aviso-texto">' + conLinks(a.texto) + '</div>' +
-      '</article>').join('');
+    tablero = await api('/api/admin/tablero');
+    pintarTablero();
   } catch (err) {
     avisar(err.message, true);
   }
 }
+
+$$('#tabChips button').forEach((b) => b.addEventListener('click', () => {
+  vistaTab = b.dataset.v;
+  if (tablero) pintarTablero();
+}));
+$('#tabRefrescar').addEventListener('click', cargarAvisos);
 
 function verPestania(cual) {
   const autos = cual === 'autos';

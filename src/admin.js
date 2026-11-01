@@ -624,14 +624,62 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
    publicaciones. Es el orden en el que se pregunta —cómo vengo, a quién
    le llego, qué funcionó— y no el orden en el que la API los devuelve. */
 
-/* ── los avisos del bot ── */
-.avisos{ display:grid; gap:.8rem; max-width:44rem; margin:1.2rem auto 0 }
-.bot-aviso{ border:1px solid rgba(127,127,127,.25); border-radius:10px; padding:.9rem 1rem }
-.bot-aviso--hacer{ border-color:#2e9e5b; background:rgba(46,158,91,.12) }
-.bot-aviso--hacer .bot-aviso-cuando{ color:#2e9e5b; font-weight:700 }
-.bot-aviso-cuando{ font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; color:var(--apagado); margin-bottom:.4rem }
-.bot-aviso-texto{ white-space:pre-wrap; font-size:.86rem; line-height:1.55; overflow-wrap:anywhere }
-.bot-aviso-texto a{ color:inherit; text-decoration:underline }
+/* ── la agenda: tablero de vidrio (Maxi, 31/10) ──
+   Fondo oscuro con luces cálidas y tarjetas translúcidas, como un
+   tablero. Se ve igual con el panel claro u oscuro: es su propio mundo. */
+.tablero{
+  position:relative; margin:1rem auto 0; max-width:72rem; padding:1.4rem;
+  border-radius:22px; color:#f4efe9; overflow:hidden;
+  background:
+    radial-gradient(60% 50% at 15% 10%, rgba(214,150,92,.45), transparent 70%),
+    radial-gradient(50% 45% at 90% 20%, rgba(120,140,170,.35), transparent 70%),
+    radial-gradient(70% 60% at 60% 100%, rgba(150,110,80,.40), transparent 70%),
+    #1b1714;
+  box-shadow:0 20px 60px rgba(0,0,0,.35);
+}
+.tablero a{ color:#ffd9b0; text-decoration:none; border-bottom:1px solid rgba(255,217,176,.35) }
+.tab-cabeza{ display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem }
+.tab-titulo{ font-family:var(--display); font-size:1.6rem; font-weight:700; letter-spacing:.02em }
+.tab-sub{ font-size:.78rem; opacity:.7; text-transform:capitalize }
+.tab-refrescar{ width:2.4rem; height:2.4rem; border-radius:50%; border:1px solid rgba(255,255,255,.25);
+  background:rgba(255,255,255,.08); color:inherit; font-size:1.1rem; cursor:pointer; backdrop-filter:blur(10px) }
+.tab-chips{ display:flex; gap:.4rem; flex-wrap:wrap; margin-bottom:1.2rem }
+.tab-chips button{ border:1px solid rgba(255,255,255,.22); background:rgba(255,255,255,.07); color:inherit;
+  border-radius:999px; padding:.45rem .95rem; font-size:.78rem; cursor:pointer; backdrop-filter:blur(12px) }
+.tab-chips button[aria-pressed="true"]{ background:#f4efe9; color:#1b1714; border-color:#f4efe9 }
+.tab-chips button span:not(:empty){ display:inline-block; min-width:1.2rem; margin-left:.3rem; padding:0 .35rem;
+  border-radius:999px; background:#e0884a; color:#fff; font-size:.68rem; font-weight:700 }
+.vidrio{ background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.16); border-radius:16px;
+  backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px) }
+.semana-nav{ display:flex; align-items:center; justify-content:space-between; margin-bottom:.8rem; font-size:.85rem }
+.semana-nav button{ border:1px solid rgba(255,255,255,.22); background:rgba(255,255,255,.07); color:inherit;
+  border-radius:999px; padding:.3rem .8rem; cursor:pointer }
+.semana{ display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:.6rem }
+.dia{ padding:.7rem; min-height:9rem }
+.dia--hoy{ border-color:#e0884a; box-shadow:0 0 0 1px #e0884a inset }
+.dia--cerrado{ opacity:.55 }
+.dia-nombre{ font-size:.68rem; letter-spacing:.12em; text-transform:uppercase; opacity:.7 }
+.dia-num{ font-family:var(--display); font-size:1.4rem; font-weight:700; margin-bottom:.4rem }
+.cita{ border-radius:10px; padding:.5rem .55rem; margin-top:.4rem; font-size:.74rem; line-height:1.4;
+  background:rgba(224,136,74,.22); border-left:3px solid #e0884a }
+.cita--auto{ background:rgba(120,170,220,.2); border-left-color:#78aadc }
+.cita-hora{ font-weight:700 }
+.cita-quien{ display:block; margin:.1rem 0 }
+.cita-auto{ opacity:.85 }
+.lista-tab{ display:grid; gap:.7rem; grid-template-columns:repeat(auto-fill, minmax(18rem,1fr)) }
+.tarjeta{ padding:.9rem 1rem; font-size:.84rem; line-height:1.5 }
+.tarjeta--hacer{ background:rgba(46,158,91,.22); border-color:rgba(90,210,140,.6) }
+.tarjeta-cabeza{ display:flex; justify-content:space-between; gap:.5rem; font-size:.66rem; letter-spacing:.1em;
+  text-transform:uppercase; opacity:.7; margin-bottom:.35rem }
+.tarjeta-num{ font-family:var(--display); font-size:1rem; font-weight:700; opacity:1; color:#ffd9b0 }
+.tarjeta-texto{ white-space:pre-wrap; overflow-wrap:anywhere }
+.tab-vacio{ padding:2rem; text-align:center; opacity:.65; font-size:.9rem }
+.resumen-tab{ padding:1.2rem 1.4rem; white-space:pre-wrap; font-size:.88rem; line-height:1.6; max-width:48rem }
+@media (max-width:760px){
+  .tablero{ padding:1rem; border-radius:16px }
+  .semana{ grid-template-columns:1fr }
+  .dia{ min-height:auto }
+}
 
 .seccion-rotulo{
   font-family:var(--display); font-size:.72rem; font-weight:700;
@@ -833,7 +881,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   <main class="hoja" id="vistaLista">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap">
       <div class="pestanias">
-        <button class="pestania" type="button" id="pesAvisos" aria-pressed="false">Avisos</button>
+        <button class="pestania" type="button" id="pesAvisos" aria-pressed="false">Agenda</button>
         <button class="pestania" type="button" id="pesAutos" aria-pressed="true">Autos</button>
         <button class="pestania" type="button" id="pesMedios" aria-pressed="false">Imágenes del sitio</button>
         <button class="pestania" type="button" id="pesBandeja" aria-pressed="false">Mensajes</button>
@@ -855,14 +903,25 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
          el resumen, las consultas que esperan respuesta, lo que pasa al
          equipo. Lo más nuevo arriba. -->
     <section id="zonaAvisos" class="oculto">
-      <p class="aclara">
-        Lo que el bot te avisa: las visitas de hoy (7:30) y de mañana
-        (21 h), el resumen, las consultas que esperan tu respuesta y los
-        chats que pasan al equipo. Lo más nuevo arriba. Tocá un número
-        para abrir el chat en WhatsApp.
-      </p>
-      <div class="avisos" id="avisos"></div>
-      <div class="vacio oculto" id="sinAvisos">Todavía no hay avisos.</div>
+      <div class="tablero">
+        <div class="tab-cabeza">
+          <div>
+            <div class="tab-titulo">Agenda</div>
+            <div class="tab-sub" id="tabHoy"></div>
+          </div>
+          <button class="tab-refrescar" type="button" id="tabRefrescar" title="Actualizar">↻</button>
+        </div>
+        <nav class="tab-chips" id="tabChips">
+          <button type="button" data-v="calendario" aria-pressed="true">Calendario</button>
+          <button type="button" data-v="hacer">Para hacer <span></span></button>
+          <button type="button" data-v="responder">Responder <span></span></button>
+          <button type="button" data-v="tasar">Para tasar <span></span></button>
+          <button type="button" data-v="consultas">Consultas <span></span></button>
+          <button type="button" data-v="resumen">Resumen</button>
+          <button type="button" data-v="todo">Todo</button>
+        </nav>
+        <div id="tabCuerpo"></div>
+      </div>
     </section>
 
     <!-- LAS IMÁGENES FIJAS DE LA HOME -->
