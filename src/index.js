@@ -2036,7 +2036,13 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
 
   /* SIN "¿" DE APERTURA, SIEMPRE. Es una regla de las instrucciones y
      igual se escapaba alguno (Hugo, 28/10): se saca acá, que no falla. */
-  const partes = dato.partes.map((p) => String(p).replace(/¿/g, '').trim()).filter(Boolean);
+  /* NI CITAS NI ETIQUETAS (1/11: a un cliente le llegó "<cite index=…>"
+     de una búsqueda web pegado en el mensaje). El texto de adentro queda;
+     las marcas se van. */
+  const partes = dato.partes.map((p) => String(p)
+    .replace(/<\/?cite\b[^>]*>/gi, '')
+    .replace(/<\/?[a-z][^>]*>/gi, '')
+    .replace(/¿/g, '').replace(/[ \t]{2,}/g, ' ').trim()).filter(Boolean);
   if (!partes.length) throw new Error('Claude no devolvió una respuesta');
 
   /* El número de auto se cruza con el stock: uno inventado o vendido no
