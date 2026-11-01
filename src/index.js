@@ -3317,12 +3317,41 @@ async function confirmarVisitasDeHoy(env) {
    Corren en el reloj del Worker, así que salen aunque nadie tenga la
    compu prendida. En el panel se ven en verde: es algo para hacer. */
 async function recordatoriosDeHoy(env) {
+  await programadosDeHoy(env);
   const todos = (await leerEstado(env, 'recordatorios'))?.valor ?? [];
   const toca = (r) => aMs(r.cuando) <= Date.now();
   const ahora = todos.filter(toca);
   if (!ahora.length) return;
   await guardarEstado(env, 'recordatorios', todos.filter((r) => !toca(r)));
   for (const r of ahora) await anotarAviso(env, `*PARA HACER HOY*\n${r.texto}`, { tipo: 'hacer' });
+}
+
+/* RESPUESTAS PROGRAMADAS (Maxi, 31/10: "respondé esto mañana a las 11").
+   A la hora, si la ventana de 24 h está abierta, salen solas, en partes.
+   Si se cerró, Meta no deja escribir sin plantilla: quedan en la Agenda,
+   en verde, con el texto listo para que Maxi lo mande desde el teléfono. */
+async function programadosDeHoy(env) {
+  const todos = (await leerEstado(env, 'programados'))?.valor ?? [];
+  const toca = (p) => aMs(p.cuando) <= Date.now();
+  const ahora = todos.filter(toca);
+  if (!ahora.length) return;
+  await guardarEstado(env, 'programados', todos.filter((p) => !toca(p)));
+  for (const p of ahora) {
+    const chat = await env.DB.prepare('SELECT id, canal, externo_id, nombre FROM conversaciones WHERE id = ?')
+      .bind(p.chat).first();
+    if (!chat) continue;
+    const abierta = await env.DB.prepare(
+      `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
+          AND creado > datetime('now','-23 hours') LIMIT 1`
+    ).bind(chat.id).first();
+    try {
+      if (!abierta) throw new Error('ventana cerrada');
+      await mandarRespuesta(env, chat, { partes: p.partes, autor: 'persona' });
+    } catch (e) {
+      await anotarAviso(env, `*PARA HACER HOY*\nMandale esto a ${lineaDe(chat, LISTAS.permuta, '')}`
+        + `(${String(e?.message ?? e).includes('ventana') ? 'WhatsApp no deja que lo mande el sistema: pasaron más de 24 h' : 'no salió'}):\n\n${p.partes.join('\n\n')}`, { tipo: 'hacer' });
+    }
+  }
 }
 
 async function hoyEnElSalon(env) {
@@ -4878,6 +4907,17 @@ async function admin(peticion, env, ruta, metodo, ctx) {
   /* EL TABLERO DE LA AGENDA (Maxi, 31/10): las visitas, lo que hay que
      hacer, las consultas que esperan y los avisos, por separado, para
      que el panel los muestre cada uno en su lugar. */
+  /* PROGRAMAR UNA RESPUESTA A UN CLIENTE (ver `programadosDeHoy`). */
+  if (ruta === '/api/admin/programar' && metodo === 'POST') {
+    const c = await peticion.json().catch(() => ({}));
+    const chat = entero(c?.chat, 1, 1e9);
+    const partes = (Array.isArray(c?.partes) ? c.partes : []).map((t) => texto(t, 1000)).filter(Boolean);
+    if (!chat || !partes.length || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(c?.cuando ?? '')) return error('Faltan datos');
+    const ya = (await leerEstado(env, 'programados'))?.valor ?? [];
+    await guardarEstado(env, 'programados', [...ya, { chat, cuando: c.cuando, partes }].slice(-100));
+    return json({ ok: true });
+  }
+
   /* UNA CONSULTA QUE YA SE RESOLVIÓ POR OTRO LADO: sale de la lista. */
   const resuelta = ruta.match(/^\/api\/admin\/consultas\/(\d+)\/resuelta$/);
   if (resuelta && metodo === 'POST') {
@@ -4901,7 +4941,13 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       hoy: diaDeBsAs(),
       agenda: await Promise.all(agenda.map(conQuien)),
       consultas: await Promise.all(consultas.map(conQuien)),
-      recordatorios: (await leerEstado(env, 'recordatorios'))?.valor ?? [],
+      recordatorios: [
+        ...((await leerEstado(env, 'recordatorios'))?.valor ?? []),
+        ...await Promise.all(((await leerEstado(env, 'programados'))?.valor ?? []).map(async (p) => {
+          const c = await deChat(p.chat);
+          return { cuando: p.cuando, texto: `Respuesta programada a ${c?.nombre || (c ? quienEs(c) : 'un cliente')}:\n${p.partes.join('\n')}` };
+        })),
+      ],
       avisos: ((await leerEstado(env, 'avisos'))?.valor ?? []).slice(-150),
     });
   }
