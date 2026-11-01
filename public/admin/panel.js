@@ -1870,8 +1870,8 @@ function pintarCalendario() {
         '<div class="dia-nombre">' + DIAS[d.getDay()] + '</div><div class="dia-num">' + d.getDate() + '</div>' +
         citas.map((v) => {
           const trae = /permuta|consign|trae|tasar/i.test((v.condiciones ?? '') + (v.motivo ?? ''));
-          return '<div class="cita' + (trae ? ' cita--auto' : '') + '">' +
-            '<span class="cita-hora">' + escapar(v.visita.slice(11, 16) || 'Sin hora') + '</span>' +
+          return '<div class="cita' + (v.aConfirmar ? ' cita--confirmar' : trae ? ' cita--auto' : '') + '">' +
+            '<span class="cita-hora">' + escapar(v.visita.slice(11, 16) || 'Sin hora') + (v.aConfirmar ? ' · A confirmar' : '') + '</span>' +
             '<span class="cita-quien">' + linkTel(v.tel, v.quien) + '</span>' +
             '<span class="cita-auto">' + escapar(v.auto ?? '') + (trae ? ' · trae auto' : '') + '</span></div>';
         }).join('') + '</div>';
