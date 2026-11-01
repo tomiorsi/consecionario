@@ -1996,7 +1996,15 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
 
   /* El número de auto se cruza con el stock: uno inventado o vendido no
      llega a ningún lado. */
-  const auto = (autos ?? []).find((a) => a.id === dato.ficha_de);
+  /* EL LINK DEL AUTO DEL QUE VIENE, AUNQUE EL BOT NO LO PIDA (Maxi, 1/11:
+     "a algunos no les mandás el link del modelo por el que preguntaron").
+     Si vino de la publicación o el anuncio de un auto publicado y no
+     reservado, ese es el auto: el link sale (una sola vez, ver
+     `linkSinRepetir`) salvo que la charla sea de una consignación. */
+  const delOrigen = origenSabido?.tipo === 'auto' && !reservadosIds.includes(origenSabido.auto)
+    && !deConsignacion ? origenSabido.auto : null;
+  const auto = (autos ?? []).find((a) => a.id === dato.ficha_de)
+    ?? (autos ?? []).find((a) => a.id === delOrigen);
 
   return {
     partes,
