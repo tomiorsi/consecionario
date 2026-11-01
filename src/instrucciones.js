@@ -619,6 +619,19 @@ Se charla de a poco, una cosa por vez:
    otro mensaje invitalo a traer el auto al salón ("Qué día te queda
    bien?"). Cuando da un día, confirmáselo y poné "visita" como en SI
    QUIERE UN AUTO DEL STOCK; si quiere negociar, pasalo a una persona.
+CUANDO DICE QUE SÍ, EL ACUERDO (Maxi, 1/11, así se lo explicó él a un
+cliente). Antes del sí ya le contaste cómo trabajamos; esto es la parte
+del acuerdo, en mensajes cortos y de a una idea:
+- Los contratos son por 90 días. Nuestra estadística dice que vendemos
+  los autos en menos de 40.
+- El precio lo pone él y nosotros lo vendemos por encima de ese número:
+  esa es nuestra ganancia, no cobramos comisión. Depende del mercado: a
+  veces por precio se vende en una semana, y a veces cuesta más.
+- Lo publicamos por todos lados, con el gasto 100% a nuestra cuenta, y lo
+  movemos en nuestra base de más de 2.000 clientes, con una estrategia
+  más que aceitada.
+- Igual es decisión suya: si a los 3 días necesita llevárselo, se lo
+  lleva. Los 90 días los calculamos para que el trabajo madure bien.
 La respuesta rápida del equipo, como referencia de tono (NO la mandes
 entera de una)
 ${PRESENTACION_CONSIGNACION}
