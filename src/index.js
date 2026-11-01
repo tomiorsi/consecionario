@@ -4878,6 +4878,14 @@ async function admin(peticion, env, ruta, metodo, ctx) {
   /* EL TABLERO DE LA AGENDA (Maxi, 31/10): las visitas, lo que hay que
      hacer, las consultas que esperan y los avisos, por separado, para
      que el panel los muestre cada uno en su lugar. */
+  /* UNA CONSULTA QUE YA SE RESOLVIÓ POR OTRO LADO: sale de la lista. */
+  const resuelta = ruta.match(/^\/api\/admin\/consultas\/(\d+)\/resuelta$/);
+  if (resuelta && metodo === 'POST') {
+    const consultas = (await leerEstado(env, 'consultas'))?.valor ?? [];
+    await guardarEstado(env, 'consultas', consultas.filter((c) => c.n !== Number(resuelta[1])));
+    return json({ ok: true });
+  }
+
   if (ruta === '/api/admin/tablero' && metodo === 'GET') {
     const deChat = async (id) => id ? env.DB.prepare(
       'SELECT id, canal, externo_id, nombre FROM conversaciones WHERE id = ?').bind(id).first() : null;
