@@ -3130,7 +3130,7 @@ Qué hacer con lo que escribió:
     await guardarEstado(env, 'agenda', nueva);
   }
 
-  /* VISITAS A CONFIRMAR: en el calendario en celeste, sin confirmación
+  /* VISITAS A CONFIRMAR: en el calendario en amarillo, sin confirmación
      automática a la mañana. */
   for (const v of dato.a_confirmar ?? []) {
     if (!/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(v.visita ?? '')) continue;
@@ -3350,7 +3350,7 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
   await escribirleAlJefe(env,
     `${aConfirmar ? 'Visita a confirmar' : 'Visita agendada'} · ${fichaDeVisita(nueva)}` +
     (nueva.motivo ? `\n${nueva.motivo}` : '') +
-    (aConfirmar ? `\n\nDijo un día pero no lo cerró: queda en celeste y no le sale la confirmación de la mañana.`
+    (aConfirmar ? `\n\nDijo un día pero no lo cerró: queda en amarillo y no le sale la confirmación de la mañana.`
       : `\n\nSe la confirmé yo. Ponelo en Visita posible.`));
 }
 
