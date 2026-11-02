@@ -2849,6 +2849,7 @@ const LISTAS = {
   comprador: 'Posible Comprador',
   potencial: 'Cliente potencial',
   reservado: 'Reservado',
+  tasado: 'Tasados por Claude',
 };
 
 /* Una línea por cliente, como las arma Maxi:
@@ -3969,6 +3970,11 @@ async function mandarCotizacion(env, chat, fila, r, oferta) {
   await env.DB.prepare(
     `UPDATE tasaciones SET estado = 'enviada', monto = ?2, porcentaje = ?4, actualizada = ?3 WHERE id = ?1`
   ).bind(fila.id, oferta, Date.now(), porcentaje).run();
+  /* CADA DIFERENCIA QUE SALE, A LA LISTA DE WHATSAPP "Tasados por Claude"
+     (Maxi, 2/11). La lista la pone una persona desde WhatsApp: acá queda
+     el aviso con lo que se le dijo. */
+  await anotarAviso(env, `Tasado por Claude\n${lineaDe(chat, LISTAS.tasado, partes[1] ?? '')}`)
+    .catch((e) => console.error('tasador:', e?.message ?? e));
 }
 
 const FALTAN = {
