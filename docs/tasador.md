@@ -52,6 +52,10 @@ Resumido (el detalle está arriba de todo en `src/tasador.js`):
    24 h de Meta, o dejarla para una persona si no se pudo.
 5. Si quedó esperando, se la manda apenas el cliente vuelve a escribir
    (en `atenderSolo`).
+6. Mientras WhatsApp está en cuarentena (hasta el 7/11) no sale la
+   plantilla: la cotización queda esperando, igual que en Instagram y
+   Messenger, que no tienen plantillas. Sale aunque el chat lo haya
+   atendido el equipo, porque la pidió el equipo.
 
 Lo que el cliente recibe es la **diferencia** contra el auto que quiere, no
 el valor de su auto. Si nos lo vende sin comprar ninguno
@@ -73,6 +77,9 @@ cotizaciones se calculan igual pero quedan para que las mire una persona.
 - `GET /api/admin/tasador` — porcentajes y últimas tasaciones.
 - `POST /api/admin/tasador/config` — cambiar los porcentajes.
 - `PATCH /api/admin/tasaciones/:id` — descartar una.
+- `POST /api/admin/tasaciones/pedir` — cotizar una charla de antes del tasador:
+  `{chat, pedido: {marca, modelo, version, caja, anio, km}, auto_interes}`.
+  Sin `auto_interes` no se pide: la cotización diría cuánto pagamos por su auto.
 
 ## Mercado Libre es un tercero desde el 2/11/2026
 

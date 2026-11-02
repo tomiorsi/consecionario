@@ -4007,7 +4007,8 @@ async function avisarTasacion(env, fila, r) {
 
   /* LISTA PERO TARDE: por WhatsApp se le avisa con plantilla y queda
      esperando; cuando conteste, el repaso de siempre sigue la charla. */
-  if (hayPrecio && cfg.automatico && !puede && chat.canal === 'whatsapp' && !chat.humano) {
+  if (hayPrecio && cfg.automatico && !puede && chat.canal === 'whatsapp' && !chat.humano
+      && !whatsappEnCuarentena(chat.canal)) {
     try {
       await mandarPlantilla(env, chat, 'cotizacion_lista',
         [primerNombre(chat.nombre), [p.marca, p.modelo, p.anio].filter(Boolean).join(' ')]);
@@ -4015,6 +4016,15 @@ async function avisarTasacion(env, fila, r) {
         .bind(fila.id, Date.now()).run();
       return;
     } catch (e) { console.error('tasador:', e?.message ?? e); }
+  }
+
+  /* LISTA, TARDE Y SIN PLANTILLA (WhatsApp en cuarentena, o Instagram y
+     Messenger, que no tienen plantillas): queda guardada y sale cuando el
+     cliente vuelva a escribir. */
+  if (hayPrecio && cfg.automatico && !puede && !chat.humano) {
+    await env.DB.prepare(`UPDATE tasaciones SET estado = 'esperando', actualizada = ?2 WHERE id = ?1`)
+      .bind(fila.id, Date.now()).run();
+    return;
   }
 
   /* NO SE ENCONTRÓ NINGUNO PARA COMPARAR: casi siempre es un dato mal
@@ -4083,6 +4093,28 @@ async function atenderSolo(env, disparos) {
         continue;
       }
       if (!chat || esElJefe(env, chat)) continue;
+      /* UNA COTIZACIÓN QUE QUEDÓ ESPERANDO. Se calculó cuando ya habían
+         pasado las 24 horas (con plantilla o sin ella, ver avisarTasacion).
+         Ahora que volvió a escribir se le manda: va esto y no la respuesta
+         de siempre, porque el texto ya termina invitándolo al salón. Va
+         antes de lo del equipo porque la pidió el equipo (Maxi, 2/11). */
+      if (!chat.humano) {
+        await asegurarTasaciones(env);
+        const esperando = await env.DB.prepare(
+          `SELECT * FROM tasaciones WHERE conversacion = ? AND estado = 'esperando'
+            ORDER BY creada DESC LIMIT 1`
+        ).bind(chat.id).first().catch(() => null);
+        if (esperando?.resultado) {
+          const guardado = JSON.parse(esperando.resultado);
+          const cfg = await leerConfigTasador(env);
+          if (guardado.promedio && cfg.automatico) {
+            try {
+              await mandarCotizacion(env, chat, esperando, guardado, ofertaDe(guardado, cfg));
+              continue;
+            } catch (e) { console.error('tasador:', e?.message ?? e); }
+          }
+        }
+      }
       /* CHATS DEL EQUIPO (Maxi, 31/10): si el cliente pregunta un dato y
          en 20 minutos nadie le contestó, contesta el bot, sólo datos. */
       if (chat.humano || await loAtendioElEquipo(env, chat.id)) {
@@ -4126,27 +4158,6 @@ async function atenderSolo(env, disparos) {
           bot: 'frenado por ráfaga', chat: chat.id, sin_respuesta: sinRespuesta.n,
         }));
         continue;
-      }
-
-      /* UNA COTIZACIÓN QUE QUEDÓ ESPERANDO. Si se calculó cuando ya
-         habían pasado las 24 horas, se le mandó la plantilla y quedó
-         guardada. Ahora que volvió a escribir se le puede mandar: va
-         esto y no la respuesta de siempre, porque el texto ya termina
-         invitándolo al salón. Es la respuesta. */
-      await asegurarTasaciones(env);
-      const esperando = await env.DB.prepare(
-        `SELECT * FROM tasaciones WHERE conversacion = ? AND estado = 'esperando'
-          ORDER BY creada DESC LIMIT 1`
-      ).bind(chat.id).first().catch(() => null);
-      if (esperando?.resultado) {
-        const guardado = JSON.parse(esperando.resultado);
-        const cfg = await leerConfigTasador(env);
-        if (guardado.promedio && cfg.automatico) {
-          try {
-            await mandarCotizacion(env, chat, esperando, guardado, ofertaDe(guardado, cfg));
-            continue;
-          } catch (e) { console.error('tasador:', e?.message ?? e); }
-        }
       }
 
       const r = await pensarRespuesta(env, chat.id, { automatico: true, deNoche: esDeNoche() });
@@ -5517,6 +5528,22 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     if (automatico !== undefined) config.automatico = Boolean(automatico);
     await guardarConfigTasador(env, config);
     return json({ ok: true });
+  }
+
+  /* COTIZAR UNA PERMUTA QUE QUEDÓ ESPERANDO (Maxi, 2/11: "respondele a
+     todos los que nos ofrecieron permuta"). Para las charlas de antes del
+     tasador: se le pasa el auto que entrega, ya ordenado, y el que quiere.
+     El chat vuelve al bot para que la cotización salga sola; si ya pasaron
+     las 24 horas, queda esperando a que el cliente escriba. */
+  if (ruta === '/api/admin/tasaciones/pedir' && metodo === 'POST') {
+    const { chat, pedido, auto_interes } = await peticion.json().catch(() => ({}));
+    const c = await env.DB.prepare('SELECT id FROM conversaciones WHERE id = ?').bind(Number(chat)).first();
+    if (!c) return error('No está', 404);
+    if (!auto_interes) return error('Falta el auto que quiere: sin él, la cotización diría cuánto pagamos');
+    const clave = await pedirTasacion(env, c.id, pedido ?? {}, Number(auto_interes));
+    if (!clave) return error('No se pidió: faltan datos, tiene demasiados km o ya hay una');
+    await env.DB.prepare('UPDATE conversaciones SET humano = 0 WHERE id = ?').bind(c.id).run();
+    return json({ ok: true, clave });
   }
 
   /* DESCARTAR UNA TASACIÓN. Aprobar todavía no: aprobar quiere decir
