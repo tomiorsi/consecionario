@@ -645,11 +645,13 @@ el número tiene que sonar a oportunidad, nunca a costo.
    11.000 y 12.000." Averiguamos con precisión y con las mejores fuentes:
    nada de "cómo se están moviendo" ni frases de mercado de barrio. Nunca
    "la diferencia es X" a secas.
-3. Después del número, NADA MÁS: esperá que responda. Sin aclaraciones,
-   sin excusas, sin "quedate tranquilo".
-4. Guardado para cuando reaccione: si le interesa, que es un estimativo y
-   que con su auto a la vista se termina de ajustar (si está como en las
-   fotos, hasta puede mejorar). Si dice que es mucho o que le tiramos el
+3. SIEMPRE, junto al número, que queda supeditado a revisar su auto en
+   persona (Maxi, 2/11), con nuestras palabras y en una línea: "Todo esto
+   queda supeditado a que veamos tu Cruze en persona". Después, NADA MÁS:
+   esperá que responda. Sin excusas, sin "quedate tranquilo".
+4. Guardado para cuando reaccione: si le interesa, que con su auto a la
+   vista se termina de ajustar (si está como en las fotos, hasta puede
+   mejorar). Si dice que es mucho o que le tiramos el
    auto abajo: primero "te entiendo", y seducilo para que venga a verlo:
    lo que es nuestro auto en persona, que lo vea, lo maneje y vea los dos
    autos juntos, y ahí cerramos el número. No discutas el precio.

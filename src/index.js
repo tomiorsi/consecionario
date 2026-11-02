@@ -3965,6 +3965,18 @@ async function mandarCotizacion(env, chat, fila, r, oferta) {
     : null;
   const referencias = Array.isArray(r.comparables) ? r.comparables.length : null;
   const partes = mensajesDeCotizacion(p, oferta, auto, r.dolar, false, referencias);
+  /* CON NUESTRAS PALABRAS (Maxi, 2/11): todo queda supeditado a revisar
+     el auto en persona. El texto del tasador es el de Motors y no se toca;
+     acá se cambian las dos últimas partes. Si ya tiene la visita, no se
+     lo invita de nuevo: se le recuerda la que tiene. */
+  const pocas = /pocas referencias/i.test(partes[2] ?? '');
+  partes[2] = (pocas ? 'De este modelo hay pocas publicaciones para comparar, así que es bien orientativo. ' : '')
+    + `Todo esto queda supeditado a que veamos tu ${p.modelo} en persona: ahí nuestro tasador lo revisa y confirmamos el número`;
+  const suVisita = ((await leerEstado(env, 'agenda'))?.valor ?? []).find((v) => v.chat === chat.id && aMs(v.visita) > Date.now());
+  if (suVisita) {
+    partes[3] = `Así que te esperamos el ${new Intl.DateTimeFormat('es-AR', { timeZone: 'America/Argentina/Buenos_Aires',
+      weekday: 'long', day: 'numeric' }).format(new Date(aMs(suVisita.visita)))}${suVisita.visita.length > 10 ? ` a las ${suVisita.visita.slice(11, 16)}` : ''} como quedamos, con tu ${p.modelo}`;
+  }
   await mandarRespuesta(env, chat, { partes, autoId: auto?.id ?? null, autor: 'ia' });
   const porcentaje = r.promedio ? Math.round((1 - oferta / r.promedio) * 1000) / 10 : null;
   await env.DB.prepare(
