@@ -58,6 +58,6 @@ export const PRESENTACION_CONSIGNACION = `Hola! Cómo estás? Gracias por contac
 export const FUERA_DEL_SITIO = [
   {
     nombre: 'Ford Ranger Limited 3.2 (la "Ranger", "Ranger LTD")',
-    presentacion: `Hola! Cómo estás? Es una Ford Ranger Limited 3.2 turbodiésel, tiene todos los services OFICIALES. Automática de 6 y 4x4, año 2021, con 54.300 km. En excelente estado.`,
+    presentacion: `Hola! Cómo estás? Es una Ford Ranger Limited 3.2 turbodiésel, tiene todos los services OFICIALES. Automática de 6 y 4x4, año 2021, con 54.300 km, de único dueño. En excelente estado.`,
   },
 ];
