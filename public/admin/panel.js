@@ -1964,8 +1964,9 @@ function tarjeta(a, extra = '') {
    o "consignación de", sin la marca. Si no se entiende, "su auto". */
 const MARCAS = /^(citro[eë]n|fiat|ford|chevrolet|toyota|volkswagen|vw|renault|peugeot|honda|jeep|bmw|mercedes(-benz)?|benz|kia|nissan|audi|ram|hyundai|chery|suzuki|mitsubishi|dodge|volvo|mini)$/i;
 function queTrae(cond) {
-  const m = String(cond).match(/(?:permuta con|trae|consignaci[oó]n de|entrega)\s+(?:la|el|su|una|un)?\s*([^,.;(]+)/i);
+  const m = String(cond).match(/(?:permuta con|trae|consignaci[oó]n de|entrega|tiene)\s+(?:la|el|su|una|un)?\s*([^,.;(]+)/i);
   const palabras = (m?.[1] ?? '').split(/\s+/).filter((w) => w && !MARCAS.test(w) && !/^\d{4}$/.test(w) && !/km/i.test(w));
+  if (/^(auto|vehículo|vehiculo|camioneta|en)$/i.test(palabras[0] ?? '')) return 'su auto';
   return palabras.slice(0, 2).join(' ') || 'su auto';
 }
 
