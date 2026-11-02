@@ -3347,6 +3347,12 @@ function fichaDeVisita(v) {
 
 async function agendarVisita(env, chat, { visita, auto = null, condiciones = null, motivo = null, aConfirmar = false, avisar = true }) {
   const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
+  /* LA MISMA VISITA NO SE AVISA DOS VECES (2/11: llegaron cuatro avisos
+     iguales de un mismo cliente, uno por cada mensaje de la charla). Se
+     actualizan los datos, pero el aviso sale sólo si cambió el día, la
+     hora o si pasó de "a confirmar" a confirmada. */
+  const antes = agenda.find((v) => v.chat === chat.id);
+  if (antes && antes.visita === visita && Boolean(antes.aConfirmar) === Boolean(aConfirmar)) avisar = false;
   const resto = agenda.filter((v) => v.chat !== chat.id);
   const nueva = { chat: chat.id, quien: quienEs(chat), visita, auto, condiciones,
     motivo: auto || condiciones ? null : motivo, recordada: false, ...(aConfirmar ? { aConfirmar: true } : {}) };
