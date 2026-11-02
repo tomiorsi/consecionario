@@ -90,6 +90,23 @@ function lineaDeAuto(a) {
   return `- [${a.id}] ${datos}${desc}${pres}`;
 }
 
+/* HOMBRE O MUJER, POR EL PRIMER NOMBRE (Maxi, 2/11: a Mónica le dijo
+   "sos fierrero"). La regla en el texto no alcanzaba: el modelo se olvidaba.
+   Se decide acá y va arriba de todo. Si no está claro, null y frases sin
+   género. */
+const NOMBRES_DE_MUJER = /^(maria|maría|ana|lucia|lucía|carolina|josefina|monica|mónica|nancy|patricia|marita|andrea|laura|paula|sofia|sofía|valeria|florencia|agustina|camila|julieta|natalia|silvia|claudia|gabriela|mariana|veronica|verónica|carla|daniela|romina|vanesa|lorena|cecilia|alejandra|marcela|graciela|susana|norma|beatriz|liliana|adriana|soledad|belen|belén|pilar|noelia|micaela|milagros|rocio|rocío|luciana|victoria|martina|guadalupe|antonela|celeste|dina|isabel|ines|inés|raquel|ester|esther|rosa|elena|gisela|yanina|jesica|jessica|melina|brenda|dolores|mercedes|carmen|alicia|irene|teresa|viviana|sandra|karina|eugenia|magali|fernanda|emilia|rocio)$/i;
+const NOMBRES_DE_HOMBRE_EN_A = /^(luca|nicola|bautista|juan|andrea|joshua|elias|elías|matias|matías|tobias|tobías|jonas|lucas|garcia|borja)$/i;
+export function generoDe(nombre) {
+  const primero = String(nombre ?? '').trim().split(/\s+/)[0]?.normalize('NFC') ?? '';
+  if (!/^[\p{L}]{2,}$/u.test(primero)) return null;
+  if (NOMBRES_DE_MUJER.test(primero)) return 'f';
+  if (NOMBRES_DE_HOMBRE_EN_A.test(primero)) return null;
+  /* Hombre sólo si parece un nombre de verdad (con mayúscula y corto):
+     "superheroedeldeporte" o "TRANSP" no son nombres. */
+  if (!/^\p{Lu}\p{Ll}{1,11}$/u.test(primero)) return null;
+  return /a$/i.test(primero) ? null : 'm';
+}
+
 /* Días en que no hay nadie en el salón: el bot no agenda visitas para
    ese día. Se escriben como salen en `hoyEnBsAs` ("31 de octubre de 2026"). */
 const DIAS_SIN_SALON = ['31 de octubre de 2026'];
@@ -204,8 +221,17 @@ otro, contestá por el otro.
 `
     : '';
 
+  const genero = generoDe(nombre);
+  const trato = genero === 'f'
+    ? `\nLE ESTÁS HABLANDO A UNA MUJER (${String(nombre).split(/\s+/)[0]}). Todo en femenino:
+"fierrera", "interesada", "bienvenida", "tranquila". Nunca en masculino.\n`
+    : genero === null && nombre
+    ? `\nNO ESTÁ CLARO SI ES HOMBRE O MUJER: usá frases sin género ("Te gustan
+los fierros?", "Qué bueno que te interese").\n`
+    : '';
+
   return `${quien}
-${yaSabeElAuto}${hoy ? `\nHoy es ${hoy}, hora de Buenos Aires.` : ''}${hoy && DIAS_SIN_SALON.some((d) => hoy.includes(d)) ? `
+${trato}${yaSabeElAuto}${hoy ? `\nHoy es ${hoy}, hora de Buenos Aires.` : ''}${hoy && DIAS_SIN_SALON.some((d) => hoy.includes(d)) ? `
 HOY NO HAY NADIE EN EL SALÓN (Maxi). No agendes ni propongas visitas para
 hoy: si quiere venir hoy, decile con buena onda que hoy no estamos y
 proponé otro día.` : ''}
@@ -393,6 +419,11 @@ cierre (precio, reserva y seña los cierra una persona).
   dato) y la visita va después, cuando haya señales. Si viene de una
   publicación o un anuncio que ya dice el precio, el precio ya lo sabe: no
   se lo repitas salvo que lo pregunte.
+- SOS SU AMIGO DE CONFIANZA, NO UN DESCONOCIDO (Maxi, 2/11). Una vez que
+  sabés qué busca, no lo vuelvas a preguntar: si quiere un descapotable y
+  el único que tenemos es el C300, hablá del C300. Charlas cortas, a lo
+  seguro, sin irte por las ramas, y nunca repitas una pregunta que ya
+  hiciste o que ya te contestó.
 - SI ES MUJER, EN FEMENINO (Maxi, 31/10). Si por su nombre o por lo que
   dice está claro que es una mujer, los adjetivos van en femenino
   ("fierrera", "interesada", "bienvenida"). Si no está claro, usá frases
