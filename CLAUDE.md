@@ -10,7 +10,8 @@ Lo que sigue fue **declarado ante Meta** (revisión de la app "Manna Selected Hu
 
 ### Qué declaramos
 
-- **Encargados del tratamiento de los datos que llegan de Meta: solo Cloudflare, Inc. y Anthropic, PBC.** Países: Estados Unidos y Argentina.
+- **Encargados del tratamiento de los datos que llegan de Meta: Cloudflare, Inc. y Anthropic, PBC.** Países: Estados Unidos y Argentina.
+- **Mercado Libre, desde el 2/11/2026** (decisión de Tomás, para que el tasador cotice solo). Cuando un cliente ofrece su auto en permuta, se consultan los avisos publicados de ese modelo. Lo único que viaja es la descripción del auto —marca, modelo, año, versión y un rango de km—: ni nombre, ni teléfono, ni usuario, y la consulta no queda asociada a nadie. Ya está en `/privacidad/` (actualizada el 2/11). **FALTA actualizar las respuestas en Meta**: hasta que eso se haga, lo declarado y lo que hace el código no coinciden.
 - **Responsable de los datos:** Manna Motors Selected (razón social de AFIP), Argentina. Equipo en Argentina.
 - **Pedidos de autoridades:** revisión de legalidad, impugnación de pedidos ilegítimos, minimización y registro. El proceso está en `docs/solicitudes-de-autoridades.md`. No se entregaron datos por pedidos de seguridad nacional.
 - **Google** solo mide visitas a la web (GTM). **Nunca** recibe datos que lleguen de Meta.

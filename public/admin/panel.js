@@ -961,6 +961,113 @@ $('#filtroTasar').addEventListener('click', () => {
   pintarChats();
 });
 
+/* ── EL TASADOR ──────────────────────────────────────────────────
+
+   Los porcentajes que se le restan al valor de mercado, y abajo lo que
+   se cotizó. La lista no está para mirar el número: está para poder
+   mirar DE DÓNDE salió. Por eso cada fila trae los links de las
+   publicaciones con las que se comparó: si una cotización parece rara,
+   se abren y se ve en diez segundos si el problema fue el auto o fuimos
+   nosotros. Un número sin su origen no se puede discutir. */
+let tasadorVisible = false;
+
+$('#verTasador').addEventListener('click', async () => {
+  tasadorVisible = !tasadorVisible;
+  $('#verTasador').setAttribute('aria-pressed', String(tasadorVisible));
+  $('#tasador').classList.toggle('oculto', !tasadorVisible);
+  if (tasadorVisible) await cargarTasador();
+});
+
+const ESTADOS_TASACION = {
+  pendiente: 'En cola', calculando: 'Calculando', lista: 'Lista',
+  pocos_datos: 'Lista (pocas referencias)', enviada: 'Se la pasamos',
+  esperando: 'Esperando que conteste', aprobada: 'Aprobada',
+  falta_version: 'Falta la versión', falta_km: 'Faltan los km',
+  falta_caja: 'Falta la caja', falta_generacion: 'Falta la generación',
+  sin_datos: 'No hay con qué comparar', error: 'No se pudo',
+  bloqueado: 'Mercado Libre bloqueó', descartada: 'Descartada',
+};
+
+async function cargarTasador() {
+  try {
+    const { config, tasaciones } = await api('/api/admin/tasador');
+    const p = config.porcentajes ?? {};
+    $('#tasUmbral').value = p.umbral ?? '';
+    $('#tasBajo').value = p.bajo ?? '';
+    $('#tasAlto').value = p.alto ?? '';
+    $('#tasDirecta').value = p.directa ?? '';
+    $('#tasRiesgo').value = p.riesgo ?? '';
+    $('#tasAutomatico').checked = config.automatico !== false;
+    $('#tasadorLista').innerHTML = tasaciones.length
+      ? tasaciones.map(filaDeTasacion).join('')
+      : '<p class="vacio">Todavía no se cotizó ningún auto.</p>';
+  } catch (err) { avisar(err.message, true); }
+}
+
+/* Las tasaciones guardan la fecha en milisegundos y el resto del panel
+   en texto, así que `cuandoCorto` no sirve acá. */
+const cuandoDelTasador = (ms) => {
+  const d = new Date(Number(ms) || 0);
+  if (isNaN(d) || !ms) return '';
+  return d.toDateString() === new Date().toDateString()
+    ? d.toLocaleTimeString('es-AR', RELOJ)
+    : d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
+};
+
+function filaDeTasacion(t) {
+  const p = t.pedido ?? {};
+  const auto = [p.marca, p.modelo, p.version, p.anio].filter(Boolean).join(' ');
+  const km = p.km ? Number(p.km).toLocaleString('es-AR') + ' km' : '';
+  const r = t.resultado;
+  const usd = (n) => 'USD ' + Number(n).toLocaleString('es-AR');
+  const plata = r?.oferta
+    ? '<span class="tasador-monto">' + escapar(usd(r.oferta)) + '</span>' +
+      (r.promedio ? ' <span>(mercado ' + escapar(usd(r.promedio)) + ', ' + (r.porcentaje ?? '?') + '% abajo)</span>' : '')
+    : t.monto ? '<span class="tasador-monto">' + escapar(usd(t.monto)) + '</span>' : '';
+  /* Las publicaciones con las que se llegó al número, para poder abrirlas.
+     La primera es la que fijó el precio y va marcada: es LA que hay que
+     mirar si el número no cierra. */
+  const refs = (r?.comparables ?? []).slice(0, 8).map((c) =>
+    '<a href="' + escapar(c.url ?? '#') + '" target="_blank" rel="noopener"' +
+    (c.titulo ? ' title="' + escapar(c.titulo) + '"' : '') + '>' +
+    (c.fijaPrecio ? '★ ' : '') + escapar(usd(c.usd_ajustado ?? c.usd ?? 0)) +
+    (c.km ? ' <span>· ' + escapar(Number(c.km).toLocaleString('es-AR')) + ' km</span>' : '') +
+    '</a>').join(' · ');
+  return '<div class="tasador-fila">' +
+    '<b>' + escapar(auto) + (km ? ' · ' + escapar(km) : '') + '</b>' +
+    '<span>' + escapar(ESTADOS_TASACION[t.estado] ?? t.estado) + ' · ' + escapar(cuandoDelTasador(t.creada)) +
+      (t.conversacion ? ' · chat ' + t.conversacion : '') + '</span>' +
+    (plata ? '<span>' + plata + '</span>' : '') +
+    (refs ? '<span>Comparado con: ' + refs + '</span>' : '') +
+    '</div>';
+}
+
+$('#guardarTasador').addEventListener('click', async () => {
+  const boton = $('#guardarTasador');
+  boton.disabled = true;
+  try {
+    await api('/api/admin/tasador/config', {
+      method: 'POST',
+      body: JSON.stringify({
+        porcentajes: {
+          umbral: Number($('#tasUmbral').value),
+          bajo: Number($('#tasBajo').value),
+          alto: Number($('#tasAlto').value),
+          directa: Number($('#tasDirecta').value),
+          riesgo: Number($('#tasRiesgo').value),
+        },
+        automatico: $('#tasAutomatico').checked,
+      }),
+    });
+    avisar('Listo, los porcentajes quedaron guardados');
+    await cargarTasador();
+  } catch (err) {
+    avisar(err.message, true);
+  } finally {
+    boton.disabled = false;
+  }
+});
+
 function pintarChats() {
   const lista = soloTasar ? chats.filter(esParaTasar) : chats;
   $('#filtroTasar').textContent = 'Para tasar (' + chats.filter(esParaTasar).length + ')';

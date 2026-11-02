@@ -37,17 +37,15 @@ import { instruccionesDelBot } from './instrucciones.js';
    otras —devuelven {valor, cuando} y no vencen— y siguen siendo las que
    usa todo lo demás. Comparten la tabla `estado` sin pisarse: las
    claves del tasador son suyas (ml_lista:, dolar:, tasador_config). */
-import { tasar, BloqueoML, leerConfigTasador, guardarConfigTasador,
-         leerTasaciones } from './tasador.js';
-/* SE IMPORTA SÓLO LO QUE SE USA HOY. El archivo copiado trae más cosas
-   —la cola (pedirTasacion, procesarTasacion), el aviso al cliente y el
-   informe de resultados—: son las piezas que hacen falta el día que el
-   bot cotice solo, y ese día se enganchan. Dos aclaraciones para ese día:
-   la cola necesita su propia vuelta de reloj (una tasación usa casi las
-   50 consultas que Cloudflare permite por corrida, así que no puede
-   compartir el minuto con el repaso de los chats), y
-   `resultadosDeCotizaciones` lee columnas que acá no existen (visita,
-   videollamada, tentativa). Nada de eso afecta al cálculo. */
+import { tasar, BloqueoML, leerConfigTasador, guardarConfigTasador, leerTasaciones,
+         pedirTasacion, hayTasacionPendiente, procesarTasacion, avisarTasacionLista,
+         refrescarFrecuentes, anotarContraoferta, normalizarPedido, pedidoCompleto,
+         ofertaDe, mensajesDeCotizacion, preguntaDeVersion, preguntaDeKm,
+         preguntaDeCaja } from './tasador.js';
+/* `resultadosDeCotizaciones` es lo único que queda sin importar: es el
+   informe de "a cuántas cotizaciones les siguió una visita" y lee columnas
+   que acá no existen (visita, videollamada, tentativa; las nuestras son
+   otras). No afecta al cálculo. */
 
 const GRUPOS = ['alta-gama', 'evolution', 'deportivos', 'urbanos'];
 const TAMANOS = ['1600', '640'];
@@ -1591,6 +1589,19 @@ const FORMA_DE_RESPUESTA = {
     ir_a_whatsapp: { type: 'boolean' },
     para_tasar: { anyOf: [{ type: 'string', enum: ['permuta', 'consignacion'] }, { type: 'null' }] },
     resumen_para_tasar: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    /* EL AUTO QUE ENTREGA, para que el tasador lo cotice solo. Todo como
+       texto —"anio": "2015", "km": "108000"— porque el cliente los dice
+       como quiere ("2015", "del 15", "108 mil") y normalizarPedido los
+       ordena después. Vacío cuando no hay auto para entregar. */
+    auto_para_entregar: {
+      type: 'object',
+      properties: { marca: { type: 'string' }, modelo: { type: 'string' }, version: { type: 'string' },
+                    caja: { type: 'string' }, anio: { type: 'string' }, km: { type: 'string' }, generacion: { type: 'string' } },
+      required: ['marca', 'modelo', 'version', 'caja', 'anio', 'km', 'generacion'],
+      additionalProperties: false,
+    },
+    auto_que_quiere: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
+    vende_sin_comprar: { type: 'boolean' },
     consulta_a_maxi: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     visita: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     visita_auto: { anyOf: [{ type: 'string' }, { type: 'null' }] },
@@ -1600,14 +1611,15 @@ const FORMA_DE_RESPUESTA = {
     visita_a_confirmar: { type: 'boolean' },
   },
   required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion',
-    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_condiciones', 'interesado_reservado', 'idioma', 'visita_a_confirmar'],
+    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'auto_para_entregar', 'auto_que_quiere', 'vende_sin_comprar',
+    'consulta_a_maxi', 'visita', 'visita_auto', 'visita_condiciones', 'interesado_reservado', 'idioma', 'visita_a_confirmar'],
   additionalProperties: false,
 };
 
 const FORMA_EN_TEXTO = `
 
 TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
-{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "interesado_reservado": null, "idioma": "es", "visita_a_confirmar": false}
+{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "auto_para_entregar": {"marca": "", "modelo": "", "version": "", "caja": "", "anio": "", "km": "", "generacion": ""}, "auto_que_quiere": null, "vende_sin_comprar": false, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "interesado_reservado": null, "idioma": "es", "visita_a_confirmar": false}
 Escribí "partes" siempre, aunque "responder" sea false: así se puede revisar
 qué hubieras dicho.`;
 
@@ -2116,6 +2128,13 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     /* Un auto que dejan para evaluar, con lo que se juntó. */
     paraTasar: ['permuta', 'consignacion'].includes(dato.para_tasar) ? dato.para_tasar : null,
     resumenParaTasar: dato.resumen_para_tasar ? String(dato.resumen_para_tasar).slice(0, 300) : null,
+    /* El auto que entrega, para el tasador. Entra sólo si está completo
+       (marca, modelo, año y km): a medias no se puede cotizar y pedir la
+       tasación con lo que haya llenaría la cola de pedidos imposibles. */
+    autoParaEntregar: pedidoCompleto(normalizarPedido(dato.auto_para_entregar ?? {}))
+      ? normalizarPedido(dato.auto_para_entregar) : null,
+    autoQueQuiere: (autos ?? []).some((a) => a.id === dato.auto_que_quiere) ? dato.auto_que_quiere : null,
+    vendeSinComprar: dato.vende_sin_comprar === true,
     consulta: !esComentario && dato.consulta_a_maxi ? String(dato.consulta_a_maxi).slice(0, 400) : null,
     visita: !esComentario && /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(dato.visita ?? '') ? dato.visita : null,
     visitaAuto: dato.visita_auto ? String(dato.visita_auto).slice(0, 120) : null,
@@ -3861,6 +3880,132 @@ async function ponerseAlDia(env, { hasta = 10 } = {}) {
   return nuevos.length;
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   CUANDO LA COTIZACIÓN ESTÁ LISTA
+   ══════════════════════════════════════════════════════════════════
+
+   El tasador la calcula en la vuelta del reloj y deja la fila marcada.
+   Acá se decide qué hacer con ella, que es una de cuatro:
+
+     falta un dato  → se lo preguntamos (versión, km, caja, generación)
+     lista          → se la pasamos, con la diferencia contra el auto que quiere
+     lista pero tarde → por WhatsApp, la plantilla "ya la tengo, te la paso?"
+     no se pudo     → queda para una persona, con el motivo en el panel
+
+   LA VENTANA DE 24 HORAS DE META manda: si hace más de un día que no
+   escribe, no se le puede mandar nada suelto por ninguno de los tres
+   canales. Por eso existe el tercer camino. */
+
+async function puedeEscribirle(env, chatId) {
+  const f = await env.DB.prepare(
+    `SELECT 1 n FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
+        AND creado > datetime('now','-23 hours') LIMIT 1`
+  ).bind(chatId).first();
+  return Boolean(f);
+}
+
+/* La cotización, escrita con los textos del propio tasador (los mismos
+   que usa Manna Motors) y mandada por la cola de siempre: en partes y
+   con las pausas, como cualquier otra respuesta del bot. */
+async function mandarCotizacion(env, chat, fila, r, oferta) {
+  const p = r.pedido || JSON.parse(fila.pedido || '{}');
+  const auto = fila.auto_interes
+    ? await env.DB.prepare(`SELECT id, marca, modelo, anio, precio, moneda FROM autos
+                             WHERE id = ? AND estado = 'publicado'`).bind(fila.auto_interes).first()
+    : null;
+  const referencias = Array.isArray(r.comparables) ? r.comparables.length : null;
+  const partes = mensajesDeCotizacion(p, oferta, auto, r.dolar, false, referencias);
+  await mandarRespuesta(env, chat, { partes, autoId: auto?.id ?? null, autor: 'ia' });
+  const porcentaje = r.promedio ? Math.round((1 - oferta / r.promedio) * 1000) / 10 : null;
+  await env.DB.prepare(
+    `UPDATE tasaciones SET estado = 'enviada', monto = ?2, porcentaje = ?4, actualizada = ?3 WHERE id = ?1`
+  ).bind(fila.id, oferta, Date.now(), porcentaje).run();
+}
+
+const FALTAN = {
+  falta_version: 'falta saber la versión',
+  falta_km: 'faltan los km',
+  falta_caja: 'falta saber si es manual o automático',
+  falta_generacion: 'falta saber la generación',
+};
+
+async function avisarTasacion(env, fila, r) {
+  const chat = await env.DB.prepare(
+    'SELECT id, canal, externo_id, nombre, humano FROM conversaciones WHERE id = ?'
+  ).bind(fila.conversacion).first();
+  if (!chat) return;
+  const p = r.pedido || JSON.parse(fila.pedido || '{}');
+  const auto = [p.marca, p.modelo, p.version, p.anio].filter(Boolean).join(' ');
+  const cfg = await leerConfigTasador(env);
+  const puede = !chat.humano && (await puedeEscribirle(env, chat.id));
+
+  /* FALTA UN DATO: se lo preguntamos una sola vez. La pregunta la escribe
+     el tasador (son las mismas de Manna Motors) y antes se mira si ya se
+     la hicimos: si el cliente no contestó, repetirla es molestarlo. */
+  if (FALTAN[r.estado] && puede) {
+    const pregunta = r.estado === 'falta_km' ? preguntaDeKm(p)
+      : r.estado === 'falta_caja' ? preguntaDeCaja(p)
+      : r.estado === 'falta_generacion' ? r.pregunta
+      : preguntaDeVersion(p, r.versiones || [], r.no_aparece);
+    if (pregunta) {
+      const ya = await env.DB.prepare(
+        `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
+            AND texto = ? LIMIT 1`
+      ).bind(chat.id, pregunta).first();
+      if (!ya) {
+        await mandarRespuesta(env, chat, { partes: [pregunta], autor: 'ia' });
+        return;
+      }
+    }
+  }
+
+  /* LISTA: se la pasamos. Con pocas publicaciones para comparar también
+     sale —el texto ya aclara que es orientativa—; a revisión a mano sólo
+     va lo que no tiene ningún precio. */
+  const hayPrecio = ['lista', 'pocos_datos'].includes(r.estado) && r.promedio;
+  if (hayPrecio && cfg.automatico && puede) {
+    try { await mandarCotizacion(env, chat, fila, r, ofertaDe(r, cfg)); return; }
+    catch (e) { console.error('tasador:', e?.message ?? e); }
+  }
+
+  /* LISTA PERO TARDE: por WhatsApp se le avisa con plantilla y queda
+     esperando; cuando conteste, el repaso de siempre sigue la charla. */
+  if (hayPrecio && cfg.automatico && !puede && chat.canal === 'whatsapp' && !chat.humano) {
+    try {
+      await mandarPlantilla(env, chat, 'cotizacion_lista',
+        [primerNombre(chat.nombre), [p.marca, p.modelo, p.anio].filter(Boolean).join(' ')]);
+      await env.DB.prepare(`UPDATE tasaciones SET estado = 'esperando', actualizada = ?2 WHERE id = ?1`)
+        .bind(fila.id, Date.now()).run();
+      return;
+    } catch (e) { console.error('tasador:', e?.message ?? e); }
+  }
+
+  /* NO SE ENCONTRÓ NINGUNO PARA COMPARAR: casi siempre es un dato mal
+     dicho o mal entendido, así que se lo preguntamos. Una vez por charla. */
+  if (['sin_datos', 'error', 'bloqueado'].includes(r.estado) && puede) {
+    const yaPregunto = await env.DB.prepare(
+      `SELECT 1 FROM tasaciones WHERE conversacion = ?1 AND id != ?2
+          AND resultado LIKE '%"sin_datos"%' LIMIT 1`
+    ).bind(chat.id, fila.id).first().catch(() => null);
+    if (!yaPregunto && r.estado === 'sin_datos') {
+      await mandarRespuesta(env, chat, { partes: [
+        `Disculpame, no encontré ningún ${[p.marca, p.modelo, p.anio].filter(Boolean).join(' ')} para comparar. No te habrás confundido de modelo o de año?`,
+      ], autor: 'ia' });
+      return;
+    }
+  }
+
+  /* LO QUE QUEDA, a una persona, con el motivo escrito en el panel. */
+  const usd = (n) => `USD ${Number(n).toLocaleString('es-AR')}`;
+  const motivo = hayPrecio ? `Tasación lista: ${auto} → ofrecer ${usd(ofertaDe(r, cfg))}`
+    : FALTAN[r.estado] ? `Permuta: ${auto}, ${FALTAN[r.estado]}`
+    : r.estado === 'sin_datos' ? `Permuta: ${auto}, no hay con qué compararlo`
+    : `Permuta: ${auto}, no se pudo tasar (${r.estado})`;
+  await env.DB.prepare('UPDATE conversaciones SET humano = 1, nota = ? WHERE id = ?')
+    .bind(`${PARA_TASAR} (permuta): ${motivo}`, chat.id).run();
+  await anotarAviso(env, `*TASACIÓN*\n\n${motivo}`);
+}
+
 async function atenderSolo(env, disparos) {
   const cfg = await configDelBot(env);
   if (!disparos.some((d) => canalActivo(cfg, d.canal))) return;
@@ -3946,6 +4091,27 @@ async function atenderSolo(env, disparos) {
         continue;
       }
 
+      /* UNA COTIZACIÓN QUE QUEDÓ ESPERANDO. Si se calculó cuando ya
+         habían pasado las 24 horas, se le mandó la plantilla y quedó
+         guardada. Ahora que volvió a escribir se le puede mandar: va
+         esto y no la respuesta de siempre, porque el texto ya termina
+         invitándolo al salón. Es la respuesta. */
+      await asegurarTasaciones(env);
+      const esperando = await env.DB.prepare(
+        `SELECT * FROM tasaciones WHERE conversacion = ? AND estado = 'esperando'
+          ORDER BY creada DESC LIMIT 1`
+      ).bind(chat.id).first().catch(() => null);
+      if (esperando?.resultado) {
+        const guardado = JSON.parse(esperando.resultado);
+        const cfg = await leerConfigTasador(env);
+        if (guardado.promedio && cfg.automatico) {
+          try {
+            await mandarCotizacion(env, chat, esperando, guardado, ofertaDe(guardado, cfg));
+            continue;
+          } catch (e) { console.error('tasador:', e?.message ?? e); }
+        }
+      }
+
       const r = await pensarRespuesta(env, chat.id, { automatico: true, deNoche: esDeNoche() });
       /* SI MIENTRAS PENSABA ESCRIBIÓ OTRA COSA, esta respuesta ya llega
          tarde (Maxi, 1/11: le preguntó qué auto era justo después de que
@@ -3971,6 +4137,28 @@ async function atenderSolo(env, disparos) {
         await env.DB.prepare('UPDATE conversaciones SET nota = ?, tipo = ? WHERE id = ?')
           .bind(notaTasar, r.paraTasar === 'permuta' ? 'permuta' : 'vendedor', chat.id).run();
       }
+      /* EL AUTO QUE ENTREGA VA AL TASADOR (Maxi, 2/11). Se anota el
+         pedido y lo resuelve la vuelta del reloj: leer Mercado Libre y
+         pensarlo dos veces tarda más de lo que Meta espera para que
+         contestemos el aviso. Si es el mismo auto que ya se pidió, el
+         tasador lo reconoce por la clave y no lo calcula de nuevo.
+         No corta la charla ni la pasa a nadie: sigue normal mientras
+         se calcula. */
+      if (r.autoParaEntregar) {
+        await pedirTasacion(
+          env, chat.id,
+          { ...r.autoParaEntregar, compra: r.vendeSinComprar ? 'directa' : '' },
+          r.vendeSinComprar ? null : r.autoQueQuiere,
+        ).catch((e) => console.error('tasador:', e?.message ?? e));
+      }
+      /* SI CONTESTÓ CON UN NÚMERO a una cotización que le pasamos, queda
+         anotado: es la contraoferta, y con eso se ve si los porcentajes
+         están bien puestos o estamos tasando lejos del mercado. */
+      if (r.ultimo?.texto) {
+        await anotarContraoferta(env, chat.id, [r.ultimo.texto])
+          .catch((e) => console.error('tasador:', e?.message ?? e));
+      }
+
       /* UNA VISITA NO CORTA LA CHARLA (Maxi, 31/10): el bot la confirma y
          sigue contestando. Si lo único que pasó fue la visita, no se pasa. */
       if (r.derivar && r.visita && /visita|venir|viene|salón|salon/i.test(r.derivar)
@@ -4649,6 +4837,44 @@ export default {
   async scheduled(evento, env, _ctx) {
     const hora = new Date(evento.scheduledTime ?? Date.now()).getUTCHours();
     const minutoDelReloj = new Date(evento.scheduledTime ?? Date.now()).getUTCMinutes();
+
+    /* ── EL MINUTO DEL TASADOR ────────────────────────────────────
+       Hay dos relojes y éste es el de cada minuto: lo único que hace es
+       el tasador, y sale de acá sin tocar nada más.
+
+       VA SOLO Y NO MEZCLADO CON LA VUELTA DE MEDIA HORA. Cloudflare
+       permite 50 consultas por corrida y una tasación usa casi todas
+       —una docena de páginas de Mercado Libre, dieciocho descripciones,
+       las fotos y dos pasadas de Claude—. Compartiendo la corrida con el
+       repaso de los chats, se quedarían las dos sin presupuesto a la
+       mitad: el tasador sin terminar y el bot sin contestar.
+
+       Y PRIMERO AVISAR, DESPUÉS CALCULAR, también en minutos distintos:
+       avisar puede terminar escribiéndole al cliente, que son más
+       consultas. Si avisó algo, ese minuto se terminó. */
+    if (evento.cron === '* * * * *') {
+      if (!env.ANTHROPIC_API_KEY) return;
+      await asegurarTasaciones(env);
+      try {
+        const aviso = await avisarTasacionLista(env, (fila, r) => avisarTasacion(env, fila, r));
+        if (aviso) { console.log(JSON.stringify({ tasacion: aviso })); return; }
+      } catch (e) { console.error('tasador:', e?.message ?? e); }
+      try {
+        if (await hayTasacionPendiente(env)) {
+          const t = await procesarTasacion(env);
+          console.log(JSON.stringify({ tasacion: t?.estado ?? 'sin novedad' }));
+          return;
+        }
+      } catch (e) { console.error('tasador:', e?.message ?? e); }
+      /* Sin nada que hacer, una vez por día (04:10 UTC = 01:10 acá) se
+         recalculan los modelos que más se piden, así los que vuelven a
+         preguntar no esperan la lectura entera de Mercado Libre. */
+      if (hora === 4 && minutoDelReloj === 10) {
+        try { await refrescarFrecuentes(env); }
+        catch (e) { console.error('tasador:', e?.message ?? e); }
+      }
+      return;
+    }
 
     /* LO QUE MANDA A MAXI VA PRIMERO Y EN LA COLA (30/10: el buen día de
        las 8:30 y el repaso de las 21 no llegaban). Antes corrían al final

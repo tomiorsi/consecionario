@@ -37,45 +37,54 @@ Resumido (el detalle está arriba de todo en `src/tasador.js`):
    toma: es un aviso raro y se usa la siguiente.
 7. **Oferta** = ese precio menos un porcentaje, que se cambia en el panel.
 
-## Qué está conectado y qué no
+## Cómo funciona de punta a punta
 
-Conectado:
+1. El cliente cuenta qué auto tiene. El bot completa `auto_para_entregar`
+   (marca, modelo, versión, caja, año, km, generación) y `auto_que_quiere`.
+2. `pedirTasacion` anota el pedido en la tabla `tasaciones`. No calcula nada
+   ahí: Meta espera pocos segundos por el webhook y esto tarda minutos.
+3. **El reloj de cada minuto** (`* * * * *` en `wrangler.jsonc`) hace una
+   cosa por vuelta: primero avisar una tasación terminada, si no, calcular
+   una pendiente. Va solo porque una tasación usa casi las 50 consultas que
+   Cloudflare permite por corrida.
+4. `avisarTasacion` decide qué hacer: pedir el dato que falta, pasar la
+   cotización, mandar la plantilla `cotizacion_lista` si ya pasaron las
+   24 h de Meta, o dejarla para una persona si no se pudo.
+5. Si quedó esperando, se la manda apenas el cliente vuelve a escribir
+   (en `atenderSolo`).
 
-- `POST /api/admin/tasador/probar` — tasar un auto a mano. **No manda nada.**
-  Devuelve el número y con qué publicaciones llegó.
-- `GET /api/admin/tasador` — los porcentajes y las últimas tasaciones.
+Lo que el cliente recibe es la **diferencia** contra el auto que quiere, no
+el valor de su auto. Si nos lo vende sin comprar ninguno
+(`vende_sin_comprar`), ahí sí se le dice cuánto le damos.
+
+## El panel
+
+En Bandeja, el botón **El tasador**: los porcentajes que se restan y la
+lista de lo cotizado. Cada fila trae los links de las publicaciones con las
+que se llegó al número, con ★ en la que fijó el precio. Un número sin su
+origen no se puede discutir.
+
+El tilde **"Mandarla sola al cliente"** es el que apaga todo: destildado, las
+cotizaciones se calculan igual pero quedan para que las mire una persona.
+
+## Las rutas
+
+- `POST /api/admin/tasador/probar` — tasar un auto a mano, sin mandar nada.
+- `GET /api/admin/tasador` — porcentajes y últimas tasaciones.
 - `POST /api/admin/tasador/config` — cambiar los porcentajes.
 - `PATCH /api/admin/tasaciones/:id` — descartar una.
 
-**No conectado todavía: que el bot cotice solo.** Falta y es una decisión, no
-un olvido:
+## Mercado Libre es un tercero desde el 2/11/2026
 
-- Hoy `src/instrucciones.js` dice lo contrario —"en permuta no le ponemos
-  precio a su auto", la diferencia la pasa Maxi (29/10)— y el bot marca el
-  chat "Para tasar". Conectarlo cambia lo que el bot dice.
-- La cola (`pedirTasacion` / `procesarTasacion`) necesita **su propia vuelta
-  de reloj**: una tasación usa casi las 50 consultas que Cloudflare permite
-  por corrida, así que no puede compartir el minuto con el repaso de chats.
-  En MOTORS el cron corre cada minuto y la tasación se lleva el minuto entero.
-- `leerConfigTasador` viene con `automatico: true`: apenas se enganche, le
-  manda la cotización al cliente solo. Decidir eso antes.
+Un dato que llega por WhatsApp (el auto del cliente) sale hacia Mercado
+Libre. Lo decidió Tomás el 2/11. Lo que viaja es un modelo con un rango de
+km, sin nombre ni teléfono —la misma consulta que haría una persona del
+equipo—, pero igual es un proveedor más y por eso:
 
-### Y antes de engancharlo: Mercado Libre pasa a ser un tercero
-
-Hoy el tasador **no toca datos de clientes**: es una herramienta del panel
-donde una persona escribe un auto a mano. Nada de WhatsApp entra ahí solo.
-
-El día que el bot le pase el auto del cliente al tasador, un dato que llegó
-por WhatsApp (marca, modelo, año y km de su auto) sale hacia
-**Mercado Libre**, que no está en la lista de encargados del punto 1 de
-`CLAUDE.md` (hoy: sólo Cloudflare y Anthropic).
-
-A favor de que no sea un problema: lo que viaja es un modelo de auto con un
-rango de km, sin nombre, sin teléfono y sin nada que identifique a nadie —
-es la misma consulta que haría una persona del equipo abriendo Mercado Libre
-en su navegador. Igual **no lo decidimos solos**: antes de conectarlo hay que
-mirarlo y, si corresponde, sumarlo a `/privacidad/` y a las respuestas de
-Meta el mismo día, como dice el final de `CLAUDE.md`.
+- `/privacidad/` ya lo dice (actualizada el 2/11).
+- `CLAUDE.md` ya lo dice.
+- **Falta actualizar las respuestas en Meta.** Hasta que se haga, lo
+  declarado y lo que hace el código no coinciden.
 
 ## La tabla
 

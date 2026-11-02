@@ -109,7 +109,13 @@
   // en src/index.js.
   "ai": { "binding": "AI" },
 
-  "triggers": { "crons": ["0,30 * * * *"] },
+  // DOS RELOJES Y NO UNO. Cada media hora, lo de siempre (repaso de los
+  // chats, seguimientos, estadísticas de Instagram, limpieza a las 4).
+  // Cada minuto, SOLO el tasador: una tasación usa casi las 50 consultas
+  // que Cloudflare permite por corrida, así que si compartiera la vuelta
+  // con el repaso de los chats se quedarían las dos a mitad de camino.
+  // El `scheduled` de src/index.js separa una de otra por `evento.cron`.
+  "triggers": { "crons": ["0,30 * * * *", "* * * * *"] },
 
   "observability": { "enabled": true }
 }
