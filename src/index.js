@@ -1609,17 +1609,18 @@ const FORMA_DE_RESPUESTA = {
     interesado_reservado: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
     idioma: { type: 'string' },
     visita_a_confirmar: { type: 'boolean' },
+    busca: { anyOf: [{ type: 'string' }, { type: 'null' }] },
   },
   required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion',
     'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'auto_para_entregar', 'auto_que_quiere', 'vende_sin_comprar',
-    'consulta_a_maxi', 'visita', 'visita_auto', 'visita_condiciones', 'interesado_reservado', 'idioma', 'visita_a_confirmar'],
+    'consulta_a_maxi', 'visita', 'visita_auto', 'visita_condiciones', 'interesado_reservado', 'idioma', 'visita_a_confirmar', 'busca'],
   additionalProperties: false,
 };
 
 const FORMA_EN_TEXTO = `
 
 TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
-{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "auto_para_entregar": {"marca": "", "modelo": "", "version": "", "caja": "", "anio": "", "km": "", "generacion": ""}, "auto_que_quiere": null, "vende_sin_comprar": false, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "interesado_reservado": null, "idioma": "es", "visita_a_confirmar": false}
+{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "auto_para_entregar": {"marca": "", "modelo": "", "version": "", "caja": "", "anio": "", "km": "", "generacion": ""}, "auto_que_quiere": null, "vende_sin_comprar": false, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "interesado_reservado": null, "idioma": "es", "visita_a_confirmar": false, "busca": null}
 Escribí "partes" siempre, aunque "responder" sea false: así se puede revisar
 qué hubieras dicho.`;
 
@@ -2140,6 +2141,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     visitaAuto: dato.visita_auto ? String(dato.visita_auto).slice(0, 120) : null,
     visitaCondiciones: dato.visita_condiciones ? String(dato.visita_condiciones).slice(0, 300) : null,
     visitaAConfirmar: dato.visita_a_confirmar === true,
+    busca: dato.busca ? String(dato.busca).slice(0, 160) : null,
     interesadoReservado: reservados.some((a) => a.id === dato.interesado_reservado) ? dato.interesado_reservado : null,
     conPosteo: Boolean(posteo),
     esComentario,
@@ -3494,6 +3496,41 @@ async function recordatoriosDeHoy(env) {
   for (const r of ahora) await anotarAviso(env, `*PARA HACER HOY*\n${r.texto}`, { tipo: 'hacer' });
 }
 
+/* QUIÉN BUSCA QUÉ (Maxi, 2/11: "deciles que los mantenemos al tanto").
+   Lo que alguien pidió y no tenemos queda anotado. Cuando se publica un
+   auto, Claude mira la lista y avisa en Para hacer a quién le sirve. */
+async function anotarBuscado(env, chatId, busca) {
+  const ya = (await leerEstado(env, 'buscados'))?.valor ?? [];
+  const resto = ya.filter((b) => b.chat !== chatId);
+  await guardarEstado(env, 'buscados', [...resto, { chat: chatId, busca, desde: new Date().toISOString() }].slice(-150));
+}
+
+async function aQuienLeSirve(env, autoId) {
+  const buscados = (await leerEstado(env, 'buscados'))?.valor ?? [];
+  if (!buscados.length || !env.ANTHROPIC_API_KEY) return;
+  const a = await env.DB.prepare('SELECT id, marca, modelo, anio, km, precio, moneda, transmision, combustible FROM autos WHERE id = ?')
+    .bind(autoId).first();
+  if (!a) return;
+  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const r = await client.messages.create({
+    model: MODELO, max_tokens: 600,
+    output_config: { effort: 'low', format: { type: 'json_schema', schema: {
+      type: 'object', properties: { sirve: { type: 'array', items: { type: 'integer' } } },
+      required: ['sirve'], additionalProperties: false } } },
+    messages: [{ role: 'user', content: `Entró este auto: ${a.marca} ${a.modelo} ${a.anio ?? ''}, ${a.km ?? '?'} km, ${a.transmision ?? ''} ${a.combustible ?? ''}, ${a.moneda ?? ''} ${a.precio ?? ''}.
+Esto busca cada cliente (número: lo que busca):
+${buscados.map((b, i) => `${i}: ${b.busca}`).join('\n')}
+Devolvé en "sirve" los números de los clientes a los que este auto les sirve de verdad (tipo de auto, presupuesto, caja, lo que pidieron). Ante la duda, no.` }],
+  });
+  let sirve = [];
+  try { sirve = JSON.parse((r.content ?? []).find((b) => b.type === 'text')?.text ?? '{}').sirve ?? []; } catch { return; }
+  for (const i of sirve) {
+    const b = buscados[i];
+    const chat = b && await env.DB.prepare('SELECT id, canal, externo_id, nombre FROM conversaciones WHERE id = ?').bind(b.chat).first();
+    if (chat) await anotarAviso(env, `*PARA HACER HOY*\nEntró ${a.marca} ${a.modelo} ${a.anio ?? ''} y le puede servir a ${lineaDe(chat, LISTAS.permuta, `buscaba: ${b.busca}`)}`, { tipo: 'hacer' });
+  }
+}
+
 /* RESPUESTAS PROGRAMADAS (Maxi, 31/10: "respondé esto mañana a las 11").
    A la hora, si la ventana de 24 h está abierta, salen solas, en partes.
    Si se cerró, Meta no deja escribir sin plantilla: quedan en la Agenda,
@@ -4207,6 +4244,9 @@ async function atenderSolo(env, disparos) {
           lineaDe(chat, LISTAS.permuta,
             notaTasar.replace(/^Para tasar \([^)]*\):\s*/, '')));
       }
+
+      /* QUIÉN BUSCA QUÉ (Maxi, 2/11): lo que pide y no tenemos. */
+      if (r.busca) await anotarBuscado(env, chat.id, r.busca).catch(() => {});
 
       /* A QUIÉN AVISARLE SI SE CAE LA RESERVA. */
       if (r.interesadoReservado) {
@@ -5328,6 +5368,16 @@ async function admin(peticion, env, ruta, metodo, ctx) {
   /* EL TABLERO DE LA AGENDA (Maxi, 31/10): las visitas, lo que hay que
      hacer, las consultas que esperan y los avisos, por separado, para
      que el panel los muestre cada uno en su lugar. */
+  /* ANOTAR A MANO QUIÉN BUSCA QUÉ (chat + qué busca). */
+  if (ruta === '/api/admin/buscados' && metodo === 'POST') {
+    const c = await peticion.json().catch(() => ({}));
+    const chat = entero(c?.chat, 1, 1e9);
+    const busca = texto(c?.busca, 160);
+    if (!chat || !busca) return error('Faltan datos');
+    await anotarBuscado(env, chat, busca);
+    return json({ ok: true });
+  }
+
   /* UNA TAREA DE "PARA HACER" QUE YA SE HIZO: deja de figurar. */
   const hecho = ruta.match(/^\/api\/admin\/avisos\/(\d+)\/hecho$/);
   if (hecho && metodo === 'POST') {
@@ -5492,6 +5542,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       hoy: diaDeBsAs(),
       agenda: await Promise.all(agenda.map(conQuien)),
       consultas: await Promise.all(consultas.map(conQuien)),
+      buscados: await Promise.all(((await leerEstado(env, 'buscados'))?.valor ?? []).map(conQuien)),
       recordatorios: [
         ...((await leerEstado(env, 'recordatorios'))?.valor ?? []),
         ...await Promise.all(((await leerEstado(env, 'programados'))?.valor ?? []).map(async (p) => {
@@ -5916,6 +5967,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
        VALUES (${campos.map(() => '?').join(',')})`
     ).bind(...campos.map((c) => datos[c])).run();
 
+    if (datos.estado === 'publicado') ctx?.waitUntil?.(aQuienLeSirve(env, meta.last_row_id).catch(() => {}));
     return json({ id: meta.last_row_id }, 201);
   }
 
@@ -5926,6 +5978,10 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     const datos = limpiar(cuerpo);
     const mal = revisar(datos, cuerpo);
     if (mal) return error(mal);
+    const antes = await env.DB.prepare('SELECT estado FROM autos WHERE id = ?').bind(uno[1]).first();
+    if (datos.estado === 'publicado' && antes?.estado !== 'publicado') {
+      ctx?.waitUntil?.(aQuienLeSirve(env, Number(uno[1])).catch(() => {}));
+    }
 
     const campos = Object.keys(datos);
     const { meta } = await env.DB.prepare(
