@@ -702,13 +702,13 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .jornada-titulo em{ font-style:normal; color:#ffb27a }
 .jornada-titulo span{ margin-left:auto; font-weight:400; letter-spacing:.06em; opacity:.55; text-transform:none }
 .visitas{ display:grid; gap:.55rem }
-.vis{ display:grid; grid-template-columns:4.2rem minmax(10rem,1.1fr) minmax(8rem,1fr) minmax(8rem,1.2fr) 7.5rem;
+.vis{ display:grid; grid-template-columns:4.4rem minmax(12rem,1.3fr) minmax(8rem,1fr) minmax(9rem,1.3fr) auto;
   align-items:center; gap:.4rem 1rem; padding:.85rem 1.1rem; border-radius:14px;
   background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12);
   backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); transition:background .15s ease, border-color .15s ease }
 .vis:hover{ background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.2) }
 .vis-hora{ font-family:var(--display); font-size:1.15rem; font-weight:700 }
-.vis-hora span{ font-family:inherit; font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; font-weight:600; opacity:.55 }
+.vis-hora span{ white-space:nowrap; font-family:inherit; font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; font-weight:600; opacity:.55 }
 .vis-quien{ display:flex; align-items:center; gap:.6rem; min-width:0 }
 .vis-quien > div{ min-width:0 }
 .vis-quien b{ display:block; font-size:.9rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
