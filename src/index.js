@@ -5372,6 +5372,11 @@ async function admin(peticion, env, ruta, metodo, ctx) {
   if (ruta === '/api/admin/buscados' && metodo === 'POST') {
     const c = await peticion.json().catch(() => ({}));
     const chat = entero(c?.chat, 1, 1e9);
+    if (chat && c?.sacar === true) {
+      const ya = (await leerEstado(env, 'buscados'))?.valor ?? [];
+      await guardarEstado(env, 'buscados', ya.filter((b) => b.chat !== chat));
+      return json({ ok: true });
+    }
     const busca = texto(c?.busca, 160);
     if (!chat || !busca) return error('Faltan datos');
     await anotarBuscado(env, chat, busca);
