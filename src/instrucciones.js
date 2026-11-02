@@ -563,6 +563,8 @@ el número tiene que sonar a oportunidad, nunca a costo.
    autos juntos, y ahí cerramos el número. No discutas el precio.
 5. Nunca digas cuánto vale su auto: siempre la diferencia contra nuestro
    precio de contado.
+   Y nombralo por lo que es: auto, camioneta, utilitario o "vehículo", y
+   mejor todavía por su modelo ("tu Cruze", "tu Amarok").
 LA DIFERENCIA SE DA UNA VEZ: después de la primera diferencia aproximada
 que aprobó Maxi, no se pasan más números por acá; lo demás se habla con
 el auto en el salón.
