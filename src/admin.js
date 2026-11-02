@@ -668,59 +668,67 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .semana-nav{ display:flex; align-items:center; justify-content:space-between; margin-bottom:.8rem; font-size:.85rem }
 .semana-nav button{ border:1px solid rgba(255,255,255,.22); background:rgba(255,255,255,.07); color:inherit;
   border-radius:999px; padding:.3rem .8rem; cursor:pointer }
-/* EL CALENDARIO (Maxi, 2/11: "que se vea más la info"). Arriba la semana
-   en siete botones con cuántas visitas hay; abajo, un renglón por día con
-   visitas y una tarjeta ancha por persona: qué viene a ver, qué trae y lo
-   que hay que saber de la charla. */
-.semana{ display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:.5rem; margin-bottom:1.3rem }
-.dia{ padding:.6rem .4rem; text-align:center; cursor:pointer; color:inherit; font:inherit;
-  transition:transform .15s ease, background .15s ease }
-.dia:hover{ transform:translateY(-2px); background:rgba(255,255,255,.14) }
-.dia--hoy{ border-color:#e0884a; box-shadow:0 0 0 1px #e0884a inset }
+.semana-nav{ justify-content:center; gap:1rem }
+.semana-nav button{ width:2rem; height:2rem; padding:0; font-size:1rem; line-height:1 }
+.semana-nav span{ font-size:.78rem; letter-spacing:.14em; text-transform:uppercase; opacity:.8; min-width:8rem; text-align:center }
+/* EL CALENDARIO (Maxi, 2/11: "algo lindo, tipo dashboard glass, más
+   prolijo"). Cuatro números arriba, la semana en una tira de botones y
+   cada visita en un renglón de vidrio alineado: hora, quién, qué viene a
+   ver, qué trae y cómo está. Lo que hay que saber, abajo y en chiquito. */
+.kpis{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:.7rem; margin-bottom:1.3rem }
+.kpi{ padding:.85rem 1rem; border-radius:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px) }
+.kpi b{ display:block; font-family:var(--display); font-size:1.7rem; line-height:1.1 }
+.kpi span{ font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; opacity:.65 }
+.kpi:first-child b{ color:#ffb27a }
+.semana{ display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:.4rem; margin-bottom:1.6rem;
+  padding:.35rem; border-radius:16px; background:rgba(0,0,0,.18); border:1px solid rgba(255,255,255,.08) }
+.dia{ display:flex; flex-direction:column; align-items:center; gap:.1rem; padding:.55rem .2rem; border:0; border-radius:12px;
+  background:transparent; color:inherit; font:inherit; cursor:pointer; transition:background .15s ease }
+.dia:hover:not(:disabled){ background:rgba(255,255,255,.08) }
+.dia:disabled{ cursor:default; opacity:.45 }
 .dia--paso{ opacity:.45 }
-.dia--libre .dia-cuenta{ opacity:.5 }
-.dia-nombre{ font-size:.66rem; letter-spacing:.14em; text-transform:uppercase; opacity:.7 }
-.dia-num{ font-family:var(--display); font-size:1.5rem; font-weight:700; line-height:1.2 }
-.dia-cuenta{ font-size:.66rem; letter-spacing:.06em }
-.dia-puntos{ display:flex; justify-content:center; gap:3px; min-height:6px; margin-top:.3rem }
-.dia-puntos i{ width:6px; height:6px; border-radius:50%; background:#e0884a }
-.dia-puntos i.p-auto{ background:#78aadc }
-.dia-puntos i.p-confirmar{ background:#f0c83c }
-.jornada{ margin-bottom:1.4rem; scroll-margin-top:5rem }
-.jornada-titulo{ display:flex; align-items:baseline; gap:.7rem; margin-bottom:.7rem; padding-bottom:.4rem;
-  border-bottom:1px solid rgba(255,255,255,.12) }
-.jornada-titulo b{ font-family:var(--display); font-size:1.05rem; letter-spacing:.06em; text-transform:capitalize }
-.jornada-titulo span{ font-size:.75rem; opacity:.65 }
-.jornada--hoy .jornada-titulo b{ color:#ffb27a }
-.citas{ display:grid; gap:.8rem; grid-template-columns:repeat(auto-fill, minmax(17rem,1fr)) }
-.cita{ position:relative; padding:1rem 1.05rem .95rem; border-radius:16px; font-size:.84rem; line-height:1.45;
-  overflow:hidden; animation:aparecer .35s ease both }
-.cita::before{ content:''; position:absolute; inset:0 auto 0 0; width:4px; background:#e0884a }
-.cita--auto::before{ background:#78aadc }
-.cita--confirmar::before{ background:repeating-linear-gradient(#f0c83c 0 8px, transparent 8px 13px) }
-.cita--confirmar{ background:rgba(240,200,60,.1) }
-.cita-cabeza{ display:flex; align-items:center; gap:.7rem; margin-bottom:.75rem }
-.cita-inicial{ flex:none; width:2.3rem; height:2.3rem; border-radius:50%; display:grid; place-items:center;
-  font-weight:700; font-size:.95rem; background:linear-gradient(135deg, #e0884a, #9a5a34); color:#fff }
-.cita--auto .cita-inicial{ background:linear-gradient(135deg, #78aadc, #3d6a96) }
-.cita--confirmar .cita-inicial{ background:linear-gradient(135deg, #f0c83c, #a8851c); color:#1b1714 }
-.cita-quien{ font-weight:700; font-size:.95rem; overflow-wrap:anywhere; line-height:1.25 }
-.cita-canal{ display:block; font-size:.66rem; letter-spacing:.1em; text-transform:uppercase; opacity:.6; font-weight:400 }
-.cita-hora{ margin-left:auto; text-align:right; font-family:var(--display); font-size:1.2rem; font-weight:700; white-space:nowrap }
-.cita-hora small{ display:block; font-family:inherit; font-size:.6rem; letter-spacing:.1em; text-transform:uppercase;
-  font-weight:600; opacity:.75 }
-.cita--confirmar .cita-hora small{ color:#f0c83c; opacity:1 }
-.cita-dato{ display:grid; grid-template-columns:5.2rem 1fr; gap:.5rem; padding:.4rem 0; border-top:1px solid rgba(255,255,255,.08) }
-.cita-dato span{ font-size:.62rem; letter-spacing:.12em; text-transform:uppercase; opacity:.6; padding-top:.15rem }
-.cita-dato b{ font-weight:600; overflow-wrap:anywhere }
-.cita-dato em{ font-style:normal; opacity:.6 }
-.cita-claves{ margin:.45rem 0 0; padding:.55rem .7rem; list-style:none; border-radius:10px; background:rgba(0,0,0,.18);
-  display:grid; gap:.3rem; font-size:.78rem }
-.cita-claves li{ display:flex; gap:.45rem }
-.cita-claves li::before{ content:'✦'; color:#ffb27a; font-size:.7rem; padding-top:.1rem }
-.semana-libre{ padding:2.2rem 1rem; text-align:center; opacity:.65; font-size:.9rem }
-@keyframes aparecer{ from{ opacity:0; transform:translateY(6px) } to{ opacity:1; transform:none } }
-@media (prefers-reduced-motion: reduce){ .cita{ animation:none } .dia{ transition:none } }
+.dia--hoy .dia-num{ color:#ffb27a }
+.dia--elegido{ background:#f4efe9 !important; color:#1b1714 }
+.dia--elegido .dia-num{ color:#1b1714 }
+.dia-nombre{ font-size:.6rem; letter-spacing:.16em; text-transform:uppercase; opacity:.7 }
+.dia-num{ font-family:var(--display); font-size:1.25rem; font-weight:700; line-height:1.1 }
+.dia-cuenta{ min-width:1.2rem; height:1.2rem; padding:0 .3rem; border-radius:999px; font-size:.62rem; font-weight:700;
+  line-height:1.2rem; background:rgba(224,136,74,.9); color:#fff }
+.dia-cuenta:empty{ background:transparent }
+.jornada{ margin-bottom:1.6rem }
+.jornada-titulo{ display:flex; align-items:baseline; gap:.6rem; margin:0 0 .7rem; font-size:.78rem; font-weight:600;
+  letter-spacing:.14em; text-transform:uppercase }
+.jornada-titulo em{ font-style:normal; color:#ffb27a }
+.jornada-titulo span{ margin-left:auto; font-weight:400; letter-spacing:.06em; opacity:.55; text-transform:none }
+.visitas{ display:grid; gap:.55rem }
+.vis{ display:grid; grid-template-columns:4.2rem minmax(10rem,1.1fr) minmax(8rem,1fr) minmax(8rem,1.2fr) 7.5rem;
+  align-items:center; gap:.4rem 1rem; padding:.85rem 1.1rem; border-radius:14px;
+  background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12);
+  backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); transition:background .15s ease, border-color .15s ease }
+.vis:hover{ background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.2) }
+.vis-hora{ font-family:var(--display); font-size:1.15rem; font-weight:700 }
+.vis-hora span{ font-family:inherit; font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; font-weight:600; opacity:.55 }
+.vis-quien{ display:flex; align-items:center; gap:.6rem; min-width:0 }
+.vis-quien > div{ min-width:0 }
+.vis-quien b{ display:block; font-size:.9rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.vis-quien small{ font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; opacity:.55 }
+.vis-ini{ flex:none; width:2rem; height:2rem; border-radius:50%; display:grid; place-items:center; font-size:.8rem; font-weight:700;
+  background:rgba(255,178,122,.18); color:#ffcf9f; border:1px solid rgba(255,178,122,.35) }
+.vis-dato{ min-width:0 }
+.vis-dato small{ display:block; font-size:.58rem; letter-spacing:.14em; text-transform:uppercase; opacity:.5; margin-bottom:.1rem }
+.vis-dato b{ display:block; font-size:.84rem; font-weight:500; line-height:1.3 }
+.vis-dato i{ font-style:normal; opacity:.5 }
+.vis-estado{ justify-self:end; display:inline-flex; align-items:center; gap:.4rem; padding:.3rem .65rem; border-radius:999px;
+  font-size:.66rem; font-weight:600; letter-spacing:.04em; white-space:nowrap; border:1px solid currentColor }
+.vis-estado::before{ content:''; width:6px; height:6px; border-radius:50%; background:currentColor }
+.vis-estado--ok{ color:#8fd6a8; background:rgba(143,214,168,.1) }
+.vis-estado--confirmar{ color:#f0c83c; background:rgba(240,200,60,.1) }
+.vis-estado--sinhora{ color:rgba(244,239,233,.65); background:rgba(255,255,255,.05) }
+.vis-claves{ grid-column:2 / -1; display:flex; flex-wrap:wrap; gap:.35rem; margin:.15rem 0 0; padding:0; list-style:none }
+.vis-claves li{ padding:.25rem .6rem; border-radius:999px; font-size:.72rem; line-height:1.3;
+  background:rgba(0,0,0,.22); border:1px solid rgba(255,255,255,.08) }
+.semana-libre{ padding:2.5rem 1rem; text-align:center; opacity:.6; font-size:.88rem }
 .lista-tab{ display:grid; gap:.7rem; grid-template-columns:repeat(auto-fill, minmax(18rem,1fr)) }
 .tarjeta{ padding:.9rem 1rem; font-size:.84rem; line-height:1.5 }
 .tarjeta--hacer{ background:rgba(46,158,91,.22); border-color:rgba(90,210,140,.6) }
@@ -735,12 +743,14 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .resumen-tab{ padding:1.2rem 1.4rem; white-space:pre-wrap; font-size:.88rem; line-height:1.6; max-width:48rem }
 @media (max-width:760px){
   .tablero{ padding:1rem; border-radius:16px }
-  .semana{ gap:.25rem }
-  .dia{ padding:.45rem .1rem; border-radius:12px }
-  .dia-nombre{ font-size:.55rem; letter-spacing:.06em }
-  .dia-num{ font-size:1.1rem }
-  .dia-cuenta{ display:none }
-  .citas{ grid-template-columns:1fr }
+  .kpis{ grid-template-columns:repeat(2, minmax(0,1fr)) }
+  .semana{ gap:.15rem; padding:.25rem }
+  .dia-nombre{ font-size:.52rem; letter-spacing:.06em }
+  .dia-num{ font-size:1rem }
+  .vis{ grid-template-columns:3.6rem 1fr auto; padding:.8rem }
+  .vis-dato{ grid-column:2 / -1 }
+  .vis-estado{ grid-column:3; grid-row:1 }
+  .vis-claves{ grid-column:1 / -1 }
 }
 
 .seccion-rotulo{
