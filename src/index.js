@@ -5328,6 +5328,17 @@ async function admin(peticion, env, ruta, metodo, ctx) {
   /* EL TABLERO DE LA AGENDA (Maxi, 31/10): las visitas, lo que hay que
      hacer, las consultas que esperan y los avisos, por separado, para
      que el panel los muestre cada uno en su lugar. */
+  /* UNA TAREA DE "PARA HACER" QUE YA SE HIZO: deja de figurar. */
+  const hecho = ruta.match(/^\/api\/admin\/avisos\/(\d+)\/hecho$/);
+  if (hecho && metodo === 'POST') {
+    const avisos = (await leerEstado(env, 'avisos'))?.valor ?? [];
+    const a = avisos.find((x) => x.n === Number(hecho[1]));
+    if (!a) return error('No está', 404);
+    a.hecho = true;
+    await guardarEstado(env, 'avisos', avisos);
+    return json({ ok: true });
+  }
+
   /* PROGRAMAR UNA RESPUESTA A UN CLIENTE (ver `programadosDeHoy`). */
   if (ruta === '/api/admin/programar' && metodo === 'POST') {
     const c = await peticion.json().catch(() => ({}));
