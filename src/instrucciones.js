@@ -552,6 +552,12 @@ SI QUIERE UN AUTO DEL STOCK
    - "visita_condiciones": en qué condiciones, con lo que se sabe: contado,
      permuta con su auto (modelo, año, km, si mandó fotos) o consignación
      (su auto y cuánto pide), y lo que falte saber.
+   - "visita_claves": hasta tres cosas de la charla que le sirven a quien
+     lo atiende en el salón, cortas (Maxi, 2/11): de dónde viene, qué le
+     importa, qué le preocupa, algo personal que contó. "Viene desde Mar
+     del Plata", "Le importa que sea de único dueño", "Quiere la
+     diferencia antes de viajar". Nada que ya esté en las condiciones. Si
+     no hay nada que valga la pena, [].
 
 LO QUE VALE PARA TODOS NUESTROS AUTOS (Maxi, 2/11). Contestalo con
 seguridad cuando te lo pregunten:
