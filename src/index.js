@@ -25,6 +25,29 @@ import { PLANTILLAS, comoLasPideMeta, textoDe, IDIOMA } from './plantillas.js';
 import { DurableObject } from 'cloudflare:workers';
 import { PANEL } from './admin.js';
 import { instruccionesDelBot } from './instrucciones.js';
+/* EL TASADOR ES EL DE MANNA MOTORS, COPIADO TAL CUAL. src/tasador.js,
+   src/generaciones.js y src/generaciones-datos.js son byte por byte los
+   de allá: ese motor ya está probado y tasando todos los días, así que
+   no se toca ni se "mejora" acá. Si hay que arreglar algo del cálculo,
+   se arregla allá y se vuelve a copiar entero.
+
+   Por eso también entra src/estado.js: el tasador guarda lo que lee de
+   Mercado Libre con fecha de vencimiento y esas son las funciones que
+   espera. Las de este archivo (leerEstado/guardarEstado, más abajo) son
+   otras —devuelven {valor, cuando} y no vencen— y siguen siendo las que
+   usa todo lo demás. Comparten la tabla `estado` sin pisarse: las
+   claves del tasador son suyas (ml_lista:, dolar:, tasador_config). */
+import { tasar, BloqueoML, leerConfigTasador, guardarConfigTasador,
+         leerTasaciones } from './tasador.js';
+/* SE IMPORTA SÓLO LO QUE SE USA HOY. El archivo copiado trae más cosas
+   —la cola (pedirTasacion, procesarTasacion), el aviso al cliente y el
+   informe de resultados—: son las piezas que hacen falta el día que el
+   bot cotice solo, y ese día se enganchan. Dos aclaraciones para ese día:
+   la cola necesita su propia vuelta de reloj (una tasación usa casi las
+   50 consultas que Cloudflare permite por corrida, así que no puede
+   compartir el minuto con el repaso de los chats), y
+   `resultadosDeCotizaciones` lee columnas que acá no existen (visita,
+   videollamada, tentativa). Nada de eso afecta al cálculo. */
 
 const GRUPOS = ['alta-gama', 'evolution', 'deportivos', 'urbanos'];
 const TAMANOS = ['1600', '640'];
@@ -4747,6 +4770,44 @@ function limpiar(cuerpo) {
 const TIPOS_EMBUDO = ['comprador', 'vendedor', 'permuta', 'ruido'];
 const ETAPAS = ['consulta', 'charla', 'precio', 'visita', 'vino', 'cerrado'];
 
+/* LA TABLA DEL TASADOR, CREADA POR EL CÓDIGO.
+   Está escrita en esquema/013-tasador.sql, que es donde hay que leerla,
+   pero también se aplica sola la primera vez que alguien usa el tasador.
+   Las demás tablas se crean a mano con `wrangler d1 execute` y está bien;
+   ésta se crea sola porque llegó después y nadie tiene por qué acordarse
+   de correr una migración para que el panel deje de dar error.
+   Es idempotente: si ya está, no hace nada. Una vez por arranque. */
+let tasacionesListas = false;
+
+async function asegurarTasaciones(env) {
+  if (tasacionesListas) return;
+  try {
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS tasaciones (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversacion INTEGER REFERENCES conversaciones(id) ON DELETE CASCADE,
+      clave        TEXT,
+      pedido       TEXT    NOT NULL,
+      estado       TEXT    NOT NULL,
+      resultado    TEXT,
+      monto        INTEGER,
+      porcentaje   REAL,
+      contraoferta INTEGER,
+      auto_interes TEXT,
+      avisada      INTEGER NOT NULL DEFAULT 0,
+      intentos     INTEGER NOT NULL DEFAULT 0,
+      creada       INTEGER NOT NULL,
+      actualizada  INTEGER NOT NULL)`).run();
+    await env.DB.prepare('CREATE INDEX IF NOT EXISTS tasaciones_conv ON tasaciones (conversacion, creada)').run();
+    /* `vence` en `estado`: el tasador guarda lo que lee de Mercado Libre
+       con fecha de vencimiento. Si la columna ya está, esto falla y no
+       pasa nada, que es lo que se quiere. */
+    await env.DB.prepare('ALTER TABLE estado ADD COLUMN vence INTEGER').run().catch(() => {});
+    tasacionesListas = true;
+  } catch (e) {
+    console.error('No se pudo preparar la tabla de tasaciones:', e?.message ?? e);
+  }
+}
+
 async function admin(peticion, env, ruta, metodo, ctx) {
   /* ══════════════════════════════════════════════════════════════
      LA BANDEJA DE MENSAJES
@@ -5096,6 +5157,86 @@ async function admin(peticion, env, ruta, metodo, ctx) {
   if (resuelta && metodo === 'POST') {
     const consultas = (await leerEstado(env, 'consultas'))?.valor ?? [];
     await guardarEstado(env, 'consultas', consultas.filter((c) => c.n !== Number(resuelta[1])));
+    return json({ ok: true });
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     EL TASADOR DE PERMUTAS
+     ══════════════════════════════════════════════════════════════
+
+     Cuánto ofrecer por el auto que un cliente quiere entregar. El motor
+     es el de Manna Motors, copiado entero (src/tasador.js): lee
+     Mercado Libre, se queda con los autos iguales al suyo y más baratos,
+     y le resta el porcentaje que esté puesto acá abajo.
+
+     NO LE MANDA NADA A NADIE. Estas direcciones calculan y muestran; lo
+     que sale va al panel y lo mira una persona. Pasarle la cotización al
+     cliente es otra cosa y hoy no está conectado: ver docs/tasador.md. */
+
+  if (ruta.startsWith('/api/admin/tasador') || ruta.startsWith('/api/admin/tasaciones')) {
+    await asegurarTasaciones(env);
+  }
+
+  /* TASAR A MANO, sin tocar la cola ni avisarle a nadie. Es con lo que se
+     prueba que el motor da bien: se le pasa un auto y devuelve el número
+     y con qué publicaciones llegó. `forzar` saltea lo guardado de los
+     últimos 7 días y vuelve a leer Mercado Libre. */
+  if (ruta === '/api/admin/tasador/probar' && metodo === 'POST') {
+    const { forzar, ...pedido } = await peticion.json().catch(() => ({}));
+    try {
+      return json(await tasar(env, pedido, { forzar: Boolean(forzar) }));
+    } catch (e) {
+      return error(e instanceof BloqueoML
+        ? 'Mercado Libre bloqueó la lectura. Probá más tarde.'
+        : `No se pudo tasar: ${e.message}`, 502);
+    }
+  }
+
+  /* LO QUE HAY: con qué porcentajes se está tasando y las últimas
+     tasaciones, con el número que dio cada una. */
+  if (ruta === '/api/admin/tasador' && metodo === 'GET') {
+    return json({
+      config: await leerConfigTasador(env),
+      tasaciones: await leerTasaciones(env),
+    });
+  }
+
+  /* LOS PORCENTAJES. Lo que se le resta al valor de mercado: uno hasta
+     cierto valor y otro más chico por encima (un auto de USD 10.000 y uno
+     de USD 40.000 no se toman con el mismo margen), unos puntos más si el
+     auto es viejo o tiene muchos km, y uno mayor si nos lo vende sin
+     comprar ninguno nuestro. */
+  if (ruta === '/api/admin/tasador/config' && metodo === 'POST') {
+    const { porcentajes, automatico } = await peticion.json().catch(() => ({}));
+    const config = await leerConfigTasador(env);
+    if (porcentajes) {
+      for (const k of ['bajo', 'alto', 'directa', 'riesgo']) {
+        if (porcentajes[k] === undefined) continue;
+        const n = Number(porcentajes[k]);
+        if (!Number.isFinite(n) || n < 0 || n > 80) return error('Porcentaje inválido');
+        config.porcentajes[k] = Math.round(n * 10) / 10;
+      }
+      if (porcentajes.umbral !== undefined) {
+        const n = Number(porcentajes.umbral);
+        if (!Number.isFinite(n) || n < 0 || n > 1000000) return error('Valor inválido');
+        config.porcentajes.umbral = Math.round(n);
+      }
+    }
+    if (automatico !== undefined) config.automatico = Boolean(automatico);
+    await guardarConfigTasador(env, config);
+    return json({ ok: true });
+  }
+
+  /* DESCARTAR UNA TASACIÓN. Aprobar todavía no: aprobar quiere decir
+     mandársela al cliente y eso no está conectado. */
+  const tasacionDe = ruta.match(/^\/api\/admin\/tasaciones\/(\d+)$/);
+  if (tasacionDe && metodo === 'PATCH') {
+    const { estado, monto } = await peticion.json().catch(() => ({}));
+    if (estado !== 'descartada') return error('Por ahora sólo se puede descartar');
+    const r = await env.DB.prepare(
+      `UPDATE tasaciones SET estado = ?2, monto = ?3, actualizada = ?4 WHERE id = ?1`
+    ).bind(Number(tasacionDe[1]), estado, Number(monto) || null, Date.now()).run();
+    if (!r.meta.changes) return error('No está', 404);
     return json({ ok: true });
   }
 
