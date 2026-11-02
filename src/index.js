@@ -901,7 +901,14 @@ async function describirFotos(env, fotos = []) {
     try {
       const bajado = await bajarDeMeta(env, f);
       const tipo = String(bajado?.tipo ?? '').split(';')[0].trim();
-      if (!bajado || bajado.bytes.byteLength > TOPE_FOTO || !TIPOS_FOTO.includes(tipo)) return;
+      const sirve = bajado && bajado.bytes.byteLength <= TOPE_FOTO && TIPOS_FOTO.includes(tipo);
+      /* SI NO SE PUDO BAJAR O ES MUY PESADA (2/11: una foto de Instagram
+         llegó y el bot dijo "no me llega bien"), y es un link público de
+         Instagram o Messenger, se le pasa el link directo a Claude. */
+      if (!sirve && !f.url) return;
+      const imagen = sirve
+        ? { type: 'image', source: { type: 'base64', media_type: tipo, data: aBase64Plano(bajado.bytes) } }
+        : { type: 'image', source: { type: 'url', url: f.url } };
       const r = await client.messages.create({
         model: MODELO,
         max_tokens: 300,
@@ -909,7 +916,7 @@ async function describirFotos(env, fotos = []) {
         messages: [{
           role: 'user',
           content: [
-            { type: 'image', source: { type: 'base64', media_type: tipo, data: aBase64Plano(bajado.bytes) } },
+            imagen,
             { type: 'text', text: `Un cliente de una concesionaria de autos mandó esta foto por chat. Describila en UNA línea corta, en castellano, con lo que le sirve a quien lo atiende: qué auto es (marca, modelo, color) y de qué lado se ve, o qué parte muestra. Si se ve el tablero, escribí los kilómetros EXACTOS del odómetro, tal cual se leen. Si se ve algún daño, decilo. Nunca escribas patentes, números de documento, nombres ni datos de personas. Sólo la línea, sin nada más.` },
           ],
         }],
