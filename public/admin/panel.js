@@ -1936,7 +1936,7 @@ function claseDe(a) {
   const t = a.texto;
   if (a.tipo === 'hacer' || t.startsWith('*PARA HACER')) return 'hacer';
   if (t.startsWith('*RESUMEN')) return 'resumen';
-  if (t.startsWith('Para tasar')) return 'tasar';
+  if (t.startsWith('Para tasar') || t.startsWith('*TASACIÓN')) return 'tasar';
   if (/^(Te paso un chat|Contestó la confirmación|Te escribió un cliente)/.test(t)) return 'responder';
   return 'otro';
 }
@@ -2046,7 +2046,9 @@ function pintarCalendario() {
 
 function pintarTablero() {
   const avisos = tablero.avisos.slice().reverse();
-  const de = (c) => avisos.filter((a) => claseDe(a) === c && !(c === 'hacer' && a.hecho));
+  /* Lo que ya se hizo no se cuenta: en "Para hacer" y en "Para tasar"
+     (Maxi, 2/11: "figuran 21 para tasar todavía"). */
+  const de = (c) => avisos.filter((a) => claseDe(a) === c && !((c === 'hacer' || c === 'tasar') && a.hecho));
   const pendientes = tablero.recordatorios.slice().sort((a, b) => a.cuando.localeCompare(b.cuando));
   const cuentas = {
     hacer: de('hacer').length + pendientes.length,
@@ -2077,7 +2079,13 @@ function pintarTablero() {
         escapar(elDia(r.cuando)) + '</span></div><div class="tarjeta-texto">' + conLinks(r.texto) + '</div></article>').join(''))
       || vacio('Nada para hacer.');
   } else if (vistaTab === 'responder') html = grilla(unoPorPersona(de('responder')).map((a) => tarjeta(a)).join('')) || vacio('Nadie esperando.');
-  else if (vistaTab === 'tasar') html = grilla(unoPorPersona(de('tasar')).map((a) => tarjeta(a)).join('')) || vacio('Nada para tasar.');
+  else if (vistaTab === 'tasar') {
+    /* "Ya está" saca a la persona entera, no sólo su último aviso. */
+    const deQuien = (a) => (a.texto.match(/\+54 9 [\d -]{8,14}\d|@[\w.]+/) ?? [a.n])[0];
+    const suyos = (a) => de('tasar').filter((x) => deQuien(x) === deQuien(a)).map((x) => x.n).join(',');
+    html = grilla(unoPorPersona(de('tasar')).map((a) => tarjeta(a)
+      .replace(/<\/article>$/, '<div class="tarjeta-acciones"><button type="button" data-hecho="' + suyos(a) + '">Ya está</button></div></article>')).join('')) || vacio('Nada para tasar.');
+  }
   else if (vistaTab === 'consultas') {
     html = grilla(tablero.consultas.map((c) => '<article class="vidrio tarjeta"><div class="tarjeta-cabeza">' +
       '<span class="tarjeta-num">Consulta ' + c.n + '</span><span>' + escapar(fechaCorta(c.cuando)) + '</span></div>' +
@@ -2093,8 +2101,9 @@ function pintarTablero() {
   $$('#tabCuerpo [data-hecho]').forEach((b) => b.addEventListener('click', async () => {
     b.disabled = true;
     try {
-      await api('/api/admin/avisos/' + b.dataset.hecho + '/hecho', { method: 'POST', body: '{}' });
-      tablero.avisos.forEach((a) => { if (String(a.n) === b.dataset.hecho) a.hecho = true; });
+      const ns = b.dataset.hecho.split(',');
+      for (const n of ns) await api('/api/admin/avisos/' + n + '/hecho', { method: 'POST', body: '{}' });
+      tablero.avisos.forEach((a) => { if (ns.includes(String(a.n))) a.hecho = true; });
       pintarTablero();
     } catch (err) { avisar(err.message, true); b.disabled = false; }
   }));
