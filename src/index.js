@@ -1727,7 +1727,10 @@ function clavesDe(a) {
 async function deQueEs(env, clave, { texto = '', imagen = null } = {}) {
   if (!clave) return null;
   const guardadas = (await leerEstado(env, 'publicaciones'))?.valor ?? {};
-  if (guardadas[clave]) return guardadas[clave];
+  /* v2 (2/11): las clasificaciones viejas podían poner un auto de la
+     lista donde era otro que no está publicado (la Ranger → la Hilux). */
+  const k = `v2|${clave}`;
+  if (guardadas[k]) return guardadas[k];
 
   const { results: autos } = await env.DB.prepare(
     `SELECT id, marca, modelo, anio, estado FROM autos WHERE estado IN ('publicado','vendido')
@@ -1764,7 +1767,8 @@ async function deQueEs(env, clave, { texto = '', imagen = null } = {}) {
 ${t ? `Su texto: «${t.slice(0, 1500)}»` : 'No tiene texto.'}
 Estos son nuestros autos (número, auto, estado):
 ${(autos ?? []).map((a) => `${a.id}: ${a.marca} ${a.modelo} ${a.anio ?? ''} (${a.estado})`).join('\n')}
-Decí de cuál de estos autos es ("tipo": "auto" y su número), si es para que la gente nos deje su auto en consignación ("consignacion"), o si es general, de varios autos o de ninguno ("general"). Mirá la imagen si la hay.` },
+Decí de cuál de estos autos es ("tipo": "auto" y su número), si es para que la gente nos deje su auto en consignación ("consignacion"), o si es general, de varios autos o de ninguno ("general"). Mirá la imagen si la hay.
+Tiene que ser EXACTAMENTE ese auto: misma marca y mismo modelo. Si es otro que no está en la lista (por ejemplo una Ford Ranger, que no publicamos), o no estás seguro, es "general". Nunca elijas uno "parecido".` },
         ] }],
       });
       const d = JSON.parse((r.content ?? []).find((b) => b.type === 'text')?.text ?? '{}');
@@ -1776,7 +1780,7 @@ Decí de cuál de estos autos es ("tipo": "auto" y su número), si es para que l
     }
   }
   res = res ?? { tipo: 'general' };
-  guardadas[clave] = res;
+  guardadas[k] = res;
   await guardarEstado(env, 'publicaciones', Object.fromEntries(Object.entries(guardadas).slice(-400)));
   return res;
 }
@@ -2053,7 +2057,11 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
      Si vino de la publicación o el anuncio de un auto publicado y no
      reservado, ese es el auto: el link sale (una sola vez, ver
      `linkSinRepetir`) salvo que la charla sea de una consignación. */
-  const delOrigen = origenSabido?.tipo === 'auto' && !reservadosIds.includes(origenSabido.auto)
+  /* Y SÓLO SI LA RESPUESTA HABLA DE ESE AUTO (2/11: el bot le habló de
+     la Ranger a uno y le salió el link de la Hilux). */
+  const deOrigen = (autos ?? []).find((a) => a.id === origenSabido?.auto);
+  const loNombra = deOrigen && clavesDe(deOrigen).some((c) => new RegExp(`\\b${c}\\b`, 'i').test(partes.join(' ')));
+  const delOrigen = origenSabido?.tipo === 'auto' && !reservadosIds.includes(origenSabido.auto) && loNombra
     ? origenSabido.auto : null;
   const auto = (autos ?? []).find((a) => a.id === dato.ficha_de)
     ?? (autos ?? []).find((a) => a.id === delOrigen);

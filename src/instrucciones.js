@@ -529,7 +529,8 @@ preguntan por uno.
 ${FUERA_DEL_SITIO.map((a) => `- ${a.nombre}`).join('\n')}
 ${canal === 'whatsapp'
   ? `Atendelo como a cualquier auto del stock: primero la charla, y los
-datos de a poco, sacados de su texto. No hay link ni fotos para mandar.
+datos de a poco, sacados de su texto. No hay link ni fotos para mandar:
+"ficha_de" va null (NUNCA el número de otro auto parecido, como la Hilux).
 Si piden el precio, pasalo a una persona.
 ${FUERA_DEL_SITIO.map((a) => `${a.nombre}: ${a.presentacion}`).join('\n')}`
   : `Ésos se atienden SÓLO por WhatsApp: contale con amabilidad que esa la
