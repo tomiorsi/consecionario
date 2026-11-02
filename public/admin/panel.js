@@ -2048,11 +2048,18 @@ function pintarTablero() {
   const avisos = tablero.avisos.slice().reverse();
   /* Lo que ya se hizo no se cuenta: en "Para hacer" y en "Para tasar"
      (Maxi, 2/11: "figuran 21 para tasar todavía"). */
-  const de = (c) => avisos.filter((a) => claseDe(a) === c && !((c === 'hacer' || c === 'tasar') && a.hecho));
+  const de = (c) => avisos.filter((a) => claseDe(a) === c && !((c === 'hacer' || c === 'tasar' || c === 'responder') && a.hecho));
+  /* "Ya está" saca a la persona entera, no sólo su último aviso. */
+  const deQuien = (a) => (a.texto.match(/\+54 9 [\d -]{8,14}\d|@[\w.]+/) ?? [a.n])[0];
+  const conYaEsta = (c) => (a) => tarjeta(a).replace(/<\/article>$/, '<div class="tarjeta-acciones"><button type="button" data-hecho="' +
+    de(c).filter((x) => deQuien(x) === deQuien(a)).map((x) => x.n).join(',') + '">Ya está</button></div></article>');
+  /* Para responder: sólo los que siguen esperando, o sea, los que
+     escribieron último. El servidor marca "contestado". */
+  const porResponder = () => unoPorPersona(de('responder')).filter((a) => !a.contestado);
   const pendientes = tablero.recordatorios.slice().sort((a, b) => a.cuando.localeCompare(b.cuando));
   const cuentas = {
     hacer: de('hacer').length + pendientes.length,
-    responder: unoPorPersona(de('responder')).length,
+    responder: porResponder().length,
     tasar: unoPorPersona(de('tasar')).length,
     consultas: tablero.consultas.length,
   };
@@ -2078,14 +2085,8 @@ function pintarTablero() {
       pendientes.map((r) => '<article class="vidrio tarjeta"><div class="tarjeta-cabeza"><span class="tarjeta-num">Para el ' +
         escapar(elDia(r.cuando)) + '</span></div><div class="tarjeta-texto">' + conLinks(r.texto) + '</div></article>').join(''))
       || vacio('Nada para hacer.');
-  } else if (vistaTab === 'responder') html = grilla(unoPorPersona(de('responder')).map((a) => tarjeta(a)).join('')) || vacio('Nadie esperando.');
-  else if (vistaTab === 'tasar') {
-    /* "Ya está" saca a la persona entera, no sólo su último aviso. */
-    const deQuien = (a) => (a.texto.match(/\+54 9 [\d -]{8,14}\d|@[\w.]+/) ?? [a.n])[0];
-    const suyos = (a) => de('tasar').filter((x) => deQuien(x) === deQuien(a)).map((x) => x.n).join(',');
-    html = grilla(unoPorPersona(de('tasar')).map((a) => tarjeta(a)
-      .replace(/<\/article>$/, '<div class="tarjeta-acciones"><button type="button" data-hecho="' + suyos(a) + '">Ya está</button></div></article>')).join('')) || vacio('Nada para tasar.');
-  }
+  } else if (vistaTab === 'responder') html = grilla(porResponder().map(conYaEsta('responder')).join('')) || vacio('Nadie esperando.');
+  else if (vistaTab === 'tasar') html = grilla(unoPorPersona(de('tasar')).map(conYaEsta('tasar')).join('')) || vacio('Nada para tasar.');
   else if (vistaTab === 'consultas') {
     html = grilla(tablero.consultas.map((c) => '<article class="vidrio tarjeta"><div class="tarjeta-cabeza">' +
       '<span class="tarjeta-num">Consulta ' + c.n + '</span><span>' + escapar(fechaCorta(c.cuando)) + '</span></div>' +

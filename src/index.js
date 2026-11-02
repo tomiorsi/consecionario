@@ -5593,6 +5593,21 @@ async function admin(peticion, env, ruta, metodo, ctx) {
   }
 
   if (ruta === '/api/admin/tablero' && metodo === 'GET') {
+    /* "PARA RESPONDER" AL DÍA (Maxi, 2/11): un chat que pasó al equipo
+       queda contestado cuando el último mensaje es nuestro. Se busca por
+       el teléfono o el usuario que trae el aviso. */
+    const conRespuesta = async (a) => {
+      if (!/^(Te paso un chat|Contestó la confirmación|Te escribió un cliente)/.test(a.texto)) return a;
+      const digitos = soloDigitos((a.texto.match(/\+54 9 [\d -]{8,14}\d/) ?? [''])[0]).slice(-10);
+      const usuario = (a.texto.match(/@([\w.]{3,})/) ?? [])[1];
+      const c = digitos.length >= 8
+        ? await env.DB.prepare('SELECT id FROM conversaciones WHERE externo_id LIKE ? LIMIT 1').bind(`%${digitos}`).first()
+        : usuario ? await env.DB.prepare('SELECT id FROM conversaciones WHERE nombre = ? LIMIT 1').bind(usuario).first() : null;
+      if (!c) return a;
+      const ultimo = await env.DB.prepare(
+        'SELECT direccion FROM mensajes WHERE conversacion_id = ? ORDER BY creado DESC, id DESC LIMIT 1').bind(c.id).first();
+      return { ...a, contestado: ultimo?.direccion === 'saliente' };
+    };
     const deChat = async (id) => id ? env.DB.prepare(
       'SELECT id, canal, externo_id, nombre FROM conversaciones WHERE id = ?').bind(id).first() : null;
     const conQuien = async (x) => {
@@ -5615,7 +5630,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
           return { cuando: p.cuando, texto: `Respuesta programada a ${c?.nombre || (c ? quienEs(c) : 'un cliente')}:\n${p.partes.join('\n')}` };
         })),
       ],
-      avisos: ((await leerEstado(env, 'avisos'))?.valor ?? []).slice(-150),
+      avisos: await Promise.all(((await leerEstado(env, 'avisos'))?.valor ?? []).slice(-150).map(conRespuesta)),
     });
   }
 
