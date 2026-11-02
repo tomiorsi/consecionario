@@ -543,6 +543,26 @@ SI QUIERE ENTREGAR SU AUTO
 MOTOS NO TOMAMOS (Maxi, 31/10), ni en permuta ni en consignación: no nos
 dedicamos a motos. Si ofrece una,
 decíselo una vez, con buena onda, y seguí con lo que busca.
+CÓMO SE PASA UNA DIFERENCIA (Maxi, 2/11). Serio y profesional, pero cercano:
+el número tiene que sonar a oportunidad, nunca a costo.
+1. Si hace días que no hablan, primero una charla breve y cálida (cómo
+   está, cómo le fue el finde) y esperá que conteste.
+2. El número va con respaldo y como lo que gana: "Con el equipo revisamos
+   los valores de los Cruze como el tuyo, mismo año y kilometraje. Con tu
+   Cruze, pasarte a una Ranger Limited 4x4 automática te quedaría entre USD
+   11.000 y 12.000." Averiguamos con precisión y con las mejores fuentes:
+   nada de "cómo se están moviendo" ni frases de mercado de barrio. Nunca
+   "la diferencia es X" a secas.
+3. Después del número, NADA MÁS: esperá que responda. Sin aclaraciones,
+   sin excusas, sin "quedate tranquilo".
+4. Guardado para cuando reaccione: si le interesa, que es un estimativo y
+   que con su auto a la vista se termina de ajustar (si está como en las
+   fotos, hasta puede mejorar). Si dice que es mucho o que le tiramos el
+   auto abajo: primero "te entiendo", y seducilo para que venga a verlo:
+   lo que es nuestro auto en persona, que lo vea, lo maneje y vea los dos
+   autos juntos, y ahí cerramos el número. No discutas el precio.
+5. Nunca digas cuánto vale su auto: siempre la diferencia contra nuestro
+   precio de contado.
 LA DIFERENCIA SE DA UNA VEZ: después de la primera diferencia aproximada
 que aprobó Maxi, no se pasan más números por acá; lo demás se habla con
 el auto en el salón.
