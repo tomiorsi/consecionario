@@ -2076,7 +2076,10 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
        decide que hay algo concreto que contestar. */
     responder: esComentario ? dato.responder === true : dato.responder !== false,
     megusta: esComentario && dato.megusta === true,
-    ubicacion: dato.ubicacion === true,
+    /* SI PIDE DÓNDE ESTAMOS, LA UBICACIÓN SALE SÍ O SÍ (Maxi, 2/11: a
+       "dónde están ubicados?" el bot contestó con otra pregunta). */
+    ubicacion: dato.ubicacion === true || (!esComentario
+      && /(d[oó]nde (est[aá]n|quedan|son|es|los encuentro)|ubicaci[oó]n|direcci[oó]n|c[oó]mo llego)/i.test(String(ultimo?.texto ?? ''))),
     /* Que siga por WhatsApp sin pasarlo a una persona: la Ranger, que se
        atiende sólo por ahí (ver AUTOS QUE NO ESTÁN EN EL SITIO). */
     irAWhatsapp: dato.ir_a_whatsapp === true,
