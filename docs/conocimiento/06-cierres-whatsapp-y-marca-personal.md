@@ -60,4 +60,4 @@ Lo que ya estaba: dos opciones de día, la regla de los sí, la pregunta al fina
   2. Reels con gancho y tres datos: "3 cosas que tenés que mirar antes de comprar un usado".
   3. Testimonios de clientes en la entrega.
   4. Algo de regalo que no se prometió en cada entrega.
-  5. Ofrecer la prueba de manejo en la visita, si Maxi la habilita.
+  5. ~~Prueba de manejo en la visita~~: Maxi (2/11) prefiere que no, salvo con reserva. Ya está en el bot.
