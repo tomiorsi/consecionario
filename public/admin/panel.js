@@ -1959,6 +1959,16 @@ function tarjeta(a, extra = '') {
     '<div class="tarjeta-texto">' + conLinks(lineas.slice(1).join('\n').trim()) + '</div></article>';
 }
 
+/* QUÉ AUTO TRAE, por su modelo (Maxi, 2/11: "que diga trae Cruze, trae
+   Argo"). Se saca de las condiciones: lo que sigue a "permuta con", "trae"
+   o "consignación de", sin la marca. Si no se entiende, "su auto". */
+const MARCAS = /^(citro[eë]n|fiat|ford|chevrolet|toyota|volkswagen|vw|renault|peugeot|honda|jeep|bmw|mercedes(-benz)?|benz|kia|nissan|audi|ram|hyundai|chery|suzuki|mitsubishi|dodge|volvo|mini)$/i;
+function queTrae(cond) {
+  const m = String(cond).match(/(?:permuta con|trae|consignaci[oó]n de|entrega)\s+(?:la|el|su|una|un)?\s*([^,.;(]+)/i);
+  const palabras = (m?.[1] ?? '').split(/\s+/).filter((w) => w && !MARCAS.test(w) && !/^\d{4}$/.test(w) && !/km/i.test(w));
+  return palabras.slice(0, 2).join(' ') || 'su auto';
+}
+
 function pintarCalendario() {
   const hoy = new Date(tablero.hoy + 'T12:00:00-03:00');
   const lunes = new Date(hoy);
@@ -1984,7 +1994,7 @@ function pintarCalendario() {
           return '<div class="cita' + (v.aConfirmar ? ' cita--confirmar' : trae ? ' cita--auto' : '') + '">' +
             '<span class="cita-hora">' + escapar(v.visita.slice(11, 16) || 'Sin hora') + (v.aConfirmar ? ' · A confirmar' : '') + '</span>' +
             '<span class="cita-quien">' + linkTel(v.tel, v.quien) + '</span>' +
-            '<span class="cita-auto">' + escapar(v.auto ?? '') + (trae ? ' · trae auto' : '') + '</span></div>';
+            '<span class="cita-auto">' + escapar(v.auto ?? '') + (trae ? ' · trae ' + escapar(queTrae(cond)) : '') + '</span></div>';
         }).join('') + '</div>';
     }).join('') + '</div>';
 }
