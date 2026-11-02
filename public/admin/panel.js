@@ -1884,7 +1884,7 @@ function pintarCalendario() {
 
 function pintarTablero() {
   const avisos = tablero.avisos.slice().reverse();
-  const de = (c) => avisos.filter((a) => claseDe(a) === c);
+  const de = (c) => avisos.filter((a) => claseDe(a) === c && !(c === 'hacer' && a.hecho));
   const pendientes = tablero.recordatorios.slice().sort((a, b) => a.cuando.localeCompare(b.cuando));
   const cuentas = {
     hacer: de('hacer').length + pendientes.length,
@@ -1905,9 +1905,14 @@ function pintarTablero() {
   let html = '';
   if (vistaTab === 'calendario') html = pintarCalendario();
   else if (vistaTab === 'hacer') {
-    html = grilla(de('hacer').map((a) => tarjeta(a, ' tarjeta--hacer')).join('') +
-      pendientes.map((r) => '<article class="vidrio tarjeta"><div class="tarjeta-cabeza"><span>Programado</span><span>' +
-        escapar(r.cuando) + '</span></div><div class="tarjeta-texto">' + conLinks(r.texto) + '</div></article>').join(''))
+    /* Lo de hoy en verde, con "Ya está" para sacarlo; lo programado con
+       el día bien escrito arriba: "Para el martes 3/11, 10:00". */
+    const elDia = (c) => new Date(c.replace(' ', 'T') + ':00-03:00').toLocaleDateString('es-AR',
+      { timeZone: 'America/Argentina/Buenos_Aires', weekday: 'long', day: 'numeric', month: 'numeric' }) + (c.length > 10 ? ', ' + c.slice(11, 16) : '');
+    html = grilla(de('hacer').map((a) => tarjeta(a, ' tarjeta--hacer')
+        .replace(/<\/article>$/, '<div class="tarjeta-acciones"><button type="button" data-hecho="' + a.n + '">Ya está</button></div></article>')).join('') +
+      pendientes.map((r) => '<article class="vidrio tarjeta"><div class="tarjeta-cabeza"><span class="tarjeta-num">Para el ' +
+        escapar(elDia(r.cuando)) + '</span></div><div class="tarjeta-texto">' + conLinks(r.texto) + '</div></article>').join(''))
       || vacio('Nada para hacer.');
   } else if (vistaTab === 'responder') html = grilla(unoPorPersona(de('responder')).map((a) => tarjeta(a)).join('')) || vacio('Nadie esperando.');
   else if (vistaTab === 'tasar') html = grilla(unoPorPersona(de('tasar')).map((a) => tarjeta(a)).join('')) || vacio('Nada para tasar.');
@@ -1923,6 +1928,14 @@ function pintarTablero() {
       escapar(fechaCorta(r.cuando)) + '</span></div>' + conLinks(r.texto) + '</div>' : vacio('Todavía no hay resumen.');
   } else html = grilla(avisos.map((a) => tarjeta(a, a.tipo === 'hacer' ? ' tarjeta--hacer' : '')).join('')) || vacio('Sin avisos.');
   $('#tabCuerpo').innerHTML = html;
+  $$('#tabCuerpo [data-hecho]').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try {
+      await api('/api/admin/avisos/' + b.dataset.hecho + '/hecho', { method: 'POST', body: '{}' });
+      tablero.avisos.forEach((a) => { if (String(a.n) === b.dataset.hecho) a.hecho = true; });
+      pintarTablero();
+    } catch (err) { avisar(err.message, true); b.disabled = false; }
+  }));
   $$('#tabCuerpo [data-resuelta]').forEach((b) => b.addEventListener('click', async () => {
     b.disabled = true;
     try {
