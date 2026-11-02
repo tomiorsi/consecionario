@@ -1959,15 +1959,39 @@ function tarjeta(a, extra = '') {
     '<div class="tarjeta-texto">' + conLinks(lineas.slice(1).join('\n').trim()) + '</div></article>';
 }
 
-/* QUÉ AUTO TRAE, por su modelo (Maxi, 2/11: "que diga trae Cruze, trae
-   Argo"). Se saca de las condiciones: lo que sigue a "permuta con", "trae"
-   o "consignación de", sin la marca. Si no se entiende, "su auto". */
-const MARCAS = /^(citro[eë]n|fiat|ford|chevrolet|toyota|volkswagen|vw|renault|peugeot|honda|jeep|bmw|mercedes(-benz)?|benz|kia|nissan|audi|ram|hyundai|chery|suzuki|mitsubishi|dodge|volvo|mini)$/i;
-function queTrae(cond) {
-  const m = String(cond).match(/(?:permuta con|trae|consignaci[oó]n de|entrega|tiene)\s+(?:la|el|su|una|un)?\s*([^,.;(]+)/i);
-  const palabras = (m?.[1] ?? '').split(/\s+/).filter((w) => w && !MARCAS.test(w) && !/^\d{4}$/.test(w) && !/km/i.test(w));
-  if (/^(auto|vehículo|vehiculo|camioneta|en)$/i.test(palabras[0] ?? '')) return 'su auto';
-  return palabras.slice(0, 2).join(' ') || 'su auto';
+/* LO QUE TRAE, entero, para la tarjeta: "Citroën C4 Lounge 2015, 100.000
+   km". Lo que sigue a "permuta con", "trae" o "consignación de", hasta
+   donde empieza otra cosa. */
+function queTraeEntero(cond) {
+  const m = String(cond).match(/(?:permuta con|trae|consignaci[oó]n de|entrega|tiene)\s+(?:la|el|su|una|un)?\s*([^;(]+?)(?:\.\s|\s→|\. Fotos|, fotos|$)/i);
+  return (m?.[1] ?? '').trim().replace(/[.,]$/, '').slice(0, 70) || 'su auto';
+}
+
+const CANAL = { whatsapp: 'WhatsApp', instagram: 'Instagram', messenger: 'Messenger' };
+
+function pintarCita(v) {
+  /* Trae un auto si hay permuta o consignación de verdad: "no mencionó
+     permuta" o "compra directa" no cuentan. */
+  const cond = (v.condiciones ?? '') + ' ' + (v.motivo ?? '');
+  const trae = /permuta con|en permuta|consignaci|trae (la|el|su)|para tasar/i.test(cond)
+    && !/compra directa|no mencion|sin (auto|veh)/i.test(cond);
+  const directa = /contado|compra directa|sin (auto|veh)/i.test(cond);
+  const quien = v.quien || 'Sin nombre';
+  const hora = v.visita.slice(11, 16);
+  const claves = (v.claves ?? []).slice(0, 3);
+  return '<article class="vidrio cita' + (v.aConfirmar ? ' cita--confirmar' : trae ? ' cita--auto' : '') + '">' +
+    '<div class="cita-cabeza">' +
+      '<span class="cita-inicial" aria-hidden="true">' + escapar(quien.replace(/[^\p{L}\d]/gu, '').charAt(0).toUpperCase() || '?') + '</span>' +
+      '<span class="cita-quien">' + linkTel(v.tel, quien) +
+        (v.canal ? '<span class="cita-canal">' + escapar(CANAL[v.canal] ?? v.canal) + '</span>' : '') + '</span>' +
+      '<span class="cita-hora">' + escapar(hora || '—') +
+        '<small>' + (v.aConfirmar ? 'A confirmar' : hora ? 'Confirmada' : 'Sin hora') + '</small></span>' +
+    '</div>' +
+    '<div class="cita-dato"><span>Viene a ver</span><b>' + (v.auto ? escapar(v.auto) : '<em>No dijo</em>') + '</b></div>' +
+    '<div class="cita-dato"><span>Trae</span><b>' + (trae ? escapar(queTraeEntero(cond))
+      : '<em>' + (directa ? 'Nada, compra directa' : 'Nada') + '</em>') + '</b></div>' +
+    (claves.length ? '<ul class="cita-claves">' + claves.map((c) => '<li>' + escapar(c) + '</li>').join('') + '</ul>' : '') +
+  '</article>';
 }
 
 function pintarCalendario() {
@@ -1977,27 +2001,34 @@ function pintarCalendario() {
   const dias = [...Array(7)].map((_, i) => { const d = new Date(lunes); d.setDate(lunes.getDate() + i); return d; });
   const clave = (d) => d.toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' });
   const fin = dias[6];
+  const citasDe = (k) => tablero.agenda.filter((v) => v.visita.slice(0, 10) === k)
+    .sort((a, b) => (a.visita.slice(11) || '99').localeCompare(b.visita.slice(11) || '99'));
+  const conCitas = dias.filter((d) => citasDe(clave(d)).length);
+  const punto = (v) => {
+    const cond = (v.condiciones ?? '') + ' ' + (v.motivo ?? '');
+    return '<i class="' + (v.aConfirmar ? 'p-confirmar' : /permuta con|en permuta|consignaci|trae (la|el|su)/i.test(cond) ? 'p-auto' : '') + '"></i>';
+  };
   return '<div class="semana-nav"><button type="button" data-semana="-1">‹ Anterior</button>' +
     '<span>' + dias[0].getDate() + '/' + (dias[0].getMonth() + 1) + ' al ' + fin.getDate() + '/' + (fin.getMonth() + 1) + '</span>' +
     '<button type="button" data-semana="1">Siguiente ›</button></div>' +
     '<div class="semana">' + dias.map((d) => {
       const k = clave(d);
-      const citas = tablero.agenda.filter((v) => v.visita.slice(0, 10) === k)
-        .sort((a, b) => (a.visita.slice(11) || '99').localeCompare(b.visita.slice(11) || '99'));
-      return '<div class="vidrio dia' + (k === tablero.hoy ? ' dia--hoy' : '') + '">' +
+      const citas = citasDe(k);
+      return '<button type="button" class="vidrio dia' + (k === tablero.hoy ? ' dia--hoy' : '') +
+        (k < tablero.hoy ? ' dia--paso' : '') + (citas.length ? '' : ' dia--libre') + '" data-ir="' + k + '">' +
         '<div class="dia-nombre">' + DIAS[d.getDay()] + '</div><div class="dia-num">' + d.getDate() + '</div>' +
-        citas.map((v) => {
-          /* Trae un auto si hay permuta o consignación de verdad: "no
-             mencionó permuta" o "compra directa" no cuentan. */
-          const cond = (v.condiciones ?? '') + ' ' + (v.motivo ?? '');
-          const trae = /permuta con|en permuta|consignaci|trae (la|el|su)|para tasar/i.test(cond)
-            && !/compra directa|no mencion|sin (auto|veh)/i.test(cond);
-          return '<div class="cita' + (v.aConfirmar ? ' cita--confirmar' : trae ? ' cita--auto' : '') + '">' +
-            '<span class="cita-hora">' + escapar(v.visita.slice(11, 16) || 'Sin hora') + (v.aConfirmar ? ' · A confirmar' : '') + '</span>' +
-            '<span class="cita-quien">' + linkTel(v.tel, v.quien) + '</span>' +
-            '<span class="cita-auto">' + escapar(v.auto ?? '') + (trae ? ' · trae ' + escapar(queTrae(cond)) : '') + '</span></div>';
-        }).join('') + '</div>';
-    }).join('') + '</div>';
+        '<div class="dia-cuenta">' + (citas.length ? citas.length + (citas.length === 1 ? ' visita' : ' visitas') : 'Libre') + '</div>' +
+        '<div class="dia-puntos">' + citas.slice(0, 6).map(punto).join('') + '</div></button>';
+    }).join('') + '</div>' +
+    (conCitas.length ? conCitas.map((d) => {
+      const k = clave(d);
+      const citas = citasDe(k);
+      const nombre = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+      return '<section class="jornada' + (k === tablero.hoy ? ' jornada--hoy' : '') + '" id="jornada-' + k + '">' +
+        '<div class="jornada-titulo"><b>' + (k === tablero.hoy ? 'Hoy, ' : '') + escapar(nombre) + '</b><span>' +
+        citas.length + (citas.length === 1 ? ' visita' : ' visitas') + '</span></div>' +
+        '<div class="citas">' + citas.map(pintarCita).join('') + '</div></section>';
+    }).join('') : '<div class="semana-libre">Esta semana no hay visitas agendadas.</div>');
 }
 
 function pintarTablero() {
@@ -2061,6 +2092,9 @@ function pintarTablero() {
       tablero.consultas = tablero.consultas.filter((c) => String(c.n) !== b.dataset.resuelta);
       pintarTablero();
     } catch (err) { avisar(err.message, true); b.disabled = false; }
+  }));
+  $$('#tabCuerpo [data-ir]').forEach((b) => b.addEventListener('click', () => {
+    document.getElementById('jornada-' + b.dataset.ir)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }));
   $$('#tabCuerpo [data-semana]').forEach((b) => b.addEventListener('click', () => {
     semanaDesde += Number(b.dataset.semana);
