@@ -13,6 +13,8 @@ Empezada el 29/10/2026 a pedido de Maxi. Es el resumen para retomar el trabajo e
 | `02-biblioteca-referentes.md` | Autores, obras, conceptos y nivel de verificación | 1 · 29/10 |
 | `03-fichas-tecnicas.md` | Seis fichas: SPIN, empatía táctica, Challenger, escalera de sí, intereses y MAAN, cierre por alternativa | 1 · 29/10 |
 | `04-integracion-y-casos.md` | Qué técnica usar en cada momento, tensiones entre métodos y 6 casos reales anonimizados | 1 · 29/10 |
+| `05-brian-tracy-ventas-avanzadas.md` | La conferencia de Brian Tracy: ideas, qué pasó al bot y qué no | 1 · 2/11 |
+| `06-cierres-whatsapp-y-marca-personal.md` | Alex Dey (cierres), ventas por WhatsApp e Instagram, y Renzo Martos (marca personal): qué pasó al bot y qué no | 1 · 2/11 |
 | `07-indicadores.md` | Indicadores, fórmulas y qué datos faltan | 1 · 29/10 |
 | `src/instrucciones.js` | **El manual operativo vigente**: lo que el bot hace de verdad | Ver el historial de git |
 

@@ -1829,7 +1829,7 @@ function claseDe(a) {
   const t = a.texto;
   if (a.tipo === 'hacer' || t.startsWith('*PARA HACER')) return 'hacer';
   if (t.startsWith('*RESUMEN')) return 'resumen';
-  if (t.startsWith('Para tasar')) return 'tasar';
+  if (t.startsWith('Para tasar') || t.startsWith('*TASACIÓN')) return 'tasar';
   if (/^(Te paso un chat|Contestó la confirmación|Te escribió un cliente)/.test(t)) return 'responder';
   return 'otro';
 }
@@ -1852,6 +1852,49 @@ function tarjeta(a, extra = '') {
     '<div class="tarjeta-texto">' + conLinks(lineas.slice(1).join('\n').trim()) + '</div></article>';
 }
 
+/* LO QUE TRAE, entero: "Citroën C4 Lounge 2015, 100.000 km". Lo que
+   sigue a "permuta con", "trae", "tiene" o "consignación de", hasta donde
+   empieza otra cosa (un punto y seguido, un ";", lo de las fotos). */
+function queTraeEntero(cond) {
+  const m = String(cond).match(/(?:permuta con|trae|consignaci[oó]n de|entrega|tiene)\s+(?:la|el|su|una|un)?\s*(.+)/i);
+  if (!m) return 'su auto';
+  return m[1].split(/;|\(|→|\.\s(?=[A-ZÁÉÍÓÚ])/)[0]
+    .split(/,\s(?=(?:fotos|sin fotos|falta|no |que |se |si |hora))/i)[0]
+    .trim().replace(/[.,]$/, '').slice(0, 70) || 'su auto';
+}
+
+const CANAL = { whatsapp: 'WhatsApp', instagram: 'Instagram', messenger: 'Messenger' };
+
+/* Trae un auto si hay permuta o consignación de verdad: "no mencionó
+   permuta" o "compra directa" no cuentan. */
+function traeAuto(v) {
+  const cond = (v.condiciones ?? '') + ' ' + (v.motivo ?? '');
+  return /permuta con|en permuta|consignaci|trae (la|el|su)|para tasar|tiene (una|un) /i.test(cond)
+    && !/compra directa|no mencion|sin (auto|veh)/i.test(cond);
+}
+
+function pintarCita(v) {
+  const cond = (v.condiciones ?? '') + ' ' + (v.motivo ?? '');
+  const trae = traeAuto(v);
+  const quien = v.quien || 'Sin nombre';
+  const hora = v.visita.slice(11, 16);
+  const estado = v.aConfirmar ? ['confirmar', 'A confirmar'] : hora ? ['ok', 'Confirmada'] : ['sinhora', 'Falta la hora'];
+  const claves = (v.claves ?? []).slice(0, 3);
+  return '<article class="vis">' +
+    '<div class="vis-hora">' + (hora ? escapar(hora) : '<span>sin hora</span>') + '</div>' +
+    '<div class="vis-quien"><span class="vis-ini" aria-hidden="true">' +
+      escapar(quien.replace(/[^\p{L}\d]/gu, '').charAt(0).toUpperCase() || '?') + '</span>' +
+      '<div><b>' + linkTel(v.tel, quien) + '</b><small>' + escapar(CANAL[v.canal] ?? '') + '</small></div></div>' +
+    '<div class="vis-dato"><small>Viene a ver</small><b>' + (v.auto ? escapar(v.auto) : '<i>No dijo</i>') + '</b></div>' +
+    '<div class="vis-dato"><small>Trae</small><b>' + (trae ? escapar(queTraeEntero(cond))
+      : '<i>' + (/contado|compra directa/i.test(cond) ? 'Compra directa' : 'Nada') + '</i>') + '</b></div>' +
+    '<div class="vis-estado vis-estado--' + estado[0] + '">' + estado[1] + '</div>' +
+    (claves.length ? '<ul class="vis-claves">' + claves.map((c) => '<li>' + escapar(c) + '</li>').join('') + '</ul>' : '') +
+  '</article>';
+}
+
+let diaElegido = null;
+
 function pintarCalendario() {
   const hoy = new Date(tablero.hoy + 'T12:00:00-03:00');
   const lunes = new Date(hoy);
@@ -1859,36 +1902,57 @@ function pintarCalendario() {
   const dias = [...Array(7)].map((_, i) => { const d = new Date(lunes); d.setDate(lunes.getDate() + i); return d; });
   const clave = (d) => d.toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' });
   const fin = dias[6];
-  return '<div class="semana-nav"><button type="button" data-semana="-1">‹ Anterior</button>' +
+  const citasDe = (k) => tablero.agenda.filter((v) => v.visita.slice(0, 10) === k)
+    .sort((a, b) => (a.visita.slice(11) || '99').localeCompare(b.visita.slice(11) || '99'));
+  const deLaSemana = dias.flatMap((d) => citasDe(clave(d)));
+  if (diaElegido && !dias.some((d) => clave(d) === diaElegido)) diaElegido = null;
+  const mostrados = dias.filter((d) => citasDe(clave(d)).length && (!diaElegido || clave(d) === diaElegido));
+  const numero = (n, t) => '<div class="kpi"><b>' + n + '</b><span>' + t + '</span></div>';
+  return '<div class="kpis">' +
+      numero(deLaSemana.length, deLaSemana.length === 1 ? 'visita en la semana' : 'visitas en la semana') +
+      numero(deLaSemana.filter((v) => !v.aConfirmar && v.visita.length > 10).length, 'confirmadas con hora') +
+      numero(deLaSemana.filter((v) => v.aConfirmar || v.visita.length <= 10).length, 'a confirmar o sin hora') +
+      numero(deLaSemana.filter(traeAuto).length, 'traen su auto') +
+    '</div>' +
+    '<div class="semana-nav"><button type="button" data-semana="-1" aria-label="Semana anterior">‹</button>' +
     '<span>' + dias[0].getDate() + '/' + (dias[0].getMonth() + 1) + ' al ' + fin.getDate() + '/' + (fin.getMonth() + 1) + '</span>' +
-    '<button type="button" data-semana="1">Siguiente ›</button></div>' +
+    '<button type="button" data-semana="1" aria-label="Semana siguiente">›</button></div>' +
     '<div class="semana">' + dias.map((d) => {
       const k = clave(d);
-      const citas = tablero.agenda.filter((v) => v.visita.slice(0, 10) === k)
-        .sort((a, b) => (a.visita.slice(11) || '99').localeCompare(b.visita.slice(11) || '99'));
-      return '<div class="vidrio dia' + (k === tablero.hoy ? ' dia--hoy' : '') + '">' +
-        '<div class="dia-nombre">' + DIAS[d.getDay()] + '</div><div class="dia-num">' + d.getDate() + '</div>' +
-        citas.map((v) => {
-          /* Trae un auto si hay permuta o consignación de verdad: "no
-             mencionó permuta" o "compra directa" no cuentan. */
-          const cond = (v.condiciones ?? '') + ' ' + (v.motivo ?? '');
-          const trae = /permuta con|en permuta|consignaci|trae (la|el|su)|para tasar/i.test(cond)
-            && !/compra directa|no mencion|sin (auto|veh)/i.test(cond);
-          return '<div class="cita' + (v.aConfirmar ? ' cita--confirmar' : trae ? ' cita--auto' : '') + '">' +
-            '<span class="cita-hora">' + escapar(v.visita.slice(11, 16) || 'Sin hora') + (v.aConfirmar ? ' · A confirmar' : '') + '</span>' +
-            '<span class="cita-quien">' + linkTel(v.tel, v.quien) + '</span>' +
-            '<span class="cita-auto">' + escapar(v.auto ?? '') + (trae ? ' · trae auto' : '') + '</span></div>';
-        }).join('') + '</div>';
-    }).join('') + '</div>';
+      const n = citasDe(k).length;
+      return '<button type="button" class="dia' + (k === tablero.hoy ? ' dia--hoy' : '') +
+        (k < tablero.hoy ? ' dia--paso' : '') + (k === diaElegido ? ' dia--elegido' : '') + '" data-ir="' + k + '"' +
+        (n ? '' : ' disabled') + '>' +
+        '<span class="dia-nombre">' + DIAS[d.getDay()] + '</span><span class="dia-num">' + d.getDate() + '</span>' +
+        '<span class="dia-cuenta">' + (n || '') + '</span></button>';
+    }).join('') + '</div>' +
+    (mostrados.length ? mostrados.map((d) => {
+      const k = clave(d);
+      const citas = citasDe(k);
+      const nombre = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+      return '<section class="jornada">' +
+        '<h3 class="jornada-titulo">' + (k === tablero.hoy ? '<em>Hoy</em> ' : '') + escapar(nombre) +
+        '<span>' + citas.length + (citas.length === 1 ? ' visita' : ' visitas') + '</span></h3>' +
+        '<div class="visitas">' + citas.map(pintarCita).join('') + '</div></section>';
+    }).join('') : '<div class="semana-libre">Esta semana no hay visitas agendadas.</div>');
 }
 
 function pintarTablero() {
   const avisos = tablero.avisos.slice().reverse();
-  const de = (c) => avisos.filter((a) => claseDe(a) === c && !(c === 'hacer' && a.hecho));
+  /* Lo que ya se hizo no se cuenta: en "Para hacer" y en "Para tasar"
+     (Maxi, 2/11: "figuran 21 para tasar todavía"). */
+  const de = (c) => avisos.filter((a) => claseDe(a) === c && !((c === 'hacer' || c === 'tasar' || c === 'responder') && a.hecho));
+  /* "Ya está" saca a la persona entera, no sólo su último aviso. */
+  const deQuien = (a) => (a.texto.match(/\+54 9 [\d -]{8,14}\d|@[\w.]+/) ?? [a.n])[0];
+  const conYaEsta = (c) => (a) => tarjeta(a).replace(/<\/article>$/, '<div class="tarjeta-acciones"><button type="button" data-hecho="' +
+    de(c).filter((x) => deQuien(x) === deQuien(a)).map((x) => x.n).join(',') + '">Ya está</button></div></article>');
+  /* Para responder: sólo los que siguen esperando, o sea, los que
+     escribieron último. El servidor marca "contestado". */
+  const porResponder = () => unoPorPersona(de('responder')).filter((a) => !a.contestado);
   const pendientes = tablero.recordatorios.slice().sort((a, b) => a.cuando.localeCompare(b.cuando));
   const cuentas = {
     hacer: de('hacer').length + pendientes.length,
-    responder: unoPorPersona(de('responder')).length,
+    responder: porResponder().length,
     tasar: unoPorPersona(de('tasar')).length,
     consultas: tablero.consultas.length,
   };
@@ -1914,8 +1978,8 @@ function pintarTablero() {
       pendientes.map((r) => '<article class="vidrio tarjeta"><div class="tarjeta-cabeza"><span class="tarjeta-num">Para el ' +
         escapar(elDia(r.cuando)) + '</span></div><div class="tarjeta-texto">' + conLinks(r.texto) + '</div></article>').join(''))
       || vacio('Nada para hacer.');
-  } else if (vistaTab === 'responder') html = grilla(unoPorPersona(de('responder')).map((a) => tarjeta(a)).join('')) || vacio('Nadie esperando.');
-  else if (vistaTab === 'tasar') html = grilla(unoPorPersona(de('tasar')).map((a) => tarjeta(a)).join('')) || vacio('Nada para tasar.');
+  } else if (vistaTab === 'responder') html = grilla(porResponder().map(conYaEsta('responder')).join('')) || vacio('Nadie esperando.');
+  else if (vistaTab === 'tasar') html = grilla(unoPorPersona(de('tasar')).map(conYaEsta('tasar')).join('')) || vacio('Nada para tasar.');
   else if (vistaTab === 'consultas') {
     html = grilla(tablero.consultas.map((c) => '<article class="vidrio tarjeta"><div class="tarjeta-cabeza">' +
       '<span class="tarjeta-num">Consulta ' + c.n + '</span><span>' + escapar(fechaCorta(c.cuando)) + '</span></div>' +
@@ -1931,8 +1995,9 @@ function pintarTablero() {
   $$('#tabCuerpo [data-hecho]').forEach((b) => b.addEventListener('click', async () => {
     b.disabled = true;
     try {
-      await api('/api/admin/avisos/' + b.dataset.hecho + '/hecho', { method: 'POST', body: '{}' });
-      tablero.avisos.forEach((a) => { if (String(a.n) === b.dataset.hecho) a.hecho = true; });
+      const ns = b.dataset.hecho.split(',');
+      for (const n of ns) await api('/api/admin/avisos/' + n + '/hecho', { method: 'POST', body: '{}' });
+      tablero.avisos.forEach((a) => { if (ns.includes(String(a.n))) a.hecho = true; });
       pintarTablero();
     } catch (err) { avisar(err.message, true); b.disabled = false; }
   }));
@@ -1943,6 +2008,11 @@ function pintarTablero() {
       tablero.consultas = tablero.consultas.filter((c) => String(c.n) !== b.dataset.resuelta);
       pintarTablero();
     } catch (err) { avisar(err.message, true); b.disabled = false; }
+  }));
+  /* Tocar un día muestra sólo ese; tocarlo de nuevo, toda la semana. */
+  $$('#tabCuerpo [data-ir]').forEach((b) => b.addEventListener('click', () => {
+    diaElegido = diaElegido === b.dataset.ir ? null : b.dataset.ir;
+    pintarTablero();
   }));
   $$('#tabCuerpo [data-semana]').forEach((b) => b.addEventListener('click', () => {
     semanaDesde += Number(b.dataset.semana);

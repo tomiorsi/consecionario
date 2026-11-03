@@ -1572,20 +1572,21 @@ const FORMA_DE_RESPUESTA = {
     visita: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     visita_auto: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     visita_condiciones: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    visita_claves: { type: 'array', items: { type: 'string' } },
     interesado_reservado: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
     idioma: { type: 'string' },
     visita_a_confirmar: { type: 'boolean' },
     busca: { anyOf: [{ type: 'string' }, { type: 'null' }] },
   },
   required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion',
-    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_condiciones', 'interesado_reservado', 'idioma', 'visita_a_confirmar', 'busca'],
+    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_condiciones', 'visita_claves', 'interesado_reservado', 'idioma', 'visita_a_confirmar', 'busca'],
   additionalProperties: false,
 };
 
 const FORMA_EN_TEXTO = `
 
 TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
-{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "interesado_reservado": null, "idioma": "es", "visita_a_confirmar": false, "busca": null}
+{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "visita_claves": [], "interesado_reservado": null, "idioma": "es", "visita_a_confirmar": false, "busca": null}
 Escribí "partes" siempre, aunque "responder" sea false: así se puede revisar
 qué hubieras dicho.`;
 
@@ -2098,6 +2099,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     visita: !esComentario && /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(dato.visita ?? '') ? dato.visita : null,
     visitaAuto: dato.visita_auto ? String(dato.visita_auto).slice(0, 120) : null,
     visitaCondiciones: dato.visita_condiciones ? String(dato.visita_condiciones).slice(0, 300) : null,
+    visitaClaves: clavesDeVisita(dato.visita_claves),
     visitaAConfirmar: dato.visita_a_confirmar === true,
     busca: dato.busca ? String(dato.busca).slice(0, 160) : null,
     interesadoReservado: reservados.some((a) => a.id === dato.interesado_reservado) ? dato.interesado_reservado : null,
@@ -2805,6 +2807,7 @@ const LISTAS = {
   comprador: 'Posible Comprador',
   potencial: 'Cliente potencial',
   reservado: 'Reservado',
+  tasado: 'Tasados por Claude',
 };
 
 /* Una línea por cliente, como las arma Maxi:
@@ -3362,7 +3365,14 @@ function fichaDeVisita(v) {
     `${v.quien} (${LISTAS.permuta})  ${[v.condiciones, v.auto && `→ ${v.auto}`].filter(Boolean).join(' ')}`;
 }
 
-async function agendarVisita(env, chat, { visita, auto = null, condiciones = null, motivo = null, aConfirmar = false, avisar = true }) {
+/* LO QUE HAY QUE SABER DE LA CHARLA, para el calendario (Maxi, 2/11):
+   hasta tres frases cortas, o ninguna. */
+function clavesDeVisita(lista) {
+  return (Array.isArray(lista) ? lista : [])
+    .map((t) => String(t ?? '').trim().slice(0, 120)).filter(Boolean).slice(0, 3);
+}
+
+async function agendarVisita(env, chat, { visita, auto = null, condiciones = null, motivo = null, aConfirmar = false, avisar = true, claves = [] }) {
   const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
   /* LA MISMA VISITA NO SE AVISA DOS VECES (2/11: llegaron cuatro avisos
      iguales de un mismo cliente, uno por cada mensaje de la charla). Se
@@ -3371,8 +3381,11 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
   const antes = agenda.find((v) => v.chat === chat.id);
   if (antes && antes.visita === visita && Boolean(antes.aConfirmar) === Boolean(aConfirmar)) avisar = false;
   const resto = agenda.filter((v) => v.chat !== chat.id);
+  /* Si esta vez no dijo nada nuevo, quedan las de antes. */
+  const lasClaves = claves.length ? claves : antes?.claves ?? [];
   const nueva = { chat: chat.id, quien: quienEs(chat), visita, auto, condiciones,
-    motivo: auto || condiciones ? null : motivo, recordada: false, ...(aConfirmar ? { aConfirmar: true } : {}) };
+    motivo: auto || condiciones ? null : motivo, recordada: false, ...(aConfirmar ? { aConfirmar: true } : {}),
+    ...(lasClaves.length ? { claves: lasClaves } : {}) };
   resto.push(nueva);
   resto.sort((a, b) => aMs(a.visita) - aMs(b.visita));
   await guardarEstado(env, 'agenda', resto.filter((v) => aMs(v.visita) > Date.now() - 12 * HORAS));
@@ -4019,7 +4032,7 @@ async function atenderSolo(env, disparos) {
       if (r.visita) {
         await agendarVisita(env, chat, {
           visita: r.visita, auto: r.visitaAuto, condiciones: r.visitaCondiciones, motivo: r.derivar,
-          aConfirmar: r.visitaAConfirmar,
+          aConfirmar: r.visitaAConfirmar, claves: r.visitaClaves,
         }).catch((e) => console.error('No se pudo agendar:', e?.message ?? e));
       } else if (r.derivar) {
         /* TODO LO QUE PIDE UNA PERSONA VA A IMPORTANTE (Maxi, 30/10). */
@@ -5085,6 +5098,11 @@ async function admin(peticion, env, ruta, metodo, ctx) {
   if (ruta === '/api/admin/buscados' && metodo === 'POST') {
     const c = await peticion.json().catch(() => ({}));
     const chat = entero(c?.chat, 1, 1e9);
+    if (chat && c?.sacar === true) {
+      const ya = (await leerEstado(env, 'buscados'))?.valor ?? [];
+      await guardarEstado(env, 'buscados', ya.filter((b) => b.chat !== chat));
+      return json({ ok: true });
+    }
     const busca = texto(c?.busca, 160);
     if (!chat || !busca) return error('Faltan datos');
     await anotarBuscado(env, chat, busca);
@@ -5118,12 +5136,15 @@ async function admin(peticion, env, ruta, metodo, ctx) {
   if (ruta === '/api/admin/agenda' && metodo === 'POST') {
     const c = await peticion.json().catch(() => ({}));
     const digitos = soloDigitos(c?.telefono).slice(-10);
-    if (digitos.length < 8 || !/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(c?.visita ?? '')) return error('Faltan datos');
-    const { results: cs } = await env.DB.prepare(
-      `SELECT id, canal, externo_id, nombre FROM conversaciones WHERE externo_id LIKE ?`).bind(`%${digitos}`).all();
+    /* Por teléfono, o por el número de chat (Instagram y Messenger no tienen teléfono). */
+    if ((!c?.chat && digitos.length < 8) || !/^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(c?.visita ?? '')) return error('Faltan datos');
+    const { results: cs } = c?.chat
+      ? await env.DB.prepare(`SELECT id, canal, externo_id, nombre FROM conversaciones WHERE id = ?`).bind(Number(c.chat)).all()
+      : await env.DB.prepare(
+        `SELECT id, canal, externo_id, nombre FROM conversaciones WHERE externo_id LIKE ?`).bind(`%${digitos}`).all();
     if (cs?.length !== 1) return error(cs?.length ? 'Hay varios con ese número' : 'No encontré ese número', 404);
     await agendarVisita(env, cs[0], { visita: c.visita, auto: texto(c?.auto, 120), condiciones: texto(c?.condiciones, 300),
-      aConfirmar: c?.aConfirmar === true, avisar: false });
+      aConfirmar: c?.aConfirmar === true, avisar: false, claves: clavesDeVisita(c?.claves) });
     return json({ ok: true });
   }
 
@@ -5161,6 +5182,21 @@ async function admin(peticion, env, ruta, metodo, ctx) {
   }
 
   if (ruta === '/api/admin/tablero' && metodo === 'GET') {
+    /* "PARA RESPONDER" AL DÍA (Maxi, 2/11): un chat que pasó al equipo
+       queda contestado cuando el último mensaje es nuestro. Se busca por
+       el teléfono o el usuario que trae el aviso. */
+    const conRespuesta = async (a) => {
+      if (!/^(Te paso un chat|Contestó la confirmación|Te escribió un cliente)/.test(a.texto)) return a;
+      const digitos = soloDigitos((a.texto.match(/\+54 9 [\d -]{8,14}\d/) ?? [''])[0]).slice(-10);
+      const usuario = (a.texto.match(/@([\w.]{3,})/) ?? [])[1];
+      const c = digitos.length >= 8
+        ? await env.DB.prepare('SELECT id FROM conversaciones WHERE externo_id LIKE ? LIMIT 1').bind(`%${digitos}`).first()
+        : usuario ? await env.DB.prepare('SELECT id FROM conversaciones WHERE nombre = ? LIMIT 1').bind(usuario).first() : null;
+      if (!c) return a;
+      const ultimo = await env.DB.prepare(
+        'SELECT direccion FROM mensajes WHERE conversacion_id = ? ORDER BY creado DESC, id DESC LIMIT 1').bind(c.id).first();
+      return { ...a, contestado: ultimo?.direccion === 'saliente' };
+    };
     const deChat = async (id) => id ? env.DB.prepare(
       'SELECT id, canal, externo_id, nombre FROM conversaciones WHERE id = ?').bind(id).first() : null;
     const conQuien = async (x) => {
@@ -5183,7 +5219,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
           return { cuando: p.cuando, texto: `Respuesta programada a ${c?.nombre || (c ? quienEs(c) : 'un cliente')}:\n${p.partes.join('\n')}` };
         })),
       ],
-      avisos: ((await leerEstado(env, 'avisos'))?.valor ?? []).slice(-150),
+      avisos: await Promise.all(((await leerEstado(env, 'avisos'))?.valor ?? []).slice(-150).map(conRespuesta)),
     });
   }
 

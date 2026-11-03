@@ -654,19 +654,67 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .semana-nav{ display:flex; align-items:center; justify-content:space-between; margin-bottom:.8rem; font-size:.85rem }
 .semana-nav button{ border:1px solid rgba(255,255,255,.22); background:rgba(255,255,255,.07); color:inherit;
   border-radius:999px; padding:.3rem .8rem; cursor:pointer }
-.semana{ display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:.6rem }
-.dia{ padding:.7rem; min-height:9rem }
-.dia--hoy{ border-color:#e0884a; box-shadow:0 0 0 1px #e0884a inset }
-.dia--cerrado{ opacity:.55 }
-.dia-nombre{ font-size:.68rem; letter-spacing:.12em; text-transform:uppercase; opacity:.7 }
-.dia-num{ font-family:var(--display); font-size:1.4rem; font-weight:700; margin-bottom:.4rem }
-.cita{ border-radius:10px; padding:.5rem .55rem; margin-top:.4rem; font-size:.74rem; line-height:1.4; overflow-wrap:anywhere;
-  background:rgba(224,136,74,.22); border-left:3px solid #e0884a }
-.cita--auto{ background:rgba(120,170,220,.2); border-left-color:#78aadc }
-.cita--confirmar{ background:rgba(240,200,60,.2); border-left:3px dashed #f0c83c }
-.cita-hora{ font-weight:700 }
-.cita-quien{ display:block; margin:.1rem 0 }
-.cita-auto{ opacity:.85; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden }
+.semana-nav{ justify-content:center; gap:1rem }
+.semana-nav button{ width:2rem; height:2rem; padding:0; font-size:1rem; line-height:1 }
+.semana-nav span{ font-size:.78rem; letter-spacing:.14em; text-transform:uppercase; opacity:.8; min-width:8rem; text-align:center }
+/* EL CALENDARIO (Maxi, 2/11: "algo lindo, tipo dashboard glass, más
+   prolijo"). Cuatro números arriba, la semana en una tira de botones y
+   cada visita en un renglón de vidrio alineado: hora, quién, qué viene a
+   ver, qué trae y cómo está. Lo que hay que saber, abajo y en chiquito. */
+.kpis{ display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:.7rem; margin-bottom:1.3rem }
+.kpi{ padding:.85rem 1rem; border-radius:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
+  backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px) }
+.kpi b{ display:block; font-family:var(--display); font-size:1.7rem; line-height:1.1 }
+.kpi span{ font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; opacity:.65 }
+.kpi:first-child b{ color:#ffb27a }
+.semana{ display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:.4rem; margin-bottom:1.6rem;
+  padding:.35rem; border-radius:16px; background:rgba(0,0,0,.18); border:1px solid rgba(255,255,255,.08) }
+.dia{ display:flex; flex-direction:column; align-items:center; gap:.1rem; padding:.55rem .2rem; border:0; border-radius:12px;
+  background:transparent; color:inherit; font:inherit; cursor:pointer; transition:background .15s ease }
+.dia:hover:not(:disabled){ background:rgba(255,255,255,.08) }
+.dia:disabled{ cursor:default; opacity:.45 }
+.dia--paso{ opacity:.45 }
+.dia--hoy .dia-num{ color:#ffb27a }
+.dia--elegido{ background:#f4efe9 !important; color:#1b1714 }
+.dia--elegido .dia-num{ color:#1b1714 }
+.dia-nombre{ font-size:.6rem; letter-spacing:.16em; text-transform:uppercase; opacity:.7 }
+.dia-num{ font-family:var(--display); font-size:1.25rem; font-weight:700; line-height:1.1 }
+.dia-cuenta{ min-width:1.2rem; height:1.2rem; padding:0 .3rem; border-radius:999px; font-size:.62rem; font-weight:700;
+  line-height:1.2rem; background:rgba(224,136,74,.9); color:#fff }
+.dia-cuenta:empty{ background:transparent }
+.jornada{ margin-bottom:1.6rem }
+.jornada-titulo{ display:flex; align-items:baseline; gap:.6rem; margin:0 0 .7rem; font-size:.78rem; font-weight:600;
+  letter-spacing:.14em; text-transform:uppercase }
+.jornada-titulo em{ font-style:normal; color:#ffb27a }
+.jornada-titulo span{ margin-left:auto; font-weight:400; letter-spacing:.06em; opacity:.55; text-transform:none }
+.visitas{ display:grid; gap:.55rem }
+.vis{ display:grid; grid-template-columns:4.4rem minmax(12rem,1.3fr) minmax(8rem,1fr) minmax(9rem,1.3fr) auto;
+  align-items:center; gap:.4rem 1rem; padding:.85rem 1.1rem; border-radius:14px;
+  background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12);
+  backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); transition:background .15s ease, border-color .15s ease }
+.vis:hover{ background:rgba(255,255,255,.1); border-color:rgba(255,255,255,.2) }
+.vis-hora{ font-family:var(--display); font-size:1.15rem; font-weight:700 }
+.vis-hora span{ white-space:nowrap; font-family:inherit; font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; font-weight:600; opacity:.55 }
+.vis-quien{ display:flex; align-items:center; gap:.6rem; min-width:0 }
+.vis-quien > div{ min-width:0 }
+.vis-quien b{ display:block; font-size:.9rem; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.vis-quien small{ font-size:.62rem; letter-spacing:.1em; text-transform:uppercase; opacity:.55 }
+.vis-ini{ flex:none; width:2rem; height:2rem; border-radius:50%; display:grid; place-items:center; font-size:.8rem; font-weight:700;
+  background:rgba(255,178,122,.18); color:#ffcf9f; border:1px solid rgba(255,178,122,.35) }
+.vis-dato{ min-width:0 }
+.vis-dato small{ display:block; font-size:.58rem; letter-spacing:.14em; text-transform:uppercase; opacity:.5; margin-bottom:.1rem }
+.vis-dato b{ display:block; font-size:.84rem; font-weight:500; line-height:1.3 }
+.vis-dato i{ font-style:normal; opacity:.5 }
+.vis-estado{ justify-self:end; display:inline-flex; align-items:center; gap:.4rem; padding:.3rem .65rem; border-radius:999px;
+  font-size:.66rem; font-weight:600; letter-spacing:.04em; white-space:nowrap; border:1px solid currentColor }
+.vis-estado::before{ content:''; width:6px; height:6px; border-radius:50%; background:currentColor }
+.vis-estado--ok{ color:#8fd6a8; background:rgba(143,214,168,.1) }
+.vis-estado--confirmar{ color:#f0c83c; background:rgba(240,200,60,.1) }
+.vis-estado--sinhora{ color:rgba(244,239,233,.65); background:rgba(255,255,255,.05) }
+.vis-claves{ grid-column:2 / -1; display:flex; flex-wrap:wrap; gap:.35rem; margin:.15rem 0 0; padding:0; list-style:none }
+.vis-claves li{ padding:.25rem .6rem; border-radius:999px; font-size:.72rem; line-height:1.3;
+  background:rgba(0,0,0,.22); border:1px solid rgba(255,255,255,.08) }
+.semana-libre{ padding:2.5rem 1rem; text-align:center; opacity:.6; font-size:.88rem }
 .lista-tab{ display:grid; gap:.7rem; grid-template-columns:repeat(auto-fill, minmax(18rem,1fr)) }
 .tarjeta{ padding:.9rem 1rem; font-size:.84rem; line-height:1.5 }
 .tarjeta--hacer{ background:rgba(46,158,91,.22); border-color:rgba(90,210,140,.6) }
@@ -681,8 +729,14 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .resumen-tab{ padding:1.2rem 1.4rem; white-space:pre-wrap; font-size:.88rem; line-height:1.6; max-width:48rem }
 @media (max-width:760px){
   .tablero{ padding:1rem; border-radius:16px }
-  .semana{ grid-template-columns:1fr }
-  .dia{ min-height:auto }
+  .kpis{ grid-template-columns:repeat(2, minmax(0,1fr)) }
+  .semana{ gap:.15rem; padding:.25rem }
+  .dia-nombre{ font-size:.52rem; letter-spacing:.06em }
+  .dia-num{ font-size:1rem }
+  .vis{ grid-template-columns:3.6rem 1fr auto; padding:.8rem }
+  .vis-dato{ grid-column:2 / -1 }
+  .vis-estado{ grid-column:3; grid-row:1 }
+  .vis-claves{ grid-column:1 / -1 }
 }
 
 .seccion-rotulo{
