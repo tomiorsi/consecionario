@@ -611,20 +611,6 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .tasar{ font-size:.5rem; font-weight:700; letter-spacing:.12em; text-transform:uppercase;
   color:#e3c97e; border:1px solid rgba(227,201,126,.45); border-radius:3px; padding:.1em .45em }
 
-/* EL TASADOR: los porcentajes arriba y lo cotizado abajo. */
-.tasador{ border:1px solid var(--linea); border-radius:4px; padding:1rem; margin-bottom:1rem }
-.tasador-ajustes{ display:flex; gap:.8rem 1.2rem; flex-wrap:wrap; align-items:center; font-size:.8rem }
-.tasador-ajustes label{ display:flex; gap:.4rem; align-items:center }
-.tasador-ajustes input[type="number"]{ font:inherit; width:5.5rem; padding:.35em .5em;
-  background:var(--panel); color:var(--chrome); border:1px solid var(--linea); border-radius:3px }
-.tasador-auto{ font-weight:700 }
-.tasador-lista{ margin-top:1rem; display:grid; gap:.5rem }
-.tasador-fila{ display:grid; gap:.15rem; padding:.6rem .7rem; border:1px solid var(--linea); border-radius:3px }
-.tasador-fila b{ font-size:.85rem }
-.tasador-fila span{ font-size:.75rem; color:var(--apagado) }
-.tasador-fila a{ color:inherit }
-.tasador-monto{ color:#e3c97e; font-weight:700 }
-
 /* Los mandos del embudo adentro de un chat. */
 .marcar{ display:flex; gap:1rem 1.4rem; flex-wrap:wrap; align-items:end; margin:1.4rem auto 0; max-width:44rem }
 .marcar select{ font:inherit; font-size:.78rem; padding:.4em .6em;
@@ -1076,32 +1062,6 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
            las etiquetas de la app no se pueden poner desde el sistema. -->
       <div class="filtros-bandeja">
         <button class="btn" type="button" id="filtroTasar" aria-pressed="false">Para tasar</button>
-        <button class="btn" type="button" id="verTasador" aria-pressed="false">El tasador</button>
-      </div>
-
-      <!-- EL TASADOR. Desde el 2/11 la cotización de una permuta la
-           calcula el sistema y la manda el bot solo: lee Mercado Libre,
-           se queda con los autos iguales al del cliente y más baratos, y
-           les resta estos porcentajes. Es el mismo motor que usa Manna
-           Motors (ver docs/tasador.md).
-
-           ACÁ SE TOCA CUÁNTO SE RESTA, que es la única perilla del
-           negocio: el resto lo decide el cálculo. Abajo, lo que se coti-
-           zó, para poder mirar de dónde salió cada número. -->
-      <div class="tasador oculto" id="tasador">
-        <div class="tasador-ajustes">
-          <label>Hasta <input type="number" id="tasUmbral" min="0" step="1000"> USD se resta
-            <input type="number" id="tasBajo" min="0" max="80" step="0.5">%</label>
-          <label>De ahí para arriba, <input type="number" id="tasAlto" min="0" max="80" step="0.5">%</label>
-          <label>Si lo compramos sin que lleve uno nuestro, <input type="number" id="tasDirecta" min="0" max="80" step="0.5">%</label>
-          <label>Más de 10 años o muchos km, <input type="number" id="tasRiesgo" min="0" max="80" step="0.5">% extra</label>
-          <label class="tasador-auto">
-            <input type="checkbox" id="tasAutomatico"> Mandarla sola al cliente
-          </label>
-          <button class="btn" type="button" id="guardarTasador">Guardar</button>
-          <span id="tasadorAviso"></span>
-        </div>
-        <div class="tasador-lista" id="tasadorLista"></div>
       </div>
 
       <div class="bandeja" id="chats"></div>
