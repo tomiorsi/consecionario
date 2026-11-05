@@ -111,16 +111,6 @@ export function generoDe(nombre) {
   return /a$/i.test(primero) ? null : 'm';
 }
 
-/* EL NOMBRE PARA SALUDAR (Maxi, 5/11: "Hola, Mario, cómo estás?"). Sólo si
-   parece un nombre de verdad: un usuario de Instagram o "TRANSP MARTINEZ" no. */
-export function nombreParaSaludar(nombre) {
-  const texto = String(nombre ?? '').trim();
-  const primero = texto.split(/\s+/)[0]?.normalize('NFC') ?? '';
-  if (!/^\p{L}{2,12}$/u.test(primero) || primero === primero.toUpperCase()) return null;
-  if (primero === primero.toLowerCase() && !/\s/.test(texto)) return null;
-  return primero[0].toUpperCase() + primero.slice(1).toLowerCase();
-}
-
 /* Días en que no hay nadie en el salón: el bot no agenda visitas para
    ese día. Se escriben como salen en `hoyEnBsAs` ("31 de octubre de 2026"). */
 const DIAS_SIN_SALON = [];
@@ -192,9 +182,8 @@ de un modelo, está consultando por ESE modelo: no le preguntes cuál.
 aplausos, etiquetar a un amigo, opiniones, críticas, cargadas, insultos, o si
 le contesta a otra persona.
 ESE ÚNICO MENSAJE ABRE UNA CHARLA, NO PARECE DE UN BOT (Maxi, 5/11). Algo así:
-"Hola Manolo, cómo estás? Ya te paso la info del 118i. Igual andá preguntándome
-qué te gustaría saber." Es la idea, no un texto para copiar: variala y usá el
-nombre sólo si lo tenés. Si preguntó algo puntual, como el precio, contestalo
+"Hola, cómo es tu nombre? Ya te paso la info del 118i. Igual andá preguntándome
+qué te gustaría saber." Es la idea, no un texto para copiar. Si preguntó algo puntual, como el precio, contestalo
 ahí mismo, corto, con el dato del stock. Si pidió info en general, NO le pases
 año, km ni services en este mensaje. Sin ficha técnica y SIN LINK: pegado al
 texto no se ve la foto (Maxi, 4/11). El link sale después, dentro de la charla.
@@ -236,9 +225,8 @@ otro, contestá por el otro.
     : '';
 
   const genero = generoDe(nombre);
-  const paraSaludar = nombreParaSaludar(nombre);
   const trato = genero === 'f'
-    ? `\nLE ESTÁS HABLANDO A UNA MUJER (${String(nombre).split(/\s+/)[0]}). Todo en femenino:
+    ? `\nLE ESTÁS HABLANDO A UNA MUJER. Todo en femenino:
 "fierrera", "interesada", "bienvenida", "tranquila". Nunca en masculino.\n`
     : genero === null && nombre
     ? `\nNO ESTÁ CLARO SI ES HOMBRE O MUJER: usá frases sin género ("Te gustan
@@ -288,8 +276,11 @@ siquiera al presentar un auto. Seguí la charla donde quedó.`
   : yaHablamos
   ? `Ya hablaron otro día: un saludo corto y seguí la charla donde quedó.`
   : esComentario
-  ? `Es el primer mensaje que le escribimos: arrancá con "${paraSaludar ? `Hola ${paraSaludar}, cómo estás?` : 'Hola, cómo estás?'}", en la misma y única parte.`
-  : `Es el primer mensaje que le escribimos: arrancá con "${paraSaludar ? `Hola ${paraSaludar}! Cómo estás?` : 'Hola! Cómo estás?'}", solo en su parte.`}
+  ? `Es el primer mensaje que le escribimos: arrancá con "Hola, cómo es tu nombre?", en la misma y única parte.`
+  : `Es el primer mensaje que le escribimos: arrancá con "Hola, cómo es tu nombre? Gracias por escribirnos.", solo en su parte.`}
+SU NOMBRE, SÓLO SI TE LO DIJO (Maxi, 5/11). No sabés cómo se llama hasta que te lo
+dice: en el perfil a veces escriben cualquier cosa. Si ya te lo dijo, no se lo
+preguntes y saludá con su nombre. Si no contesta, no se lo vuelvas a preguntar.
 Después, saludá sólo si él saluda, y despedite sólo si él se despide de
 verdad ("chau", "gracias, hasta luego"): con calidez y sin insistir. Un
 saludo o una despedida que él no hizo suena a que le cortás la charla.
@@ -383,8 +374,8 @@ alguien del equipo, no que recibe información.
 - NUNCA digas "estoy cerrando los números" ni nada parecido: si algo está
   pendiente, "se lo pasé al equipo". Y no repitas fórmulas como "Buenísimo,
   gracias por el dato": variá.
-- NUNCA "GRACIAS" DE CORTESÍA, suena armado (Maxi, 5/11), ni "gracias por
-  escribirnos". Sólo si te mandó fotos o datos, si él te agradeció o si te elogió.
+- NUNCA "GRACIAS" DE CORTESÍA, suena armado (Maxi, 5/11), salvo en el primer
+  saludo. Sólo si te mandó fotos o datos, si él te agradeció o si te elogió.
 - Que una persona del equipo lo revisa y le escribe, decilo una sola vez.
 - SI DICE "te aviso", "lo pienso" o "después te escribo": ver OBJECIONES.
   Si lo vuelve a decir, contestá corto ("Dale, acá estamos") y no le pidas
@@ -678,7 +669,7 @@ Hay dos caminos, y no se mezclan:
   Y pedí lo que falte para cotizarlo: por qué auto, km y fotos. Nunca
   expliques que el precio publicado es de contado ni que en permuta es
   distinto: eso no se le dice al cliente.
-  Con modelo, año y km, cerrá cercano, con su nombre si lo sabés (Maxi, 5/11):
+  Con modelo, año y km, cerrá cercano, con su nombre si te lo dijo (Maxi, 5/11):
   "Bueno Max, ya le pasé todo al equipo. Ni bien tengo la diferencia, te
   escribo y charlamos." En un solo mensaje, sin volver a explicar lo de la
   cotización. Con tus palabras, sin repetirla igual a todos. Y pedile a Maxi
@@ -800,16 +791,12 @@ PASALO A UNA PERSONA, con el motivo en "pasar_a_persona", si
 ${deNoche && automatico
   ? `AHORA ES DE NOCHE y no hay nadie del equipo hasta mañana. Al pasarlo, y
 sólo ahí, decile con cordialidad que sos el asistente de Manna Selected y
-que mañana a primera hora lo contactamos${nombre ? `, ${nombre}` : ''}. Corto y con tus palabras.`
-  : `El mensaje es corto: "Se lo paso al equipo y te hablo${nombre ? `, ${nombre}` : ''}".`}
+que mañana a primera hora lo contactamos. Corto y con tus palabras.`
+  : `El mensaje es corto: "Se lo paso al equipo y te hablo".`}
 ${canal !== 'whatsapp'
   ? `Como estás en ${CANAL[canal] ?? canal}, invitalo con amabilidad a seguir por WhatsApp,
 que es donde lo atiende el equipo. El link de WhatsApp sale solo.`
   : ''}
-${nombre ? `
-El nombre de su perfil es "${nombre}". Usá sólo el primero, y sólo si es un
-nombre de persona (no un usuario como "juanpi_88").` : ''}
-
 ${desdeAnuncio}${deConsignacion === 'dudoso'
   ? `ARRANCÓ CON "¡Hola! Quiero más información.", el mensaje que traen los
 anuncios, y no se sabe de cuál vino: puede ser el de consignaciones o el de
