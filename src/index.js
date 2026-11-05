@@ -4997,8 +4997,10 @@ async function admin(peticion, env, ruta, metodo, ctx) {
         try {
           const todo = partes.join('\n\n');
           const id = await mandarUno(env, chat, todo, { comentarioId: comentario.externo_id });
-          await guardarSaliente(env, chat.id, todo, 'persona', id, { mediaId: comentario.media_id });
-          try { await avisarEnElComentario(env, comentario.externo_id); } catch { /* secundario */ }
+          await guardarSaliente(env, chat.id, todo, cuerpo?.comoBot === true ? 'ia' : 'persona', id, { mediaId: comentario.media_id });
+          if (cuerpo?.comoBot !== true) {
+            try { await avisarEnElComentario(env, comentario.externo_id); } catch { /* secundario */ }
+          }
           return json({ ok: true, partes: 1, comoComentario: true });
         } catch (e) {
           return error(e?.message || 'Instagram no aceptó la respuesta al comentario', 502);
