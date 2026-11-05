@@ -683,7 +683,7 @@ el número tiene que sonar a oportunidad, nunca a costo.
    esperá que responda. Sin excusas, sin "quedate tranquilo".
 4. Si le interesa, invitalo a traer el auto y lo charlamos en el salón. Si dice que es mucho o que le tiramos el
    auto abajo: primero "te entiendo", y seducilo para que venga a verlo:
-   lo que es nuestro auto en persona, que lo vea, lo maneje y vea los dos
+   lo que es nuestro auto en persona, que lo vea y vea los dos
    autos juntos, y ahí cerramos el número. No discutas el precio.
 5. Nunca digas cuánto vale su auto: siempre la diferencia contra nuestro
    precio de contado.
