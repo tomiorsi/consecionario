@@ -1861,7 +1861,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
   /* LO QUE YA SE VENDIÓ, para no ofrecerlo (Maxi, 29/10: el bot seguía
      ofreciendo el 500C en Instagram, abajo de su publicación vieja). */
   const { results: vendidos } = await env.DB.prepare(
-    `SELECT marca, modelo, anio, precio, moneda FROM autos WHERE estado = 'vendido'
+    `SELECT marca, modelo, anio, km, precio, moneda FROM autos WHERE estado = 'vendido'
       AND COALESCE(editado, creado) > datetime('now','-180 days')`
   ).all();
 
@@ -1978,7 +1978,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
       deQueAuto,
       aprendizajes: await loAprendido(env),
       vendidos: (vendidos ?? []).map((a) => [a.marca, a.modelo, a.anio].filter(Boolean).join(' ')
-        + (a.precio ? ` (estaba en ${a.moneda} ${a.precio})` : '')),
+        + (a.km !== null ? `, ${a.km} km` : '') + (a.precio ? ` (estaba en ${a.moneda} ${a.precio})` : '')),
       reservados: reservados.map((a) => `[${a.id}] ${[a.marca, a.modelo, a.anio].filter(Boolean).join(' ')}`),
       porEntrar: ((await leerEstado(env, 'por_entrar'))?.valor ?? []).map((a) => a.texto),
       hoy: hoyEnBsAs(), soloDatos,
@@ -2129,6 +2129,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     busca: dato.busca ? String(dato.busca).slice(0, 160) : null,
     interesadoReservado: reservados.some((a) => a.id === dato.interesado_reservado) ? dato.interesado_reservado : null,
     conPosteo: Boolean(posteo),
+    deQueAuto,
     esComentario,
     ultimo,
   };
@@ -4886,7 +4887,10 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       tipo: 'texto', texto: texto(m?.texto, 2000), clase: 'mensaje', media_id: null, externo_id: null, creado,
     })).filter((m) => m.texto);
     /* Para probar un comentario: el último del cliente, abajo de `posteo`. */
-    if (c?.comentario === true && mensajes.length) mensajes[mensajes.length - 1].clase = 'comentario';
+    if (c?.comentario === true && mensajes.length) {
+      mensajes[mensajes.length - 1].clase = 'comentario';
+      mensajes[mensajes.length - 1].media_id = texto(c?.media, 40) || null;
+    }
     const canal = c?.canal === 'instagram' ? 'instagram' : 'whatsapp';
     try {
       const r = await pensarRespuesta(env, 0, { automatico: true, simulacion: {
@@ -4898,7 +4902,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       const fijos = [...(r.esComentario ? [] : conPresentacion(yaEsta ? null : ficha?.enlace, canal, r.idioma)), r.ubicacion ? UBICACION : null].filter(Boolean);
       const textos = armarTextos(r.partes, fijos);
       return json({ mensajes: !r.responder ? [] : r.esComentario ? [textos.join('\n\n')] : textos, contesta: r.responder,
-        pasaAPersona: r.derivar ?? null, consultaAMaxi: r.consulta, visita: r.visita, paraTasar: r.resumenParaTasar });
+        deQueAuto: r.deQueAuto ?? null, pasaAPersona: r.derivar ?? null, consultaAMaxi: r.consulta, visita: r.visita, paraTasar: r.resumenParaTasar });
     } catch (e) {
       return error(e?.message || 'No se pudo simular', 502);
     }
