@@ -2073,6 +2073,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
      respuesta: no se deja para otros 5 minutos (Maxi, 5/11). Igual en todos
      los canales. */
   const enWhatsapp = chat.canal === 'whatsapp';
+  const confirmaVisita = /^\d{4}-\d{2}-\d{2}/.test(dato.visita ?? '');
   const auto = (autos ?? []).find((a) => a.id === dato.ficha_de)
     ?? (yaHablo ? (autos ?? []).find((a) => a.id === dato.ficha_en_un_rato) : null);
 
@@ -2099,9 +2100,10 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     /* TRES MENSAJES COMO MUCHO, CONTANDO EL LINK (Maxi, 5/11). El primer
        contacto es el único que puede llevar uno más: es el saludo. */
     /* En Instagram y Messenger la frase y el link son dos mensajes. */
-    autoId: yaHablo && partes.length >= (enWhatsapp ? 3 : 2) ? null : auto?.id ?? null,
+    /* Después del sí, confirma y listo: sin link (Maxi, 5/11). */
+    autoId: confirmaVisita || (yaHablo && partes.length >= (enWhatsapp ? 3 : 2)) ? null : auto?.id ?? null,
     /* EL LINK A LOS 5 MINUTOS SI NO CONTESTA (Maxi, 5/11). */
-    autoEnUnRato: !esComentario && !yaHablo && !auto
+    autoEnUnRato: !esComentario && !yaHablo && !auto && !confirmaVisita
       ? (autos ?? []).find((a) => a.id === dato.ficha_en_un_rato)?.id ?? null : null,
     derivar: dato.pasar_a_persona ? String(dato.pasar_a_persona).slice(0, 200) : null,
     /* A un privado se le contesta siempre; a un comentario, si el bot
@@ -5238,6 +5240,11 @@ async function admin(peticion, env, ruta, metodo, ctx) {
   if (ruta === '/api/admin/bot' && metodo === 'GET') {
     return json(await configDelBot(env));
   }
+  /* LO QUE LE ENSEÑÓ MAXI AL BOT EN LAS CHARLAS, para revisarlo en el panel. */
+  if (ruta === '/api/admin/aprendizajes' && metodo === 'GET') {
+    return json({ aprendizajes: await loAprendido(env) });
+  }
+
   if (ruta === '/api/admin/bot' && metodo === 'PUT') {
     const cuerpo = await peticion.json().catch(() => ({}));
 

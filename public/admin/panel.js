@@ -1715,7 +1715,16 @@ $('#tema').addEventListener('click', () => {
    mal: lo peor que pasa es que alguien conteste a mano un rato. Prender
    si, porque a partir de ese momento le escribe a clientes reales sin
    que nadie lo lea antes, y eso no se deshace. */
+async function pintarAprendido() {
+  try {
+    const { aprendizajes } = await api('/api/admin/aprendizajes');
+    $('#listaAprendido').innerHTML = (aprendizajes ?? []).map((t) => '<li>' + escapar(t) + '</li>').join('');
+    $('#cajaAprendido').hidden = !aprendizajes?.length;
+  } catch { /* Si falla, no se muestra y el resto del panel sigue. */ }
+}
+
 function pintarIA(cfg) {
+  pintarAprendido();
   const caja = $('#interruptorIA');
   caja.hidden = false;
   caja.classList.toggle('viva', cfg.encendida);

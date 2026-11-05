@@ -1109,6 +1109,11 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
         <button class="btn" id="palancaWA" type="button">Prender de día</button>
       </div>
 
+      <details id="cajaAprendido" hidden>
+        <summary>Lo que le enseñaste al bot en las charlas</summary>
+        <ul id="listaAprendido"></ul>
+      </details>
+
       <div class="barra-estado oculto" id="progreso">
         <span class="barra-estado-texto" id="progresoTexto"></span>
         <span class="barra-riel"><span class="barra-fill" id="progresoFill" style="width:0%"></span></span>
