@@ -2359,7 +2359,8 @@ const A_WHATSAPP = 'https://wa.me/5491176703813';
    una. Lo fijo se espera un poco más, para que se vea la vista previa. */
 function armarTextos(partes, fijos) {
   const textos = [...partes];
-  const termina = textos.length > 1 && /\?\s*$/.test(textos[textos.length - 1]);
+  /* Lo último que le pedimos queda al final, también si no termina en "?". */
+  const termina = textos.length > 1 && textos[textos.length - 1].includes('?');
   textos.splice(termina ? textos.length - 1 : textos.length, 0, ...fijos);
   return textos;
 }
