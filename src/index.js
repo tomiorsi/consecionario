@@ -2100,7 +2100,9 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     partes,
     idioma: /^[a-z]{2}$/i.test(dato.idioma ?? '') ? dato.idioma.toLowerCase() : 'es',
     texto: partes.join('\n\n'),
-    autoId: auto?.id ?? null,
+    /* TRES MENSAJES COMO MUCHO, CONTANDO EL LINK (Maxi, 5/11). El primer
+       contacto es el único que puede llevar uno más: es el saludo. */
+    autoId: partes.length >= 3 && privados.some((m) => m.direccion === 'saliente') ? null : auto?.id ?? null,
     derivar: dato.pasar_a_persona ? String(dato.pasar_a_persona).slice(0, 200) : null,
     /* A un privado se le contesta siempre; a un comentario, si el bot
        decide que hay algo concreto que contestar. */
