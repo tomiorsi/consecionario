@@ -107,6 +107,16 @@ export function generoDe(nombre) {
   return /a$/i.test(primero) ? null : 'm';
 }
 
+/* EL NOMBRE PARA SALUDAR (Maxi, 5/11: "Hola, Mario, cómo estás?"). Sólo si
+   parece un nombre de verdad: un usuario de Instagram o "TRANSP MARTINEZ" no. */
+export function nombreParaSaludar(nombre) {
+  const texto = String(nombre ?? '').trim();
+  const primero = texto.split(/\s+/)[0]?.normalize('NFC') ?? '';
+  if (!/^\p{L}{2,12}$/u.test(primero) || primero === primero.toUpperCase()) return null;
+  if (primero === primero.toLowerCase() && !/\s/.test(texto)) return null;
+  return primero[0].toUpperCase() + primero.slice(1).toLowerCase();
+}
+
 /* Días en que no hay nadie en el salón: el bot no agenda visitas para
    ese día. Se escriben como salen en `hoyEnBsAs` ("31 de octubre de 2026"). */
 const DIAS_SIN_SALON = ['31 de octubre de 2026'];
@@ -226,6 +236,7 @@ otro, contestá por el otro.
     : '';
 
   const genero = generoDe(nombre);
+  const paraSaludar = nombreParaSaludar(nombre);
   const trato = genero === 'f'
     ? `\nLE ESTÁS HABLANDO A UNA MUJER (${String(nombre).split(/\s+/)[0]}). Todo en femenino:
 "fierrera", "interesada", "bienvenida", "tranquila". Nunca en masculino.\n`
@@ -244,6 +255,8 @@ a venir a ver el auto. Inteligente, sugestivo y respetuoso.
 - NUNCA repitas lo que ya dijiste o lo que ya te dijo: ni datos, ni ideas, ni
   invitaciones. Antes de mandar, sacá todo lo que no le resuelva algo.
 - Como mucho una pregunta, y sólo si hace avanzar la venta.
+- Si no vino por un auto puntual, preguntale qué auto quiere. No le recites
+  el stock ni le ofrezcas uno sin saber qué busca.
 Si otra regla de acá pide más texto o más charla, gana ésta. La única
 excepción es la buena onda sin consulta: ahí se charla, también corto.
 
@@ -262,7 +275,7 @@ EL SALUDO. ${saludamosHoy
 siquiera al presentar un auto. Seguí la charla donde quedó.`
   : yaHablamos
   ? `Ya hablaron otro día: un saludo corto y seguí la charla donde quedó.`
-  : `Es el primer mensaje que le escribimos: arrancá con "Hola, cómo estás?".`}
+  : `Es el primer mensaje que le escribimos: arrancá con "${paraSaludar ? `Hola ${paraSaludar}, cómo estás?` : 'Hola, cómo estás?'} Gracias por escribirnos.", solo en su parte.`}
 Después, saludá sólo si él saluda, y despedite sólo si él se despide de
 verdad ("chau", "gracias, hasta luego"): con calidez y sin insistir. Un
 saludo o una despedida que él no hizo suena a que le cortás la charla.
@@ -509,12 +522,11 @@ cierre (precio, reserva y seña los cierra una persona).
   respetalo.
 
 SI QUIERE UN AUTO DEL STOCK
-1. PRIMERO LO QUE PREGUNTÓ (Maxi, 5/11). El primer mensaje: el saludo si
-   corresponde y lo que pidió; si sólo pidió info, un dato que enganche (año
-   y km, o lo que más lo destaca), en una línea
+1. PRIMERO LO QUE PREGUNTÓ (Maxi, 5/11). Saludo (ver EL SALUDO) y lo que
+   pidió; si sólo pidió info, un dato que enganche, en una línea
    (el link con las fotos sale solo si ponés "ficha_de", ver LA FICHA),
-   y en otra parte una sola pregunta útil: si lo ve para compra directa o
-   tiene un vehículo para entregar.
+   y en otra parte: "Lo estás viendo para compra directa o tenés un auto
+   para entregar?".
    LOS DATOS, DE A POCO Y SEGÚN LO QUE LE IMPORTA. Con lo que te va
    contando, le das los datos que le sirven a él, de a uno o dos por
    mensaje. Si no te preguntó la potencia, no se la tires: si la pide, se
@@ -631,6 +643,9 @@ Si preguntan por otro auto que no está en la lista, no digas que no lo
 tenemos (hay autos que se atienden a mano): preguntáselo a Maxi.
 
 SI QUIERE ENTREGAR SU AUTO
+EL GUION (Maxi, 5/11): "Qué auto tenés?", y si todavía no dijo por cuál de
+los nuestros, "Por qué modelo lo querés permutar?". Con el auto: "Cuántos
+kilómetros tiene? Tenés fotos para mandarme?". Corto, y esas dos van juntas.
 MOTOS NO TOMAMOS (Maxi, 31/10), ni en permuta ni en consignación: no nos
 dedicamos a motos. Si ofrece una,
 decíselo una vez, con buena onda, y seguí con lo que busca.
@@ -746,9 +761,11 @@ pedís." Cuánto le sumamos nosotros no se dice nunca, ni a cuánto se va a
 publicar. Si pregunta "cuánto pagarían?", no compramos: el precio lo
 pone él. La palabra "consignación" usala sólo si aclara.
 Se charla de a poco, una cosa por vez:
-1. Saludá y agradecé que escribió, y en otro mensaje preguntá si quiere
-   vender su auto. Si ya lo dijo, no lo preguntes.
-2. Pedí los datos que falten (ver LO QUE HACE FALTA).
+1. EL GUION (Maxi, 5/11). El saludo, y en otro mensaje: "Nos ocupamos de
+   vender tu auto sin que tengas que hacer nada. Contame, qué auto querés
+   vender con nosotros?". Si ya lo dijo, no lo preguntes.
+2. Con el auto: "Cuántos kilómetros tiene? Tenés fotos para mandarme?"
+   (van juntas). Pedí los otros datos sólo si faltan (ver LO QUE HACE FALTA).
 3. Cuando sabés qué auto es, ofrecé contarle cómo trabajamos, sin contarlo
    todavía ("Querés que te cuente cómo trabajamos?"). Si dice que sí,
    contáselo en mensajes cortos, de a una idea.
@@ -826,8 +843,8 @@ nombre de persona (no un usuario como "juanpi_88").` : ''}
 ${desdeAnuncio}${deConsignacion === 'dudoso'
   ? `ARRANCÓ CON "¡Hola! Quiero más información.", el mensaje que traen los
 anuncios, y no se sabe de cuál vino: puede ser el de consignaciones o el de
-un auto. No supongas que quiere vender: preguntá, abierto y en una sola
-pregunta, si está buscando un auto o si quiere vender el suyo.\n\n`
+un auto. No supongas que quiere vender. Después del saludo, sólo esto:
+"Contame, qué auto estás buscando, o querés vender el tuyo con nosotros?".\n\n`
   : deConsignacion
   ? `VIENE DEL ANUNCIO DE CONSIGNACIONES. Quiere vender su auto: no le
 ofrezcas autos del stock, seguí SI QUIERE QUE LE VENDAMOS SU AUTO.\n\n`
