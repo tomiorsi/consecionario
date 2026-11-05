@@ -1548,6 +1548,10 @@ async function instagramNumeros(env, { cuantas = 24 } = {}) {
    problema difícil. Sale unas cuarenta veces más barato. */
 const MODELO = 'claude-haiku-5-5';
 
+/* LO QUE LE LLEGA AL CLIENTE VA CON SONNET (Maxi, 5/11). El resto (describir
+   fotos, clasificar, los resúmenes, hablar con Maxi) sigue con Haiku. */
+const MODELO_CHARLA = 'claude-sonnet-5-5';
+
 /* CONTESTA EN UNA FORMA FIJA Y NO EN TEXTO SUELTO.
    Además del mensaje, el bot dice qué ficha de auto mandar, si lo tiene
    que seguir una persona y —en un comentario— si conviene escribirle y
@@ -1951,8 +1955,9 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
 
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
   const pedido = {
-    model: MODELO,
-    max_tokens: 4000,
+    model: MODELO_CHARLA,
+    /* Sonnet piensa antes de contestar y eso también cuenta acá. */
+    max_tokens: 8000,
     /* Esfuerzo bajo: son dos renglones de atención al cliente.
        SIN FORMATO FORZADO MIENTRAS PUEDE BUSCAR: las búsquedas traen
        citas, y las citas no conviven con un formato JSON forzado. La
@@ -2021,6 +2026,11 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     });
   }
 
+  /* Si Sonnet no quiere contestar, se intenta con Haiku antes de dejar
+     al cliente sin respuesta. */
+  if (respuesta.stop_reason === 'refusal') {
+    respuesta = await client.messages.create({ ...pedido, model: MODELO });
+  }
   if (respuesta.stop_reason === 'refusal') {
     throw new Error('Claude no quiso contestar esta conversación');
   }
