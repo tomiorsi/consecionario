@@ -2322,7 +2322,7 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
 const conPresentacion = (link, canal = 'whatsapp', idioma = 'es') => !link ? null
   : canal !== 'whatsapp' ? link
   : enIdioma(idioma) ? `${enIdioma(idioma).link}\n${link}`
-  : `Te mando el link para que vayas viendo un poco más de información.\n${link}`;
+  : `Te paso el link con fotos y más info.\n${link}`;
 
 const PAUSA_ENTRE_PARTES = 14000;
 const PAUSA_TRAS_EL_LINK = 24000;
