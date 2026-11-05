@@ -2075,6 +2075,13 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
   const auto = (autos ?? []).find((a) => a.id === dato.ficha_de)
     ?? (autos ?? []).find((a) => a.id === delOrigen);
 
+  /* NUNCA TODO EN UN MENSAJE (Maxi, 4/11). Si en un privado la pregunta
+     quedó pegada al final de un texto, se separa: es la regla de "partes"
+     y el modelo a veces la saltea. En un comentario Meta deja uno solo. */
+  const ultimaParte = partes[partes.length - 1] ?? '';
+  const conPregunta = ultimaParte.match(/^([\s\S]*[.!])\s+([^.!?]+\?)\s*$/);
+  if (!esComentario && conPregunta) partes.splice(partes.length - 1, 1, conPregunta[1], conPregunta[2]);
+
   return {
     partes,
     idioma: /^[a-z]{2}$/i.test(dato.idioma ?? '') ? dato.idioma.toLowerCase() : 'es',
@@ -3283,12 +3290,15 @@ renglones), rioplatense y sin vueltas:
   enfrió o no quedó un próximo paso, qué objeción no supiste responder;
 - hasta 3 preguntas concretas que necesitás que te conteste para mejorar,
   numeradas, así te responde "1. …".
-Si hoy no hubo nada que valga la pena, escribí sólo "Hoy sin dudas".`,
+Si hoy no hubo nada que valga la pena, escribí sólo "Hoy sin dudas".
+Esto es texto común: ignorá el formato JSON de las reglas de arriba.`,
     messages: [{ role: 'user', content:
       `CHARLAS DE HOY\n\n${charlas.join('\n\n')}` +
       (pendientes ? `\n\nCONSULTAS QUE MAXI TODAVÍA NO CONTESTÓ\n${pendientes}` : '') }],
   });
   const texto = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+  /* El 3/11 contestó en el JSON de las charlas y le llegó eso a Maxi. */
+  if (/```|"partes"|"respuestas"/.test(texto)) return;
   if (texto && texto !== 'Hoy sin dudas') await escribirleAlJefe(env, `Repaso del día\n\n${texto}`);
 }
 
@@ -3506,6 +3516,8 @@ Devolvé en "sirve" los números de los clientes a los que este auto les sirve d
    A la hora, si la ventana de 24 h está abierta, salen solas, en partes.
    Si se cerró, Meta no deja escribir sin plantilla: quedan en la Agenda,
    en verde, con el texto listo para que Maxi lo mande desde el teléfono. */
+const aSqlite = (iso) => new Date(iso).toISOString().slice(0, 19).replace('T', ' ');
+
 async function programadosDeHoy(env) {
   const todos = (await leerEstado(env, 'programados'))?.valor ?? [];
   const toca = (p) => aMs(p.cuando) <= Date.now();
@@ -3521,7 +3533,16 @@ async function programadosDeHoy(env) {
           AND creado > datetime('now','-23 hours') LIMIT 1`
     ).bind(chat.id).first();
     try {
-      if (!abierta) throw new Error('ventana cerrada');
+      if (!abierta) {
+        /* SI LA CHARLA SIGUIÓ DESPUÉS DE PROGRAMARLO, YA NO ES UNA TAREA
+           (Maxi, 4/11: le cargaba pedirle fotos a uno con el que ya había
+           hablado y quedó en nada). */
+        const siguio = p.creado && await env.DB.prepare(
+          `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND creado > ? LIMIT 1`
+        ).bind(chat.id, aSqlite(p.creado)).first();
+        if (siguio) continue;
+        throw new Error('ventana cerrada');
+      }
       await mandarRespuesta(env, chat, { partes: p.partes, autor: 'persona' });
     } catch (e) {
       await anotarAviso(env, `*PARA HACER HOY*\nMandale esto a ${lineaDe(chat, LISTAS.permuta, '')}`
@@ -4126,9 +4147,10 @@ async function atenderComentario(env, chat, r) {
     if (yaFuimos) return;
   }
 
-  const link = conPresentacion(await linkSinRepetir(env, chat.id, r.autoId), chat.canal);
+  /* SIN LINK (Maxi, 4/11): Meta deja un solo mensaje y, pegado al texto, el
+     link no muestra la foto. Sale aparte cuando contesta: `linkSinRepetir`
+     ve que no se mandó y el bot lo pone con "ficha_de". */
   const texto = armarTextos(r.partes, [
-    link,
     await ubicacionSinRepetir(env, chat.id, r.ubicacion),
     r.derivar || r.irAWhatsapp ? A_WHATSAPP : null,
   ].filter(Boolean)).join('\n\n');
@@ -5025,8 +5047,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       ).bind(chat.id).first();
       if (comentario?.externo_id) {
         try {
-          const link = conPresentacion(await linkSinRepetir(env, chat.id, autoId), chat.canal);
-          const todo = armarTextos(partes, [link].filter(Boolean)).join('\n\n');
+          const todo = partes.join('\n\n');
           const id = await mandarUno(env, chat, todo, { comentarioId: comentario.externo_id });
           await guardarSaliente(env, chat.id, todo, 'persona', id, { mediaId: comentario.media_id });
           try { await avisarEnElComentario(env, comentario.externo_id); } catch { /* secundario */ }
@@ -5127,7 +5148,17 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     const partes = (Array.isArray(c?.partes) ? c.partes : []).map((t) => texto(t, 1000)).filter(Boolean);
     if (!chat || !partes.length || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(c?.cuando ?? '')) return error('Faltan datos');
     const ya = (await leerEstado(env, 'programados'))?.valor ?? [];
-    await guardarEstado(env, 'programados', [...ya, { chat, cuando: c.cuando, partes }].slice(-100));
+    await guardarEstado(env, 'programados', [...ya, { chat, cuando: c.cuando, partes, creado: new Date().toISOString() }].slice(-100));
+    return json({ ok: true });
+  }
+
+  /* SACAR UNA VISITA DEL CALENDARIO: ya vino, o canceló (Maxi, 4/11). */
+  if (ruta === '/api/admin/agenda/sacar' && metodo === 'POST') {
+    const c = await peticion.json().catch(() => ({}));
+    const chat = entero(c?.chat, 1, 1e9);
+    if (!chat) return error('Faltan datos');
+    const ya = (await leerEstado(env, 'agenda'))?.valor ?? [];
+    await guardarEstado(env, 'agenda', ya.filter((v) => v.chat !== chat));
     return json({ ok: true });
   }
 
@@ -5184,15 +5215,24 @@ async function admin(peticion, env, ruta, metodo, ctx) {
   if (ruta === '/api/admin/tablero' && metodo === 'GET') {
     /* "PARA RESPONDER" AL DÍA (Maxi, 2/11): un chat que pasó al equipo
        queda contestado cuando el último mensaje es nuestro. Se busca por
-       el teléfono o el usuario que trae el aviso. */
+       el teléfono o el usuario que trae el aviso.
+       "PARA HACER" TAMBIÉN (4/11): si ya le escribimos después del aviso,
+       la tarea quedó vieja y no se cuenta. */
     const conRespuesta = async (a) => {
-      if (!/^(Te paso un chat|Contestó la confirmación|Te escribió un cliente)/.test(a.texto)) return a;
+      const esTarea = !a.hecho && (a.tipo === 'hacer' || a.texto.startsWith('*PARA HACER'));
+      if (!esTarea && !/^(Te paso un chat|Contestó la confirmación|Te escribió un cliente)/.test(a.texto)) return a;
       const digitos = soloDigitos((a.texto.match(/\+54 9 [\d -]{8,14}\d/) ?? [''])[0]).slice(-10);
       const usuario = (a.texto.match(/@([\w.]{3,})/) ?? [])[1];
       const c = digitos.length >= 8
         ? await env.DB.prepare('SELECT id FROM conversaciones WHERE externo_id LIKE ? LIMIT 1').bind(`%${digitos}`).first()
         : usuario ? await env.DB.prepare('SELECT id FROM conversaciones WHERE nombre = ? LIMIT 1').bind(usuario).first() : null;
       if (!c) return a;
+      if (esTarea) {
+        const yaLeEscribimos = await env.DB.prepare(
+          `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente' AND creado > ? LIMIT 1`
+        ).bind(c.id, aSqlite(a.cuando)).first();
+        return yaLeEscribimos ? { ...a, hecho: true } : a;
+      }
       const ultimo = await env.DB.prepare(
         'SELECT direccion FROM mensajes WHERE conversacion_id = ? ORDER BY creado DESC, id DESC LIMIT 1').bind(c.id).first();
       return { ...a, contestado: ultimo?.direccion === 'saliente' };
@@ -5205,7 +5245,11 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       return { ...x, quien: nombre || (c ? quienEs(c) : (x.quien ?? '')), canal: c?.canal ?? null,
         tel: c?.canal === 'whatsapp' ? c.externo_id : null };
     };
-    const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
+    /* LO QUE YA PASÓ SALE SOLO DEL CALENDARIO (Maxi, 4/11). */
+    const hoy = diaDeBsAs();
+    const guardada = (await leerEstado(env, 'agenda'))?.valor ?? [];
+    const agenda = guardada.filter((v) => v.visita.slice(0, 10) >= hoy);
+    if (agenda.length !== guardada.length) await guardarEstado(env, 'agenda', agenda);
     const consultas = (await leerEstado(env, 'consultas'))?.valor ?? [];
     return json({
       hoy: diaDeBsAs(),

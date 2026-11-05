@@ -1888,7 +1888,8 @@ function pintarCita(v) {
     '<div class="vis-dato"><small>Viene a ver</small><b>' + (v.auto ? escapar(v.auto) : '<i>No dijo</i>') + '</b></div>' +
     '<div class="vis-dato"><small>Trae</small><b>' + (trae ? escapar(queTraeEntero(cond))
       : '<i>' + (/contado|compra directa/i.test(cond) ? 'Compra directa' : 'Nada') + '</i>') + '</b></div>' +
-    '<div class="vis-estado vis-estado--' + estado[0] + '">' + estado[1] + '</div>' +
+    '<div class="vis-lado"><div class="vis-estado vis-estado--' + estado[0] + '">' + estado[1] + '</div>' +
+      '<button type="button" class="vis-sacar" data-sacar="' + v.chat + '">Ya vino / canceló</button></div>' +
     (claves.length ? '<ul class="vis-claves">' + claves.map((c) => '<li>' + escapar(c) + '</li>').join('') + '</ul>' : '') +
   '</article>';
 }
@@ -2006,6 +2007,14 @@ function pintarTablero() {
     try {
       await api('/api/admin/consultas/' + b.dataset.resuelta + '/resuelta', { method: 'POST', body: '{}' });
       tablero.consultas = tablero.consultas.filter((c) => String(c.n) !== b.dataset.resuelta);
+      pintarTablero();
+    } catch (err) { avisar(err.message, true); b.disabled = false; }
+  }));
+  $$('#tabCuerpo [data-sacar]').forEach((b) => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try {
+      await api('/api/admin/agenda/sacar', { method: 'POST', body: JSON.stringify({ chat: Number(b.dataset.sacar) }) });
+      tablero.agenda = tablero.agenda.filter((v) => String(v.chat) !== b.dataset.sacar);
       pintarTablero();
     } catch (err) { avisar(err.message, true); b.disabled = false; }
   }));

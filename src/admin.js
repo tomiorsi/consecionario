@@ -705,7 +705,11 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
 .vis-dato small{ display:block; font-size:.58rem; letter-spacing:.14em; text-transform:uppercase; opacity:.5; margin-bottom:.1rem }
 .vis-dato b{ display:block; font-size:.84rem; font-weight:500; line-height:1.3 }
 .vis-dato i{ font-style:normal; opacity:.5 }
-.vis-estado{ justify-self:end; display:inline-flex; align-items:center; gap:.4rem; padding:.3rem .65rem; border-radius:999px;
+.vis-lado{ justify-self:end; display:grid; justify-items:end; gap:.35rem }
+.vis-sacar{ border:1px solid rgba(255,255,255,.2); background:transparent; color:inherit; border-radius:999px;
+  padding:.22rem .6rem; font:inherit; font-size:.64rem; opacity:.7; cursor:pointer; white-space:nowrap }
+.vis-sacar:hover{ opacity:1; background:rgba(255,255,255,.1) }
+.vis-estado{ display:inline-flex; align-items:center; gap:.4rem; padding:.3rem .65rem; border-radius:999px;
   font-size:.66rem; font-weight:600; letter-spacing:.04em; white-space:nowrap; border:1px solid currentColor }
 .vis-estado::before{ content:''; width:6px; height:6px; border-radius:50%; background:currentColor }
 .vis-estado--ok{ color:#8fd6a8; background:rgba(143,214,168,.1) }
@@ -735,7 +739,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   .dia-num{ font-size:1rem }
   .vis{ grid-template-columns:3.6rem 1fr auto; padding:.8rem }
   .vis-dato{ grid-column:2 / -1 }
-  .vis-estado{ grid-column:3; grid-row:1 }
+  .vis-lado{ grid-column:3; grid-row:1 }
   .vis-claves{ grid-column:1 / -1 }
 }
 
