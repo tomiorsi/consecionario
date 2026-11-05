@@ -5237,6 +5237,19 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     return json(await configDelBot(env));
   }
   /* LO QUE LE ENSEÑÓ MAXI AL BOT EN LAS CHARLAS, para revisarlo en el panel. */
+  /* DE QUÉ AUTO ES UNA PUBLICACIÓN, cargado a mano por Maxi: gana sobre lo que
+     se reconoce solo. `auto` null la marca como que no es de ningún auto. */
+  const dePublicacion = ruta.match(/^\/api\/admin\/publicaciones\/(\d+)$/);
+  if (dePublicacion && metodo === 'PUT') {
+    const cuerpo = await peticion.json().catch(() => ({}));
+    const auto = cuerpo?.auto === null ? null : entero(cuerpo?.auto, 1, 1e9);
+    if (auto === undefined || (cuerpo?.auto !== null && !auto)) return error('Falta el auto');
+    const guardadas = (await leerEstado(env, 'publicaciones'))?.valor ?? {};
+    guardadas[`v3|ig:${dePublicacion[1]}`] = auto ? { tipo: 'auto', auto } : { tipo: 'general' };
+    await guardarEstado(env, 'publicaciones', guardadas);
+    return json({ ok: true });
+  }
+
   if (ruta === '/api/admin/aprendizajes' && metodo === 'GET') {
     return json({ aprendizajes: await loAprendido(env) });
   }

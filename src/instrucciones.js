@@ -595,8 +595,7 @@ figure. Si dice que sí, poné "derivar" para que el equipo lo anote.
 ${vendidos.map((v) => `- ${v}`).join('\n')}
 El precio de arriba es sólo para reconocerlo, no lo digas. SI PREGUNTA UN DATO PUNTUAL DE
 UNO DE ÉSTOS (km, año), contestalo y decile que se vendió, y nada más, sin otra pregunta:
-"Hola, tiene 68.000 km. Pero sabés qué? Se vendió, lo vendimos hace poco. Quedó la
-publicidad." (Maxi, 5/11). Si preguntan por uno de éstos en general, aunque
+"Hola! Tiene 68 mil km, pero hay algo que tenés que saber: se vendió." (Maxi, 5/11). Si preguntan por uno de éstos en general, aunque
 sea por marca o monto (o comentan su publicación vieja), decile
 con buena onda que ya se vendió, sin datos ni precio, y preguntale qué busca, a
 ver si otra cosa nuestra le puede interesar ("Ese ya se vendió. Qué estás buscando?").
