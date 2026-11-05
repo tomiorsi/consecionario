@@ -1726,12 +1726,32 @@ function clavesDe(a) {
   return /^\d+$/.test(primera) ? [String(a.marca ?? '').toLowerCase().split(/\s+/)[0]].filter(Boolean) : [primera].filter(Boolean);
 }
 
+/* v4 (5/11): antes un posteo podía quedar "general" sin que nadie mirara su
+   imagen, y así quedaba para siempre. Se vuelven a reconocer todos. */
+const CLAVE_PUBLICACION = (clave) => `v4|${clave}`;
+
+/* LA IMAGEN SE BAJA ACÁ Y SE MANDA ENTERA: el link de Instagram vence y a veces
+   no se deja leer desde afuera. Si no se puede bajar, se prueba con el link. */
+async function imagenParaClaude(imagen) {
+  try {
+    const r = await fetch(imagen);
+    const tipo = String(r.headers.get('content-type') ?? '').split(';')[0].trim();
+    if (r.ok && TIPOS_FOTO.includes(tipo)) {
+      const bytes = await r.arrayBuffer();
+      if (bytes.byteLength <= TOPE_FOTO) {
+        return { type: 'image', source: { type: 'base64', media_type: tipo, data: aBase64Plano(bytes) } };
+      }
+    }
+  } catch (e) {
+    console.error('No se pudo bajar la imagen del posteo:', e?.message ?? e);
+  }
+  return { type: 'image', source: { type: 'url', url: imagen } };
+}
+
 async function deQueEs(env, clave, { texto = '', imagen = null } = {}) {
   if (!clave) return null;
   const guardadas = (await leerEstado(env, 'publicaciones'))?.valor ?? {};
-  /* v2 (2/11): las clasificaciones viejas podían poner un auto de la
-     lista donde era otro que no está publicado (la Ranger → la Hilux). */
-  const k = `v3|${clave}`;
+  const k = CLAVE_PUBLICACION(clave);
   if (guardadas[k]) return guardadas[k];
 
   const { results: autos } = await env.DB.prepare(
@@ -1764,13 +1784,14 @@ async function deQueEs(env, clave, { texto = '', imagen = null } = {}) {
           required: ['tipo', 'auto'], additionalProperties: false,
         } } },
         messages: [{ role: 'user', content: [
-          ...(imagen ? [{ type: 'image', source: { type: 'url', url: imagen } }] : []),
+          ...(imagen ? [await imagenParaClaude(imagen)] : []),
           { type: 'text', text: `Es una publicación, historia o anuncio de Manna Selected, una concesionaria de autos.
 ${t ? `Su texto: «${t.slice(0, 1500)}»` : 'No tiene texto.'}
 Estos son nuestros autos (número, auto, estado):
 ${(autos ?? []).map((a) => `${a.id}: ${a.marca} ${a.modelo} ${a.anio ?? ''} (${a.estado})`).join('\n')}
-Decí de cuál de estos autos es ("tipo": "auto" y su número), si es para que la gente nos deje su auto en consignación ("consignacion"), o si es general, de varios autos o de ninguno ("general"). Mirá la imagen si la hay.
-Tiene que ser EXACTAMENTE ese auto: misma marca y mismo modelo. Si es otro que no está en la lista (por ejemplo una Ford Ranger, que no publicamos), o no estás seguro, es "general". Nunca elijas uno "parecido".` },
+Decí de cuál de estos autos es ("tipo": "auto" y su número), si es para que la gente nos deje su auto en consignación ("consignacion"), o si es general, de varios autos o de ninguno ("general").
+Mirá bien la imagen: el auto que se muestra, su forma, su marca, y lo que tenga escrito encima (modelo, año, precio). El texto suele ser una frase que no nombra el auto, así que la imagen manda. Si en la imagen se ve un auto y por su marca y su forma encaja con uno solo de la lista, es ese.
+Tiene que ser ese auto: misma marca y mismo modelo. Si es otro que no está en la lista (por ejemplo una Ford Ranger, que no publicamos), o podría ser más de uno de la lista, es "general". Nunca elijas uno "parecido".` },
         ] }],
       });
       const d = JSON.parse((r.content ?? []).find((b) => b.type === 'text')?.text ?? '{}');
@@ -1784,6 +1805,8 @@ Tiene que ser EXACTAMENTE ese auto: misma marca y mismo modelo. Si es otro que n
     }
   }
   res = res ?? { tipo: 'general' };
+  /* UN POSTEO SIN MIRAR SU IMAGEN NO QUEDA COMO "general": se vuelve a probar. */
+  if (res.tipo === 'general' && !imagen && clave.startsWith('ig:')) return res;
   guardadas[k] = res;
   await guardarEstado(env, 'publicaciones', Object.fromEntries(Object.entries(guardadas).slice(-400)));
   return res;
@@ -1889,7 +1912,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
        hace meses, que no entraron en la última lectura. Una llamada y
        sólo cuando falta; si tampoco sale, se sigue sin ella. */
     let imagen = ((await leerEstado(env, 'historias'))?.valor ?? {})[origen.media_id] ?? null;
-    const yaSabida = ((await leerEstado(env, 'publicaciones'))?.valor ?? {})[`ig:${origen.media_id}`];
+    const yaSabida = ((await leerEstado(env, 'publicaciones'))?.valor ?? {})[CLAVE_PUBLICACION(`ig:${origen.media_id}`)];
     if (!posteo || (!yaSabida && !imagen)) {
       try {
         const m = await igLlamar(env, `/${origen.media_id}?fields=caption,media_url,thumbnail_url`);
@@ -1929,10 +1952,10 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
       .match(/instagram\.com\/(?:p|reel|reels)\/([\w-]+)/i)?.[1]).find(Boolean);
     if (codigo) {
       try {
-        const media = await igLlamar(env, '/me/media?fields=id,permalink,caption&limit=50');
+        const media = await igLlamar(env, '/me/media?fields=id,permalink,caption,media_url,thumbnail_url&limit=50');
         const p = (media?.data ?? []).find((x) => String(x.permalink ?? '').includes(`/${codigo}`));
         if (p) {
-          delLink = await deQueEs(env, `ig:${p.id}`, { texto: p.caption ?? '' });
+          delLink = await deQueEs(env, `ig:${p.id}`, { texto: p.caption ?? '', imagen: p.thumbnail_url ?? p.media_url ?? null });
           if (!posteo && p.caption) posteo = p.caption;
         }
       } catch (e) {
@@ -5245,7 +5268,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     const auto = cuerpo?.auto === null ? null : entero(cuerpo?.auto, 1, 1e9);
     if (auto === undefined || (cuerpo?.auto !== null && !auto)) return error('Falta el auto');
     const guardadas = (await leerEstado(env, 'publicaciones'))?.valor ?? {};
-    guardadas[`v3|ig:${dePublicacion[1]}`] = auto ? { tipo: 'auto', auto } : { tipo: 'general' };
+    guardadas[CLAVE_PUBLICACION(`ig:${dePublicacion[1]}`)] = auto ? { tipo: 'auto', auto } : { tipo: 'general' };
     await guardarEstado(env, 'publicaciones', guardadas);
     return json({ ok: true });
   }
