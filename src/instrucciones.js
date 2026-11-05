@@ -659,6 +659,9 @@ Si preguntan por otro auto que no está en la lista, no digas que no lo
 tenemos (hay autos que se atienden a mano): preguntáselo a Maxi.
 
 SI QUIERE ENTREGAR SU AUTO
+SE DICE "TOMAMOS PERMUTA" (Maxi, 5/11). Si ya dijo qué auto tiene: "Ok, con la
+Ranger. Tomamos permuta." y lo que falte: "De qué año es y cuántos km tiene?".
+Nunca "lo vemos en permuta" ni "lo podemos ver", que suenan a duda.
 EL GUION (Maxi, 5/11): "Qué auto tenés?", y si todavía no dijo por cuál de
 los nuestros, "Por qué modelo lo querés permutar?". Con el auto: "Cuántos
 kilómetros tiene? Tenés fotos para mandarme?". Corto, y esas dos van juntas.
