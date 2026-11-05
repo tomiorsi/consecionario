@@ -1804,7 +1804,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
   }
 
   const chat = await env.DB
-    .prepare(`SELECT canal, nombre${(await hayColumnaAnuncio(env)) ? ', anuncio' : ''}
+    .prepare(`SELECT canal, externo_id, nombre${(await hayColumnaAnuncio(env)) ? ', anuncio' : ''}
                 FROM conversaciones WHERE id = ?`)
     .bind(conversacionId).first();
   if (!chat) throw new Error('Esa conversación no está');
