@@ -4982,8 +4982,10 @@ async function admin(peticion, env, ruta, metodo, ctx) {
         posteo: texto(c?.posteo, 2000) || null } });
       const ficha = r.autoId ? await fichaDe(env, r.autoId) : null;
       const yaEsta = ficha && mensajes.some((m) => m.direccion === 'saliente' && m.texto.includes(ficha.enlace));
-      const fijos = [conPresentacion(yaEsta ? null : ficha?.enlace, canal, r.idioma), r.ubicacion ? UBICACION : null].filter(Boolean);
-      return json({ mensajes: r.responder ? armarTextos(r.partes, fijos) : [], contesta: r.responder,
+      /* Igual que `atenderComentario`: un solo mensaje y sin link. */
+      const fijos = [r.esComentario ? null : conPresentacion(yaEsta ? null : ficha?.enlace, canal, r.idioma), r.ubicacion ? UBICACION : null].filter(Boolean);
+      const textos = armarTextos(r.partes, fijos);
+      return json({ mensajes: !r.responder ? [] : r.esComentario ? [textos.join('\n\n')] : textos, contesta: r.responder,
         pasaAPersona: r.derivar ?? null, consultaAMaxi: r.consulta, visita: r.visita, paraTasar: r.resumenParaTasar });
     } catch (e) {
       return error(e?.message || 'No se pudo simular', 502);
