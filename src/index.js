@@ -917,7 +917,7 @@ async function describirFotos(env, fotos = []) {
           role: 'user',
           content: [
             imagen,
-            { type: 'text', text: `Un cliente de una concesionaria de autos mandó esta foto por chat. Mirala al detalle y describila en castellano, en pocas líneas: qué es, marca, modelo y versión si se distinguen, color, estado por afuera y por adentro, detalles que se vean (golpes, rayones, llantas, tapizado, techo), y el texto o los km que se lean. Si es un documento o una captura, qué dice. No inventes lo que no se ve. Respondé sólo la descripción.` },
+            { type: 'text', text: `Un cliente de una concesionaria de autos mandó esta foto por chat. Mirala al detalle y describila en castellano, en pocas líneas: qué es, marca, modelo y versión si se distinguen, color, estado por afuera y por adentro, detalles que se vean (golpes, rayones, llantas, tapizado, techo) y de qué lado se ve. Si se ve el tablero, escribí los kilómetros EXACTOS del odómetro, tal cual se leen. Nunca escribas patentes, números de documento, nombres ni datos de personas. No inventes lo que no se ve. Respondé sólo la descripción.` },
           ],
         }],
       });
