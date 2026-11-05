@@ -1035,31 +1035,20 @@ const AVISOS = [
   'Gracias por escribir! Te hablamos por privado y te contamos todo.',
 ];
 
-/* A UN ELOGIO SE LE AGRADECE EN PÚBLICO (Maxi, 28/10: "no está
-   respondiendo los comentarios"). Con el mismo criterio que los avisos:
-   texto nuestro, de una lista, nunca escrito por el modelo. */
-const GRACIAS = [
-  'Gracias!',
-  'Muchas gracias!',
-  'Gracias, un gusto!',
-  'Gracias por bancarnos!',
-  'Qué bueno que te guste, gracias!',
-];
-
 /* LOS TEXTOS FIJOS EN OTROS IDIOMAS (Maxi, 1/11: "si te hablan en otro
    idioma, contestá en ese idioma"). Lo que escribe el modelo ya sale en el
    idioma del cliente; esto es lo poco que no escribe él. */
 const EN_OTRO_IDIOMA = {
   en: { avisos: ['Hi! We just sent you a DM with all the info.', 'Thanks for writing! Check your messages, we wrote to you.'],
-    gracias: ['Thanks!', 'Thank you so much!'], link: "Here's the link so you can see more details and photos." },
+    link: "Here's the link so you can see more details and photos." },
   pt: { avisos: ['Oi! Te mandamos uma mensagem no privado com todas as informações.', 'Obrigado por escrever! Te respondemos no privado.'],
-    gracias: ['Obrigado!', 'Muito obrigado!'], link: 'Te mando o link para você ver mais informações e fotos.' },
+    link: 'Te mando o link para você ver mais informações e fotos.' },
   it: { avisos: ['Ciao! Ti abbiamo scritto in privato con tutte le informazioni.', 'Grazie per averci scritto! Ti rispondiamo in privato.'],
-    gracias: ['Grazie!', 'Grazie mille!'], link: 'Ti mando il link per vedere più informazioni e foto.' },
+    link: 'Ti mando il link per vedere più informazioni e foto.' },
   fr: { avisos: ['Bonjour ! Nous vous avons écrit en privé avec toutes les infos.', 'Merci de nous avoir écrit ! On vous répond en privé.'],
-    gracias: ['Merci !', 'Merci beaucoup !'], link: 'Voici le lien pour voir plus d’informations et de photos.' },
+    link: 'Voici le lien pour voir plus d’informations et de photos.' },
   de: { avisos: ['Hallo! Wir haben dir privat mit allen Infos geschrieben.', 'Danke für deine Nachricht! Wir antworten dir privat.'],
-    gracias: ['Danke!', 'Vielen Dank!'], link: 'Hier ist der Link mit mehr Infos und Fotos.' },
+    link: 'Hier ist der Link mit mehr Infos und Fotos.' },
 };
 const enIdioma = (idioma) => EN_OTRO_IDIOMA[String(idioma ?? 'es').slice(0, 2).toLowerCase()] ?? null;
 
@@ -1921,6 +1910,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     ).bind(origen.media_id).first();
     nuestro = propio?.texto ?? null;
   }
+  if (simulacion?.posteo) posteo = simulacion.posteo;
 
   /* EL ANUNCIO TAMBIÉN SE RECONOCE, por si su título no dice el modelo. */
   const delAnuncio = !publicacion && anuncio && (anuncio.titulo || anuncio.texto)
@@ -4151,20 +4141,8 @@ async function atenderComentario(env, chat, r) {
     catch (e) { console.error('No se pudo dar me gusta:', e?.message ?? e); }
   }
 
-  if (!r.responder && !r.derivar) {
-    /* Un elogio: me gusta y un gracias abajo. Uno por persona y por
-       publicación, aunque deje cinco emojis. */
-    if (r.megusta) {
-      const clave = `${chat.id}:${comentario.media_id ?? comentario.externo_id}`;
-      const ya = (await leerEstado(env, 'gracias'))?.valor ?? [];
-      if (!ya.includes(clave)) {
-        await guardarEstado(env, 'gracias', [...ya, clave].slice(-500));
-        try { await avisarEnElComentario(env, comentario.externo_id, enIdioma(r.idioma)?.gracias ?? GRACIAS); }
-        catch (e) { console.error('No se pudo agradecer en el comentario:', e?.message ?? e); }
-      }
-    }
-    return;
-  }
+  /* Si no consulta, no se le contesta: ni por privado ni abajo (Maxi, 5/11). */
+  if (!r.responder && !r.derivar) return;
 
   if (comentario.media_id) {
     const yaFuimos = await env.DB.prepare(
@@ -4995,10 +4973,13 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       direccion: m?.de === 'bot' ? 'saliente' : 'entrante', autor: m?.de === 'bot' ? 'ia' : null,
       tipo: 'texto', texto: texto(m?.texto, 2000), clase: 'mensaje', media_id: null, externo_id: null, creado,
     })).filter((m) => m.texto);
+    /* Para probar un comentario: el último del cliente, abajo de `posteo`. */
+    if (c?.comentario === true && mensajes.length) mensajes[mensajes.length - 1].clase = 'comentario';
     const canal = c?.canal === 'instagram' ? 'instagram' : 'whatsapp';
     try {
       const r = await pensarRespuesta(env, 0, { automatico: true, simulacion: {
-        canal, externo_id: null, nombre: texto(c?.nombre, 60) || null, mensajes } });
+        canal, externo_id: null, nombre: texto(c?.nombre, 60) || null, mensajes,
+        posteo: texto(c?.posteo, 2000) || null } });
       const ficha = r.autoId ? await fichaDe(env, r.autoId) : null;
       const yaEsta = ficha && mensajes.some((m) => m.direccion === 'saliente' && m.texto.includes(ficha.enlace));
       const fijos = [conPresentacion(yaEsta ? null : ficha?.enlace, canal, r.idioma), r.ubicacion ? UBICACION : null].filter(Boolean);
