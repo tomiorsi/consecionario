@@ -2551,7 +2551,11 @@ export class Envios extends DurableObject {
         const humanoAhora = (await this.env.DB
           .prepare('SELECT humano FROM conversaciones WHERE id = ?')
           .bind(paso.chat.id).first())?.humano ? 1 : 0;
-        const sigue = !escribio &&
+        /* Si apagaron el bot o ese canal, lo que quedó en cola no sale. */
+        const cfgCola = await configDelBot(this.env);
+        const frenado = paso.autor === 'ia' && !cfgCola.prueba
+          && (!cfgCola.encendida || (paso.chat.canal === 'instagram' && !cfgCola.instagram));
+        const sigue = !escribio && !frenado &&
           (paso.autor !== 'ia' || humanoAhora <= (paso.humanoAntes ?? 0));
         if (sigue && paso.plantilla) {
           /* POSVENTA: texto libre si la persona escribió hace menos de 23
@@ -2640,6 +2644,9 @@ async function configDelBot(env) {
   return {
     desde: hora(g.desde), hasta: hora(g.hasta), encendida, apagado: !encendida,
     whatsappDeDia, deNoche: esDeNoche(),
+    /* INSTAGRAM TIENE SU PROPIO INTERRUPTOR (Maxi, 5/11: "detenelos"). Sólo
+       `true` lo prende. */
+    instagram: g.instagram === true,
     /* MODO PRUEBA (Maxi, 5/11): desde esta fecha el bot trata a Maxi como a
        un cliente, aunque esté apagado para todos los demás. */
     prueba: typeof g.prueba === 'string' ? g.prueba : null,
@@ -2658,6 +2665,7 @@ function esDeNoche(ahora = new Date()) {
 
 function canalActivo(cfg, canal, ahora = new Date()) {
   if (!cfg.encendida) return false;
+  if (canal === 'instagram') return cfg.instagram === true;
   if (canal !== 'whatsapp') return true;
   return esDeNoche(ahora) || cfg.whatsappDeDia;
 }
@@ -3455,7 +3463,8 @@ async function avisarVisitaAlEquipo(env, v) {
    Una sola confirmación por visita. */
 async function confirmarVisitasDeHoy(env) {
   /* APAGADA NO LE ESCRIBE A NADIE (Maxi, 5/11). */
-  if (!(await configDelBot(env)).encendida) return;
+  const cfgVisitas = await configDelBot(env);
+  if (!cfgVisitas.encendida) return;
   const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
   const hoy = diaDeBsAs();
   const deHoy = agenda.filter((v) => v.visita.slice(0, 10) === hoy);
@@ -3474,7 +3483,7 @@ async function confirmarVisitasDeHoy(env) {
       `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
           AND creado > datetime('now','-23 hours') LIMIT 1`
     ).bind(c.id).first());
-    if (!enviada && abierta && !v.aConfirmar) {
+    if (!enviada && abierta && !v.aConfirmar && canalActivo(cfgVisitas, c.canal)) {
       const hora = v.visita.length > 10 ? v.visita.slice(11, 16) : null;
       const libre = `Hola! Buen día. Te escribo para confirmar que hoy`
         + `${hora ? ` a las ${hora}` : ''} te esperamos en el salón, en Pje. Lanín 154, Barracas`
@@ -5300,6 +5309,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       encendida: 'encendida' in (cuerpo ?? {}) ? cuerpo.encendida === true : antes.encendida === true,
       whatsappDeDia: 'whatsappDeDia' in (cuerpo ?? {})
         ? cuerpo.whatsappDeDia === true : antes.whatsappDeDia === true,
+      instagram: 'instagram' in (cuerpo ?? {}) ? cuerpo.instagram === true : antes.instagram === true,
       /* `prueba: true` arranca una prueba de cero; `false` la termina. */
       prueba: 'prueba' in (cuerpo ?? {})
         ? (cuerpo.prueba === true ? new Date().toISOString() : null) : (antes.prueba ?? null),
