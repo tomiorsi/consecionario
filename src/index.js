@@ -1860,7 +1860,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
   /* LO QUE YA SE VENDIÓ, para no ofrecerlo (Maxi, 29/10: el bot seguía
      ofreciendo el 500C en Instagram, abajo de su publicación vieja). */
   const { results: vendidos } = await env.DB.prepare(
-    `SELECT marca, modelo, anio FROM autos WHERE estado = 'vendido'
+    `SELECT marca, modelo, anio, precio, moneda FROM autos WHERE estado = 'vendido'
       AND COALESCE(editado, creado) > datetime('now','-180 days')`
   ).all();
 
@@ -1976,7 +1976,8 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
         || (deConsignacion && !origenSabido ? 'dudoso' : false),
       deQueAuto,
       aprendizajes: await loAprendido(env),
-      vendidos: (vendidos ?? []).map((a) => [a.marca, a.modelo, a.anio].filter(Boolean).join(' ')),
+      vendidos: (vendidos ?? []).map((a) => [a.marca, a.modelo, a.anio].filter(Boolean).join(' ')
+        + (a.precio ? ` (estaba en ${a.moneda} ${a.precio})` : '')),
       reservados: reservados.map((a) => `[${a.id}] ${[a.marca, a.modelo, a.anio].filter(Boolean).join(' ')}`),
       porEntrar: ((await leerEstado(env, 'por_entrar'))?.valor ?? []).map((a) => a.texto),
       hoy: hoyEnBsAs(), soloDatos,
@@ -2069,10 +2070,11 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
   /* EL LINK SALE SÓLO SI EL BOT LO PIDE: cuando piden info o fotos (Maxi, 5/11). */
   const yaHablo = privados.some((m) => m.direccion === 'saliente');
   /* Si en WhatsApp ya hablaron y contesta, el link pendiente sale con esta
-     respuesta: no se deja para otros 5 minutos (Maxi, 5/11). */
+     respuesta: no se deja para otros 5 minutos (Maxi, 5/11). Igual en todos
+     los canales. */
   const enWhatsapp = chat.canal === 'whatsapp';
   const auto = (autos ?? []).find((a) => a.id === dato.ficha_de)
-    ?? (yaHablo && enWhatsapp ? (autos ?? []).find((a) => a.id === dato.ficha_en_un_rato) : null);
+    ?? (yaHablo ? (autos ?? []).find((a) => a.id === dato.ficha_en_un_rato) : null);
 
   /* La frase del link la pone `conPresentacion`: si el modelo también la
      escribe, sale dos veces. */
@@ -2098,8 +2100,8 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
        contacto es el único que puede llevar uno más: es el saludo. */
     /* En Instagram y Messenger la frase y el link son dos mensajes. */
     autoId: yaHablo && partes.length >= (enWhatsapp ? 3 : 2) ? null : auto?.id ?? null,
-    /* EL LINK A LOS 5 MINUTOS SI NO CONTESTA (Maxi, 5/11), sólo en WhatsApp. */
-    autoEnUnRato: !esComentario && !yaHablo && !auto && enWhatsapp
+    /* EL LINK A LOS 5 MINUTOS SI NO CONTESTA (Maxi, 5/11). */
+    autoEnUnRato: !esComentario && !yaHablo && !auto
       ? (autos ?? []).find((a) => a.id === dato.ficha_en_un_rato)?.id ?? null : null,
     derivar: dato.pasar_a_persona ? String(dato.pasar_a_persona).slice(0, 200) : null,
     /* A un privado se le contesta siempre; a un comentario, si el bot
@@ -2325,7 +2327,7 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
 const conPresentacion = (link, canal = 'whatsapp', idioma = 'es') => {
   if (!link) return [];
   if (canal !== 'whatsapp') return [enIdioma(idioma)?.link
-    ?? 'De paso, te mando un link donde podés ver más fotos y una descripción más completa.', link];
+    ?? 'Acá te paso más fotos y más info para que vayas viendo.', link];
   return [`${enIdioma(idioma)?.link ?? 'Acá te paso más fotos y más info para que vayas viendo.'}\n${link}`];
 };
 
@@ -2417,8 +2419,8 @@ async function mandarRespuesta(env, chat, {
 
   /* Va al final de la cola y se cancela si el cliente escribe antes. */
   if (enUnRato) {
-    const [texto] = conPresentacion(await linkSinRepetir(env, chat.id, enUnRato), chat.canal, idioma);
-    if (texto) pasos.push({ texto, espera: LINK_EN_UN_RATO });
+    conPresentacion(await linkSinRepetir(env, chat.id, enUnRato), chat.canal, idioma)
+      .forEach((texto, n) => pasos.push({ texto, espera: n === 0 ? LINK_EN_UN_RATO : conVaivén(PAUSA_ENTRE_PARTES) }));
   }
 
   const [primero, ...resto] = pasos;
@@ -3848,63 +3850,6 @@ async function hacerPosventa(env) {
   }
 }
 
-/* LO QUE QUEDÓ SIN CONTESTAR (Maxi, 28/10).
-   Si el bot estaba apagado cuando alguien escribió, ese chat quedaba
-   colgado para siempre: el bot sólo se despierta con un mensaje nuevo.
-   Esto lo busca cuando se prende y en cada vuelta del reloj (cada media
-   hora), y lo contesta como si recién hubiera llegado.
-
-   QUÉ CUENTA COMO PENDIENTE: el último mensaje es del cliente, tiene
-   entre 2 minutos y 12 horas (más viejo, ya se enfrió y la ventana de
-   Meta se achica), nadie del equipo escribió en esas 12 horas, y el chat
-   no lo atiende una persona. Si el equipo anda en la charla, no se mete. */
-async function ponerseAlDia(env, { hasta = 10 } = {}) {
-  /* APAGADO NO MARCA NADA COMO VISTO: si no, al prender no queda nada para
-     contestar (Maxi, 5/11). */
-  const cfg = await configDelBot(env);
-  if (!cfg.encendida) return 0;
-  const { results } = await env.DB.prepare(
-    `SELECT c.id AS conversacion, c.canal, m.id AS mensaje
-       FROM conversaciones c
-       JOIN mensajes m ON m.id = (
-         SELECT id FROM mensajes WHERE conversacion_id = c.id
-          ORDER BY creado DESC, id DESC LIMIT 1)
-      WHERE c.humano = 0
-        /* EMPEZAR POR LA FECHA DE LA CHARLA Y NO POR TODAS LAS CHARLAS.
-           Sin esta línea la consulta miraba las 328 conversaciones una
-           por una —buscando el último mensaje de cada una— para quedarse
-           con dos. La columna "ultimo" se escribe en cada mensaje y
-           tiene índice, así que pedirla acá no cambia el resultado: si
-           el último mensaje entró en las últimas 12 horas, esa fecha
-           también está ahí. Medido contra la base real: 1875 filas
-           leídas pasaron a 402, con las mismas dos respuestas. */
-        AND c.ultimo >= datetime('now','-12 hours')
-        AND m.direccion = 'entrante'
-        AND m.clase = 'mensaje'
-        AND m.creado BETWEEN datetime('now','-12 hours') AND datetime('now','-2 minutes')
-        AND NOT EXISTS (
-          SELECT 1 FROM mensajes p WHERE p.conversacion_id = c.id
-             AND p.direccion = 'saliente' AND p.autor = 'persona')
-      ORDER BY m.creado
-      LIMIT 50`
-  ).all();
-
-  /* UNA VEZ POR MENSAJE. Si el bot decidió que un "Ok" no se contesta,
-     ese "Ok" sigue siendo el último; sin esta memoria lo volvería a
-     pensar cada media hora. */
-  const vistos = (await leerEstado(env, 'al_dia'))?.valor ?? [];
-  const jefe = await chatDelJefe(env);
-  const nuevos = (results ?? [])
-    .filter((r) => !vistos.includes(r.mensaje) && r.conversacion !== jefe?.id && canalActivo(cfg, r.canal))
-    .slice(0, hasta);
-  if (!nuevos.length) return 0;
-  await guardarEstado(env, 'al_dia', [...vistos, ...nuevos.map((r) => r.mensaje)].slice(-300));
-
-  console.log(JSON.stringify({ alDia: 'pendientes', cuantos: nuevos.length }));
-  await atenderSolo(env, nuevos);
-  return nuevos.length;
-}
-
 async function atenderSolo(env, disparos) {
   const cfg = await configDelBot(env);
   if (!cfg.prueba && !disparos.some((d) => canalActivo(cfg, d.canal))) return;
@@ -4707,8 +4652,6 @@ export default {
     await guardarEstado(env, 'reloj', { cuando: new Date().toISOString(), hora, minuto: minutoDelReloj })
       .catch(() => {});
 
-    try { await ponerseAlDia(env); }
-    catch (e) { console.error('No se pudo poner al día:', e?.message ?? e); }
 
     const minuto = new Date(evento.scheduledTime ?? Date.now()).getUTCMinutes();
 
@@ -4962,7 +4905,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       const textos = armarTextos(r.partes, fijos);
       const fichaTarde = r.autoEnUnRato ? await fichaDe(env, r.autoEnUnRato) : null;
       return json({ mensajes: !r.responder ? [] : r.esComentario ? [textos.join('\n\n')] : textos, contesta: r.responder,
-        aLos5Minutos: conPresentacion(fichaTarde?.enlace, canal, r.idioma)[0] ?? null,
+        aLos5Minutos: conPresentacion(fichaTarde?.enlace, canal, r.idioma).join('\n') || null,
         pasaAPersona: r.derivar ?? null, consultaAMaxi: r.consulta, visita: r.visita, paraTasar: r.resumenParaTasar });
     } catch (e) {
       return error(e?.message || 'No se pudo simular', 502);
@@ -5314,11 +5257,6 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       prueba: 'prueba' in (cuerpo ?? {})
         ? (cuerpo.prueba === true ? new Date().toISOString() : null) : (antes.prueba ?? null),
     });
-    if (cuerpo?.encendida === true && antes.encendida !== true) await guardarEstado(env, 'al_dia', []);
-    /* Al prenderlo, lo que quedó esperando se contesta ya, sin esperar
-       la vuelta del reloj. Pocos por vez: esto corre con poco tiempo. */
-    ctx?.waitUntil?.(ponerseAlDia(env, { hasta: 3 }).catch((e) =>
-      console.error('No se pudo poner al día:', e?.message ?? e)));
     return json(await configDelBot(env));
   }
 
