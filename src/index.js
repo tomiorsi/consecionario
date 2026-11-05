@@ -1527,8 +1527,7 @@ async function instagramNumeros(env, { cuantas = 24 } = {}) {
    EL BOT
    ══════════════════════════════════════════════════════════════════
 
-   QUÉ DICE Y CÓMO LO DICE ESTÁ EN src/instrucciones.js (y las
-   presentaciones de cada auto en src/presentaciones.js). Acá está lo que
+   QUÉ DICE Y CÓMO LO DICE ESTÁ EN src/instrucciones.js. Acá está lo que
    lo rodea: qué historial ve, qué stock, de qué publicación o anuncio
    viene, y qué se hace con lo que contesta.
 
@@ -2065,19 +2064,8 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
 
   /* El número de auto se cruza con el stock: uno inventado o vendido no
      llega a ningún lado. */
-  /* EL LINK DEL AUTO DEL QUE VIENE, AUNQUE EL BOT NO LO PIDA (Maxi, 1/11:
-     "a algunos no les mandás el link del modelo por el que preguntaron").
-     Si vino de la publicación o el anuncio de un auto publicado y no
-     reservado, ese es el auto: el link sale (una sola vez, ver
-     `linkSinRepetir`) salvo que la charla sea de una consignación. */
-  /* Y SÓLO SI LA RESPUESTA HABLA DE ESE AUTO (2/11: el bot le habló de
-     la Ranger a uno y le salió el link de la Hilux). */
-  const deOrigen = (autos ?? []).find((a) => a.id === origenSabido?.auto);
-  const loNombra = deOrigen && clavesDe(deOrigen).some((c) => new RegExp(`\\b${c}\\b`, 'i').test(partes.join(' ')));
-  const delOrigen = origenSabido?.tipo === 'auto' && !reservadosIds.includes(origenSabido.auto) && loNombra
-    ? origenSabido.auto : null;
-  const auto = (autos ?? []).find((a) => a.id === dato.ficha_de)
-    ?? (autos ?? []).find((a) => a.id === delOrigen);
+  /* EL LINK SALE SÓLO SI EL BOT LO PIDE: cuando piden info o fotos (Maxi, 5/11). */
+  const auto = (autos ?? []).find((a) => a.id === dato.ficha_de);
 
   /* NUNCA TODO EN UN MENSAJE (Maxi, 4/11). Si en un privado la pregunta
      quedó pegada al final de un texto, se separa: es la regla de "partes"
@@ -2314,7 +2302,7 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
 const conPresentacion = (link, canal = 'whatsapp', idioma = 'es') => !link ? null
   : canal !== 'whatsapp' ? link
   : enIdioma(idioma) ? `${enIdioma(idioma).link}\n${link}`
-  : `Te paso el link con fotos y más info.\n${link}`;
+  : `Acá te paso más info para que vayas viendo, hay algunas fotos también.\n${link}`;
 
 const PAUSA_ENTRE_PARTES = 14000;
 const PAUSA_TRAS_EL_LINK = 24000;
@@ -3358,7 +3346,6 @@ async function loAtendioElEquipo(env, chatId) {
 }
 
 /* Un precio en lo que dijo el bot: "USD 23.900", "US$ 69.000". */
-const DIO_PRECIO = /\b(USD|US\$|U\$S)\s?\d{1,3}(\.\d{3})+/i;
 
 /* "martes 28 de octubre de 2026, 19:45" en Buenos Aires. */
 function hoyEnBsAs(cuando = new Date()) {
@@ -4059,10 +4046,6 @@ async function atenderSolo(env, disparos) {
       else await mandarRespuesta(env, chat, {
         partes: r.partes, autoId: r.autoId, ubicacion: r.ubicacion, idioma: r.idioma,
         aWhatsapp: Boolean(r.derivar || r.irAWhatsapp), autor: 'ia',
-        /* Si le pasó un precio, a los 20 minutos de silencio se piensa un
-           seguimiento (ver `Envios`). */
-        despues: !r.derivar && !whatsappEnCuarentena(chat.canal) && DIO_PRECIO.test(r.partes.join(' '))
-          ? { pensar: 'precio', texto: null, espera: 20 * 60 * 1000 } : null,
       });
 
       /* LO QUE MAXI TIENE QUE SABER, en el momento: una visita, un chat
