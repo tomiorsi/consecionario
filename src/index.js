@@ -1731,7 +1731,7 @@ async function deQueEs(env, clave, { texto = '', imagen = null } = {}) {
   const guardadas = (await leerEstado(env, 'publicaciones'))?.valor ?? {};
   /* v2 (2/11): las clasificaciones viejas podían poner un auto de la
      lista donde era otro que no está publicado (la Ranger → la Hilux). */
-  const k = `v2|${clave}`;
+  const k = `v3|${clave}`;
   if (guardadas[k]) return guardadas[k];
 
   const { results: autos } = await env.DB.prepare(
@@ -1753,8 +1753,8 @@ async function deQueEs(env, clave, { texto = '', imagen = null } = {}) {
     try {
       const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
       const r = await client.messages.create({
-        model: MODELO,
-        max_tokens: 200,
+        model: MODELO_CHARLA,
+        max_tokens: 400,
         output_config: { effort: 'low', format: { type: 'json_schema', schema: {
           type: 'object',
           properties: {
@@ -1779,6 +1779,8 @@ Tiene que ser EXACTAMENTE ese auto: misma marca y mismo modelo. Si es otro que n
       else res = { tipo: 'general' };
     } catch (e) {
       console.error('No se pudo reconocer la publicación:', e?.message ?? e);
+      /* Un error no es "no es de ningún auto": no se guarda, se reintenta. */
+      return { tipo: 'general' };
     }
   }
   res = res ?? { tipo: 'general' };
@@ -2117,7 +2119,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     /* Un auto que dejan para evaluar, con lo que se juntó. */
     paraTasar: ['permuta', 'consignacion'].includes(dato.para_tasar) ? dato.para_tasar : null,
     resumenParaTasar: dato.resumen_para_tasar ? String(dato.resumen_para_tasar).slice(0, 300) : null,
-    consulta: !esComentario && dato.consulta_a_maxi ? String(dato.consulta_a_maxi).slice(0, 400) : null,
+    consulta: dato.consulta_a_maxi ? String(dato.consulta_a_maxi).slice(0, 400) : null,
     visita: !esComentario && /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(dato.visita ?? '') ? dato.visita : null,
     visitaAuto: dato.visita_auto ? String(dato.visita_auto).slice(0, 120) : null,
     visitaNombre: dato.visita_nombre ? String(dato.visita_nombre).trim().slice(0, 80) : null,
