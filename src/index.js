@@ -2066,7 +2066,21 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
   /* El número de auto se cruza con el stock: uno inventado o vendido no
      llega a ningún lado. */
   /* EL LINK SALE SÓLO SI EL BOT LO PIDE: cuando piden info o fotos (Maxi, 5/11). */
-  const auto = (autos ?? []).find((a) => a.id === dato.ficha_de);
+  const yaHablo = privados.some((m) => m.direccion === 'saliente');
+  /* Si en WhatsApp ya hablaron y contesta, el link pendiente sale con esta
+     respuesta: no se deja para otros 5 minutos (Maxi, 5/11). */
+  const enWhatsapp = chat.canal === 'whatsapp';
+  const auto = (autos ?? []).find((a) => a.id === dato.ficha_de)
+    ?? (yaHablo && enWhatsapp ? (autos ?? []).find((a) => a.id === dato.ficha_en_un_rato) : null);
+
+  /* La frase del link la pone `conPresentacion`: si el modelo también la
+     escribe, sale dos veces. */
+  if (auto) {
+    const limpias = partes
+      .map((t) => t.replace(/\s*(Acá te paso más fotos[^.\n]*|De paso, te mando un link[^.\n]*)\.?/gi, '').trim())
+      .filter(Boolean);
+    partes.splice(0, partes.length, ...(limpias.length ? limpias : ['Dale!']));
+  }
 
   /* NUNCA TODO EN UN MENSAJE (Maxi, 4/11). Si en un privado la pregunta
      quedó pegada al final de un texto, se separa: es la regla de "partes"
@@ -2081,9 +2095,10 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     texto: partes.join('\n\n'),
     /* TRES MENSAJES COMO MUCHO, CONTANDO EL LINK (Maxi, 5/11). El primer
        contacto es el único que puede llevar uno más: es el saludo. */
-    autoId: partes.length >= 3 && privados.some((m) => m.direccion === 'saliente') ? null : auto?.id ?? null,
+    /* En Instagram y Messenger la frase y el link son dos mensajes. */
+    autoId: yaHablo && partes.length >= (enWhatsapp ? 3 : 2) ? null : auto?.id ?? null,
     /* EL LINK A LOS 5 MINUTOS SI NO CONTESTA (Maxi, 5/11), sólo en WhatsApp. */
-    autoEnUnRato: !esComentario && !auto && chat.canal === 'whatsapp'
+    autoEnUnRato: !esComentario && !yaHablo && !auto && enWhatsapp
       ? (autos ?? []).find((a) => a.id === dato.ficha_en_un_rato)?.id ?? null : null,
     derivar: dato.pasar_a_persona ? String(dato.pasar_a_persona).slice(0, 200) : null,
     /* A un privado se le contesta siempre; a un comentario, si el bot
