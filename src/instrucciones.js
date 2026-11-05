@@ -521,6 +521,9 @@ SI QUIERE UN AUTO DEL STOCK
      ("Dale, lo dejamos para el jueves, cualquier cosa me avisás"). false
      si lo confirmó.
    - "visita_auto": qué auto viene a ver ("Mercedes-Benz C300 Cabrio 2020").
+   - "visita_nombre": su nombre y apellido si te los dijo; si no, null. Antes de
+     confirmar, si no sabés cómo se llama, preguntáselo una vez ("A nombre de
+     quién te agendo?").
    - "visita_condiciones": en qué condiciones, con lo que se sabe: contado,
      permuta con su auto (modelo, año, km, si mandó fotos) o consignación
      (su auto y cuánto pide), y lo que falte saber.

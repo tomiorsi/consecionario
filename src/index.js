@@ -1564,6 +1564,7 @@ const FORMA_DE_RESPUESTA = {
     consulta_a_maxi: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     visita: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     visita_auto: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    visita_nombre: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     visita_condiciones: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     visita_claves: { type: 'array', items: { type: 'string' } },
     interesado_reservado: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
@@ -1572,7 +1573,7 @@ const FORMA_DE_RESPUESTA = {
     busca: { anyOf: [{ type: 'string' }, { type: 'null' }] },
   },
   required: ['partes', 'ficha_de', 'ficha_en_un_rato', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion',
-    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_condiciones', 'visita_claves', 'interesado_reservado', 'idioma', 'visita_a_confirmar', 'busca'],
+    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_nombre', 'visita_condiciones', 'visita_claves', 'interesado_reservado', 'idioma', 'visita_a_confirmar', 'busca'],
   additionalProperties: false,
 };
 
@@ -2118,6 +2119,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     consulta: !esComentario && dato.consulta_a_maxi ? String(dato.consulta_a_maxi).slice(0, 400) : null,
     visita: !esComentario && /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(dato.visita ?? '') ? dato.visita : null,
     visitaAuto: dato.visita_auto ? String(dato.visita_auto).slice(0, 120) : null,
+    visitaNombre: dato.visita_nombre ? String(dato.visita_nombre).trim().slice(0, 80) : null,
     visitaCondiciones: dato.visita_condiciones ? String(dato.visita_condiciones).slice(0, 300) : null,
     visitaClaves: clavesDeVisita(dato.visita_claves),
     visitaAConfirmar: dato.visita_a_confirmar === true,
@@ -3383,7 +3385,7 @@ function clavesDeVisita(lista) {
     .map((t) => String(t ?? '').trim().slice(0, 120)).filter(Boolean).slice(0, 3);
 }
 
-async function agendarVisita(env, chat, { visita, auto = null, condiciones = null, motivo = null, aConfirmar = false, avisar = true, claves = [] }) {
+async function agendarVisita(env, chat, { visita, auto = null, condiciones = null, motivo = null, aConfirmar = false, avisar = true, claves = [], nombre = null }) {
   const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
   /* LA MISMA VISITA NO SE AVISA DOS VECES (2/11: llegaron cuatro avisos
      iguales de un mismo cliente, uno por cada mensaje de la charla). Se
@@ -3394,7 +3396,7 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
   const resto = agenda.filter((v) => v.chat !== chat.id);
   /* Si esta vez no dijo nada nuevo, quedan las de antes. */
   const lasClaves = claves.length ? claves : antes?.claves ?? [];
-  const nueva = { chat: chat.id, quien: quienEs(chat), visita, auto, condiciones,
+  const nueva = { chat: chat.id, quien: quienEs(nombre ? { ...chat, nombre } : chat), visita, auto, condiciones,
     motivo: auto || condiciones ? null : motivo, recordada: false, ...(aConfirmar ? { aConfirmar: true } : {}),
     ...(lasClaves.length ? { claves: lasClaves } : {}) };
   resto.push(nueva);
@@ -3407,6 +3409,37 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
     (nueva.motivo ? `\n${nueva.motivo}` : '') +
     (aConfirmar ? `\n\nDijo un día pero no lo cerró: queda en amarillo y no le sale la confirmación de la mañana.`
       : `\n\nSe la confirmé yo. Ponelo en Visita posible.`));
+  if (!aConfirmar) await avisarVisitaAlEquipo(env, nueva);
+}
+
+/* LA CITA CONFIRMADA, POR WHATSAPP A MAXI Y A COLO (Maxi, 5/11). Texto libre
+   si escribieron en las últimas 23 horas; si no, Meta sólo deja la plantilla.
+   El número no va en el código: se busca por el chat. */
+const COLO_CHAT = 5198;
+async function avisarVisitaAlEquipo(env, v) {
+  const jefe = await chatDelJefe(env);
+  const colo = await env.DB.prepare('SELECT id, canal, externo_id FROM conversaciones WHERE id = ?')
+    .bind(COLO_CHAT).first();
+  const [cuando] = fichaDeVisita(v).split('\n');
+  const detalle = [v.auto, v.condiciones].filter(Boolean).join(' · ');
+  const claves = v.claves ?? [];
+  const texto = [`Visita agendada`, `${cuando}`, v.quien, detalle, ...claves.map((c) => `- ${c}`)]
+    .filter(Boolean).join('\n');
+  const plano = (t) => String(t || '-').replace(/\s+/g, ' ').trim().slice(0, 300);
+  const valores = [cuando, v.quien, detalle, claves.join('. ')].map(plano);
+  for (const d of [jefe, colo].filter(Boolean)) {
+    try {
+      const abierta = await env.DB.prepare(
+        `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
+            AND creado > datetime('now','-23 hours') LIMIT 1`
+      ).bind(d.id).first();
+      const id = abierta ? await mandarUno(env, d, texto) : await mandarPlantilla(env, d, 'visita_agendada', valores);
+      await guardarSaliente(env, d.id, texto, 'ia', id);
+    } catch (e) {
+      console.error('No se pudo avisar la visita:', e?.message ?? e);
+      await anotarAviso(env, `No pude avisar por WhatsApp la visita de ${v.quien} a ${d.id === jefe?.id ? 'Maxi' : 'Colo'}: ${String(e?.message ?? e).slice(0, 150)}`);
+    }
+  }
 }
 
 /* ── EL DÍA DE LA VISITA (Maxi, 30/10) ───────────────────────────
@@ -3817,6 +3850,10 @@ async function hacerPosventa(env) {
    Meta se achica), nadie del equipo escribió en esas 12 horas, y el chat
    no lo atiende una persona. Si el equipo anda en la charla, no se mete. */
 async function ponerseAlDia(env, { hasta = 10 } = {}) {
+  /* APAGADO NO MARCA NADA COMO VISTO: si no, al prender no queda nada para
+     contestar (Maxi, 5/11). */
+  const cfg = await configDelBot(env);
+  if (!cfg.encendida) return 0;
   const { results } = await env.DB.prepare(
     `SELECT c.id AS conversacion, c.canal, m.id AS mensaje
        FROM conversaciones c
@@ -3849,7 +3886,7 @@ async function ponerseAlDia(env, { hasta = 10 } = {}) {
   const vistos = (await leerEstado(env, 'al_dia'))?.valor ?? [];
   const jefe = await chatDelJefe(env);
   const nuevos = (results ?? [])
-    .filter((r) => !vistos.includes(r.mensaje) && r.conversacion !== jefe?.id)
+    .filter((r) => !vistos.includes(r.mensaje) && r.conversacion !== jefe?.id && canalActivo(cfg, r.canal))
     .slice(0, hasta);
   if (!nuevos.length) return 0;
   await guardarEstado(env, 'al_dia', [...vistos, ...nuevos.map((r) => r.mensaje)].slice(-300));
@@ -4001,7 +4038,7 @@ async function atenderSolo(env, disparos) {
          que pasa al equipo, un auto nuevo para tasar. Uno por evento. */
       if (r.visita) {
         await agendarVisita(env, chat, {
-          visita: r.visita, auto: r.visitaAuto, condiciones: r.visitaCondiciones, motivo: r.derivar,
+          visita: r.visita, auto: r.visitaAuto, nombre: r.visitaNombre, condiciones: r.visitaCondiciones, motivo: r.derivar,
           aConfirmar: r.visitaAConfirmar, claves: r.visitaClaves,
         }).catch((e) => console.error('No se pudo agendar:', e?.message ?? e));
       } else if (r.derivar) {
@@ -5267,6 +5304,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       prueba: 'prueba' in (cuerpo ?? {})
         ? (cuerpo.prueba === true ? new Date().toISOString() : null) : (antes.prueba ?? null),
     });
+    if (cuerpo?.encendida === true && antes.encendida !== true) await guardarEstado(env, 'al_dia', []);
     /* Al prenderlo, lo que quedó esperando se contesta ya, sin esperar
        la vuelta del reloj. Pocos por vez: esto corre con poco tiempo. */
     ctx?.waitUntil?.(ponerseAlDia(env, { hasta: 3 }).catch((e) =>
@@ -5376,7 +5414,8 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     /* Subir: con ?crear=1, o con POST (sin nada en la dirección). */
     if (metodo === 'POST' || new URL(peticion.url).searchParams.get('crear') === '1') {
       salida.subidas = [];
-      for (const p of PLANTILLAS) {
+      const solo = new URL(peticion.url).searchParams.get('solo');
+      for (const p of PLANTILLAS.filter((x) => !solo || x.nombre === solo)) {
         const r = await fetch(`${GRAPH}/${cuenta}/message_templates`, {
           method: 'POST',
           headers: {
