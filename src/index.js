@@ -4558,11 +4558,11 @@ export default {
         await new Promise((r) => setTimeout(r, 350));
         if (!bien) return error('Clave incorrecta', 401);
 
-        const vence = Date.now() + 12 * 60 * 60 * 1000;
+        const vence = Date.now() + 7 * 24 * 60 * 60 * 1000;
         const galleta = await firmar(env, `admin|${vence}`);
         return json({ ok: true }, 200, {
           'set-cookie': `sesion=${encodeURIComponent(galleta)}; Path=/; HttpOnly; Secure; ` +
-                        `SameSite=Strict; Max-Age=${12 * 60 * 60}`,
+                        `SameSite=Strict; Max-Age=${7 * 24 * 60 * 60}`,
         });
       }
 
