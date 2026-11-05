@@ -1553,7 +1553,6 @@ const FORMA_DE_RESPUESTA = {
   properties: {
     partes: { type: 'array', items: { type: 'string' } },
     ficha_de: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
-    ficha_en_un_rato: { anyOf: [{ type: 'integer' }, { type: 'null' }] },
     pasar_a_persona: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     responder: { type: 'boolean' },
     megusta: { type: 'boolean' },
@@ -1572,7 +1571,7 @@ const FORMA_DE_RESPUESTA = {
     visita_a_confirmar: { type: 'boolean' },
     busca: { anyOf: [{ type: 'string' }, { type: 'null' }] },
   },
-  required: ['partes', 'ficha_de', 'ficha_en_un_rato', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion',
+  required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion',
     'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_nombre', 'visita_condiciones', 'visita_claves', 'interesado_reservado', 'idioma', 'visita_a_confirmar', 'busca'],
   additionalProperties: false,
 };
@@ -1580,7 +1579,7 @@ const FORMA_DE_RESPUESTA = {
 const FORMA_EN_TEXTO = `
 
 TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
-{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "ficha_en_un_rato": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "visita_claves": [], "interesado_reservado": null, "idioma": "es", "visita_a_confirmar": false, "busca": null}
+{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "visita_claves": [], "interesado_reservado": null, "idioma": "es", "visita_a_confirmar": false, "busca": null}
 Escribí "partes" siempre, aunque "responder" sea false: así se puede revisar
 qué hubieras dicho.`;
 
@@ -2069,16 +2068,15 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
      llega a ningún lado. */
   /* EL LINK SALE SÓLO SI EL BOT LO PIDE: cuando piden info o fotos (Maxi, 5/11). */
   const yaHablo = privados.some((m) => m.direccion === 'saliente');
-  /* Si en WhatsApp ya hablaron y contesta, el link pendiente sale con esta
-     respuesta: no se deja para otros 5 minutos (Maxi, 5/11). Igual en todos
-     los canales. */
   const enWhatsapp = chat.canal === 'whatsapp';
   /* Sin link al confirmar una visita ni cuando se habla de su auto o de
      números (Maxi, 5/11). */
   const sinLink = /^\d{4}-\d{2}-\d{2}/.test(dato.visita ?? '') || Boolean(dato.para_tasar)
     || Boolean(dato.pasar_a_persona) || /con el equipo|al equipo/i.test(partes.join(' '));
-  const auto = (autos ?? []).find((a) => a.id === dato.ficha_de)
-    ?? (yaHablo ? (autos ?? []).find((a) => a.id === dato.ficha_en_un_rato) : null);
+  /* EL LINK, SÓLO SI LO PIDE (Maxi, 5/11: "no mandes link por mandar"). */
+  const loPide = /foto|video|info|imagen|link|ficha|contame m[aá]s|m[aá]s datos/i
+    .test(String(ultimo?.texto ?? '').replace(/\[[^\]]*\]/g, ''));
+  const auto = loPide ? (autos ?? []).find((a) => a.id === dato.ficha_de) : null;
 
   /* La frase del link la pone `conPresentacion`: si el modelo también la
      escribe, sale dos veces. */
@@ -2104,9 +2102,6 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
        contacto es el único que puede llevar uno más: es el saludo. */
     /* En Instagram y Messenger la frase y el link son dos mensajes. */
     autoId: sinLink || (yaHablo && partes.length >= (enWhatsapp ? 3 : 2)) ? null : auto?.id ?? null,
-    /* EL LINK A LOS 5 MINUTOS SI NO CONTESTA (Maxi, 5/11). */
-    autoEnUnRato: !esComentario && !yaHablo && !auto && !sinLink
-      ? (autos ?? []).find((a) => a.id === dato.ficha_en_un_rato)?.id ?? null : null,
     derivar: dato.pasar_a_persona ? String(dato.pasar_a_persona).slice(0, 200) : null,
     /* A un privado se le contesta siempre; a un comentario, si el bot
        decide que hay algo concreto que contestar. */
@@ -2337,7 +2332,6 @@ const conPresentacion = (link, canal = 'whatsapp', idioma = 'es') => {
 
 const PAUSA_ENTRE_PARTES = 14000;
 const PAUSA_TRAS_EL_LINK = 24000;
-const LINK_EN_UN_RATO = 5 * 60 * 1000;
 const conVaivén = (ms) => ms + Math.floor(Math.random() * 8000);
 
 /* LA UBICACIÓN ES UN MENSAJE FIJO, NO LO ESCRIBE EL BOT. Así la mandan en
@@ -2406,7 +2400,7 @@ async function ubicacionSinRepetir(_env, _chatId, ubicacion) {
 }
 
 async function mandarRespuesta(env, chat, {
-  partes, autoId = null, ubicacion = false, aWhatsapp = false, autor, idioma = 'es', enUnRato = null,
+  partes, autoId = null, ubicacion = false, aWhatsapp = false, autor, idioma = 'es',
 }) {
   const fijos = [
     ...conPresentacion(await linkSinRepetir(env, chat.id, autoId), chat.canal, idioma),
@@ -2420,12 +2414,6 @@ async function mandarRespuesta(env, chat, {
     texto,
     espera: n === 0 ? 0 : conVaivén(/https?:\/\//.test(textos[n - 1]) ? PAUSA_TRAS_EL_LINK : PAUSA_ENTRE_PARTES),
   }));
-
-  /* Va al final de la cola y se cancela si el cliente escribe antes. */
-  if (enUnRato) {
-    conPresentacion(await linkSinRepetir(env, chat.id, enUnRato), chat.canal, idioma)
-      .forEach((texto, n) => pasos.push({ texto, espera: n === 0 ? LINK_EN_UN_RATO : conVaivén(PAUSA_ENTRE_PARTES) }));
-  }
 
   const [primero, ...resto] = pasos;
   const id = await mandarUno(env, chat, primero.texto);
@@ -3988,7 +3976,7 @@ async function atenderSolo(env, disparos) {
         console.log(JSON.stringify({ bot: r.derivar ? 'pasó en silencio' : 'no hacía falta', canal: chat.canal }));
       }
       else await mandarRespuesta(env, chat, {
-        partes: r.partes, autoId: r.autoId, enUnRato: r.autoEnUnRato, ubicacion: r.ubicacion, idioma: r.idioma,
+        partes: r.partes, autoId: r.autoId, ubicacion: r.ubicacion, idioma: r.idioma,
         aWhatsapp: Boolean(r.derivar || r.irAWhatsapp), autor: 'ia',
       });
 
@@ -4907,9 +4895,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       /* Igual que `atenderComentario`: un solo mensaje y sin link. */
       const fijos = [...(r.esComentario ? [] : conPresentacion(yaEsta ? null : ficha?.enlace, canal, r.idioma)), r.ubicacion ? UBICACION : null].filter(Boolean);
       const textos = armarTextos(r.partes, fijos);
-      const fichaTarde = r.autoEnUnRato ? await fichaDe(env, r.autoEnUnRato) : null;
       return json({ mensajes: !r.responder ? [] : r.esComentario ? [textos.join('\n\n')] : textos, contesta: r.responder,
-        aLos5Minutos: conPresentacion(fichaTarde?.enlace, canal, r.idioma).join('\n') || null,
         pasaAPersona: r.derivar ?? null, consultaAMaxi: r.consulta, visita: r.visita, paraTasar: r.resumenParaTasar });
     } catch (e) {
       return error(e?.message || 'No se pudo simular', 502);
