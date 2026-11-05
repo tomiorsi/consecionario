@@ -2073,7 +2073,10 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
      respuesta: no se deja para otros 5 minutos (Maxi, 5/11). Igual en todos
      los canales. */
   const enWhatsapp = chat.canal === 'whatsapp';
-  const confirmaVisita = /^\d{4}-\d{2}-\d{2}/.test(dato.visita ?? '');
+  /* Sin link al confirmar una visita ni cuando se habla de su auto o de
+     números (Maxi, 5/11). */
+  const sinLink = /^\d{4}-\d{2}-\d{2}/.test(dato.visita ?? '') || Boolean(dato.para_tasar)
+    || Boolean(dato.pasar_a_persona) || /con el equipo|al equipo/i.test(partes.join(' '));
   const auto = (autos ?? []).find((a) => a.id === dato.ficha_de)
     ?? (yaHablo ? (autos ?? []).find((a) => a.id === dato.ficha_en_un_rato) : null);
 
@@ -2100,10 +2103,9 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     /* TRES MENSAJES COMO MUCHO, CONTANDO EL LINK (Maxi, 5/11). El primer
        contacto es el único que puede llevar uno más: es el saludo. */
     /* En Instagram y Messenger la frase y el link son dos mensajes. */
-    /* Después del sí, confirma y listo: sin link (Maxi, 5/11). */
-    autoId: confirmaVisita || (yaHablo && partes.length >= (enWhatsapp ? 3 : 2)) ? null : auto?.id ?? null,
+    autoId: sinLink || (yaHablo && partes.length >= (enWhatsapp ? 3 : 2)) ? null : auto?.id ?? null,
     /* EL LINK A LOS 5 MINUTOS SI NO CONTESTA (Maxi, 5/11). */
-    autoEnUnRato: !esComentario && !yaHablo && !auto && !confirmaVisita
+    autoEnUnRato: !esComentario && !yaHablo && !auto && !sinLink
       ? (autos ?? []).find((a) => a.id === dato.ficha_en_un_rato)?.id ?? null : null,
     derivar: dato.pasar_a_persona ? String(dato.pasar_a_persona).slice(0, 200) : null,
     /* A un privado se le contesta siempre; a un comentario, si el bot
