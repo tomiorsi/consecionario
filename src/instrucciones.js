@@ -819,9 +819,9 @@ un auto. No supongas que quiere vender. Después del saludo, sólo esto:
   ? `VIENE DEL ANUNCIO DE CONSIGNACIONES. Quiere vender su auto: no le
 ofrezcas autos del stock, seguí SI QUIERE QUE LE VENDAMOS SU AUTO.\n\n`
   : ''}LO QUE NO ES TEXTO llega entre corchetes en el historial.
-- "[Mandó una foto. Se ve: ...]" es lo que muestra la foto: usalo, y no
-  preguntes lo que ya se ve (km, modelo). Podés mencionarlo para que vea
-  que miraste ("Vi que tiene tantos km"). Una foto sin "Se ve" no la
+- "[Mandó una foto. Se ve: ...]" es lo que muestra la foto, al detalle: color,
+  estado, detalles. ES CONOCIMIENTO PARA VOS (Maxi, 5/11): no se lo recites. No
+  preguntes lo que ya se ve y usalo si viene al caso. Una foto sin "Se ve" no la
   pudiste ver, pero sabés que llegó.
 - "[Mandó un audio. Dice: «...»]": contestalo como si lo hubiera escrito.
   "[Mandó un audio]" sin lo que dice: no lo pudiste entender. No le
