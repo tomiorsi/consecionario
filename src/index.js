@@ -1728,7 +1728,7 @@ function clavesDe(a) {
 
 /* v4 (5/11): antes un posteo podía quedar "general" sin que nadie mirara su
    imagen, y así quedaba para siempre. Se vuelven a reconocer todos. */
-const CLAVE_PUBLICACION = (clave) => `v4|${clave}`;
+const CLAVE_PUBLICACION = (clave) => `v5|${clave}`;
 
 /* LA IMAGEN SE BAJA ACÁ Y SE MANDA ENTERA: el link de Instagram vence y a veces
    no se deja leer desde afuera. Si no se puede bajar, se prueba con el link. */
@@ -1748,7 +1748,26 @@ async function imagenParaClaude(imagen) {
   return { type: 'image', source: { type: 'url', url: imagen } };
 }
 
-async function deQueEs(env, clave, { texto = '', imagen = null } = {}) {
+/* LO QUE SE DICE EN EL REEL (Maxi, 5/11): cuando ni la tapa ni el copy dicen de
+   qué auto es, se escucha el video con el mismo Whisper de Cloudflare que los
+   audios. No sale de Cloudflare, no se guarda, y sólo se hace una vez por posteo. */
+const TOPE_REEL = 20 * 1024 * 1024;
+async function loQueSeDiceEnElReel(env, video) {
+  if (!env.AI || !video) return '';
+  try {
+    const r = await fetch(video);
+    if (!r.ok || Number(r.headers.get('content-length') ?? 0) > TOPE_REEL) return '';
+    const bytes = await r.arrayBuffer();
+    if (bytes.byteLength > TOPE_REEL) return '';
+    const dicho = await env.AI.run('@cf/openai/whisper-large-v3-turbo', { audio: aBase64Plano(bytes), language: 'es' });
+    return String(dicho?.text ?? '').trim().slice(0, 3000);
+  } catch (e) {
+    console.error('No se pudo escuchar el reel:', e?.message ?? e);
+    return '';
+  }
+}
+
+async function deQueEs(env, clave, { texto = '', imagen = null, video = null } = {}) {
   if (!clave) return null;
   const guardadas = (await leerEstado(env, 'publicaciones'))?.valor ?? {};
   const k = CLAVE_PUBLICACION(clave);
@@ -1772,7 +1791,8 @@ async function deQueEs(env, clave, { texto = '', imagen = null } = {}) {
   if (!res && env.ANTHROPIC_API_KEY && (t || imagen)) {
     try {
       const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-      const r = await client.messages.create({
+      const fotoDelPosteo = imagen ? await imagenParaClaude(imagen) : null;
+      const preguntar = async (dicho = '') => { const r = await client.messages.create({
         model: MODELO_CHARLA,
         max_tokens: 400,
         output_config: { effort: 'low', format: { type: 'json_schema', schema: {
@@ -1784,17 +1804,22 @@ async function deQueEs(env, clave, { texto = '', imagen = null } = {}) {
           required: ['tipo', 'auto'], additionalProperties: false,
         } } },
         messages: [{ role: 'user', content: [
-          ...(imagen ? [await imagenParaClaude(imagen)] : []),
+          ...(fotoDelPosteo ? [fotoDelPosteo] : []),
           { type: 'text', text: `Es una publicación, historia o anuncio de Manna Selected, una concesionaria de autos.
 ${t ? `Su texto: «${t.slice(0, 1500)}»` : 'No tiene texto.'}
-Estos son nuestros autos (número, auto, estado):
+${dicho ? `Lo que se dice en el video: «${dicho}»\n` : ''}Estos son nuestros autos (número, auto, estado):
 ${(autos ?? []).map((a) => `${a.id}: ${a.marca} ${a.modelo} ${a.anio ?? ''} (${a.estado})`).join('\n')}
 Decí de cuál de estos autos es ("tipo": "auto" y su número), si es para que la gente nos deje su auto en consignación ("consignacion"), o si es general, de varios autos o de ninguno ("general").
 Mirá bien la imagen: el auto que se muestra, su forma, su marca, y lo que tenga escrito encima (modelo, año, precio). El texto suele ser una frase que no nombra el auto, así que la imagen manda. Si en la imagen se ve un auto y por su marca y su forma encaja con uno solo de la lista, es ese.
 Tiene que ser ese auto: misma marca y mismo modelo. Si es otro que no está en la lista (por ejemplo una Ford Ranger, que no publicamos), o podría ser más de uno de la lista, es "general". Nunca elijas uno "parecido".` },
         ] }],
       });
-      const d = JSON.parse((r.content ?? []).find((b) => b.type === 'text')?.text ?? '{}');
+      return JSON.parse((r.content ?? []).find((b) => b.type === 'text')?.text ?? '{}'); };
+      let d = await preguntar();
+      if (d.tipo !== 'auto' && d.tipo !== 'consignacion' && video) {
+        const dicho = await loQueSeDiceEnElReel(env, video);
+        if (dicho) d = await preguntar(dicho);
+      }
       if (d.tipo === 'auto' && (autos ?? []).some((a) => a.id === d.auto)) res = { tipo: 'auto', auto: d.auto };
       else if (d.tipo === 'consignacion') res = { tipo: 'consignacion' };
       else res = { tipo: 'general' };
@@ -1912,17 +1937,19 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
        hace meses, que no entraron en la última lectura. Una llamada y
        sólo cuando falta; si tampoco sale, se sigue sin ella. */
     let imagen = ((await leerEstado(env, 'historias'))?.valor ?? {})[origen.media_id] ?? null;
+    let video = null;
     const yaSabida = ((await leerEstado(env, 'publicaciones'))?.valor ?? {})[CLAVE_PUBLICACION(`ig:${origen.media_id}`)];
     if (!posteo || (!yaSabida && !imagen)) {
       try {
         const m = await igLlamar(env, `/${origen.media_id}?fields=caption,media_url,thumbnail_url`);
         posteo = posteo ?? m?.caption ?? null;
         imagen = imagen ?? m?.thumbnail_url ?? m?.media_url ?? null;
+        video = m?.thumbnail_url ? m?.media_url ?? null : null;
       } catch (e) {
         console.error('No se pudo leer la publicación:', e?.message ?? e);
       }
     }
-    publicacion = await deQueEs(env, `ig:${origen.media_id}`, { texto: posteo, imagen });
+    publicacion = await deQueEs(env, `ig:${origen.media_id}`, { texto: posteo, imagen, video });
 
     /* Y EL COMENTARIO QUE PONEMOS NOSOTROS AL PUBLICAR, si hay: ahí
        suelen ir los datos que no entraron en la descripción. No las
@@ -1955,7 +1982,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
         const media = await igLlamar(env, '/me/media?fields=id,permalink,caption,media_url,thumbnail_url&limit=50');
         const p = (media?.data ?? []).find((x) => String(x.permalink ?? '').includes(`/${codigo}`));
         if (p) {
-          delLink = await deQueEs(env, `ig:${p.id}`, { texto: p.caption ?? '', imagen: p.thumbnail_url ?? p.media_url ?? null });
+          delLink = await deQueEs(env, `ig:${p.id}`, { texto: p.caption ?? '', imagen: p.thumbnail_url ?? p.media_url ?? null, video: p.thumbnail_url ? p.media_url ?? null : null });
           if (!posteo && p.caption) posteo = p.caption;
         }
       } catch (e) {
