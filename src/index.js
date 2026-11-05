@@ -2077,7 +2077,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
      escribe, sale dos veces. */
   if (auto) {
     const limpias = partes
-      .map((t) => t.replace(/\s*(Acá te paso más fotos[^.\n]*|De paso, te mando un link[^.\n]*)\.?/gi, '').trim())
+      .map((t) => t.replace(/\s*((Acá )?te paso (más fotos|más info|el link)[^.\n]*|De paso, te (mando|paso) un link[^.\n]*)\.?/gi, '').trim())
       .filter(Boolean);
     partes.splice(0, partes.length, ...(limpias.length ? limpias : ['Dale!']));
   }
