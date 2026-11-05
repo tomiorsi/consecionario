@@ -1819,7 +1819,10 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
 
   /* Lo que tiene algo: un texto, o una foto o un audio aunque no traiga
      texto. Un mensaje vacío no le dice nada al bot. */
-  const todos = (mensajes ?? []).filter((m) => m.texto || m.tipo !== 'texto');
+  const { prueba } = await configDelBot(env);
+  const todos = (mensajes ?? []).filter((m) => m.texto || m.tipo !== 'texto')
+    /* En modo prueba, lo de Maxi como jefe no es parte de la charla. */
+    .filter((m) => !(prueba && esElJefe(env, chat)) || m.creado >= aSqlite(prueba));
   if (!todos.length) throw new Error('No hay nada que contestar todavía');
 
   const ultimo = todos[todos.length - 1];
@@ -2648,6 +2651,9 @@ async function configDelBot(env) {
   return {
     desde: hora(g.desde), hasta: hora(g.hasta), encendida, apagado: !encendida,
     whatsappDeDia, deNoche: esDeNoche(),
+    /* MODO PRUEBA (Maxi, 5/11): desde esta fecha el bot trata a Maxi como a
+       un cliente, aunque esté apagado para todos los demás. */
+    prueba: typeof g.prueba === 'string' ? g.prueba : null,
   };
 }
 
@@ -3430,6 +3436,8 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
      es del equipo y el bot no le responde.
    Una sola confirmación por visita. */
 async function confirmarVisitasDeHoy(env) {
+  /* APAGADA NO LE ESCRIBE A NADIE (Maxi, 5/11). */
+  if (!(await configDelBot(env)).encendida) return;
   const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
   const hoy = diaDeBsAs();
   const deHoy = agenda.filter((v) => v.visita.slice(0, 10) === hoy);
@@ -3529,6 +3537,7 @@ Devolvé en "sirve" los números de los clientes a los que este auto les sirve d
 const aSqlite = (iso) => new Date(iso).toISOString().slice(0, 19).replace('T', ' ');
 
 async function programadosDeHoy(env) {
+  if (!(await configDelBot(env)).encendida) return;
   const todos = (await leerEstado(env, 'programados'))?.valor ?? [];
   const toca = (p) => aMs(p.cuando) <= Date.now();
   const ahora = todos.filter(toca);
@@ -3822,6 +3831,7 @@ const primerNombre = (nombre) => {
 };
 
 async function hacerPosventa(env) {
+  if (!(await configDelBot(env)).encendida) return;
   if (whatsappEnCuarentena('whatsapp')) return;
   const horaBsAs = new Date(Date.now() - 3 * HORAS).getUTCHours();
   if (horaBsAs < 10 || horaBsAs >= 20) return;
@@ -3921,7 +3931,7 @@ async function ponerseAlDia(env, { hasta = 10 } = {}) {
 
 async function atenderSolo(env, disparos) {
   const cfg = await configDelBot(env);
-  if (!disparos.some((d) => canalActivo(cfg, d.canal))) return;
+  if (!cfg.prueba && !disparos.some((d) => canalActivo(cfg, d.canal))) return;
   if (!enHorario(cfg)) return;
 
   await new Promise((listo) => setTimeout(listo, ESPERA_ANTES_DE_CONTESTAR));
@@ -3931,11 +3941,14 @@ async function atenderSolo(env, disparos) {
   for (const d of disparos) {
     /* Se vuelve a mirar después de la espera: si en esos segundos dieron
        las 8, WhatsApp ya no le toca al bot. */
-    if (!canalActivo(cfg, d.canal)) continue;
+    if (!cfg.prueba && !canalActivo(cfg, d.canal)) continue;
     try {
       const chat = await env.DB.prepare(
         'SELECT id, canal, externo_id, humano, nombre, nota, etapa FROM conversaciones WHERE id = ?'
       ).bind(d.conversacion).first();
+      /* En modo prueba Maxi es un cliente más, y el único si está apagado. */
+      const esPrueba = Boolean(cfg.prueba) && esElJefe(env, chat);
+      if (!esPrueba && !canalActivo(cfg, d.canal)) continue;
       await historialDeInstagram(env, chat)
         .catch((e) => console.error('No se pudo traer la charla anterior:', e?.message ?? e));
       /* UN CLIENTE QUE YA COMPRÓ CONTESTA (casi siempre, a la posventa):
@@ -3958,10 +3971,10 @@ async function atenderSolo(env, disparos) {
         await anotarAviso(env, `Te escribió un cliente que ya compró\n${lineaDe(chat, LISTAS.permuta, `«${(dijo?.texto ?? `[${dijo?.tipo ?? 'mensaje'}]`).slice(0, 300)}»`)}`);
         continue;
       }
-      if (!chat || esElJefe(env, chat)) continue;
+      if (!chat || (esElJefe(env, chat) && !esPrueba)) continue;
       /* CHATS DEL EQUIPO (Maxi, 31/10): si el cliente pregunta un dato y
          en 20 minutos nadie le contestó, contesta el bot, sólo datos. */
-      if (chat.humano || await loAtendioElEquipo(env, chat.id)) {
+      if (!esPrueba && (chat.humano || await loAtendioElEquipo(env, chat.id))) {
         if (chat.etapa !== 'cerrado' && !/borr/i.test(chat.nota ?? '')) {
           await env.ENVIOS.get(env.ENVIOS.idFromName(`equipo-${chat.id}`))
             .esperarAlEquipo({ id: chat.id, canal: chat.canal, externo_id: chat.externo_id }, d.mensaje)
@@ -4267,13 +4280,15 @@ async function recibirDeMeta(peticion, env, ctx) {
         transcribirAudios(env, disparos.audios),
         describirFotos(env, disparos.fotos),
       ]);
-      /* Lo que escribe Maxi no es una consulta: es el jefe. */
+      /* Lo que escribe Maxi no es una consulta: es el jefe. Salvo en modo
+         prueba, donde hace de cliente. */
+      const cfgPrueba = (await configDelBot(env)).prueba;
       const delJefe = [];
       const deClientes = [];
       for (const d of disparos) {
         const c = await env.DB.prepare('SELECT canal, externo_id FROM conversaciones WHERE id = ?')
           .bind(d.conversacion).first();
-        (esElJefe(env, c) ? delJefe : deClientes).push(d);
+        (esElJefe(env, c) && !cfgPrueba ? delJefe : deClientes).push(d);
       }
       for (const d of delJefe) {
         await atenderAlJefe(env, d.conversacion, d.mensaje)
@@ -5303,6 +5318,9 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       encendida: 'encendida' in (cuerpo ?? {}) ? cuerpo.encendida === true : antes.encendida === true,
       whatsappDeDia: 'whatsappDeDia' in (cuerpo ?? {})
         ? cuerpo.whatsappDeDia === true : antes.whatsappDeDia === true,
+      /* `prueba: true` arranca una prueba de cero; `false` la termina. */
+      prueba: 'prueba' in (cuerpo ?? {})
+        ? (cuerpo.prueba === true ? new Date().toISOString() : null) : (antes.prueba ?? null),
     });
     /* Al prenderlo, lo que quedó esperando se contesta ya, sin esperar
        la vuelta del reloj. Pocos por vez: esto corre con poco tiempo. */
