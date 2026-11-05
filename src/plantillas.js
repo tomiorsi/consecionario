@@ -44,6 +44,14 @@ export const PLANTILLAS = [
     ejemplo: ['Martín', 'BMW 330i'],
   },
   {
+    nombre: 'visita_agendada',
+    categoria: 'UTILITY',
+    porque: 'Aviso interno al equipo de una visita confirmada.',
+    texto: 'Nueva visita agendada.\n\nDía y hora: {{1}}\nCliente: {{2}}\nAuto y condiciones: {{3}}\n'
+         + 'Para tener en cuenta: {{4}}\n\nYa está en la agenda del panel.',
+    ejemplo: ['jueves 12/11 16:00 h', 'Martín Pérez', 'BMW 330i, permuta con su auto', 'Viene desde Mar del Plata'],
+  },
+  {
     nombre: 'visita_recordatorio',
     categoria: 'UTILITY',
     porque: 'Recordatorio de una visita acordada.',
