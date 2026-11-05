@@ -1798,12 +1798,13 @@ Tiene que ser EXACTAMENTE ese auto: misma marca y mismo modelo. Si es otro que n
   return res;
 }
 
-async function pensarRespuesta(env, conversacionId, { automatico = false, deNoche = false, seguimiento = false, soloDatos = false } = {}) {
+async function pensarRespuesta(env, conversacionId, { automatico = false, deNoche = false, seguimiento = false, soloDatos = false, simulacion = null } = {}) {
   if (!env.ANTHROPIC_API_KEY) {
     throw new Error('Falta cargar ANTHROPIC_API_KEY en Cloudflare');
   }
 
-  const chat = await env.DB
+  /* UNA SIMULACIÓN NO TOCA LA BASE: la charla viene escrita a mano. */
+  const chat = simulacion ?? await env.DB
     .prepare(`SELECT canal, externo_id, nombre${(await hayColumnaAnuncio(env)) ? ', anuncio' : ''}
                 FROM conversaciones WHERE id = ?`)
     .bind(conversacionId).first();
@@ -1811,7 +1812,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
   let anuncio = null;
   try { anuncio = chat.anuncio ? JSON.parse(chat.anuncio) : null; } catch { /* viejo o roto */ }
 
-  const { results: mensajes } = await env.DB.prepare(
+  const { results: mensajes } = simulacion ? { results: simulacion.mensajes } : await env.DB.prepare(
     `SELECT direccion, autor, tipo, texto, clase, media_id, externo_id, creado
        FROM mensajes WHERE conversacion_id = ?
       ORDER BY creado, id`
@@ -4976,6 +4977,32 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       });
     } catch (e) {
       return error(e?.message || 'No se pudo escribir la respuesta', 502);
+    }
+  }
+
+  /* PROBAR UNA CHARLA INVENTADA (Maxi, 5/11: "acá en el chat nuestro"): lo
+     que contestaría el bot, con sus reglas y su modelo. No lee ni guarda
+     charlas, no le escribe a nadie y no agenda nada. */
+  if (ruta === '/api/admin/simular' && metodo === 'POST') {
+    const c = await peticion.json().catch(() => ({}));
+    const charla = (Array.isArray(c?.charla) ? c.charla : []).slice(-40);
+    if (!charla.length) return error('Falta la charla');
+    const creado = aSqlite(new Date().toISOString());
+    const mensajes = charla.map((m) => ({
+      direccion: m?.de === 'bot' ? 'saliente' : 'entrante', autor: m?.de === 'bot' ? 'ia' : null,
+      tipo: 'texto', texto: texto(m?.texto, 2000), clase: 'mensaje', media_id: null, externo_id: null, creado,
+    })).filter((m) => m.texto);
+    const canal = c?.canal === 'instagram' ? 'instagram' : 'whatsapp';
+    try {
+      const r = await pensarRespuesta(env, 0, { automatico: true, simulacion: {
+        canal, externo_id: null, nombre: texto(c?.nombre, 60) || null, mensajes } });
+      const ficha = r.autoId ? await fichaDe(env, r.autoId) : null;
+      const yaEsta = ficha && mensajes.some((m) => m.direccion === 'saliente' && m.texto.includes(ficha.enlace));
+      const fijos = [conPresentacion(yaEsta ? null : ficha?.enlace, canal, r.idioma), r.ubicacion ? UBICACION : null].filter(Boolean);
+      return json({ mensajes: r.responder ? armarTextos(r.partes, fijos) : [], contesta: r.responder,
+        pasaAPersona: r.derivar ?? null, consultaAMaxi: r.consulta, visita: r.visita, paraTasar: r.resumenParaTasar });
+    } catch (e) {
+      return error(e?.message || 'No se pudo simular', 502);
     }
   }
 
