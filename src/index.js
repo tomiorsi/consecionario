@@ -2084,7 +2084,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
      escribe, sale dos veces. */
   if (auto) {
     const limpias = partes
-      .map((t) => t.replace(/\s*((Acá )?te paso (más fotos|más info|el link)[^.\n]*|De paso, te (mando|paso) un link[^.\n]*)\.?/gi, '').trim())
+      .map((t) => t.replace(/\s*((Acá )?te (paso|dejo) (más fotos|más info|el link|un link)[^.\n]*|De paso, te (mando|paso) un link[^.\n]*)\.?/gi, '').trim())
       .filter(Boolean);
     partes.splice(0, partes.length, ...(limpias.length ? limpias : ['Dale!']));
   }
@@ -2329,8 +2329,8 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
 const conPresentacion = (link, canal = 'whatsapp', idioma = 'es') => {
   if (!link) return [];
   if (canal !== 'whatsapp') return [enIdioma(idioma)?.link
-    ?? 'Acá te paso más fotos y más info para que vayas viendo.', link];
-  return [`${enIdioma(idioma)?.link ?? 'Acá te paso más fotos y más info para que vayas viendo.'}\n${link}`];
+    ?? 'Acá te dejo un link para que veas más fotos y un poco más de info.', link];
+  return [`${enIdioma(idioma)?.link ?? 'Acá te dejo un link para que veas más fotos y un poco más de info.'}\n${link}`];
 };
 
 const PAUSA_ENTRE_PARTES = 14000;
