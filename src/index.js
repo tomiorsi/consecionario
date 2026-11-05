@@ -910,19 +910,19 @@ async function describirFotos(env, fotos = []) {
         ? { type: 'image', source: { type: 'base64', media_type: tipo, data: aBase64Plano(bajado.bytes) } }
         : { type: 'image', source: { type: 'url', url: f.url } };
       const r = await client.messages.create({
-        model: MODELO,
-        max_tokens: 300,
+        model: MODELO_CHARLA,
+        max_tokens: 800,
         output_config: { effort: 'low' },
         messages: [{
           role: 'user',
           content: [
             imagen,
-            { type: 'text', text: `Un cliente de una concesionaria de autos mandó esta foto por chat. Describila en UNA línea corta, en castellano, con lo que le sirve a quien lo atiende: qué auto es (marca, modelo, color) y de qué lado se ve, o qué parte muestra. Si se ve el tablero, escribí los kilómetros EXACTOS del odómetro, tal cual se leen. Si se ve algún daño, decilo. Nunca escribas patentes, números de documento, nombres ni datos de personas. Sólo la línea, sin nada más.` },
+            { type: 'text', text: `Un cliente de una concesionaria de autos mandó esta foto por chat. Mirala al detalle y describila en castellano, en pocas líneas: qué es, marca, modelo y versión si se distinguen, color, estado por afuera y por adentro, detalles que se vean (golpes, rayones, llantas, tapizado, techo), y el texto o los km que se lean. Si es un documento o una captura, qué dice. No inventes lo que no se ve. Respondé sólo la descripción.` },
           ],
         }],
       });
       const linea = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join(' ')
-        .replace(/\s+/g, ' ').trim().slice(0, 300);
+        .replace(/\s+/g, ' ').trim().slice(0, 900);
       if (!linea) return;
       const texto = (f.texto ? f.texto + '\n' : '') + MARCA_FOTO + linea + ']';
       await env.DB.prepare('UPDATE mensajes SET texto = ? WHERE id = ?').bind(texto, f.fila).run();
