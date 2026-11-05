@@ -3442,9 +3442,8 @@ async function confirmarVisitasDeHoy(env) {
           AND creado > datetime('now','-23 hours') LIMIT 1`
     ).bind(c.id).first());
     if (!enviada && abierta && !v.aConfirmar) {
-      const nombre = primerNombre(c.nombre);
       const hora = v.visita.length > 10 ? v.visita.slice(11, 16) : null;
-      const libre = `Hola${nombre ? ` ${nombre}` : ''}! Buen día. Te escribo para confirmar que hoy`
+      const libre = `Hola! Buen día. Te escribo para confirmar que hoy`
         + `${hora ? ` a las ${hora}` : ''} te esperamos en el salón, en Pje. Lanín 154, Barracas`
         + `${v.auto ? `, para ver el ${v.auto}` : ''}. Sigue todo en pie?`;
       const visto = (await env.DB.prepare(
@@ -3454,7 +3453,7 @@ async function confirmarVisitasDeHoy(env) {
         { id: c.id, canal: c.canal, externo_id: c.externo_id },
         [c.canal === 'whatsapp'
           ? { plantilla: 'visita_recordatorio',
-              valores: [nombre || 'qué tal', 'hoy', hora ?? 'la hora que acordamos', v.auto ?? 'auto'],
+              valores: ['qué tal', 'hoy', hora ?? 'la hora que acordamos', v.auto ?? 'auto'],
               texto: libre, espera: 0 }
           : { texto: libre, espera: 0 }],
         'ia', visto, 1);
@@ -3762,11 +3761,6 @@ const GRACIAS_POSVENTA = [
   (n) => `Hola ${n}! Qué tal los primeros días con el auto? Gracias de nuevo por la confianza. Acá estamos para lo que haga falta.`,
 ];
 
-const primerNombre = (nombre) => {
-  const n = String(nombre ?? '').trim().split(/\s+/)[0] ?? '';
-  return /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]{1,20}$/.test(n) ? n : '';
-};
-
 async function hacerPosventa(env) {
   if (!(await configDelBot(env)).encendida) return;
   if (whatsappEnCuarentena('whatsapp')) return;
@@ -3784,16 +3778,15 @@ async function hacerPosventa(env) {
   const hechos = (await leerEstado(env, 'posventa'))?.valor ?? {};
   for (const c of results) {
     const h = hechos[c.id] ?? {};
-    const nombre = primerNombre(c.nombre);
     const chat = { id: c.id, canal: c.canal, externo_id: c.externo_id };
     let pasos = null;
     if (!h.gracias && c.horas >= 48 && c.horas < 96) {
-      const libre = GRACIAS_POSVENTA[Math.floor(Math.random() * GRACIAS_POSVENTA.length)](nombre || 'qué tal')
+      const libre = GRACIAS_POSVENTA[Math.floor(Math.random() * GRACIAS_POSVENTA.length)]('qué tal')
         .replace(/^qué tal, /, 'Qué tal, ');
-      pasos = [{ plantilla: 'posventa_gracias', valores: [nombre || 'qué tal'], texto: libre, espera: 0 }];
+      pasos = [{ plantilla: 'posventa_gracias', valores: ['qué tal'], texto: libre, espera: 0 }];
       h.gracias = new Date().toISOString();
     } else if (h.gracias && !h.resena && c.horas >= 72 && c.horas < 120) {
-      const valores = [nombre || 'qué tal'];
+      const valores = ['qué tal'];
       pasos = [
         { plantilla: 'posventa_resena_1', valores, texto: textoDe('posventa_resena_1', valores), espera: 0 },
         { plantilla: 'posventa_resena_2', valores: [], texto: textoDe('posventa_resena_2'), espera: 5000 },
@@ -5036,7 +5029,8 @@ async function admin(peticion, env, ruta, metodo, ctx) {
 
     try {
       return json({ ok: true, ...(await mandarRespuesta(env, chat, {
-        partes, autoId, ubicacion, autor: 'persona',
+        /* `comoBot`: un mensaje pedido por Maxi que no le saca el chat al bot. */
+        partes, autoId, ubicacion, autor: cuerpo?.comoBot === true ? 'ia' : 'persona',
       })) });
     } catch (e) {
       return error(e?.message || 'Meta no aceptó el mensaje', 502);
