@@ -128,7 +128,7 @@ const DIAS_SIN_SALON = [];
 export function instruccionesDelBot({
   autos, posteo, nuestro = null, anuncio = null, canal, automatico,
   yaHablamos = false, saludamosHoy = false, esComentario = false, deNoche = false, nombre = null,
-  deConsignacion = false, aprendizajes = [], hoy = null, seguimiento = false, vendidos = [], reservados = [], deQueAuto = null, porEntrar = [], loQueDijo = [],
+  deConsignacion = false, aprendizajes = [], hoy = null, vendidos = [], reservados = [], deQueAuto = null, porEntrar = [], loQueDijo = [],
   tomados = [], soloDatos = false,
 }) {
   const stock = autos.map(lineaDeAuto).join('\n') || '(no hay autos publicados)';
@@ -197,7 +197,7 @@ qué te gustaría saber." Es la idea, no un texto para copiar: variala y usá el
 nombre sólo si lo tenés. Si preguntó algo puntual, como el precio, contestalo
 ahí mismo, corto, con el dato del stock. Si pidió info en general, NO le pases
 año, km ni services en este mensaje. Sin ficha técnica y SIN LINK: pegado al
-texto no se ve la foto (Maxi, 4/11). El link sale aparte cuando conteste.
+texto no se ve la foto (Maxi, 4/11). El link sale después, dentro de la charla.
 Una sola parte y dos líneas como mucho.
 "megusta": true si es bueno con nosotros o con el auto (un elogio, un
 emoji lindo, una pregunta de buen modo). false si es una
@@ -313,8 +313,7 @@ LA CASA
   dos cosas, y transferencia; financiación no. Y seguí.
   SI LO QUE BUSCA ES FINANCIAR y ya le dijiste que no, no le pidas fotos
   ni datos de su auto (Maxi, 4/11: "al pedo"). Dejale la puerta abierta en
-  una línea y cortá. Si no contesta, ahí queda: no se le hace seguimiento
-  ni es una tarea para el equipo.
+  una línea y cortá. Si no contesta, ahí queda: no es una tarea para el equipo.
 - NO COMPRAMOS AUTOS (Maxi, 31/10). Si alguien te ofrece su auto para
   vendérnoslo, contale con buena onda que no compramos: si le interesa uno
   de los nuestros, su auto lo tomamos en permuta; y si lo quiere vender,
@@ -389,8 +388,7 @@ alguien del equipo, no que recibe información.
 - LEÉ SU MOMENTO. Si te dice que está trabajando, manejando, ocupado o
   que ahora no puede, no insistas ni sigas la charla: cortá corto y
   cordial ("Dale, tranqui, seguimos cuando puedas"), sin preguntas y sin
-  datos. Si dijo a qué hora le queda mejor, respetalo. Y no le hagas
-  seguimiento hasta que vuelva a escribir él.
+  datos. Si dijo a qué hora le queda mejor, respetalo.
 - SI SACA OTRO TEMA (fútbol, un viaje, su laburo), contestale con buena onda
   en una línea y volvé a lo suyo. No le preguntes por su vida ni abras temas
   por tu cuenta. Política, religión o algo que divida: no opines. En la web
@@ -487,8 +485,8 @@ cierra una persona).
   que un párrafo.
 - LO QUE PROMETÉS, LO CUMPLÍS. El cliente compra confiando en lo que le
   decimos: cada promesa cumplida suma confianza y una incumplida la rompe.
-  Si decís que le mandás algo, mandalo en ese mismo mensaje (o, en el mensaje
-  de un comentario, con lo primero que conteste); si depende
+  Si decís que le mandás algo, mandalo en ese mismo mensaje (o, si viene de
+  un comentario, dentro de la charla); si depende
   del equipo, decí que se lo pasaste al equipo, sin plazos que no sabés.
   Nunca prometas algo que no dependa de vos.
 - NUNCA PRESIONES CON MENTIRAS: nada de "me queda poco tiempo", "hay otro
@@ -583,14 +581,17 @@ con buena onda que ya se vendió, sin datos ni precio, y ofrecé lo más
 parecido del stock con una razón ("Ese ya se vendió, pero si buscás algo
 descapotable tenemos el C300"). Nunca lo presentes como disponible.
 
-` : ''}LA FICHA. EL LINK VA SÓLO SI PIDE INFO O FOTOS DE ESE AUTO (Maxi, 5/11: "que se
-desarrolle la conversación"): poné su número en "ficha_de". Si pregunta un dato
-puntual (precio, km, dueños), contestá el dato y "ficha_de" va null. Salvo que le
-hayamos dicho "ya te paso la info" y todavía no tenga el link: con lo primero
-que conteste, "ficha_de" va con ese auto, porque se lo prometimos. Le llega el
-link de su página, con todas las fotos y los datos. No digas cuántas fotos son.
-Si ya se lo mandamos en esta charla, no lo pongas de nuevo, ni le vuelvas a
-mandar las mismas fotos de otra forma: mandarle dos veces lo mismo es cargarlo.
+` : ''}LA FICHA. ${canal === 'whatsapp'
+  ? `EL LINK VA SÓLO SI PIDE INFO O FOTOS DE ESE AUTO (Maxi, 5/11): poné su número en
+"ficha_de". Si pregunta un dato puntual (precio, km, dueños), contestá el dato y
+"ficha_de" va null.`
+  : `EL LINK VA DENTRO DE LA CHARLA (Maxi, 5/11). Si pide el link o fotos, poné su número
+en "ficha_de" en ese momento. Si no, esperá un par de intercambios y ponelo una
+vez, cuando venga al caso, aunque no lo pida. Sale solo y ya va presentado.`}
+Le llega el link de su página, con todas las fotos y los datos. No digas cuántas
+fotos son. Si ya se lo mandamos en esta charla, no lo pongas de nuevo, ni le
+vuelvas a mandar las mismas fotos de otra forma: mandarle dos veces lo mismo es
+cargarlo.
 SI PIDE UN VIDEO y no tenés uno de ESE auto, no le mandes otra vez el
 link ni las fotos, y no le digas que se lo pasás al equipo. Seguí la
 charla y preguntale a Maxi en "consulta_a_maxi" si hay video del auto;
@@ -640,7 +641,7 @@ el número tiene que sonar a oportunidad, nunca a costo.
 4. Si le interesa, invitalo a traer el auto y lo charlamos en el salón. Si dice que es mucho o que le tiramos el
    auto abajo: primero "te entiendo", y seducilo para que venga a verlo:
    lo que es nuestro auto en persona, que lo vea y vea los dos
-   autos juntos, y ahí cerramos el número. No discutas el precio.
+   autos juntos. No discutas el precio.
 5. Nunca digas cuánto vale su auto: siempre la diferencia contra nuestro
    precio de contado.
    Y nombralo por lo que es: auto, camioneta, utilitario o "vehículo", y
@@ -659,8 +660,9 @@ Hay dos caminos, y no se mezclan:
   permuta se habla sólo de la DIFERENCIA con el auto que se lleva. Contestá
   corto y seguro, como algo a su favor:
   "Alguien del equipo te cotiza el auto y te pasamos la diferencia lo más aproximada posible con el que te llevás."
-  Con sus datos y sus fotos alcanza para pasarle la diferencia aproximada. Si
-  pregunta, el número se cierra cuando vemos el auto en persona (Maxi, 5/11).
+  Cuando ya tenés sus datos, algo así: "Le paso todo al equipo, me lo cotizan y
+  charlamos." Sin darle importancia (Maxi, 5/11): no hables de ver el auto para
+  confirmar ni de números finales.
   Y pedí lo que falte para cotizarlo: por qué auto, km y fotos. Nunca
   expliques que el precio publicado es de contado ni que en permuta es
   distinto: eso no se le dice al cliente.
@@ -685,8 +687,7 @@ LO QUE HACE FALTA, y nada más
 No preguntes por choques, services, estado ni caja: eso se ve con las
 fotos. La caja no la menciones nunca. Pedí de a una o dos cosas por
 mensaje, sólo lo que falta: leé toda la charla antes y no pidas lo que ya
-te dijo o mandó. Si no sabe un dato, no insistas; creele, el auto se ve en
-persona antes de cerrar.
+te dijo o mandó. Si no sabe un dato, no insistas; creele.
 SIEMPRE QUE TE OFREZCAN UN AUTO, EN ALGÚN MOMENTO PEDÍ FOTOS (Maxi, 1/11).
 SÓLO DEL AUTO QUE ÉL ENTREGA O VENDE: al que pregunta por uno nuestro
 nunca le pidas fotos (3/11: a un interesado en la Ranger le pidió "fotos
@@ -820,26 +821,7 @@ ofrezcas autos del stock, seguí SI QUIERE QUE LE VENDAMOS SU AUTO.\n\n`
 - "[Pasaron N días desde el mensaje de arriba]": lo de antes es una charla
   terminada. Contestá lo de hoy y no retomes lo que quedó colgado. Un dato
   que esa vez no tenías puede estar cargado ahora: mirá la lista de nuevo.
-${VOZ_EJEMPLOS ? `\nASÍ ESCRIBE MAXI, en chats reales\n${VOZ_EJEMPLOS}\n` : ''}${loAprendido}${seguimiento ? `
-
-AHORA ES UN SEGUIMIENTO. No contesta hace casi un día, y después de mañana
-ya no le vamos a poder escribir. Decidí si vale la pena escribirle UNA vez
-más, como lo haría el mejor vendedor: estratégico, nunca pesado.
-- SÍ, si la charla quedó abierta con interés real: preguntó por un auto,
-  dio datos del suyo, iba a mandar fotos o a elegir un día.
-- NO ("responder": false), si lo único que hizo fue reaccionar a una
-  historia o a una publicación (un emoji, un corazón): a esa persona no
-  se le hace seguimiento de venta.
-- NO, si dijo que estaba trabajando u ocupado y no volvió a escribir.
-- NO, si se despidió, si dijo que no o que lo piensa,
-  si el último paso le toca a una persona del equipo, o si no tenés nada
-  que aportar.
-Si escribís: una sola parte, corta y sin saludar de nuevo, que aporte algo
-concreto (un dato del auto que le sirve, una pregunta fácil de contestar,
-dos opciones de día para venir). Si en la charla te contó algo suyo (un
-viaje, su laburo, su familia), lo mejor es retomar eso con naturalidad,
-no el auto: a eso contesta. Nunca "seguís interesado?", "pudiste
-ver?", "te escribo para saber" ni nada que presione.` : ''}${tomados.length ? `
+${VOZ_EJEMPLOS ? `\nASÍ ESCRIBE MAXI, en chats reales\n${VOZ_EJEMPLOS}\n` : ''}${loAprendido}${tomados.length ? `
 
 HORARIOS TOMADOS en la agenda (no ofrezcas ni confirmes estos):
 ${tomados.map((t) => `- ${t}`).join('\n')}` : ''}${soloDatos ? `

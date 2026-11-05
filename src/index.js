@@ -1786,7 +1786,7 @@ Tiene que ser EXACTAMENTE ese auto: misma marca y mismo modelo. Si es otro que n
   return res;
 }
 
-async function pensarRespuesta(env, conversacionId, { automatico = false, deNoche = false, seguimiento = false, soloDatos = false, simulacion = null } = {}) {
+async function pensarRespuesta(env, conversacionId, { automatico = false, deNoche = false, soloDatos = false, simulacion = null } = {}) {
   if (!env.ANTHROPIC_API_KEY) {
     throw new Error('Falta cargar ANTHROPIC_API_KEY en Cloudflare');
   }
@@ -1977,7 +1977,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
       vendidos: (vendidos ?? []).map((a) => [a.marca, a.modelo, a.anio].filter(Boolean).join(' ')),
       reservados: reservados.map((a) => `[${a.id}] ${[a.marca, a.modelo, a.anio].filter(Boolean).join(' ')}`),
       porEntrar: ((await leerEstado(env, 'por_entrar'))?.valor ?? []).map((a) => a.texto),
-      hoy: hoyEnBsAs(), seguimiento, soloDatos,
+      hoy: hoyEnBsAs(), soloDatos,
       tomados: ((await leerEstado(env, 'agenda'))?.valor ?? [])
         .filter((v) => v.chat !== conversacionId && v.visita.length > 10).map((v) => v.visita),
       /* Si ya le escribimos por privado, no vuelve a saludar. Lo decide
@@ -2299,10 +2299,14 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
 /* EN INSTAGRAM Y MESSENGER VA EL LINK SOLO (Maxi, 31/10): ahí la vista
    previa sale como una burbuja aparte y el texto con el link como otra, y
    se veía el link dos veces. Con el link solo queda la tarjeta con la foto. */
-const conPresentacion = (link, canal = 'whatsapp', idioma = 'es') => !link ? null
-  : canal !== 'whatsapp' ? link
-  : enIdioma(idioma) ? `${enIdioma(idioma).link}\n${link}`
-  : `Acá te paso más info para que vayas viendo, hay algunas fotos también.\n${link}`;
+/* En Instagram y Messenger el link va solo, para que se vea la foto, y la frase
+   en el mensaje anterior. En WhatsApp, juntos. */
+const conPresentacion = (link, canal = 'whatsapp', idioma = 'es') => {
+  if (!link) return [];
+  if (canal !== 'whatsapp') return [enIdioma(idioma)?.link
+    ?? 'De paso, te mando un link donde podés ver más fotos y una descripción más completa.', link];
+  return [`${enIdioma(idioma)?.link ?? 'Acá te paso más info para que vayas viendo, hay algunas fotos también.'}\n${link}`];
+};
 
 const PAUSA_ENTRE_PARTES = 14000;
 const PAUSA_TRAS_EL_LINK = 24000;
@@ -2374,11 +2378,10 @@ async function ubicacionSinRepetir(_env, _chatId, ubicacion) {
 }
 
 async function mandarRespuesta(env, chat, {
-  partes, autoId = null, ubicacion = false, aWhatsapp = false, autor, despues = null, idioma = 'es',
+  partes, autoId = null, ubicacion = false, aWhatsapp = false, autor, idioma = 'es',
 }) {
-  const link = conPresentacion(await linkSinRepetir(env, chat.id, autoId), chat.canal, idioma);
   const fijos = [
-    link,
+    ...conPresentacion(await linkSinRepetir(env, chat.id, autoId), chat.canal, idioma),
     await ubicacionSinRepetir(env, chat.id, ubicacion),
     aWhatsapp && chat.canal !== 'whatsapp' ? A_WHATSAPP : null,
   ].filter(Boolean);
@@ -2387,14 +2390,10 @@ async function mandarRespuesta(env, chat, {
   const textos = armarTextos(partes, fijos);
   const pasos = textos.map((texto, n) => ({
     texto,
-    espera: n === 0 ? 0 : conVaivén(fijos.includes(textos[n - 1]) ? PAUSA_TRAS_EL_LINK : PAUSA_ENTRE_PARTES),
+    espera: n === 0 ? 0 : conVaivén(/https?:\/\//.test(textos[n - 1]) ? PAUSA_TRAS_EL_LINK : PAUSA_ENTRE_PARTES),
   }));
 
   const [primero, ...resto] = pasos;
-  /* Un paso para más tarde (ver SEGUIMIENTO DEL PRECIO en `Envios`): va
-     al final de la cola y se cancela igual que las partes si el cliente
-     escribe antes. */
-  if (despues) resto.push(despues);
   const id = await mandarUno(env, chat, primero.texto);
   await guardarSaliente(env, chat.id, primero.texto, autor, id);
 
@@ -2526,27 +2525,7 @@ export class Envios extends DurableObject {
           .bind(paso.chat.id).first())?.humano ? 1 : 0;
         const sigue = !escribio &&
           (paso.autor !== 'ia' || humanoAhora <= (paso.humanoAntes ?? 0));
-        if (sigue && paso.pensar) {
-          /* SEGUIMIENTO DEL PRECIO (Maxi, 29/10): le pasamos el precio y
-             a los 20 minutos no contestó. El bot piensa en el momento si
-             le escribe —preguntarle si lo pudo ver y algo cordial— o si
-             no corresponde. Las partes van por esta misma cola: llamar a
-             `mandarRespuesta` desde acá sería pedirle algo a esta cola
-             mientras está ocupada. */
-          const cfg = await configDelBot(this.env);
-          const horaBsAs = new Date(Date.now() - 3 * HORAS).getUTCHours();
-          if (!humanoAhora && !(await loAtendioElEquipo(this.env, paso.chat.id))
-              && canalActivo(cfg, paso.chat.canal) && horaBsAs >= 8 && horaBsAs < 23) {
-            const r = await pensarRespuesta(this.env, paso.chat.id, { automatico: true, seguimiento: paso.pensar });
-            if (r.responder && !r.derivar && r.partes.length) {
-              const [uno, ...otros] = r.partes.slice(0, 2);
-              const id = await mandarUno(this.env, paso.chat, uno);
-              await guardarSaliente(this.env, paso.chat.id, uno, 'ia', id);
-              cola.unshift(...otros.map((texto) => ({ ...paso, pensar: null, texto,
-                espera: conVaivén(PAUSA_ENTRE_PARTES) })));
-            }
-          }
-        } else if (sigue && paso.plantilla) {
+        if (sigue && paso.plantilla) {
           /* POSVENTA: texto libre si la persona escribió hace menos de 23
              horas (la ventana sigue abierta); si no, la plantilla aprobada,
              con el mismo texto. */
@@ -3328,8 +3307,7 @@ const HORAS = 3600 * 1000;
 /* WHATSAPP EN CUARENTENA (Maxi, 30/10): Meta avisó "es posible que se
    restrinja tu cuenta pronto" por posible spam, después de una tanda de
    mensajes a clientes que no escribían hacía días. Hasta esta fecha el
-   bot sólo contesta en WhatsApp: no hace seguimientos a quien no
-   respondió ni manda posventa. Instagram y Messenger siguen igual. */
+   bot sólo contesta en WhatsApp: no manda posventa. Instagram y Messenger siguen igual. */
 const WHATSAPP_SOLO_RESPONDE_HASTA = Date.parse('2026-11-07T03:00:00Z');
 const whatsappEnCuarentena = (canal) => canal === 'whatsapp' && Date.now() < WHATSAPP_SOLO_RESPONDE_HASTA;
 
@@ -3582,54 +3560,6 @@ async function recordarVisitas(env) {
     }
   }
   if (cambio) await guardarEstado(env, 'agenda', agenda);
-}
-
-async function hacerSeguimientos(env) {
-  const cfg = await configDelBot(env);
-  if (!enHorario(cfg)) return;
-  /* De día y de tarde: un mensaje de venta a la madrugada es de pesado. */
-  const horaBsAs = new Date(Date.now() - 3 * HORAS).getUTCHours();
-  if (horaBsAs < 9 || horaBsAs >= 21) return;
-
-  const jefe = await chatDelJefe(env);
-  const { results } = await env.DB.prepare(
-    `SELECT c.id, c.canal, c.externo_id, c.nombre, e.id AS suyo
-       FROM conversaciones c
-       JOIN mensajes e ON e.id = (
-         SELECT id FROM mensajes WHERE conversacion_id = c.id AND direccion = 'entrante'
-          AND clase = 'mensaje' ORDER BY creado DESC, id DESC LIMIT 1)
-       JOIN mensajes u ON u.id = (
-         SELECT id FROM mensajes WHERE conversacion_id = c.id
-          ORDER BY creado DESC, id DESC LIMIT 1)
-      WHERE c.humano = 0 AND c.id != ?
-        /* Lo mismo que en ponerseAlDia: la fecha de la charla primero.
-           Va solo el piso —"u" es el último mensaje y puede ser más
-           nuevo que "e"—, y con eso alcanza para no recorrer el archivo
-           entero. Medido: 1277 filas leídas pasaron a 342, con las
-           mismas nueve conversaciones. */
-        AND c.ultimo >= datetime('now','-23 hours','-30 minutes')
-        AND u.direccion = 'saliente' AND u.autor = 'ia'
-        AND e.creado BETWEEN datetime('now','-23 hours','-30 minutes') AND datetime('now','-20 hours')
-      LIMIT 20`
-  ).bind(jefe?.id ?? 0).all();
-
-  const vistos = (await leerEstado(env, 'seguidos'))?.valor ?? [];
-  const nuevos = (results ?? []).filter((c) => canalActivo(cfg, c.canal) && !whatsappEnCuarentena(c.canal)
-    && !vistos.includes(c.suyo)).slice(0, 4);
-  if (!nuevos.length) return;
-  await guardarEstado(env, 'seguidos', [...vistos, ...nuevos.map((c) => c.suyo)].slice(-300));
-
-  for (const chat of nuevos) {
-    try {
-      if (await loAtendioElEquipo(env, chat.id)) continue;
-      const r = await pensarRespuesta(env, chat.id, { automatico: true, seguimiento: 'dia' });
-      if (!r.responder || r.derivar || !r.partes.length) continue;
-      await mandarRespuesta(env, chat, { partes: r.partes.slice(0, 1), autoId: r.autoId, autor: 'ia' });
-      console.log(JSON.stringify({ bot: 'seguimiento', canal: chat.canal }));
-    } catch (e) {
-      console.error('Seguimiento fallido:', e?.message ?? e);
-    }
-  }
 }
 
 async function buenDia(env, { aPedido = false, porPanel = false, devolver = false } = {}) {
@@ -4136,8 +4066,7 @@ async function atenderComentario(env, chat, r) {
   }
 
   /* SIN LINK (Maxi, 4/11): Meta deja un solo mensaje y, pegado al texto, el
-     link no muestra la foto. Sale aparte cuando contesta: `linkSinRepetir`
-     ve que no se mandó y el bot lo pone con "ficha_de". */
+     link no muestra la foto. Sale después, en la charla, con "ficha_de". */
   const texto = armarTextos(r.partes, [
     await ubicacionSinRepetir(env, chat.id, r.ubicacion),
     r.derivar || r.irAWhatsapp ? A_WHATSAPP : null,
@@ -4694,7 +4623,7 @@ export default {
 
     /* LO QUE MANDA A MAXI VA PRIMERO Y EN LA COLA (30/10: el buen día de
        las 8:30 y el repaso de las 21 no llegaban). Antes corrían al final
-       de esta vuelta, después de ponerse al día y de los seguimientos, que
+       de esta vuelta, después de ponerse al día, que
        piensan con Claude y tardan: la vuelta se cortaba antes. Ahora se
        encargan a la cola de envíos, que corre aparte y sin ese límite. */
     /* HOY EN EL SALÓN, A LAS 7:30 (Maxi, 31/10). A los clientes se les
@@ -4720,8 +4649,6 @@ export default {
 
     try { await hacerPosventa(env); }
     catch (e) { console.error('No se pudo hacer la posventa:', e?.message ?? e); }
-    try { await hacerSeguimientos(env); }
-    catch (e) { console.error('No se pudieron hacer los seguimientos:', e?.message ?? e); }
     try { await recordatoriosDeHoy(env); }
     catch (e) { console.error('No salieron los recordatorios:', e?.message ?? e); }
     try { await recordarVisitas(env); }
@@ -4966,7 +4893,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       const ficha = r.autoId ? await fichaDe(env, r.autoId) : null;
       const yaEsta = ficha && mensajes.some((m) => m.direccion === 'saliente' && m.texto.includes(ficha.enlace));
       /* Igual que `atenderComentario`: un solo mensaje y sin link. */
-      const fijos = [r.esComentario ? null : conPresentacion(yaEsta ? null : ficha?.enlace, canal, r.idioma), r.ubicacion ? UBICACION : null].filter(Boolean);
+      const fijos = [...(r.esComentario ? [] : conPresentacion(yaEsta ? null : ficha?.enlace, canal, r.idioma)), r.ubicacion ? UBICACION : null].filter(Boolean);
       const textos = armarTextos(r.partes, fijos);
       return json({ mensajes: !r.responder ? [] : r.esComentario ? [textos.join('\n\n')] : textos, contesta: r.responder,
         pasaAPersona: r.derivar ?? null, consultaAMaxi: r.consulta, visita: r.visita, paraTasar: r.resumenParaTasar });
