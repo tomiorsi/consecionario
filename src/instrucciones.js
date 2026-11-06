@@ -229,7 +229,8 @@ otro, contestá por el otro.
 
   const genero = generoDe(nombre);
   /* Sólo letras: el perfil lo escribe el cliente y esto entra en las instrucciones. */
-  const nombreDePerfil = /^[\p{L}][\p{L} .'-]{1,40}$/u.test(String(nombre ?? '')) ? nombre : null;
+  const sinAdornos = String(nombre ?? '').replace(/[^\p{L} .'-]/gu, '').trim();
+  const nombreDePerfil = /^[\p{L}][\p{L} .'-]{1,40}$/u.test(sinAdornos) ? sinAdornos : null;
   const trato = genero === 'f'
     ? `\nLE ESTÁS HABLANDO A UNA MUJER. Todo en femenino:
 "fierrera", "interesada", "bienvenida", "tranquila". Nunca en masculino.\n`
