@@ -1229,6 +1229,24 @@ async function mensajesDelEquipoEnInstagram(env, chat) {
   return nuestros.filter((m) => !ids.has(m.id) && !textos.has(parejo(m.message)));
 }
 
+/* Lo deja asentado como escrito por una persona y le pasa el chat al equipo.
+   Si Instagram no contesta, sigue como estaba: no frena la respuesta. */
+async function anotarAlEquipoDeInstagram(env, chat) {
+  const hallados = await mensajesDelEquipoEnInstagram(env, chat);
+  if (!hallados.length) return false;
+  for (const m of hallados) {
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO mensajes (conversacion_id, externo_id, direccion, autor, tipo, texto, creado)
+       VALUES (?, ?, 'saliente', 'persona', 'texto', ?, ?)`
+    ).bind(chat.id, m.id, m.message, String(m.created_time ?? '').replace('T', ' ').slice(0, 19) || aSqlite(new Date().toISOString())).run();
+  }
+  await env.DB.prepare(
+    `UPDATE conversaciones SET humano = 1,
+            nota = COALESCE(nota, 'Lo tomó alguien del equipo desde Instagram') WHERE id = ?`
+  ).bind(chat.id).run();
+  return true;
+}
+
 async function historialDeInstagram(env, chat) {
   if (chat?.canal !== 'instagram') return;
   const viejo = await env.DB.prepare(
@@ -3959,6 +3977,13 @@ async function atenderSolo(env, disparos) {
       /* SI ENTRÓ UNA PERSONA, EL BOT NO CONTESTA MÁS (Maxi, 6/11: "cuando uno
          de nosotros entra en la conversación, listo"). Sin excepciones por
          tiempo: reemplaza los 20 minutos del 31/10. */
+      if (!esPrueba && !chat.humano && chat.canal === 'instagram') {
+        const entro = await anotarAlEquipoDeInstagram(env, chat).catch((e) => {
+          console.error('No se pudo mirar la charla en Instagram:', e?.message ?? e);
+          return false;
+        });
+        if (entro) continue;
+      }
       if (!esPrueba && (chat.humano || await loAtendioElEquipo(env, chat.id))) continue;
 
       const ultimo = await env.DB.prepare(
@@ -4966,18 +4991,6 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     for (const id of medios) publicaciones[id] = await datosDePublicacion(env, id);
 
     return json({ chat, mensajes: results, publicaciones });
-  }
-
-  /* PRUEBA, SÓLO LEE: qué tomaría como escrito por el equipo en Instagram. */
-  const equipoIg = ruta.match(/^\/api\/admin\/chats\/(\d+)\/equipo-instagram$/);
-  if (equipoIg && metodo === 'GET') {
-    const chat = await env.DB.prepare('SELECT id, canal, externo_id FROM conversaciones WHERE id = ?')
-      .bind(equipoIg[1]).first();
-    if (!chat) return error('No está', 404);
-    try {
-      const hallados = await mensajesDelEquipoEnInstagram(env, chat);
-      return json({ hallados: hallados.map((m) => ({ cuando: m.created_time, texto: String(m.message).slice(0, 80) })) });
-    } catch (e) { return error(String(e?.message ?? e).slice(0, 200), 502); }
   }
 
   /* PASAR UNA CONVERSACIÓN A UNA PERSONA.
