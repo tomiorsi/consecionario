@@ -3411,12 +3411,15 @@ const whatsappEnCuarentena = (canal) => canal === 'whatsapp' && Date.now() < WHA
    "todo lo que atendimos nosotros, no les hables"). Alcanza con un
    mensaje de una persona —desde el celular o desde el panel— en
    cualquier momento de la charla. Sólo la posventa le escribe después,
-   y eso es a propósito. */
+   y eso es a propósito.
+   SALVO QUE LE DEVUELVAN EL CHAT (Maxi, 6/11: "si continúa el chat,
+   continúalo vos"): cuenta lo que escribió una persona después de eso. */
 async function loAtendioElEquipo(env, chatId) {
+  const devuelto = ((await leerEstado(env, 'devueltos_al_bot'))?.valor ?? {})[chatId] ?? '';
   return Boolean(await env.DB.prepare(
     `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
-        AND autor = 'persona' LIMIT 1`
-  ).bind(chatId).first());
+        AND autor = 'persona' AND creado > ? LIMIT 1`
+  ).bind(chatId, devuelto).first());
 }
 
 /* Un precio en lo que dijo el bot: "USD 23.900", "US$ 69.000". */
@@ -4973,6 +4976,11 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     ).bind(prendido, nota, aHumano[1]).run();
 
     if (!r.meta.changes) return error('No está', 404);
+    if (!prendido) {
+      const devueltos = (await leerEstado(env, 'devueltos_al_bot'))?.valor ?? {};
+      devueltos[aHumano[1]] = aSqlite(new Date().toISOString());
+      await guardarEstado(env, 'devueltos_al_bot', Object.fromEntries(Object.entries(devueltos).slice(-500)));
+    }
     return json({ ok: true, humano: prendido });
   }
 
