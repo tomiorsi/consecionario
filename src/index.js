@@ -3729,12 +3729,12 @@ async function agendaDeManana(env) {
   if (faltan.length) await guardarEstado(env, 'agenda', agenda);
 }
 
-/* EL RESUMEN DE LAS 23 PARA MAXI (Maxi, 6/11): las visitas de mañana, en orden,
-   con el auto, los datos útiles y si quedaron a menos de 45 minutos. De lunes a
-   viernes siempre; el sábado sólo si hay algo el domingo. Lo arma el código: es
-   la agenda tal cual, sin inventar nada. */
-function textoVisitasDeManana(agenda) {
-  const manana = diaDeBsAs(new Date(Date.now() + 24 * HORAS).toISOString().replace('T', ' ').slice(0, 19));
+/* EL RESUMEN DE LAS 23 PARA MAXI (Maxi, 6/11): las visitas, en orden, con el auto,
+   los datos útiles y si quedaron a menos de 45 minutos. De lunes a viernes, las de
+   mañana. El sábado, las del domingo y el lunes. El domingo no sale. Lo arma el
+   código: es la agenda tal cual, sin inventar nada. */
+function textoVisitasDe(agenda, enDias) {
+  const manana = diaDeBsAs(new Date(Date.now() + enDias * 24 * HORAS).toISOString().replace('T', ' ').slice(0, 19));
   const citas = agenda.filter((v) => v.visita.slice(0, 10) === manana)
     .sort((a, b) => (a.visita.slice(11) || '99').localeCompare(b.visita.slice(11) || '99'));
   if (!citas.length) return null;
@@ -3748,17 +3748,18 @@ function textoVisitasDeManana(agenda) {
     return [`${v.visita.length > 10 ? v.visita.slice(11, 16) : 'Sin hora'}${v.aConfirmar ? ' (a confirmar)' : ''}, ${v.quien}`,
       [v.auto, v.condiciones].filter(Boolean).join('. '), ...(v.claves ?? [])].filter(Boolean).join('\n') + cerca;
   });
-  return `VISITAS DE MAÑANA: ${dia}\n\n${lineas.join('\n\n')}`;
+  return `VISITAS: ${dia}\n\n${lineas.join('\n\n')}`;
+}
+
+function textoVisitasDeLaNoche(agenda) {
+  const hoy = new Date(Date.now() - 3 * HORAS).getUTCDay();
+  const dias = hoy === 0 ? [] : hoy === 6 ? [1, 2] : [1];
+  return dias.map((n) => textoVisitasDe(agenda, n)).filter(Boolean).join('\n\n') || null;
 }
 
 async function resumenDeLaNoche(env) {
-  const texto = textoVisitasDeManana((await leerEstado(env, 'agenda'))?.valor ?? []);
-  const hoy = new Date(Date.now() - 3 * HORAS).getUTCDay();
-  if (hoy === 0 || (hoy !== 6 && !texto) || (hoy === 6 && !texto)) {
-    /* De lunes a viernes, si no hay visitas se lo decimos; el sábado, sólo si hay. */
-    if (hoy >= 1 && hoy <= 5) await anotarAviso(env, 'Mañana no hay visitas agendadas.');
-    return;
-  }
+  const texto = textoVisitasDeLaNoche((await leerEstado(env, 'agenda'))?.valor ?? []);
+  if (!texto) return;
   await anotarAviso(env, texto);
   const jefe = await chatDelJefe(env);
   if (!jefe) return;
@@ -5429,7 +5430,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
 
   /* EL RESUMEN DE LAS 23, PARA VERLO SIN MANDARLO A NADIE. */
   if (ruta === '/api/admin/resumen-noche' && metodo === 'POST') {
-    return json({ texto: textoVisitasDeManana((await leerEstado(env, 'agenda'))?.valor ?? []) });
+    return json({ texto: textoVisitasDeLaNoche((await leerEstado(env, 'agenda'))?.valor ?? []) });
   }
 
   /* LA LISTA DEL DÍA, PARA VERLA SIN MANDARLA A NADIE. */
