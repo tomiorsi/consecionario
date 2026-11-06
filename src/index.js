@@ -3501,6 +3501,8 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
   const nueva = { chat: chat.id, quien: quienEs(nombre ? { ...chat, nombre } : chat), visita, auto, condiciones,
     motivo: auto || condiciones ? null : motivo, recordada: false, ...(aConfirmar ? { aConfirmar: true } : { confirmadaEl }),
     ...(lasClaves.length ? { claves: lasClaves } : {}) };
+  /* Ya les va a llegar a Maxi y a Colo: esa noche no se repite. */
+  if ((avisar && !aConfirmar) || (mismaCita && antes.avisadaEquipo)) nueva.avisadaEquipo = true;
   resto.push(nueva);
   resto.sort((a, b) => aMs(a.visita) - aMs(b.visita));
   await guardarEstado(env, 'agenda', resto.filter((v) => aMs(v.visita) > Date.now() - 12 * HORAS));
@@ -3717,6 +3719,14 @@ async function agendaDeManana(env) {
   if (deManana.length) {
     await anotarAviso(env, `*MAÑANA*\n\n${deManana.map(fichaDeVisita).join('\n\n')}`);
   }
+  /* A LAS 21, A MAXI Y A COLO, LAS DE MAÑANA QUE TODAVÍA NO LES AVISAMOS (Maxi, 6/11):
+     también las que arregló el equipo y entraron a mano. */
+  const faltan = deManana.filter((v) => !v.avisadaEquipo);
+  for (const v of faltan) {
+    await avisarVisitaAlEquipo(env, v);
+    v.avisadaEquipo = true;
+  }
+  if (faltan.length) await guardarEstado(env, 'agenda', agenda);
 }
 
 async function recordarVisitas(env) {
