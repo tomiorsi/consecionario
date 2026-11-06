@@ -1851,7 +1851,7 @@ function claseDe(a) {
   const t = a.texto;
   if (a.tipo === 'hacer' || t.startsWith('*PARA HACER')) return 'hacer';
   if (t.startsWith('*RESUMEN')) return 'resumen';
-  if (t.startsWith('Para tasar') || t.startsWith('*TASACIÓN')) return 'tasar';
+  if (t.startsWith('Para tasar') || t.startsWith('Para cotizar') || t.startsWith('*TASACIÓN')) return 'tasar';
   if (/^(Te paso un chat|Contestó la confirmación|Te escribió un cliente)/.test(t)) return 'responder';
   return 'otro';
 }
