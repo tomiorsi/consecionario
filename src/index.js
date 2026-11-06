@@ -3493,8 +3493,11 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
   const resto = agenda.filter((v) => v.chat !== chat.id);
   /* Si esta vez no dijo nada nuevo, quedan las de antes. */
   const lasClaves = claves.length ? claves : antes?.claves ?? [];
+  /* EL DÍA QUE QUEDÓ FIRME: ese día no le sale el recordatorio (Maxi, 6/11). */
+  const mismaCita = antes && antes.visita === visita && !antes.aConfirmar;
+  const confirmadaEl = aConfirmar ? null : (mismaCita && antes.confirmadaEl) || aSqlite(new Date().toISOString());
   const nueva = { chat: chat.id, quien: quienEs(nombre ? { ...chat, nombre } : chat), visita, auto, condiciones,
-    motivo: auto || condiciones ? null : motivo, recordada: false, ...(aConfirmar ? { aConfirmar: true } : {}),
+    motivo: auto || condiciones ? null : motivo, recordada: false, ...(aConfirmar ? { aConfirmar: true } : { confirmadaEl }),
     ...(lasClaves.length ? { claves: lasClaves } : {}) };
   resto.push(nueva);
   resto.sort((a, b) => aMs(a.visita) - aMs(b.visita));
@@ -3563,6 +3566,12 @@ async function confirmarVisitasDeManana(env) {
     const c = await env.DB.prepare('SELECT id, canal, externo_id, nombre FROM conversaciones WHERE id = ?')
       .bind(v.chat).first();
     if (!c) continue;
+    /* SI CONFIRMÓ HOY NO HACE FALTA (Maxi, 6/11): el recordatorio es para los que
+       quedaron de antes y por ahí se olvidaron. */
+    if (v.confirmadaEl && diaDeBsAs(v.confirmadaEl) === diaDeBsAs()) {
+      lineas.push(`${fichaDeVisita(v)}\nConfirmó hoy: no le mandé el recordatorio.`);
+      continue;
+    }
     let enviada = Boolean(v.confirmacion);
     /* INSTAGRAM Y MESSENGER TAMBIÉN (Maxi, 31/10: "lo que agendás por
        Instagram o Facebook, es todo lo mismo"). Ahí no hay plantillas:
@@ -3698,7 +3707,7 @@ async function agendaDeManana(env) {
   const manana = diaDeBsAs(new Date(Date.now() + 24 * HORAS).toISOString().replace('T', ' ').slice(0, 19));
   const deManana = agenda.filter((v) => v.visita.slice(0, 10) === manana);
   if (deManana.length) {
-    await anotarAviso(env, `*MAÑANA*\n\n${deManana.map(fichaDeVisita).join('\n\n')}\n\nLa confirmación les salió a las 20.`);
+    await anotarAviso(env, `*MAÑANA*\n\n${deManana.map(fichaDeVisita).join('\n\n')}`);
   }
 }
 
