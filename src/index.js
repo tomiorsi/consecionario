@@ -3729,6 +3729,51 @@ async function agendaDeManana(env) {
   if (faltan.length) await guardarEstado(env, 'agenda', agenda);
 }
 
+/* EL RESUMEN DE LAS 23 PARA MAXI (Maxi, 6/11): las visitas de mañana, en orden,
+   con el auto, los datos útiles y si quedaron a menos de 45 minutos. De lunes a
+   viernes siempre; el sábado sólo si hay algo el domingo. Lo arma el código: es
+   la agenda tal cual, sin inventar nada. */
+function textoVisitasDeManana(agenda) {
+  const manana = diaDeBsAs(new Date(Date.now() + 24 * HORAS).toISOString().replace('T', ' ').slice(0, 19));
+  const citas = agenda.filter((v) => v.visita.slice(0, 10) === manana)
+    .sort((a, b) => (a.visita.slice(11) || '99').localeCompare(b.visita.slice(11) || '99'));
+  if (!citas.length) return null;
+  const dia = new Date(`${manana}T12:00:00-03:00`).toLocaleDateString('es-AR', {
+    weekday: 'long', day: 'numeric', month: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' });
+  const aMin = (v) => (v.visita.length > 10 ? Number(v.visita.slice(11, 13)) * 60 + Number(v.visita.slice(14, 16)) : null);
+  const lineas = citas.map((v, i) => {
+    const antes = i ? aMin(citas[i - 1]) : null;
+    const ahora = aMin(v);
+    const cerca = antes !== null && ahora !== null && ahora - antes < 45 ? `\nOjo: ${ahora - antes} minutos después de la anterior.` : '';
+    return [`${v.visita.length > 10 ? v.visita.slice(11, 16) : 'Sin hora'}${v.aConfirmar ? ' (a confirmar)' : ''}, ${v.quien}`,
+      [v.auto, v.condiciones].filter(Boolean).join('. '), ...(v.claves ?? [])].filter(Boolean).join('\n') + cerca;
+  });
+  return `VISITAS DE MAÑANA: ${dia}\n\n${lineas.join('\n\n')}`;
+}
+
+async function resumenDeLaNoche(env) {
+  const texto = textoVisitasDeManana((await leerEstado(env, 'agenda'))?.valor ?? []);
+  const hoy = new Date(Date.now() - 3 * HORAS).getUTCDay();
+  if (hoy === 0 || (hoy !== 6 && !texto) || (hoy === 6 && !texto)) {
+    /* De lunes a viernes, si no hay visitas se lo decimos; el sábado, sólo si hay. */
+    if (hoy >= 1 && hoy <= 5) await anotarAviso(env, 'Mañana no hay visitas agendadas.');
+    return;
+  }
+  await anotarAviso(env, texto);
+  const jefe = await chatDelJefe(env);
+  if (!jefe) return;
+  const abierta = await env.DB.prepare(
+    `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
+        AND creado > datetime('now','-23 hours') LIMIT 1`
+  ).bind(jefe.id).first();
+  if (!abierta) {
+    await anotarAviso(env, 'El resumen de las 23 no te llegó por WhatsApp: no escribiste al número en las últimas 23 horas. Está acá en el panel.');
+    return;
+  }
+  const id = await mandarUno(env, jefe, texto);
+  await guardarSaliente(env, jefe.id, texto, 'ia', id);
+}
+
 async function recordarVisitas(env) {
   const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
   const ahora = Date.now();
@@ -4950,6 +4995,11 @@ export default {
       await confirmarVisitasDeManana(env).catch((e) =>
         anotarAviso(env, `No pude confirmar las visitas de mañana: ${String(e?.message ?? e).slice(0, 200)}`));
     }
+    /* LAS 23 EN BUENOS AIRES: el resumen de las visitas de mañana para Maxi. */
+    if (hora === 2 && minutoDelReloj < 5) {
+      await resumenDeLaNoche(env).catch((e) =>
+        anotarAviso(env, `No pude armar el resumen de las 23: ${String(e?.message ?? e).slice(0, 200)}`));
+    }
     if (hora === 0 && minutoDelReloj < 5) {
       await env.ENVIOS.get(env.ENVIOS.idFromName('tareas-repaso')).tarea('repaso').catch(() => {});
     }
@@ -5375,6 +5425,11 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     } catch (e) {
       return error(`No se pudo atender: ${String(e?.message ?? e).slice(0, 500)}`, 500);
     }
+  }
+
+  /* EL RESUMEN DE LAS 23, PARA VERLO SIN MANDARLO A NADIE. */
+  if (ruta === '/api/admin/resumen-noche' && metodo === 'POST') {
+    return json({ texto: textoVisitasDeManana((await leerEstado(env, 'agenda'))?.valor ?? []) });
   }
 
   /* LA LISTA DEL DÍA, PARA VERLA SIN MANDARLA A NADIE. */
