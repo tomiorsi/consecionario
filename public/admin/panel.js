@@ -1042,7 +1042,7 @@ async function abrirChat(id) {
   $('#etapaChat').value = chat.etapa || '';
   $('#perdidoChat').checked = !!chat.perdido;
 
-  pintarHilo(chat, mensajes);
+  pintarHilo(chat, mensajes, chatActual.publicaciones);
   prepararRespuesta(chat, mensajes);
 
   $('#vistaLista').classList.add('oculto');
@@ -1474,7 +1474,19 @@ document.addEventListener('visibilitychange', () => {
 });
 
 
-function pintarHilo(chat, mensajes) {
+/* De qué publicación viene un comentario, en una línea y sólo si se sabe algo. */
+function lineaDePublicacion(m, publicaciones) {
+  if (m.clase !== 'comentario' || m.direccion !== 'entrante' || !m.media_id) return '';
+  const p = publicaciones?.[m.media_id];
+  if (!p) return '';
+  const nombre = p.auto ? escapar(p.auto) + (p.vendido ? ' (vendido)' : '') : 'una publicación';
+  const enlace = /^https:\/\//.test(p.enlace || '')
+    ? ' · <a href="' + escapar(p.enlace) + '" target="_blank" rel="noopener">Ver publicación</a>'
+    : '';
+  return '<span class="adjunto">Comentó en ' + nombre + enlace + '</span>';
+}
+
+function pintarHilo(chat, mensajes, publicaciones) {
   if (!mensajes.length) {
     $('#hilo').innerHTML = '<div class="vacio">Esta conversación no tiene mensajes.</div>';
     return;
@@ -1508,6 +1520,7 @@ function pintarHilo(chat, mensajes) {
         ' · se abre en ' + escapar(CANALES[chat.canal] || chat.canal) + '</span>';
 
     return '<article class="globo' + (mio ? ' globo--saliente' : '') + '">' +
+      lineaDePublicacion(m, publicaciones) +
       cuerpo +
       '<span class="firma"><span>' + firma + '</span>' +
         '<span>' + cuandoLargo(m.creado) + '</span></span>' +
