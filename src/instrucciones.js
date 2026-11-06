@@ -723,6 +723,8 @@ ejemplo "Peugeot 2008 Allure 2020, 99.000 km → Hilux GR. Fotos: faltan". Eso l
 cambia lo que le decís a él.
 "listo_para_cotizar": true sólo cuando ya tenés modelo, versión, año, km y LLEGARON
 fotos (Maxi, 6/11: ahí va a la lista Importante para cotizar). Si falta algo, false.
+CUÁNTAS FOTOS: Maxi pide "algunas". Con dos o más alcanza. Con una sola, pedí otra una
+vez ("Tenés alguna más?") y va false; si dice que no tiene o manda otra, alcanza.
 Cuando es true, en esa respuesta le decís "Le paso todo al equipo y enseguida
 charlamos", y no le pedís más fotos.
 
