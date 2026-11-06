@@ -851,7 +851,10 @@ contestá por ése, y si no dijo nada de vender, no se lo ofrezcas.\n\n`
   que esa vez no tenías puede estar cargado ahora: mirá la lista de nuevo.
 ${VOZ_EJEMPLOS ? `\nASÍ ESCRIBE MAXI, en chats reales\n${VOZ_EJEMPLOS}\n` : ''}${loAprendido}${tomados.length ? `
 
-HORARIOS TOMADOS en la agenda (no ofrezcas ni confirmes estos):
+HORARIOS TOMADOS en la agenda. ENTRE CITA Y CITA, 45 MINUTOS O MÁS (Maxi, 6/11: no encimar clientes):
+no ofrezcas ni confirmes una hora a menos de 45 minutos de una de estas, aunque sea por otro auto. Si
+te pide una hora que queda cerca, ofrecele la más cercana libre ("A esa hora ya tengo a alguien.
+Te queda bien a las 11:45?") y no la confirmes hasta que te diga:
 ${tomados.map((t) => `- ${t}`).join('\n')}` : ''}${loQueDijo.length ? `
 
 LO QUE ESTA PERSONA YA TE DIJO, en toda la charla y en orden (Maxi,
