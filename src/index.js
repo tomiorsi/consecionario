@@ -1573,6 +1573,7 @@ const FORMA_DE_RESPUESTA = {
     ir_a_whatsapp: { type: 'boolean' },
     para_tasar: { anyOf: [{ type: 'string', enum: ['permuta', 'consignacion'] }, { type: 'null' }] },
     resumen_para_tasar: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    listo_para_cotizar: { type: 'boolean' },
     consulta_a_maxi: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     visita: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     visita_auto: { anyOf: [{ type: 'string' }, { type: 'null' }] },
@@ -1585,14 +1586,14 @@ const FORMA_DE_RESPUESTA = {
     busca: { anyOf: [{ type: 'string' }, { type: 'null' }] },
   },
   required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion',
-    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_nombre', 'visita_condiciones', 'visita_claves', 'interesado_reservado', 'idioma', 'visita_a_confirmar', 'busca'],
+    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'listo_para_cotizar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_nombre', 'visita_condiciones', 'visita_claves', 'interesado_reservado', 'idioma', 'visita_a_confirmar', 'busca'],
   additionalProperties: false,
 };
 
 const FORMA_EN_TEXTO = `
 
 TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
-{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "visita_claves": [], "interesado_reservado": null, "idioma": "es", "visita_a_confirmar": false, "busca": null}
+{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "listo_para_cotizar": false, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "visita_claves": [], "interesado_reservado": null, "idioma": "es", "visita_a_confirmar": false, "busca": null}
 Escribí "partes" siempre, aunque "responder" sea false: así se puede revisar
 qué hubieras dicho.`;
 
@@ -2182,6 +2183,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     /* Un auto que dejan para evaluar, con lo que se juntó. */
     paraTasar: ['permuta', 'consignacion'].includes(dato.para_tasar) ? dato.para_tasar : null,
     resumenParaTasar: dato.resumen_para_tasar ? String(dato.resumen_para_tasar).slice(0, 300) : null,
+    listoParaCotizar: dato.listo_para_cotizar === true && ['permuta', 'consignacion'].includes(dato.para_tasar),
     consulta: dato.consulta_a_maxi ? String(dato.consulta_a_maxi).slice(0, 400) : null,
     visita: !esComentario && /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(dato.visita ?? '') ? dato.visita : null,
     visitaAuto: dato.visita_auto ? String(dato.visita_auto).slice(0, 120) : null,
@@ -4059,7 +4061,7 @@ async function atenderSolo(env, disparos) {
       } else if (r.derivar) {
         /* TODO LO QUE PIDE UNA PERSONA VA A IMPORTANTE (Maxi, 30/10). */
         await escribirleAlJefe(env, `Te paso un chat\n${lineaDe(chat, LISTAS.permuta, r.derivar)}`);
-      } else if (notaTasar && !String(chat.nota ?? '').startsWith(PARA_TASAR)) {
+      } else if (notaTasar && !r.listoParaCotizar && !String(chat.nota ?? '').startsWith(PARA_TASAR)) {
         /* UNA VEZ POR CLIENTE: cada dato nuevo reescribe la nota y antes
            salía un aviso por cada uno (29/10, tres del mismo Cruze). */
         /* PARA TASAR ES IMPORTANTE, permuta o consignación: ya hay un auto
@@ -4079,6 +4081,19 @@ async function atenderSolo(env, disparos) {
         if (!lista.includes(chat.id)) {
           esperan[r.interesadoReservado] = [...lista, chat.id].slice(-50);
           await guardarEstado(env, 'esperan_reserva', esperan);
+        }
+      }
+
+      /* CON TODOS LOS DATOS Y LAS FOTOS, A IMPORTANTE PARA COTIZAR (Maxi, 6/11).
+         Una vez por cliente. Si ya sale una consulta o el pase a una persona,
+         esos avisos ya dicen Importante: no se manda otro más. */
+      if (r.listoParaCotizar) {
+        const avisados = (await leerEstado(env, 'para_cotizar_avisados'))?.valor ?? [];
+        if (!avisados.includes(chat.id)) {
+          if (!r.consulta && !r.derivar) {
+            await escribirleAlJefe(env, `Para cotizar\n${lineaDe(chat, LISTAS.permuta, r.resumenParaTasar ?? '')}`);
+          }
+          await guardarEstado(env, 'para_cotizar_avisados', [...avisados, chat.id].slice(-1000));
         }
       }
 
@@ -5042,7 +5057,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       const textos = armarTextos(r.partes, fijos);
       return json({ mensajes: !r.responder ? [] : r.esComentario ? [textos.join('\n\n')] : textos, contesta: r.responder,
         agradeceEnComentario: Boolean(r.esComentario && r.megusta && !r.responder && !r.derivar),
-        deQueAuto: r.deQueAuto ?? null, pasaAPersona: r.derivar ?? null, consultaAMaxi: r.consulta, visita: r.visita, paraTasar: r.resumenParaTasar });
+        deQueAuto: r.deQueAuto ?? null, pasaAPersona: r.derivar ?? null, consultaAMaxi: r.consulta, visita: r.visita, paraTasar: r.resumenParaTasar, listoParaCotizar: r.listoParaCotizar });
     } catch (e) {
       return error(e?.message || 'No se pudo simular', 502);
     }

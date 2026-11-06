@@ -721,6 +721,8 @@ año y km → lo que quiere (el auto que le interesa, o "consignación, pide
 USD tanto"), y al final lo que se vio en las fotos o si faltan. Por
 ejemplo "Peugeot 2008 Allure 2020, 99.000 km → Hilux GR. Fotos: faltan". Eso lo marca en el panel; no
 cambia lo que le decís a él.
+"listo_para_cotizar": true sólo cuando ya tenés modelo, versión, año, km y LLEGARON
+fotos (Maxi, 6/11: ahí va a la lista Importante para cotizar). Si falta algo, false.
 
 SI QUIERE QUE LE VENDAMOS SU AUTO (consignación)
 Cómo trabajamos, para que lo sepas vos: no cobramos comisión. Tomamos el
