@@ -1209,14 +1209,24 @@ async function traerDeInstagram(env, { limite = 25 } = {}) {
    a un desconocido). El webhook sólo trae lo nuevo: si de esta persona
    no hay nada guardado de antes de hoy, se le piden a Instagram sus
    últimos mensajes. Una sola vez por charla. */
-/* LO QUE ESCRIBIÓ UNA PERSONA DESDE LA APP DE INSTAGRAM (Maxi, 6/11).
+/* LO QUE ESCRIBIÓ UNA PERSONA DESDE LA APP DE INSTAGRAM O FACEBOOK (Maxi, 6/11).
    Los ecos del webhook se descartan, así que el bot no se entera. Se mira la
-   charla en Instagram: lo nuestro que no tenemos guardado, ni por id ni por
+   charla en Meta: lo nuestro que no tenemos guardado, ni por id ni por
    texto, lo escribió alguien del equipo. */
-async function mensajesDelEquipoEnInstagram(env, chat) {
-  if (chat?.canal !== 'instagram') return [];
-  const r = await igLlamar(env, `/me/conversations?platform=instagram&user_id=${encodeURIComponent(chat.externo_id)}`
-    + `&fields=messages.limit(15){id,created_time,from{id},message}`);
+async function charlaEnMeta(env, chat) {
+  const camino = `/me/conversations?platform=${chat.canal}&user_id=${encodeURIComponent(chat.externo_id)}`
+    + `&fields=messages.limit(15){id,created_time,from{id},message}`;
+  if (chat.canal === 'instagram') return igLlamar(env, camino);
+  if (!env.META_PAGE_TOKEN) throw new Error('Falta cargar META_PAGE_TOKEN');
+  const r = await fetch(GRAPH + camino, { headers: { authorization: `Bearer ${env.META_PAGE_TOKEN}` } });
+  const dato = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(dato?.error?.message || `Facebook contestó ${r.status}`);
+  return dato;
+}
+
+async function mensajesDelEquipoEnMeta(env, chat) {
+  if (chat?.canal !== 'instagram' && chat?.canal !== 'messenger') return [];
+  const r = await charlaEnMeta(env, chat);
   const nuestros = (r?.data?.[0]?.messages?.data ?? [])
     .filter((m) => m.from?.id !== chat.externo_id && m.message);
   if (!nuestros.length) return [];
@@ -1231,8 +1241,8 @@ async function mensajesDelEquipoEnInstagram(env, chat) {
 
 /* Lo deja asentado como escrito por una persona y le pasa el chat al equipo.
    Si Instagram no contesta, sigue como estaba: no frena la respuesta. */
-async function anotarAlEquipoDeInstagram(env, chat) {
-  const hallados = await mensajesDelEquipoEnInstagram(env, chat);
+async function anotarAlEquipoDeMeta(env, chat) {
+  const hallados = await mensajesDelEquipoEnMeta(env, chat);
   if (!hallados.length) return false;
   for (const m of hallados) {
     await env.DB.prepare(
@@ -1242,7 +1252,7 @@ async function anotarAlEquipoDeInstagram(env, chat) {
   }
   await env.DB.prepare(
     `UPDATE conversaciones SET humano = 1,
-            nota = COALESCE(nota, 'Lo tomó alguien del equipo desde Instagram') WHERE id = ?`
+            nota = COALESCE(nota, 'Lo tomó alguien del equipo desde la app') WHERE id = ?`
   ).bind(chat.id).run();
   return true;
 }
@@ -2587,10 +2597,6 @@ export class Envios extends DurableObject {
     if (paso?.tarea) {
       try {
         if (paso.tarea === 'buenDia') {
-          /* Primero las confirmaciones a los clientes: son lo que más
-             importa que salga temprano. */
-          await confirmarVisitasDeHoy(this.env).catch((e) =>
-            anotarAviso(this.env, `No pude confirmar las visitas de hoy: ${String(e?.message ?? e).slice(0, 200)}`));
           await buenDia(this.env);
         } else if (paso.tarea === 'repaso') {
           await agendaDeManana(this.env).catch(() => {});
@@ -3498,7 +3504,7 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
   await escribirleAlJefe(env,
     `${aConfirmar ? 'Visita a confirmar' : 'Visita agendada'} · ${fichaDeVisita(nueva)}` +
     (nueva.motivo ? `\n${nueva.motivo}` : '') +
-    (aConfirmar ? `\n\nDijo un día pero no lo cerró: queda en amarillo y no le sale la confirmación de la mañana.`
+    (aConfirmar ? `\n\nDijo un día pero no lo cerró: queda en amarillo y no le sale la confirmación de la noche anterior.`
       : `\n\nSe la confirmé yo. Ponelo en Visita posible.`));
   if (!aConfirmar) await avisarVisitaAlEquipo(env, nueva);
 }
@@ -3533,27 +3539,27 @@ async function avisarVisitaAlEquipo(env, v) {
   }
 }
 
-/* ── EL DÍA DE LA VISITA (Maxi, 30/10) ───────────────────────────
-   "Con los que agendás una cita, el día de la cita a la mañana mandales
-   un mensaje: si sigue en pie, confirmás día y hora, que los estamos
-   esperando. Y a nosotros, la agenda al día: mañana tenés tal, hoy viene
-   tal." Clientes tibios, sin ser pesados: UN mensaje, temprano (8:30).
+/* ── LA NOCHE ANTES DE LA VISITA (Maxi, 6/11, antes era a la mañana) ──
+   El día anterior a las 20 se le confirma la visita del día siguiente: si
+   sigue en pie, confirmás día y hora, que los estamos esperando. Y a
+   nosotros, la agenda al día. Clientes tibios, sin ser pesados: UN mensaje.
    - Al cliente: texto libre si la ventana de 24 h está abierta; si no,
      la plantilla aprobada `visita_recordatorio`.
-   - A Maxi: "Hoy en el salón" a las 8:30 y "Mañana" a las 21.
+   - A Maxi: "Confirmaciones de mañana" a las 20, "Mañana" a las 21 y
+     "Hoy en el salón" a las 7:30.
    - Si el cliente contesta, aviso a Maxi con lo que dijo: el chat ya
      es del equipo y el bot no le responde.
    Una sola confirmación por visita. */
-async function confirmarVisitasDeHoy(env) {
+async function confirmarVisitasDeManana(env) {
   /* APAGADA NO LE ESCRIBE A NADIE (Maxi, 5/11). */
   const cfgVisitas = await configDelBot(env);
   if (!cfgVisitas.encendida) return;
   const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
-  const hoy = diaDeBsAs();
-  const deHoy = agenda.filter((v) => v.visita.slice(0, 10) === hoy);
-  if (!deHoy.length) return;
+  const manana = diaDeBsAs(new Date(Date.now() + 24 * HORAS).toISOString().replace('T', ' ').slice(0, 19));
+  const deManana = agenda.filter((v) => v.visita.slice(0, 10) === manana);
+  if (!deManana.length) return;
   const lineas = [];
-  for (const v of deHoy) {
+  for (const v of deManana) {
     const c = await env.DB.prepare('SELECT id, canal, externo_id, nombre FROM conversaciones WHERE id = ?')
       .bind(v.chat).first();
     if (!c) continue;
@@ -3568,7 +3574,7 @@ async function confirmarVisitasDeHoy(env) {
     ).bind(c.id).first());
     if (!enviada && abierta && !v.aConfirmar && canalActivo(cfgVisitas, c.canal)) {
       const hora = v.visita.length > 10 ? v.visita.slice(11, 16) : null;
-      const libre = `Hola! Buen día. Te escribo para confirmar que hoy`
+      const libre = `Hola! Te escribo para confirmar que mañana`
         + `${hora ? ` a las ${hora}` : ''} te esperamos en el salón, en Pje. Lanín 154, Barracas`
         + `${v.auto ? `, para ver el ${v.auto}` : ''}. Sigue todo en pie?`;
       const visto = (await env.DB.prepare(
@@ -3578,7 +3584,7 @@ async function confirmarVisitasDeHoy(env) {
         { id: c.id, canal: c.canal, externo_id: c.externo_id },
         [c.canal === 'whatsapp'
           ? { plantilla: 'visita_recordatorio',
-              valores: ['qué tal', 'hoy', hora ?? 'la hora que acordamos', v.auto ?? 'auto'],
+              valores: ['qué tal', 'mañana', hora ?? 'la hora que acordamos', v.auto ?? 'auto'],
               texto: libre, espera: 0 }
           : { texto: libre, espera: 0 }],
         'ia', visto, 1);
@@ -3588,7 +3594,7 @@ async function confirmarVisitasDeHoy(env) {
     lineas.push(`${fichaDeVisita(v)}${v.aConfirmar ? '\nEs a confirmar: no le mandé nada.' : enviada ? '\nLe mandé la confirmación.' : '\nConfirmale vos: no escribió en las últimas 23 horas y por Instagram o Facebook no se le puede mandar.'}`);
   }
   await guardarEstado(env, 'agenda', agenda);
-  if (lineas.length) await anotarAviso(env, `*CONFIRMACIONES DE HOY*\n\n${lineas.join('\n\n')}`);
+  if (lineas.length) await anotarAviso(env, `*CONFIRMACIONES DE MAÑANA*\n\n${lineas.join('\n\n')}`);
 }
 
 /* RECORDATORIOS PARA MAXI (31/10): "el martes escribile a Federico".
@@ -3683,7 +3689,7 @@ async function hoyEnElSalon(env) {
   const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
   const deHoy = agenda.filter((v) => v.visita.slice(0, 10) === diaDeBsAs());
   if (deHoy.length) {
-    await anotarAviso(env, `*HOY EN EL SALÓN*\n\n${deHoy.map(fichaDeVisita).join('\n\n')}\n\nA las 8:30 les mando la confirmación.`);
+    await anotarAviso(env, `*HOY EN EL SALÓN*\n\n${deHoy.map(fichaDeVisita).join('\n\n')}`);
   }
 }
 
@@ -3692,7 +3698,7 @@ async function agendaDeManana(env) {
   const manana = diaDeBsAs(new Date(Date.now() + 24 * HORAS).toISOString().replace('T', ' ').slice(0, 19));
   const deManana = agenda.filter((v) => v.visita.slice(0, 10) === manana);
   if (deManana.length) {
-    await anotarAviso(env, `*MAÑANA*\n\n${deManana.map(fichaDeVisita).join('\n\n')}\n\nA la mañana les mando la confirmación.`);
+    await anotarAviso(env, `*MAÑANA*\n\n${deManana.map(fichaDeVisita).join('\n\n')}\n\nLa confirmación les salió a las 20.`);
   }
 }
 
@@ -3963,7 +3969,7 @@ async function atenderSolo(env, disparos) {
         if (suya) {
           const dijo = await env.DB.prepare('SELECT texto, tipo FROM mensajes WHERE id = ?').bind(d.mensaje).first();
           await anotarAviso(env, `Contestó la confirmación de su visita\n${lineaDe(chat, LISTAS.permuta,
-            `${suya.visita.slice(11, 16) || 'hoy'}: «${(dijo?.texto ?? `[${dijo?.tipo ?? 'mensaje'}]`).slice(0, 300)}»`)}`);
+            `${suya.visita.slice(11, 16) || 'sin hora'}: «${(dijo?.texto ?? `[${dijo?.tipo ?? 'mensaje'}]`).slice(0, 300)}»`)}`);
           continue;
         }
       }
@@ -3977,9 +3983,9 @@ async function atenderSolo(env, disparos) {
       /* SI ENTRÓ UNA PERSONA, EL BOT NO CONTESTA MÁS (Maxi, 6/11: "cuando uno
          de nosotros entra en la conversación, listo"). Sin excepciones por
          tiempo: reemplaza los 20 minutos del 31/10. */
-      if (!esPrueba && !chat.humano && chat.canal === 'instagram') {
-        const entro = await anotarAlEquipoDeInstagram(env, chat).catch((e) => {
-          console.error('No se pudo mirar la charla en Instagram:', e?.message ?? e);
+      if (!esPrueba && !chat.humano && (chat.canal === 'instagram' || chat.canal === 'messenger')) {
+        const entro = await anotarAlEquipoDeMeta(env, chat).catch((e) => {
+          console.error('No se pudo mirar la charla en Meta:', e?.message ?? e);
           return false;
         });
         if (entro) continue;
@@ -4792,13 +4798,17 @@ export default {
        de esta vuelta, después de ponerse al día, que
        piensan con Claude y tardan: la vuelta se cortaba antes. Ahora se
        encargan a la cola de envíos, que corre aparte y sin ese límite. */
-    /* HOY EN EL SALÓN, A LAS 7:30 (Maxi, 31/10). A los clientes se les
-       sigue escribiendo a las 8:30: a las 7:30 es temprano para ellos. */
+    /* HOY EN EL SALÓN, A LAS 7:30 (Maxi, 31/10). */
     if (hora === 10 && minutoDelReloj >= 30 && minutoDelReloj < 35) {
       await hoyEnElSalon(env).catch((e) => console.error('No salió hoy en el salón:', e?.message ?? e));
     }
     if (hora === 11 && minutoDelReloj >= 30 && minutoDelReloj < 35) {
       await env.ENVIOS.get(env.ENVIOS.idFromName('tareas-buen-dia')).tarea('buenDia').catch(() => {});
+    }
+    /* LAS 20 EN BUENOS AIRES: se confirman las visitas de mañana (Maxi, 6/11). */
+    if (hora === 23 && minutoDelReloj < 5) {
+      await confirmarVisitasDeManana(env).catch((e) =>
+        anotarAviso(env, `No pude confirmar las visitas de mañana: ${String(e?.message ?? e).slice(0, 200)}`));
     }
     if (hora === 0 && minutoDelReloj < 5) {
       await env.ENVIOS.get(env.ENVIOS.idFromName('tareas-repaso')).tarea('repaso').catch(() => {});
