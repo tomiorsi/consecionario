@@ -117,7 +117,7 @@ export function instruccionesDelBot({
   autos, posteo, nuestro = null, anuncio = null, canal, automatico,
   yaHablamos = false, saludamosHoy = false, esComentario = false, deNoche = false, nombre = null,
   deConsignacion = false, aprendizajes = [], hoy = null, vendidos = [], reservados = [], deQueAuto = null, porEntrar = [], loQueDijo = [],
-  tomados = [], soloDatos = false,
+  tomados = [],
 }) {
   const stock = autos.map(lineaDeAuto).join('\n') || '(no hay autos publicados)';
 
@@ -838,14 +838,7 @@ contestá por ése, y si no dijo nada de vender, no se lo ofrezcas.\n\n`
 ${VOZ_EJEMPLOS ? `\nASÍ ESCRIBE MAXI, en chats reales\n${VOZ_EJEMPLOS}\n` : ''}${loAprendido}${tomados.length ? `
 
 HORARIOS TOMADOS en la agenda (no ofrezcas ni confirmes estos):
-${tomados.map((t) => `- ${t}`).join('\n')}` : ''}${soloDatos ? `
-
-ESTA CHARLA LA LLEVA EL EQUIPO y hace un rato que no le contestan. Respondé
-SÓLO si lo último que escribió es una pregunta simple de datos: km, año,
-precio publicado, si sigue disponible, algo de la ficha, la ubicación o el
-horario. Una o dos partes cortas, sin saludar de nuevo, sin proponer
-visita y sin hablar de permuta, diferencias, descuentos ni condiciones.
-Si es cualquier otra cosa, "responder": false: lo sigue el equipo.` : ''}${loQueDijo.length ? `
+${tomados.map((t) => `- ${t}`).join('\n')}` : ''}${loQueDijo.length ? `
 
 LO QUE ESTA PERSONA YA TE DIJO, en toda la charla y en orden (Maxi,
 31/10: "no podés olvidar nada"). Va al final para que lo tengas fresco.
