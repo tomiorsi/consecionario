@@ -3920,10 +3920,15 @@ REGLAS
 - Qué hay que hacer, en una o dos líneas cortas, con el auto si hace falta para entender.
 - NUNCA des valores, rangos ni diferencias que no estén escritos en la charla. Si hay que
   cotizar, "pasarle la diferencia que dé Maxi".
-- Mirá las fechas: lo que ya pasó o ya se resolvió no va.
+- Mirá las fechas: lo que ya pasó o ya se resolvió no va. Tampoco el chat que el equipo ya
+  cerró ("estamos en contacto", "te aviso") o donde lo último que pasó no pide nada hoy.
+- LAS VISITAS, CON EL DÍA TAL COMO VIENE EN "VISITAS": nunca escribas "mañana" ni calcules
+  el día. Las que dicen "firme" ya están confirmadas: no pidas confirmarlas. Las de otro día que
+  no sea hoy no van, salvo que haya algo concreto que hacer antes.
+- Corto: el teléfono y el nombre en una línea, y qué hacer en otra, de una o dos oraciones.
 - Sin títulos ni comentarios finales. Si no hay nadie, escribí sólo: SIN PENDIENTES`,
     messages: [{ role: 'user', content:
-      `VISITAS\n${agenda.map((v) => `${v.visita} · ${v.quien} · ${v.auto ?? ''} · ${v.condiciones ?? v.motivo ?? ''}`).join('\n') || '(ninguna)'}\n\n` +
+      `VISITAS\n${agenda.map((v) => `${v.visita.slice(0, 10) === hoy ? 'HOY' : 'otro día'}: ${new Date(`${v.visita.slice(0, 10)}T12:00:00-03:00`).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' })}${v.visita.length > 10 ? ` a las ${v.visita.slice(11, 16)}` : ''} · ${v.aConfirmar ? 'a confirmar' : 'firme'} · ${v.quien} · ${v.auto ?? ''} · ${v.condiciones ?? v.motivo ?? ''}`).join('\n') || '(ninguna)'}\n\n` +
       `CONSULTAS SIN CONTESTAR\n${consultas.map((c) => `${c.n}. ${c.pregunta}`).join('\n') || '(ninguna)'}\n\n` +
       `CHARLAS (fecha y hora UTC; Buenos Aires es UTC-3)\n\n${charlas.join('\n\n')}` }],
   });
