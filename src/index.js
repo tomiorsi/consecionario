@@ -5304,6 +5304,17 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     return json({ aprendizajes: await loAprendido(env) });
   }
 
+  /* REEMPLAZAR LO APRENDIDO, a pedido de Maxi: lo que no venga en la lista se borra. */
+  if (ruta === '/api/admin/aprendizajes' && metodo === 'PUT') {
+    const cuerpo = await peticion.json().catch(() => ({}));
+    if (!Array.isArray(cuerpo?.aprendizajes)) return error('Falta la lista');
+    const antes = (await leerEstado(env, 'aprendizajes'))?.valor ?? [];
+    const lista = cuerpo.aprendizajes.map((t) => texto(t, 300)).filter(Boolean).slice(-60)
+      .map((t) => antes.find((a) => a.texto === t) ?? { texto: t, cuando: new Date().toISOString() });
+    await guardarEstado(env, 'aprendizajes', lista);
+    return json({ aprendizajes: await loAprendido(env) });
+  }
+
   if (ruta === '/api/admin/bot' && metodo === 'PUT') {
     const cuerpo = await peticion.json().catch(() => ({}));
 
