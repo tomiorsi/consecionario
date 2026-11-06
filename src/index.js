@@ -1033,21 +1033,34 @@ const AVISOS = [
   'Hola, cómo estás? Te mandamos un privado con todos los datos.',
   'Hola! Te acabamos de escribir por privado, fijate en tus mensajes.',
   'Gracias por escribir! Te hablamos por privado y te contamos todo.',
+  'Gracias por escribirnos, ya te hablamos por privado.',
+  'Gracias por escribirnos! Ya te hablo por privado.',
+];
+
+/* A UN COMENTARIO LINDO SE LE AGRADECE (Maxi, 6/11): un elogio al auto o a
+   la publicación se responde abajo aunque no pida nada, y sin privado. Como
+   los avisos, no lo escribe el modelo. */
+const GRACIAS = [
+  'Gracias!',
+  'Muchas gracias!',
+  'Mil gracias!',
+  'Gracias por escribirnos!',
+  'Gracias por comentar!',
 ];
 
 /* LOS TEXTOS FIJOS EN OTROS IDIOMAS (Maxi, 1/11: "si te hablan en otro
    idioma, contestá en ese idioma"). Lo que escribe el modelo ya sale en el
    idioma del cliente; esto es lo poco que no escribe él. */
 const EN_OTRO_IDIOMA = {
-  en: { avisos: ['Hi! We just sent you a DM with all the info.', 'Thanks for writing! Check your messages, we wrote to you.'],
+  en: { gracias: ['Thank you!', 'Thanks a lot!', 'Thanks for writing!'], avisos: ['Hi! We just sent you a DM with all the info.', 'Thanks for writing! Check your messages, we wrote to you.'],
     link: "Here's the link so you can see more details and photos." },
-  pt: { avisos: ['Oi! Te mandamos uma mensagem no privado com todas as informações.', 'Obrigado por escrever! Te respondemos no privado.'],
+  pt: { gracias: ['Obrigado!', 'Muito obrigado!', 'Obrigado por escrever!'], avisos: ['Oi! Te mandamos uma mensagem no privado com todas as informações.', 'Obrigado por escrever! Te respondemos no privado.'],
     link: 'Te mando o link para você ver mais informações e fotos.' },
-  it: { avisos: ['Ciao! Ti abbiamo scritto in privato con tutte le informazioni.', 'Grazie per averci scritto! Ti rispondiamo in privato.'],
+  it: { gracias: ['Grazie!', 'Grazie mille!', 'Grazie per averci scritto!'], avisos: ['Ciao! Ti abbiamo scritto in privato con tutte le informazioni.', 'Grazie per averci scritto! Ti rispondiamo in privato.'],
     link: 'Ti mando il link per vedere più informazioni e foto.' },
-  fr: { avisos: ['Bonjour ! Nous vous avons écrit en privé avec toutes les infos.', 'Merci de nous avoir écrit ! On vous répond en privé.'],
+  fr: { gracias: ['Merci !', 'Merci beaucoup !', 'Merci de nous avoir écrit !'], avisos: ['Bonjour ! Nous vous avons écrit en privé avec toutes les infos.', 'Merci de nous avoir écrit ! On vous répond en privé.'],
     link: 'Voici le lien pour voir plus d’informations et de photos.' },
-  de: { avisos: ['Hallo! Wir haben dir privat mit allen Infos geschrieben.', 'Danke für deine Nachricht! Wir antworten dir privat.'],
+  de: { gracias: ['Danke!', 'Vielen Dank!', 'Danke für deine Nachricht!'], avisos: ['Hallo! Wir haben dir privat mit allen Infos geschrieben.', 'Danke für deine Nachricht! Wir antworten dir privat.'],
     link: 'Hier ist der Link mit mehr Infos und Fotos.' },
 };
 const enIdioma = (idioma) => EN_OTRO_IDIOMA[String(idioma ?? 'es').slice(0, 2).toLowerCase()] ?? null;
@@ -4109,8 +4122,14 @@ async function atenderComentario(env, chat, r) {
     catch (e) { console.error('No se pudo dar me gusta:', e?.message ?? e); }
   }
 
-  /* Si no consulta, no se le contesta: ni por privado ni abajo (Maxi, 5/11). */
-  if (!r.responder && !r.derivar) return;
+  /* Si no consulta, no va privado. Si fue amable, las gracias abajo (Maxi, 6/11). */
+  if (!r.responder && !r.derivar) {
+    if (r.megusta) {
+      try { await agradecerComentario(env, chat, comentario, r.idioma); }
+      catch (e) { console.error('No se pudo agradecer el comentario:', e?.message ?? e); }
+    }
+    return;
+  }
 
   if (comentario.media_id) {
     const yaFuimos = await env.DB.prepare(
@@ -4132,6 +4151,27 @@ async function atenderComentario(env, chat, r) {
 
   try { await avisarEnElComentario(env, comentario.externo_id, enIdioma(r.idioma)?.avisos ?? AVISOS); }
   catch (e) { console.error('No se pudo avisar en el comentario:', e?.message ?? e); }
+}
+
+/* LAS GRACIAS ABAJO DEL COMENTARIO: una por persona y publicación, y con un
+   tope por día. Muchas respuestas públicas iguales se leen como spam y Meta
+   puede restringir la cuenta (Maxi: "si ves que estamos por restringir algo,
+   no lo hagas"). Van en `estado` y no en `mensajes`: un saliente ahí haría
+   creer al bot que ya le escribió por privado. */
+const TOPE_GRACIAS_POR_DIA = 40;
+
+async function agradecerComentario(env, chat, comentario, idioma) {
+  const antes = (await leerEstado(env, 'gracias_comentarios'))?.valor ?? {};
+  const hoy = hoyEnBsAs();
+  const cuantos = antes.dia === hoy ? (antes.cuantos ?? 0) : 0;
+  const hechos = antes.hechos ?? [];
+  const clave = `${chat.id}:${comentario.media_id ?? comentario.externo_id}`;
+  if (hechos.includes(clave) || cuantos >= TOPE_GRACIAS_POR_DIA) return;
+
+  await avisarEnElComentario(env, comentario.externo_id, enIdioma(idioma)?.gracias ?? GRACIAS);
+  await guardarEstado(env, 'gracias_comentarios', {
+    dia: hoy, cuantos: cuantos + 1, hechos: [...hechos, clave].slice(-1000),
+  });
 }
 
 /* SE CONTESTA 200 SIEMPRE QUE EL AVISO SEA DE META, y rápido. Si Meta
@@ -4952,6 +4992,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       const fijos = [...(r.esComentario ? [] : conPresentacion(yaEsta ? null : ficha?.enlace, canal, r.idioma)), r.ubicacion ? UBICACION : null].filter(Boolean);
       const textos = armarTextos(r.partes, fijos);
       return json({ mensajes: !r.responder ? [] : r.esComentario ? [textos.join('\n\n')] : textos, contesta: r.responder,
+        agradeceEnComentario: Boolean(r.esComentario && r.megusta && !r.responder && !r.derivar),
         deQueAuto: r.deQueAuto ?? null, pasaAPersona: r.derivar ?? null, consultaAMaxi: r.consulta, visita: r.visita, paraTasar: r.resumenParaTasar });
     } catch (e) {
       return error(e?.message || 'No se pudo simular', 502);
@@ -5054,7 +5095,9 @@ async function admin(peticion, env, ruta, metodo, ctx) {
           const todo = partes.join('\n\n');
           const id = await mandarUno(env, chat, todo, { comentarioId: comentario.externo_id });
           await guardarSaliente(env, chat.id, todo, cuerpo?.comoBot === true ? 'ia' : 'persona', id, { mediaId: comentario.media_id });
-          if (cuerpo?.comoBot !== true) {
+          /* `avisoEnComentario`: un mensaje pedido por Maxi que deja el chat
+             en manos del bot y además avisa abajo que le escribimos. */
+          if (cuerpo?.comoBot !== true || cuerpo?.avisoEnComentario === true) {
             try { await avisarEnElComentario(env, comentario.externo_id); } catch { /* secundario */ }
           }
           return json({ ok: true, partes: 1, comoComentario: true });

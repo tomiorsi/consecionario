@@ -44,6 +44,6 @@ Después le escribe al negocio desde esas cuentas y prueba los borradores en el 
 
 - Hay un interruptor general en el código: `CONTESTA_SOLA` en `src/index.js`. Hoy está en `false` (lo decidió Tomás): no sale ningún mensaje solo, elija lo que elija el panel. Para prenderlo se cambia esa palabra, y después se elige canal por canal en el panel.
 - El bot no se anuncia como asistente, pero si le preguntan dice la verdad (decisión de Tomás del 21/10). **Ojo:** `CLAUDE.md` (regla 6) y `/privacidad/` todavía dicen que la IA se identifica. Antes de prender el automático hay que poner de acuerdo las tres cosas: la política, las respuestas en Meta y el código.
-- Los comentarios de Instagram: el bot decide si escribirle por privado (casi nunca, ante la duda no) y si poner me gusta. Un privado por publicación, y un aviso público abajo del comentario una vez que salió.
+- Los comentarios de Instagram: el bot decide si escribirle por privado (sólo si pide algo) y si poner me gusta. Un privado por publicación, y un aviso público abajo del comentario una vez que salió. A un elogio se le agradece abajo, sin privado: una vez por persona y publicación, hasta 40 por día (`TOPE_GRACIAS_POR_DIA`).
 - Frenos: espera 8 segundos a que la persona termine de escribir, nunca se contesta a sí mismo, máximo 5 mensajes en 10 minutos por chat, y se calla en los chats que pasaron a una persona.
 - Para clientes reales hace falta que Meta apruebe los permisos de envío (revisión de la app).

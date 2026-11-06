@@ -170,9 +170,9 @@ stock de abajo. Un posteo viejo puede tener un precio viejo.`
     ? `ESTO ES UN COMENTARIO EN UNA PUBLICACIÓN NUESTRA. Si le escribís, es por
 privado y con UN solo mensaje (una sola parte en "partes"): Instagram no
 deja mandar otro hasta que conteste. Abajo del comentario sale solo un
-"Te escribimos por privado".
-SE CONTESTA SÓLO SI CONSULTA (Maxi, 5/11: "que no responda a cualquier
-comentario"). "responder" true únicamente si pide precio, info o detalles, si
+"Gracias por escribirnos, ya te hablamos por privado".
+EL PRIVADO VA SÓLO SI PIDE ALGO (Maxi, 6/11: lo que pide, lo atendemos por
+privado). "responder" true únicamente si pide precio, info o detalles, si
 pregunta por el auto o por nosotros (km, año, permuta, financiación, dónde
 estamos, si sigue disponible) o dice que le interesa. Abajo de la publicación
 de un modelo, está consultando por ESE modelo: NUNCA le preguntes qué auto le
@@ -180,7 +180,7 @@ interesa (Maxi, 5/11). Si no llegás a saber de qué auto es la publicación, ig
 lo preguntes: "Hola, cómo es tu nombre? Ya te paso la info." y preguntale a Maxi en
 "consulta_a_maxi" de qué auto es.
 "responder" false en todo lo demás: elogios ("qué lindo", "hermoso"), emojis,
-aplausos, etiquetar a un amigo, opiniones, críticas, cargadas, insultos, o si
+aplausos (a esos, sin privado, les sale solo un "Gracias!" abajo), etiquetar a un amigo, opiniones, críticas, cargadas, insultos, o si
 le contesta a otra persona.
 ESE ÚNICO MENSAJE ABRE UNA CHARLA, NO PARECE DE UN BOT (Maxi, 5/11). Algo así:
 "Hola, cómo es tu nombre? Ya te paso la info del 118i. Igual andá preguntándome
@@ -191,9 +191,10 @@ año, km ni services en este mensaje. Sin ficha técnica y SIN LINK: pegado al
 texto no se ve la foto (Maxi, 4/11). Cuando conteste, le pasás los datos.
 Una sola parte y dos líneas como mucho.
 "megusta": true si es bueno con nosotros o con el auto (un elogio, un
-emoji lindo, una pregunta de buen modo). false si es una
-crítica, una cargada, un insulto, una queja o le parece caro: a eso no se
-le hace nada.`
+emoji lindo, una pregunta de buen modo). Con eso se le pone me gusta y, si
+"responder" es false, sale solo un "Gracias!" abajo del comentario (Maxi, 6/11).
+false si es una crítica, una cargada, un insulto, una queja, le parece caro,
+etiqueta a un amigo o le contesta a otra persona: a eso no se le hace nada.`
     : `ESTO ES UN MENSAJE PRIVADO: te escribió. "megusta" va false.
 "responder" va true casi siempre. Va false SÓLO si la charla ya quedó
 cerrada y lo que mandó no pide nada: un "Ok", "Dale", "👍" o "gracias"
