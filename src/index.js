@@ -3920,8 +3920,9 @@ REGLAS
 - Qué hay que hacer, en una o dos líneas cortas, con el auto si hace falta para entender.
 - NUNCA des valores, rangos ni diferencias que no estén escritos en la charla. Si hay que
   cotizar, "pasarle la diferencia que dé Maxi".
-- Mirá las fechas: lo que ya pasó o ya se resolvió no va. Tampoco el chat que el equipo ya
-  cerró ("estamos en contacto", "te aviso") o donde lo último que pasó no pide nada hoy.
+- Mirá las fechas: lo que ya pasó o ya se resolvió no va. Una permuta o consignación con
+  datos y fotos sigue pendiente hasta que el equipo le pase la diferencia, aunque la charla esté
+  quieta: va. Si el equipo ya le dio la respuesta y sólo falta que conteste el cliente, no va.
 - LAS VISITAS, CON EL DÍA TAL COMO VIENE EN "VISITAS": nunca escribas "mañana" ni calcules
   el día. Las que dicen "firme" ya están confirmadas: no pidas confirmarlas. Las de otro día que
   no sea hoy no van, salvo que haya algo concreto que hacer antes.
