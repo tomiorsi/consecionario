@@ -2598,13 +2598,15 @@ export class Envios extends DurableObject {
       try {
         if (paso.tarea === 'buenDia') {
           await buenDia(this.env);
+        } else if (paso.tarea === 'lista') {
+          await mandarListaDelDia(this.env);
         } else if (paso.tarea === 'repaso') {
           await agendaDeManana(this.env).catch(() => {});
           await repasarElDia(this.env);
         }
       } catch (e) {
         console.error('No salió la tarea', paso.tarea, e?.message ?? e);
-        await anotarAviso(this.env, `No pude armar ${paso.tarea === 'buenDia' ? 'el resumen de la mañana' : 'el repaso del día'}: ${String(e?.message ?? e).slice(0, 200)}`);
+        await anotarAviso(this.env, `No pude armar ${paso.tarea === 'buenDia' ? 'el resumen de la mañana' : paso.tarea === 'lista' ? 'la lista del día' : 'el repaso del día'}: ${String(e?.message ?? e).slice(0, 200)}`);
       }
       await this.ctx.storage.deleteAll();
       return;
@@ -3558,11 +3560,17 @@ async function confirmarVisitasDeManana(env) {
   const cfgVisitas = await configDelBot(env);
   if (!cfgVisitas.encendida) return;
   const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
-  const manana = diaDeBsAs(new Date(Date.now() + 24 * HORAS).toISOString().replace('T', ' ').slice(0, 19));
-  const deManana = agenda.filter((v) => v.visita.slice(0, 10) === manana);
-  if (!deManana.length) return;
+  /* LUNES A VIERNES, LAS DE MAÑANA. SÁBADO, LAS DEL DOMINGO Y EL LUNES.
+     DOMINGO, NADA: las del lunes ya salieron (Maxi, 6/11). */
+  const diaDeHoy = new Date(Date.now() - 3 * HORAS).getUTCDay();
+  const saltos = diaDeHoy === 0 ? [] : diaDeHoy === 6 ? [1, 2] : [1];
+  const fechaEn = (n) => diaDeBsAs(new Date(Date.now() + n * 24 * HORAS).toISOString().replace('T', ' ').slice(0, 19));
+  const fechas = Object.fromEntries(saltos.map((n) => [fechaEn(n), n === 1 ? 'mañana' : 'el lunes']));
+  const aRecordar = agenda.filter((v) => fechas[v.visita.slice(0, 10)]);
+  if (!aRecordar.length) return;
   const lineas = [];
-  for (const v of deManana) {
+  for (const v of aRecordar) {
+    const cuandoEs = fechas[v.visita.slice(0, 10)];
     const c = await env.DB.prepare('SELECT id, canal, externo_id, nombre FROM conversaciones WHERE id = ?')
       .bind(v.chat).first();
     if (!c) continue;
@@ -3583,7 +3591,7 @@ async function confirmarVisitasDeManana(env) {
     ).bind(c.id).first());
     if (!enviada && abierta && !v.aConfirmar && canalActivo(cfgVisitas, c.canal)) {
       const hora = v.visita.length > 10 ? v.visita.slice(11, 16) : null;
-      const libre = `Hola! Te escribo para confirmar que mañana`
+      const libre = `Hola! Te escribo para confirmar que ${cuandoEs}`
         + `${hora ? ` a las ${hora}` : ''} te esperamos en el salón, en Pje. Lanín 154, Barracas`
         + `${v.auto ? `, para ver el ${v.auto}` : ''}. Sigue todo en pie?`;
       const visto = (await env.DB.prepare(
@@ -3593,7 +3601,7 @@ async function confirmarVisitasDeManana(env) {
         { id: c.id, canal: c.canal, externo_id: c.externo_id },
         [c.canal === 'whatsapp'
           ? { plantilla: 'visita_recordatorio',
-              valores: ['qué tal', 'mañana', hora ?? 'la hora que acordamos', v.auto ?? 'auto'],
+              valores: ['qué tal', cuandoEs, hora ?? 'la hora que acordamos', v.auto ?? 'auto'],
               texto: libre, espera: 0 }
           : { texto: libre, espera: 0 }],
         'ia', visto, 1);
@@ -3603,7 +3611,7 @@ async function confirmarVisitasDeManana(env) {
     lineas.push(`${fichaDeVisita(v)}${v.aConfirmar ? '\nEs a confirmar: no le mandé nada.' : enviada ? '\nLe mandé la confirmación.' : '\nConfirmale vos: no escribió en las últimas 23 horas y por Instagram o Facebook no se le puede mandar.'}`);
   }
   await guardarEstado(env, 'agenda', agenda);
-  if (lineas.length) await anotarAviso(env, `*CONFIRMACIONES DE MAÑANA*\n\n${lineas.join('\n\n')}`);
+  if (lineas.length) await anotarAviso(env, `*RECORDATORIOS DE VISITA*\n\n${lineas.join('\n\n')}`);
 }
 
 /* RECORDATORIOS PARA MAXI (31/10): "el martes escribile a Federico".
@@ -3862,6 +3870,108 @@ escribí sólo "${aPedido ? 'Hoy no hay nada pendiente' : 'Buen día. Hoy sin no
   if (!texto) throw new Error(`Claude no escribió el resumen (corte: ${r.stop_reason})`);
   if (texto) await escribirleAlJefe(env, texto, { respuesta: aPedido && !porPanel });
   if (devolver) return texto;
+}
+
+/* LA LISTA DEL DÍA PARA MAXI Y COLO (Maxi, 6/11): de lunes a viernes a las 8,
+   por WhatsApp, con teléfono, nombre y qué hacer con cada cliente, para que
+   quien llama sepa qué pasó. Lo escribe Claude con lo de las últimas charlas. */
+async function armarListaDelDia(env) {
+  const jefe = await chatDelJefe(env);
+  const hoy = diaDeBsAs();
+  const esLunes = new Date(Date.now() - 3 * HORAS).getUTCDay() === 1;
+  const agenda = ((await leerEstado(env, 'agenda'))?.valor ?? []).filter((v) => v.visita.slice(0, 10) >= hoy);
+  const consultas = (await leerEstado(env, 'consultas'))?.valor ?? [];
+  const { results: chats } = await env.DB.prepare(
+    `SELECT id, canal, externo_id, nombre, humano, nota FROM conversaciones
+      WHERE ultimo > datetime('now', ?) AND id NOT IN (?, ?)
+      ORDER BY (nota IS NULL), ultimo DESC LIMIT 60`
+  ).bind(esLunes ? '-84 hours' : '-36 hours', jefe?.id ?? 0, COLO_CHAT).all();
+  const charlas = [];
+  for (const c of chats ?? []) {
+    const { results: ms } = await env.DB.prepare(
+      `SELECT direccion, autor, texto, creado FROM mensajes WHERE conversacion_id = ? AND texto IS NOT NULL
+        ORDER BY creado DESC, id DESC LIMIT 14`
+    ).bind(c.id).all();
+    charlas.push(`### ${quienEs(c)}${c.humano ? ' (lo atiende el equipo)' : ''}${c.nota ? ` · ${c.nota}` : ''}\n` +
+      (ms ?? []).reverse().map((m) =>
+        `[${String(m.creado).slice(5, 16)}] ${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto.slice(0, 220)}`).join('\n'));
+  }
+  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const r = await client.messages.create({
+    model: MODELO,
+    max_tokens: 8000,
+    thinking: { type: 'disabled' },
+    output_config: { effort: 'low' },
+    system: `Armás la lista de llamados y mensajes de hoy para el equipo de Manna Selected
+(autos, Barracas). Hoy es ${hoyEnBsAs()}. La usa la persona que llama a los clientes:
+tiene que entender qué pasó con cada uno y qué hacer ahora, sin abrir el chat.
+
+Cada cliente en su propio párrafo, exactamente con este formato, sin asteriscos ni títulos:
++54 9 11 3408-3680, Edgar
+Pasarle la diferencia que dé Maxi por su Peugeot 208 2021, 65.000 km, por la GLA.
+
+REGLAS
+- Sólo los que necesitan que una persona haga algo HOY: visitas de hoy, permutas y
+  consignaciones esperando cotización, consultas sin contestar, promesas nuestras de
+  escribirle o llamarlo, y chats del equipo que quedaron esperando. Los que sólo deben
+  contestar ellos no van. Lo más urgente primero.
+- Si una charla no tiene teléfono (Instagram), va el usuario tal como viene.
+- Los teléfonos tal cual vienen: nunca inventes ni completes uno.
+- Qué hay que hacer, en una o dos líneas cortas, con el auto si hace falta para entender.
+- NUNCA des valores, rangos ni diferencias que no estén escritos en la charla. Si hay que
+  cotizar, "pasarle la diferencia que dé Maxi".
+- Mirá las fechas: lo que ya pasó o ya se resolvió no va.
+- Sin títulos ni comentarios finales. Si no hay nadie, escribí sólo: SIN PENDIENTES`,
+    messages: [{ role: 'user', content:
+      `VISITAS\n${agenda.map((v) => `${v.visita} · ${v.quien} · ${v.auto ?? ''} · ${v.condiciones ?? v.motivo ?? ''}`).join('\n') || '(ninguna)'}\n\n` +
+      `CONSULTAS SIN CONTESTAR\n${consultas.map((c) => `${c.n}. ${c.pregunta}`).join('\n') || '(ninguna)'}\n\n` +
+      `CHARLAS (fecha y hora UTC; Buenos Aires es UTC-3)\n\n${charlas.join('\n\n')}` }],
+  });
+  const texto = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+  if (!texto) throw new Error(`Claude no escribió la lista (corte: ${r.stop_reason})`);
+  return texto;
+}
+
+/* De a tramos que entren en un WhatsApp, sin cortar a un cliente por la mitad. */
+function enTramos(texto, tope = 3500) {
+  const tramos = [];
+  let actual = '';
+  for (const p of texto.split(/\n\s*\n/)) {
+    if (actual && actual.length + p.length + 2 > tope) { tramos.push(actual); actual = ''; }
+    actual = actual ? `${actual}\n\n${p}` : p;
+  }
+  if (actual) tramos.push(actual);
+  return tramos;
+}
+
+/* SIN PLANTILLAS (Maxi, 6/11). Meta sólo deja texto libre si escribieron en las
+   últimas 23 horas: si no, queda en el panel. Si no hay nada, no sale nada. */
+async function mandarListaDelDia(env) {
+  const texto = await armarListaDelDia(env);
+  if (/^SIN PENDIENTES/i.test(texto)) return;
+  await anotarAviso(env, `*LISTA DEL DÍA*\n\n${texto}`);
+  const jefe = await chatDelJefe(env);
+  const colo = await env.DB.prepare('SELECT id, canal, externo_id FROM conversaciones WHERE id = ?')
+    .bind(COLO_CHAT).first();
+  for (const [quien, d] of [['Maxi', jefe], ['Colo', colo]]) {
+    if (!d) continue;
+    try {
+      const abierta = await env.DB.prepare(
+        `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
+            AND creado > datetime('now','-23 hours') LIMIT 1`
+      ).bind(d.id).first();
+      if (!abierta) {
+        await anotarAviso(env, `La lista del día no le llegó a ${quien} por WhatsApp: no escribió al número en las últimas 23 horas. Está acá en el panel.`);
+        continue;
+      }
+      for (const tramo of enTramos(texto)) {
+        const id = await mandarUno(env, d, tramo);
+        await guardarSaliente(env, d.id, tramo, 'ia', id);
+      }
+    } catch (e) {
+      await anotarAviso(env, `No le pude mandar la lista del día a ${quien}: ${String(e?.message ?? e).slice(0, 150)}`);
+    }
+  }
 }
 
 /* MANDAR UNA PLANTILLA APROBADA (ver src/plantillas.js). Es lo único que
@@ -4811,6 +4921,11 @@ export default {
     if (hora === 10 && minutoDelReloj >= 30 && minutoDelReloj < 35) {
       await hoyEnElSalon(env).catch((e) => console.error('No salió hoy en el salón:', e?.message ?? e));
     }
+    /* LAS 8 EN BUENOS AIRES, DE LUNES A VIERNES: la lista para Maxi y Colo. */
+    const diaBsAs = new Date((evento.scheduledTime ?? Date.now()) - 3 * HORAS).getUTCDay();
+    if (hora === 11 && minutoDelReloj < 5 && diaBsAs >= 1 && diaBsAs <= 5) {
+      await env.ENVIOS.get(env.ENVIOS.idFromName('tareas-lista')).tarea('lista').catch(() => {});
+    }
     if (hora === 11 && minutoDelReloj >= 30 && minutoDelReloj < 35) {
       await env.ENVIOS.get(env.ENVIOS.idFromName('tareas-buen-dia')).tarea('buenDia').catch(() => {});
     }
@@ -5244,6 +5359,12 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     } catch (e) {
       return error(`No se pudo atender: ${String(e?.message ?? e).slice(0, 500)}`, 500);
     }
+  }
+
+  /* LA LISTA DEL DÍA, PARA VERLA SIN MANDARLA A NADIE. */
+  if (ruta === '/api/admin/lista-del-dia' && metodo === 'POST') {
+    try { return json({ texto: await armarListaDelDia(env) }); }
+    catch (e) { return error(`No se pudo armar: ${String(e?.message ?? e).slice(0, 300)}`, 500); }
   }
 
   /* EL RESUMEN, ARMADO EN EL MOMENTO y devuelto en la respuesta (30/10:
