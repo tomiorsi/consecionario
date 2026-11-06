@@ -4105,6 +4105,40 @@ async function atenderSolo(env, disparos) {
   }
 }
 
+/* QUÉ AUTO Y QUÉ ENLACE TIENE UNA PUBLICACIÓN, para mostrarlo en el panel.
+   Lo que ya está guardado no cuesta nada; si falta, se pregunta una sola vez
+   y `deQueEs` deja guardado el auto. Si Instagram no contesta, sale sin datos
+   y el chat se abre igual. */
+async function datosDePublicacion(env, mediaId) {
+  const guardada = ((await leerEstado(env, 'instagram_numeros'))?.valor?.publicaciones ?? [])
+    .find((p) => p.id === mediaId);
+  let texto = guardada?.texto ?? null;
+  let enlace = guardada?.enlace ?? null;
+  let imagen = null;
+  let video = null;
+  const sabida = ((await leerEstado(env, 'publicaciones'))?.valor ?? {})[CLAVE_PUBLICACION(`ig:${mediaId}`)];
+  if (!enlace || !texto || !sabida) {
+    try {
+      const m = await igLlamar(env, `/${mediaId}?fields=caption,permalink,media_url,thumbnail_url`);
+      texto = texto ?? m?.caption ?? null;
+      enlace = enlace ?? m?.permalink ?? null;
+      imagen = m?.thumbnail_url ?? m?.media_url ?? null;
+      video = m?.thumbnail_url ? m?.media_url ?? null : null;
+    } catch (e) {
+      console.error('No se pudo leer la publicación:', e?.message ?? e);
+    }
+  }
+  const res = sabida ?? await deQueEs(env, `ig:${mediaId}`, { texto, imagen, video });
+  const auto = res?.tipo === 'auto'
+    ? await env.DB.prepare('SELECT marca, modelo, anio, estado FROM autos WHERE id = ?').bind(res.auto).first()
+    : null;
+  return {
+    auto: auto ? `${auto.marca} ${auto.modelo} ${auto.anio ?? ''}`.trim() : null,
+    vendido: auto?.estado === 'vendido',
+    enlace,
+  };
+}
+
 /* UN COMENTARIO DE INSTAGRAM.
    El me gusta va primero y aparte: a un comentario amable se le pone
    aunque no haya nada que contestar, y si falla no frena lo demás.
@@ -4907,12 +4941,19 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     if (!chat) return error('No está', 404);
 
     const { results } = await env.DB.prepare(
-      `SELECT id, direccion, autor, tipo, texto, creado
+      `SELECT id, direccion, autor, tipo, texto, creado, clase, media_id
          FROM mensajes WHERE conversacion_id = ?
         ORDER BY creado, id`
     ).bind(unChat[1]).all();
 
-    return json({ chat, mensajes: results });
+    /* DE QUÉ PUBLICACIÓN VIENE CADA COMENTARIO, para verlo en el chat. */
+    const medios = [...new Set((results ?? [])
+      .filter((m) => m.clase === 'comentario' && m.direccion === 'entrante' && m.media_id)
+      .map((m) => m.media_id))].slice(-3);
+    const publicaciones = {};
+    for (const id of medios) publicaciones[id] = await datosDePublicacion(env, id);
+
+    return json({ chat, mensajes: results, publicaciones });
   }
 
   /* PASAR UNA CONVERSACIÓN A UNA PERSONA.
