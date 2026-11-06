@@ -5318,7 +5318,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
         `SELECT id, canal, externo_id, nombre FROM conversaciones WHERE externo_id LIKE ?`).bind(`%${digitos}`).all();
     if (cs?.length !== 1) return error(cs?.length ? 'Hay varios con ese número' : 'No encontré ese número', 404);
     await agendarVisita(env, cs[0], { visita: c.visita, auto: texto(c?.auto, 120), condiciones: texto(c?.condiciones, 300),
-      aConfirmar: c?.aConfirmar === true, avisar: false, claves: clavesDeVisita(c?.claves) });
+      nombre: texto(c?.nombre, 60) || null, aConfirmar: c?.aConfirmar === true, avisar: false, claves: clavesDeVisita(c?.claves) });
     return json({ ok: true });
   }
 

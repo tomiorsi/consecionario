@@ -1930,6 +1930,14 @@ function pintarCalendario() {
   const deLaSemana = dias.flatMap((d) => citasDe(clave(d)));
   if (diaElegido && !dias.some((d) => clave(d) === diaElegido)) diaElegido = null;
   const mostrados = dias.filter((d) => citasDe(clave(d)).length && (!diaElegido || clave(d) === diaElegido));
+  /* Las de semanas que vienen, para que no parezca que no están agendadas. */
+  const despues = tablero.agenda.filter((v) => v.visita.slice(0, 10) > clave(fin))
+    .sort((a, b) => a.visita.localeCompare(b.visita));
+  const masAdelante = despues.length
+    ? '<p class="nota">Más adelante: ' + despues.length + (despues.length === 1 ? ' visita' : ' visitas') + '. La próxima es el ' +
+      new Date(despues[0].visita.slice(0, 10) + 'T12:00:00-03:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'numeric' }) +
+      (despues[0].visita.length > 10 ? ' a las ' + escapar(despues[0].visita.slice(11, 16)) : '') + '. Con la flecha pasás de semana.</p>'
+    : '';
   const numero = (n, t) => '<div class="kpi"><b>' + n + '</b><span>' + t + '</span></div>';
   return '<div class="kpis">' +
       numero(deLaSemana.length, deLaSemana.length === 1 ? 'visita en la semana' : 'visitas en la semana') +
@@ -1957,7 +1965,7 @@ function pintarCalendario() {
         '<h3 class="jornada-titulo">' + (k === tablero.hoy ? '<em>Hoy</em> ' : '') + escapar(nombre) +
         '<span>' + citas.length + (citas.length === 1 ? ' visita' : ' visitas') + '</span></h3>' +
         '<div class="visitas">' + citas.map(pintarCita).join('') + '</div></section>';
-    }).join('') : '<div class="semana-libre">Esta semana no hay visitas agendadas.</div>');
+    }).join('') : '<div class="semana-libre">Esta semana no hay visitas agendadas.</div>') + masAdelante;
 }
 
 function pintarTablero() {
