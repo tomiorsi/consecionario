@@ -1851,7 +1851,7 @@ Tiene que ser ese auto: misma marca y mismo modelo. Si es otro que no está en l
   return res;
 }
 
-async function pensarRespuesta(env, conversacionId, { automatico = false, deNoche = false, soloDatos = false, simulacion = null } = {}) {
+async function pensarRespuesta(env, conversacionId, { automatico = false, deNoche = false, simulacion = null } = {}) {
   if (!env.ANTHROPIC_API_KEY) {
     throw new Error('Falta cargar ANTHROPIC_API_KEY en Cloudflare');
   }
@@ -2045,7 +2045,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
         + (a.km !== null ? `, ${a.km} km` : '') + (a.precio ? ` (estaba en ${a.moneda} ${a.precio})` : '')),
       reservados: reservados.map((a) => `[${a.id}] ${[a.marca, a.modelo, a.anio].filter(Boolean).join(' ')}`),
       porEntrar: ((await leerEstado(env, 'por_entrar'))?.valor ?? []).map((a) => a.texto),
-      hoy: hoyEnBsAs(), soloDatos,
+      hoy: hoyEnBsAs(),
       tomados: ((await leerEstado(env, 'agenda'))?.valor ?? [])
         .filter((v) => v.chat !== conversacionId && v.visita.length > 10).map((v) => v.visita),
       /* Si ya le escribimos por privado, no vuelve a saludar. Lo decide
@@ -2531,12 +2531,6 @@ export class Envios extends DurableObject {
     await this.ctx.storage.setAlarm(Date.now() + 100);
   }
 
-  /* 20 MINUTOS PARA QUE CONTESTE EL EQUIPO; si no, datos simples. */
-  async esperarAlEquipo(chat, mensaje) {
-    await this.ctx.storage.put('cola', [{ equipo: true, chat, mensaje, espera: 0 }]);
-    await this.ctx.storage.setAlarm(Date.now() + 20 * 60 * 1000);
-  }
-
   async resumen(porPanel = false) {
     await this.ctx.storage.put('cola', [{ resumen: true, porPanel, espera: 0 }]);
     await this.ctx.storage.setAlarm(Date.now() + 100);
@@ -2571,23 +2565,9 @@ export class Envios extends DurableObject {
       await this.ctx.storage.deleteAll();
       return;
     }
+    /* Esperas de antes de sacar los 20 minutos: se descartan sin contestar. */
     if (paso?.equipo) {
       await this.ctx.storage.deleteAll();
-      try {
-        const cfg = await configDelBot(this.env);
-        const horaBsAs = new Date(Date.now() - 3 * HORAS).getUTCHours();
-        const ultimo = await this.env.DB.prepare(
-          `SELECT id FROM mensajes WHERE conversacion_id = ? ORDER BY creado DESC, id DESC LIMIT 1`
-        ).bind(paso.chat.id).first();
-        if (ultimo?.id === paso.mensaje && canalActivo(cfg, paso.chat.canal) && horaBsAs >= 9 && horaBsAs < 21) {
-          const r = await pensarRespuesta(this.env, paso.chat.id, { automatico: true, soloDatos: true });
-          if (r.responder && !r.derivar && r.partes.length) {
-            await mandarRespuesta(this.env, paso.chat, { partes: r.partes.slice(0, 2), autor: 'ia', idioma: r.idioma });
-          }
-        }
-      } catch (e) {
-        console.error('No salió la respuesta de datos:', e?.message ?? e);
-      }
       return;
     }
     if (paso?.resumen) {
@@ -3956,16 +3936,10 @@ async function atenderSolo(env, disparos) {
         continue;
       }
       if (!chat || (esElJefe(env, chat) && !esPrueba)) continue;
-      /* CHATS DEL EQUIPO (Maxi, 31/10): si el cliente pregunta un dato y
-         en 20 minutos nadie le contestó, contesta el bot, sólo datos. */
-      if (!esPrueba && (chat.humano || await loAtendioElEquipo(env, chat.id))) {
-        if (chat.etapa !== 'cerrado' && !/borr/i.test(chat.nota ?? '')) {
-          await env.ENVIOS.get(env.ENVIOS.idFromName(`equipo-${chat.id}`))
-            .esperarAlEquipo({ id: chat.id, canal: chat.canal, externo_id: chat.externo_id }, d.mensaje)
-            .catch((e) => console.error('No se pudo programar la espera:', e?.message ?? e));
-        }
-        continue;
-      }
+      /* SI ENTRÓ UNA PERSONA, EL BOT NO CONTESTA MÁS (Maxi, 6/11: "cuando uno
+         de nosotros entra en la conversación, listo"). Sin excepciones por
+         tiempo: reemplaza los 20 minutos del 31/10. */
+      if (!esPrueba && (chat.humano || await loAtendioElEquipo(env, chat.id))) continue;
 
       const ultimo = await env.DB.prepare(
         `SELECT id FROM mensajes WHERE conversacion_id = ?
