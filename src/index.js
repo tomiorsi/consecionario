@@ -1209,6 +1209,26 @@ async function traerDeInstagram(env, { limite = 25 } = {}) {
    a un desconocido). El webhook sólo trae lo nuevo: si de esta persona
    no hay nada guardado de antes de hoy, se le piden a Instagram sus
    últimos mensajes. Una sola vez por charla. */
+/* LO QUE ESCRIBIÓ UNA PERSONA DESDE LA APP DE INSTAGRAM (Maxi, 6/11).
+   Los ecos del webhook se descartan, así que el bot no se entera. Se mira la
+   charla en Instagram: lo nuestro que no tenemos guardado, ni por id ni por
+   texto, lo escribió alguien del equipo. */
+async function mensajesDelEquipoEnInstagram(env, chat) {
+  if (chat?.canal !== 'instagram') return [];
+  const r = await igLlamar(env, `/me/conversations?platform=instagram&user_id=${encodeURIComponent(chat.externo_id)}`
+    + `&fields=messages.limit(15){id,created_time,from{id},message}`);
+  const nuestros = (r?.data?.[0]?.messages?.data ?? [])
+    .filter((m) => m.from?.id !== chat.externo_id && m.message);
+  if (!nuestros.length) return [];
+  const { results } = await env.DB.prepare(
+    `SELECT externo_id, texto FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'`
+  ).bind(chat.id).all();
+  const parejo = (t) => String(t ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const ids = new Set((results ?? []).map((m) => m.externo_id).filter(Boolean));
+  const textos = new Set((results ?? []).map((m) => parejo(m.texto)));
+  return nuestros.filter((m) => !ids.has(m.id) && !textos.has(parejo(m.message)));
+}
+
 async function historialDeInstagram(env, chat) {
   if (chat?.canal !== 'instagram') return;
   const viejo = await env.DB.prepare(
@@ -4946,6 +4966,18 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     for (const id of medios) publicaciones[id] = await datosDePublicacion(env, id);
 
     return json({ chat, mensajes: results, publicaciones });
+  }
+
+  /* PRUEBA, SÓLO LEE: qué tomaría como escrito por el equipo en Instagram. */
+  const equipoIg = ruta.match(/^\/api\/admin\/chats\/(\d+)\/equipo-instagram$/);
+  if (equipoIg && metodo === 'GET') {
+    const chat = await env.DB.prepare('SELECT id, canal, externo_id FROM conversaciones WHERE id = ?')
+      .bind(equipoIg[1]).first();
+    if (!chat) return error('No está', 404);
+    try {
+      const hallados = await mensajesDelEquipoEnInstagram(env, chat);
+      return json({ hallados: hallados.map((m) => ({ cuando: m.created_time, texto: String(m.message).slice(0, 80) })) });
+    } catch (e) { return error(String(e?.message ?? e).slice(0, 200), 502); }
   }
 
   /* PASAR UNA CONVERSACIÓN A UNA PERSONA.
