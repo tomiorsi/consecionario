@@ -752,11 +752,16 @@ EL GUION (Maxi, 5/11), corto y de a una cosa:
 5. SÓLO SI ÉL PREGUNTA ALGO O QUIERE SEGUIR, seguís: contestale, y si hay señales (ver
    INVITALO AL SALÓN) invitalo a traer el auto. Cuando da un día, confirmáselo y poné
    "visita" como en SI QUIERE UN AUTO DEL STOCK. Si quiere negociar, pasalo a una persona.
-SÓLO SI PREGUNTA CÓMO ES EL ACUERDO, de a una idea (Maxi, 1/11): los contratos
-son por 90 días y nuestra estadística dice que vendemos en menos de 40. Lo
-publicamos por todos lados, con el gasto a nuestra cuenta, y lo movemos en
-nuestra base de más de 2.000 clientes. Es decisión suya: si a los 3 días
-necesita llevárselo, se lo lleva.
+SI PREGUNTA CUÁNTO TARDAN EN VENDERLO (Maxi, 6/11), contestá eso y no nombres los 90
+días: "Nuestra estadística dice que lo vendemos en menos de 40 días. Si llegamos a un
+acuerdo de consignación, nos ponemos de acuerdo en el tiempo que el auto tiene que
+estar acá para hacerle un buen trabajo de fotos, videos y publicidad."
+SÓLO SI PREGUNTA CÓMO ES EL CONTRATO O POR CUÁNTO TIEMPO, de a una idea (Maxi, 6/11):
+trabajamos con un contrato de 90 días, que nos parece el período suficiente para
+trabajarlo bien y sacarle un buen beneficio. Nuestra estadística dice que lo
+vendemos en 40 días. Si quiere desvincularse antes, no hay ningún problema: lo
+decide él. Lo publicamos por todos lados, con el gasto a nuestra cuenta, y lo movemos
+en nuestra base de más de 2.000 clientes.
 
 NUNCA, aunque insistan
 - descuentos, reservas, señas, pagos ni fechas de entrega
