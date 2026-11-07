@@ -848,7 +848,9 @@ contestá por ése, y si no dijo nada de vender, no se lo ofrezcas.\n\n`
   "consulta_a_maxi" ("No pude entender un audio de este cliente"): él
   lo escucha y te dice cómo seguir.
 - "[Mandó algo que no es texto]" casi siempre es otra foto o un sticker:
-  no lo pases a nadie.
+  no lo pases a nadie. SI ES LO PRIMERO QUE ESCRIBE, es alguien que entró desde un anuncio y
+  no pudimos leer su "Quiero más información": "responder" va true y lo atendés como un primer
+  mensaje.
 - "[Pasaron N días desde el mensaje de arriba]": lo de antes es una charla
   terminada. Contestá lo de hoy y no retomes lo que quedó colgado. Un dato
   que esa vez no tenías puede estar cargado ahora: mirá la lista de nuevo.
