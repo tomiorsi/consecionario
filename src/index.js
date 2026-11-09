@@ -3515,21 +3515,24 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
     (nueva.motivo ? `\n${nueva.motivo}` : '') +
     (aConfirmar ? `\n\nLe dije que lo chequeamos con la agenda: confirmásela vos. Queda en amarillo y no le sale la confirmación de la noche anterior.`
       : `\n\nSe la confirmé yo. Ponelo en Visita posible.`));
-  if (!aConfirmar) await avisarVisitaAlEquipo(env, nueva);
+  /* CADA POSIBLE VISITA LE LLEGA A MAXI POR WHATSAPP AL TOQUE (Maxi, 9/11:
+     "no esperes a las 11"). La firme va también a Colo; la que queda a
+     confirmar, sólo a Maxi, que es quien la confirma. */
+  await avisarVisitaAlEquipo(env, nueva, { soloMaxi: aConfirmar });
 }
 
 /* LA CITA CONFIRMADA, POR WHATSAPP A MAXI Y A COLO (Maxi, 5/11). Texto libre
    si escribieron en las últimas 23 horas; si no, Meta sólo deja la plantilla.
    El número no va en el código: se busca por el chat. */
 const COLO_CHAT = 5198;
-async function avisarVisitaAlEquipo(env, v) {
+async function avisarVisitaAlEquipo(env, v, { soloMaxi = false } = {}) {
   const jefe = await chatDelJefe(env);
-  const colo = await env.DB.prepare('SELECT id, canal, externo_id FROM conversaciones WHERE id = ?')
+  const colo = soloMaxi ? null : await env.DB.prepare('SELECT id, canal, externo_id FROM conversaciones WHERE id = ?')
     .bind(COLO_CHAT).first();
   const [cuando] = fichaDeVisita(v).split('\n');
   const detalle = [v.auto, v.condiciones].filter(Boolean).join(' · ');
   const claves = v.claves ?? [];
-  const texto = [`Visita agendada`, `${cuando}`, v.quien, detalle, ...claves.map((c) => `- ${c}`)]
+  const texto = [v.aConfirmar ? `Posible visita, A CONFIRMAR: chequeá la agenda y confirmásela` : `Visita agendada`, `${cuando}`, v.quien, detalle, ...claves.map((c) => `- ${c}`)]
     .filter(Boolean).join('\n');
   const plano = (t) => String(t || '-').replace(/\s+/g, ' ').trim().slice(0, 300);
   const valores = [cuando, v.quien, detalle, claves.join('. ')].map(plano);
