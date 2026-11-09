@@ -2238,7 +2238,9 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     visitaNombre: dato.visita_nombre ? String(dato.visita_nombre).trim().slice(0, 80) : null,
     visitaCondiciones: dato.visita_condiciones ? String(dato.visita_condiciones).slice(0, 300) : null,
     visitaClaves: clavesDeVisita(dato.visita_claves),
-    visitaAConfirmar: dato.visita_a_confirmar === true,
+    /* LA VISITA LA CONFIRMA EL EQUIPO (Maxi, 9/11): un cliente confirmado por
+       el bot fue hasta la puerta y no había nadie. Siempre queda a confirmar. */
+    visitaAConfirmar: true,
     busca: dato.busca ? String(dato.busca).slice(0, 160) : null,
     interesadoReservado: reservados.some((a) => a.id === dato.interesado_reservado) ? dato.interesado_reservado : null,
     conPosteo: Boolean(posteo),
@@ -3511,7 +3513,7 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
   await escribirleAlJefe(env,
     `${aConfirmar ? 'Visita a confirmar' : 'Visita agendada'} · ${fichaDeVisita(nueva)}` +
     (nueva.motivo ? `\n${nueva.motivo}` : '') +
-    (aConfirmar ? `\n\nDijo un día pero no lo cerró: queda en amarillo y no le sale la confirmación de la noche anterior.`
+    (aConfirmar ? `\n\nLe dije que lo chequeamos con la agenda: confirmásela vos. Queda en amarillo y no le sale la confirmación de la noche anterior.`
       : `\n\nSe la confirmé yo. Ponelo en Visita posible.`));
   if (!aConfirmar) await avisarVisitaAlEquipo(env, nueva);
 }
