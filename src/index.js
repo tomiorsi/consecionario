@@ -4445,8 +4445,8 @@ async function hacerPosventa(env) {
    UNA SOLA VEZ POR CHAT y nada más: si tampoco contesta, queda ahí.
    Sólo si el bot le mandó el link de un auto, el último mensaje es
    nuestro, pasaron entre 2 y 20 horas (adentro de las 24 en que se le
-   puede escribir), no tiene visita, no es para tasar y no lo sigue una
-   persona. De 10 a 20 en Buenos Aires. Sale por la cola, que no manda
+   puede escribir), NO TIENE NI TUVO VISITA (ni en la agenda ni hablada en
+   la charla), no es para tasar y no lo sigue una persona. De 10 a 20 en Buenos Aires. Sale por la cola, que no manda
    nada si en el medio escribió el cliente o lo tomó alguien. */
 const PREGUNTA_DIA = 'Si te interesa verlo en persona, agendemos un día. ¿Qué días podés de esta semana?';
 async function pedirDiaACallados(env) {
@@ -4467,6 +4467,20 @@ async function pedirDiaACallados(env) {
         AND EXISTS (SELECT 1 FROM mensajes m WHERE m.conversacion_id = c.id
               AND m.direccion = 'saliente' AND (instr(COALESCE(m.texto,''), 'Te mando el link') > 0
                 OR instr(COALESCE(m.texto,''), 'Acá te dejo un link') > 0))
+        /* SI YA HABLARON DE UNA VISITA, NO (Maxi, 10/11: "si ya agendó
+           visita y el link lo mandás después, esa pregunta no la mandes").
+           La agenda se borra sola cuando pasa la visita, así que además
+           de mirarla se mira la charla: si le confirmamos, le dijimos que
+           lo chequeábamos con la agenda o le recordamos la visita, ya
+           tiene día. */
+        AND NOT EXISTS (SELECT 1 FROM mensajes m WHERE m.conversacion_id = c.id
+              AND m.direccion = 'saliente' AND (
+                instr(lower(COALESCE(m.texto,'')), 'te esperamos') > 0
+                OR instr(lower(COALESCE(m.texto,'')), 'con la agenda') > 0
+                OR instr(lower(COALESCE(m.texto,'')), 'agendad') > 0
+                OR instr(lower(COALESCE(m.texto,'')), 'tu visita') > 0
+                OR instr(lower(COALESCE(m.texto,'')), 'confirmar la visita') > 0))
+        AND instr(lower(COALESCE(c.nota,'')), 'visita') = 0
       LIMIT 20`
   ).all();
   if (!results?.length) return;
