@@ -1401,29 +1401,54 @@ async function ponerseAlDia() {
   if (alDia) return;
   alDia = true;
 
-  let desde = 0;
-  let total = 0;
-  let vueltas = 0;
-
-  try {
+  /* UNA RED, DE A TANDAS, HASTA QUE NO QUEDE NADA. Cada vuelta trae unas
+     pocas publicaciones y dice por dónde quedó; el tope de vueltas es el
+     seguro para que una respuesta rara no deje esto girando para siempre. */
+  const traer = async (donde, titulo) => {
+    let desde = 0;
+    let total = 0;
+    let vueltas = 0;
     while (desde !== null && vueltas < 40) {
-      const r = await api('/api/admin/instagram/traer', {
-        method: 'POST', body: JSON.stringify({ desde }),
-      });
+      const r = await api(donde, { method: 'POST', body: JSON.stringify({ desde }) });
       total += (r.guardados || 0) + (r.comentarios?.guardados || 0);
 
       const c = r.comentarios ?? {};
-      progreso('progreso', 'Trayendo el historial', c.hechas || 0, c.publicaciones || 1);
+      progreso('progreso', titulo, c.hechas || 0, c.publicaciones || 1);
       desde = c.siguiente ?? null;
       vueltas++;
       await cargarChats();
     }
+    return total;
+  };
+
+  /* DOS REDES Y UNA SOLA PUESTA AL DÍA. Instagram y Facebook tienen cada
+     una sus publicaciones y su propia cuenta, así que son dos vueltas
+     distintas; para el que mira el panel es una sola cosa que pasa sola.
+
+     CADA UNA CON SU RED DE SEGURIDAD: si falla Instagram, Facebook se
+     trae igual, y al revés. Antes un error en la primera dejaba la
+     segunda sin empezar, y lo que faltaba no se notaba. */
+  try {
+    let total = 0;
+    const fallas = [];
+    for (const [donde, titulo] of [
+      ['/api/admin/instagram/traer', 'Trayendo el historial de Instagram'],
+      ['/api/admin/facebook/traer', 'Trayendo el historial de Facebook'],
+    ]) {
+      try { total += await traer(donde, titulo); }
+      catch (err) { fallas.push(err.message); }
+    }
     progreso('progreso', null);
     if (total) avisar('Entraron ' + total + ' mensajes y comentarios');
+    /* Que falle la puesta al día no puede tapar la bandeja: lo que ya
+       estaba se sigue viendo. Se avisa y se vuelve a intentar la próxima
+       vez que se entre. */
+    if (fallas.length) {
+      avisar(fallas.join(' · '), true);
+      alDia = false;
+    }
   } catch (err) {
     progreso('progreso', null);
-    /* Que falle la puesta al día no puede tapar la bandeja: lo que ya
-       estaba se sigue viendo. Se avisa y se sigue. */
     avisar(err.message, true);
     alDia = false;
   }

@@ -678,9 +678,29 @@ function mensajesDelAviso(aviso, nuestroId = null) {
          a la IA saber que el "¿cuánto sale?" es por la Hilux y no por
          un auto cualquiera. */
       for (const cambio of entrada.changes ?? []) {
-        if (cambio?.field !== 'comments') continue;
+        /* DOS NOMBRES PARA LA MISMA PUERTA, y ninguno de los dos campos
+           se llama igual adentro.
+
+           Instagram manda el campo `comments` y nada más. Facebook
+           manda `feed`, que es todo lo que pasa en la página: una
+           publicación nueva, un me gusta, una reacción, algo que se
+           borró, algo que se escondió. De ahí hay que quedarse SÓLO con
+           un comentario recién puesto (`item` comentario, `verb`
+           agregar); lo demás no es nadie preguntando nada.
+
+           Y después el id es `id` o `comment_id`, el texto es `text` o
+           `message`, la publicación es `media.id` o `post_id`, y el
+           nombre viene como `username` o como `name`. Se emparejan acá,
+           una sola vez, y de esta línea para abajo los dos canales son
+           el mismo comentario. */
+        const esIg = cambio?.field === 'comments';
+        if (!esIg && cambio?.field !== 'feed') continue;
         const v = cambio.value ?? {};
+        if (!esIg && (v.item !== 'comment' || v.verb !== 'add')) continue;
         if (!v.from?.id) continue;
+
+        const comentarioId = esIg ? v.id : v.comment_id;
+        if (!comentarioId) continue;
 
         /* Un comentario nuestro no es una consulta entrante: es una
            respuesta. Se reconoce porque viene de la misma cuenta que
@@ -690,12 +710,12 @@ function mensajesDelAviso(aviso, nuestroId = null) {
         salida.push({
           canal,
           externo_id: propio ? (v.parent_id ? null : v.from.id) : v.from.id,
-          nombre: v.from.username ?? null,
-          mensaje_id: v.id,
+          nombre: (esIg ? v.from.username : v.from.name) ?? null,
+          mensaje_id: comentarioId,
           tipo: 'texto',
-          texto: v.text ?? null,
+          texto: (esIg ? v.text : v.message) ?? null,
           clase: 'comentario',
-          media_id: v.media?.id ?? null,
+          media_id: (esIg ? v.media?.id : v.post_id) ?? null,
           direccion: propio ? 'saliente' : 'entrante',
         });
       }
@@ -993,19 +1013,54 @@ async function igLlamar(env, camino, opciones = {}) {
   return dato;
 }
 
+/* ── Y LO MISMO, PERO EN FACEBOOK ────────────────────────────────
+
+   La gemela de `igLlamar` para la página. Otra dirección
+   (graph.facebook.com) y otra llave (`META_PAGE_TOKEN`, el token de la
+   página), y existe por lo mismo: que quien llama no tenga que
+   acordarse de qué puerta le toca a cada canal.
+
+   SON DOS MUNDOS SEPARADOS Y CONVIENE NO MEZCLARLOS. Un id de
+   comentario de Facebook pedido por graph.instagram.com no da "no
+   existe": da un error de permisos, que manda a buscar del lado
+   equivocado. Por eso cada canal tiene su función y la elección se hace
+   una sola vez, arriba, mirando `chat.canal`.
+
+   EL ERROR DE META VUELVE TAL CUAL, igual que en Instagram: es lo que
+   dice si se venció la ventana, si falta un permiso o si el token
+   murió, y es lo que tiene que leer el que está atendiendo. */
+async function fbLlamar(env, camino, opciones = {}) {
+  if (!env.META_PAGE_TOKEN) throw new Error('Falta cargar META_PAGE_TOKEN');
+  const r = await fetch(camino.startsWith('http') ? camino : GRAPH + camino, {
+    ...opciones,
+    headers: {
+      authorization: `Bearer ${env.META_PAGE_TOKEN}`,
+      ...(opciones.body ? { 'content-type': 'application/json' } : {}),
+      ...opciones.headers,
+    },
+  });
+  const dato = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(dato?.error?.message || `Facebook contestó ${r.status}`);
+  return dato;
+}
+
 /* DAR ME GUSTA A UN COMENTARIO.
 
-   Meta lo habilitó el 22 de abril de 2026 y pide su propio permiso,
-   `instagram_manage_engagement`: si no está en el token, esto falla con
-   un error de permisos y no con otra cosa.
+   Meta lo habilitó el 22 de abril de 2026 y pide su propio permiso:
+   `instagram_manage_engagement` en Instagram y `pages_manage_engagement`
+   en Facebook. Si no está en el token, esto falla con un error de
+   permisos y no con otra cosa.
+
+   LAS DOS APIS NO SE PARECEN EN NADA PARA ESTO. Instagram pide un POST
+   a /me/likes con el comentario en el cuerpo; Facebook, un POST a
+   /{comentario}/likes y nada más. Mismo gesto, dos formas.
 
    ES SECUNDARIO Y FALLA SOLO. Un me gusta que no sale no es motivo para
    no contestarle a alguien, así que quien llama lo envuelve y sigue. */
-async function megustaEnInstagram(env, comentarioId) {
-  return igLlamar(env, '/me/likes', {
-    method: 'POST',
-    body: JSON.stringify({ comment_id: comentarioId }),
-  });
+async function megustaEnComentario(env, canal, comentarioId) {
+  return canal === 'instagram'
+    ? igLlamar(env, '/me/likes', { method: 'POST', body: JSON.stringify({ comment_id: comentarioId }) })
+    : fbLlamar(env, `/${comentarioId}/likes`, { method: 'POST' });
 }
 
 /* CONTESTAR ABAJO DE LA PUBLICACIÓN, a la vista de todos.
@@ -1065,13 +1120,17 @@ const EN_OTRO_IDIOMA = {
 };
 const enIdioma = (idioma) => EN_OTRO_IDIOMA[String(idioma ?? 'es').slice(0, 2).toLowerCase()] ?? null;
 
-async function avisarEnElComentario(env, comentarioId, lista = AVISOS) {
+/* EN INSTAGRAM SE LLAMA `replies`; EN FACEBOOK, `comments`. Es la misma
+   idea —colgarle una respuesta al comentario— con dos nombres, y no hay
+   forma de escribir una sola llamada para los dos. */
+async function avisarEnElComentario(env, canal, comentarioId, lista = AVISOS) {
   const texto = lista[Math.floor(Math.random() * lista.length)];
-  return igLlamar(
-    env,
-    `/${comentarioId}/replies?message=${encodeURIComponent(texto)}`,
-    { method: 'POST' }
-  );
+  const camino = canal === 'instagram'
+    ? `/${comentarioId}/replies?message=${encodeURIComponent(texto)}`
+    : `/${comentarioId}/comments?message=${encodeURIComponent(texto)}`;
+  return canal === 'instagram'
+    ? igLlamar(env, camino, { method: 'POST' })
+    : fbLlamar(env, camino, { method: 'POST' });
 }
 
 /* Deja asentado lo que mandamos, en la misma conversación.
@@ -1346,6 +1405,97 @@ async function traerComentariosDeInstagram(env, { desde = 0, porTanda = 5 } = {}
       const valores = [
         fila.id, c.id, propio ? 'saliente' : 'entrante', 'texto',
         c.text ?? null, 'comentario', p.id,
+      ];
+      if (propio) { campos.push('autor'); valores.push('persona'); }
+      if (cuando) { campos.push('creado'); valores.push(cuando); }
+
+      const r = await env.DB.prepare(
+        `INSERT OR IGNORE INTO mensajes (${campos.join(', ')})
+         VALUES (${campos.map(() => '?').join(', ')})`
+      ).bind(...valores).run();
+
+      guardados += r.meta?.changes ?? 0;
+    }
+  }
+
+  const siguiente = desde + porTanda;
+  return {
+    vistos, guardados,
+    publicaciones: todas.length,
+    hechas: Math.min(siguiente, todas.length),
+    siguiente: siguiente < todas.length ? siguiente : null,
+  };
+}
+
+/* ── Y LO MISMO EN FACEBOOK ──────────────────────────────────────
+
+   La gemela de `traerComentariosDeInstagram`, y está acá por el mismo
+   motivo: el webhook avisa de lo que pasa de ahora en adelante, y abajo
+   de las publicaciones viejas quedaron meses de gente preguntando que
+   nunca va a entrar sola.
+
+   DOS DIFERENCIAS CON INSTAGRAM, las dos de la API y ninguna de fondo:
+
+   - `filter=stream` trae también las respuestas adentro de un
+     comentario, no sólo los de arriba de todo. En Facebook se pregunta
+     mucho ahí abajo ("y los km?" colgado de otro comentario), y sin
+     esto esas consultas no existían para nosotros.
+   - Lo nuestro se reconoce por el id de la página y no por el usuario:
+     un comentario de la página viene con `from.id` igual al id de la
+     página, y ese es el único dato confiable para separar lo que
+     preguntaron de lo que contestamos.
+
+   De a tandas, igual que en Instagram y por lo mismo: Cloudflare le
+   pone un tope a las llamadas externas de un solo pedido. */
+async function traerComentariosDeFacebook(env, { desde = 0, porTanda = 5 } = {}) {
+  const miPagina = (await fbLlamar(env, '/me?fields=id'))?.id;
+
+  /* LAS PUBLICACIONES DE ANUNCIO TAMBIÉN, Y NO ES UN DETALLE. Lo que se
+     publica para pautar no aparece en el muro de la página, así que
+     `/me/posts` no lo trae — y abajo de esos posteos es donde más
+     pregunta la gente, porque son los que ven los que todavía no nos
+     conocen. El comentario de la Ranger del 8/11 estaba ahí.
+
+     Si `ads_posts` falla (es otro permiso), se sigue con las del muro:
+     traer la mitad es mejor que no traer nada. */
+  const delMuro = await fbLlamar(env, '/me/posts?fields=id&limit=100');
+  const deAnuncios = await fbLlamar(env, '/me/ads_posts?fields=id&limit=100')
+    .catch((e) => { console.error('No se pudieron leer las publicaciones de anuncio:', e?.message ?? e); return null; });
+
+  const vistas = new Set();
+  const todas = [...(delMuro?.data ?? []), ...(deAnuncios?.data ?? [])]
+    .filter((p) => p?.id && !vistas.has(p.id) && vistas.add(p.id));
+  const tanda = todas.slice(desde, desde + porTanda);
+
+  let vistos = 0;
+  let guardados = 0;
+
+  for (const p of tanda) {
+    const com = await fbLlamar(env,
+      `/${p.id}/comments?fields=id,message,created_time,from&filter=stream&limit=50`
+    ).catch(() => null);
+
+    for (const c of com?.data ?? []) {
+      vistos++;
+      const quien = c.from?.id;
+      if (!quien) continue;
+
+      const propio = String(quien) === String(miPagina);
+
+      const fila = await env.DB.prepare(
+        `INSERT INTO conversaciones (canal, externo_id, nombre) VALUES ('messenger', ?, ?)
+         ON CONFLICT (canal, externo_id) DO UPDATE SET
+              nombre = COALESCE(excluded.nombre, conversaciones.nombre)
+           RETURNING id`
+      ).bind(String(quien), c.from?.name ?? null).first();
+      if (!fila?.id) continue;
+
+      const cuando = (c.created_time || '').replace('T', ' ').slice(0, 19);
+      const campos = ['conversacion_id', 'externo_id', 'direccion', 'tipo',
+                      'texto', 'clase', 'media_id'];
+      const valores = [
+        fila.id, c.id, propio ? 'saliente' : 'entrante', 'texto',
+        c.message ?? null, 'comentario', p.id,
       ];
       if (propio) { campos.push('autor'); valores.push('persona'); }
       if (cuando) { campos.push('creado'); valores.push(cuando); }
@@ -1792,6 +1942,45 @@ function clavesDe(a) {
    imagen, y así quedaba para siempre. Se vuelven a reconocer todos. */
 const CLAVE_PUBLICACION = (clave) => `v5|${clave}`;
 
+/* CON QUÉ NOMBRE SE GUARDA UNA PUBLICACIÓN. El prefijo dice de qué red
+   es, y hace falta: los ids de Instagram y los de Facebook son números
+   distintos, y sin el prefijo dos publicaciones de redes distintas
+   podrían pisarse en la misma clave. */
+const CLAVE_DE_RED = (canal, id) => `${canal === 'instagram' ? 'ig' : 'fb'}:${id}`;
+
+/* QUÉ ES UNA PUBLICACIÓN NUESTRA, SIN QUE IMPORTE EN QUÉ RED ESTÁ.
+
+   Instagram y Facebook devuelven lo mismo con otros nombres: el texto
+   es `caption` o `message`, el link es `permalink` o `permalink_url`, y
+   la imagen es `thumbnail_url`/`media_url` o `full_picture`. Se
+   emparejan acá, y de acá para arriba se pide "el texto y la imagen de
+   esta publicación" sin preguntar de dónde salió.
+
+   EL VIDEO SE PIDE PORQUE A VECES ES LO ÚNICO QUE DICE DE QUÉ AUTO ES
+   (ver `loQueSeDiceEnElReel`). En Instagram se reconoce porque la
+   publicación tiene tapa; en Facebook, porque el adjunto dice que es un
+   video y trae su `source`. */
+async function leerPublicacion(env, canal, id) {
+  if (canal === 'instagram') {
+    const m = await igLlamar(env, `/${id}?fields=caption,permalink,media_url,thumbnail_url`);
+    return {
+      texto: m?.caption ?? null,
+      enlace: m?.permalink ?? null,
+      imagen: m?.thumbnail_url ?? m?.media_url ?? null,
+      video: m?.thumbnail_url ? m?.media_url ?? null : null,
+    };
+  }
+  const p = await fbLlamar(env,
+    `/${id}?fields=message,permalink_url,full_picture,attachments{media_type,media}`);
+  const adjunto = p?.attachments?.data?.[0];
+  return {
+    texto: p?.message ?? null,
+    enlace: p?.permalink_url ?? null,
+    imagen: p?.full_picture ?? adjunto?.media?.image?.src ?? null,
+    video: adjunto?.media_type === 'video' ? adjunto?.media?.source ?? null : null,
+  };
+}
+
 /* LA IMAGEN SE BAJA ACÁ Y SE MANDA ENTERA: el link de Instagram vence y a veces
    no se deja leer desde afuera. Si no se puede bajar, se prueba con el link. */
 async function imagenParaClaude(imagen) {
@@ -1892,8 +2081,10 @@ Tiene que ser ese auto: misma marca y mismo modelo. Si es otro que no está en l
     }
   }
   res = res ?? { tipo: 'general' };
-  /* UN POSTEO SIN MIRAR SU IMAGEN NO QUEDA COMO "general": se vuelve a probar. */
-  if (res.tipo === 'general' && !imagen && clave.startsWith('ig:')) return res;
+  /* UN POSTEO SIN MIRAR SU IMAGEN NO QUEDA COMO "general": se vuelve a probar.
+     Vale igual para Instagram y para Facebook; un anuncio no tiene imagen
+     que mirar, así que ese sí queda guardado. */
+  if (res.tipo === 'general' && !imagen && /^(ig|fb):/.test(clave)) return res;
   guardadas[k] = res;
   await guardarEstado(env, 'publicaciones', Object.fromEntries(Object.entries(guardadas).slice(-400)));
   return res;
@@ -1989,9 +2180,11 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
   let publicacion = null;
 
   if (origen?.media_id) {
-    /* El texto sale de las estadísticas que ya tenemos guardadas, así
-       que no cuesta una llamada a Instagram. */
-    const guardado = (await leerEstado(env, 'instagram_numeros'))?.valor;
+    /* En Instagram el texto sale de las estadísticas que ya tenemos
+       guardadas, así que no cuesta una llamada. De Facebook no
+       guardamos estadísticas: ahí siempre se pregunta. */
+    const guardado = chat.canal === 'instagram'
+      ? (await leerEstado(env, 'instagram_numeros'))?.valor : null;
     posteo = (guardado?.publicaciones ?? [])
       .find((p) => p.id === origen.media_id)?.texto ?? null;
 
@@ -2000,18 +2193,19 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
        sólo cuando falta; si tampoco sale, se sigue sin ella. */
     let imagen = ((await leerEstado(env, 'historias'))?.valor ?? {})[origen.media_id] ?? null;
     let video = null;
-    const yaSabida = ((await leerEstado(env, 'publicaciones'))?.valor ?? {})[CLAVE_PUBLICACION(`ig:${origen.media_id}`)];
+    const clavePosteo = CLAVE_DE_RED(chat.canal, origen.media_id);
+    const yaSabida = ((await leerEstado(env, 'publicaciones'))?.valor ?? {})[CLAVE_PUBLICACION(clavePosteo)];
     if (!posteo || (!yaSabida && !imagen)) {
       try {
-        const m = await igLlamar(env, `/${origen.media_id}?fields=caption,media_url,thumbnail_url`);
-        posteo = posteo ?? m?.caption ?? null;
-        imagen = imagen ?? m?.thumbnail_url ?? m?.media_url ?? null;
-        video = m?.thumbnail_url ? m?.media_url ?? null : null;
+        const m = await leerPublicacion(env, chat.canal, origen.media_id);
+        posteo = posteo ?? m.texto;
+        imagen = imagen ?? m.imagen;
+        video = m.video;
       } catch (e) {
         console.error('No se pudo leer la publicación:', e?.message ?? e);
       }
     }
-    publicacion = await deQueEs(env, `ig:${origen.media_id}`, { texto: posteo, imagen, video });
+    publicacion = await deQueEs(env, clavePosteo, { texto: posteo, imagen, video });
 
     /* Y EL COMENTARIO QUE PONEMOS NOSOTROS AL PUBLICAR, si hay: ahí
        suelen ir los datos que no entraron en la descripción. No las
@@ -2328,10 +2522,38 @@ const OTRAS_FORMAS = (n) => {
           ...[2, 3, 4].map((a) => '54' + resto.slice(0, a) + '15' + resto.slice(a))];
 };
 
-/* `comentarioId`: en Instagram, la respuesta privada a un comentario.
-   A alguien que nunca nos escribió no se le puede abrir un privado; la
-   respuesta privada a su comentario es la única puerta, dura 7 días y se
-   usa UNA sola vez. */
+/* EL ID DEL COMENTARIO NO ES EL ID DEL CHAT, y en Facebook eso importa.
+
+   En Instagram el que comenta y el que escribe por privado son el mismo
+   id, así que desde el primer comentario la conversación ya es la
+   correcta. En Facebook no: el aviso del comentario trae un id y
+   Messenger usa otro (el PSID). Si no se emparejan, cuando la persona
+   conteste el privado se abre una conversación NUEVA: el bot la lee
+   como a un desconocido —sin saber por qué auto venía— y el freno de
+   "un privado por publicación" deja de contar.
+
+   LA RESPUESTA PRIVADA ES EL ÚNICO MOMENTO EN QUE META DICE LOS DOS.
+   Se manda contra el comentario y contesta con el `recipient_id`, que
+   es el del privado. Ahí, y sólo ahí, se puede corregir.
+
+   SI YA HAY OTRA CONVERSACIÓN CON ESE PSID, NO SE TOCA NADA. Unirlas
+   sería fusionar dos charlas a ciegas, que es peor que tener dos: se
+   deja como está y se sigue. */
+async function emparejarConElPrivado(env, chat, psid) {
+  if (!psid || !chat?.id || String(psid) === String(chat.externo_id)) return;
+  const otra = await env.DB.prepare(
+    `SELECT id FROM conversaciones WHERE canal = 'messenger' AND externo_id = ?`
+  ).bind(String(psid)).first();
+  if (otra?.id) return;
+  await env.DB.prepare('UPDATE conversaciones SET externo_id = ? WHERE id = ?')
+    .bind(String(psid), chat.id).run();
+  chat.externo_id = String(psid);
+}
+
+/* `comentarioId`: la respuesta privada a un comentario, en Instagram y
+   en Facebook. A alguien que nunca nos escribió no se le puede abrir un
+   privado; la respuesta privada a su comentario es la única puerta,
+   dura 7 días y se usa UNA sola vez. */
 async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
   if (chat.canal === 'whatsapp') {
     /* `preview_url` es lo que hace que un link salga con su foto. */
@@ -2381,11 +2603,19 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
   }
 
   if (chat.canal === 'messenger') {
-    const r = await graphMandar(env.META_PAGE_TOKEN, 'META_PAGE_TOKEN', '/me/messages', {
-      recipient: { id: chat.externo_id },
-      messaging_type: 'RESPONSE',
-      message: { text: texto },
-    });
+    /* A UN COMENTARIO SE LE CONTESTA CONTRA EL COMENTARIO, no contra la
+       persona: `recipient` lleva el id del comentario y no el del chat.
+       Va sin `messaging_type` porque no es la respuesta a un mensaje
+       —no hay ninguno— sino la puerta que abre el propio comentario, y
+       es la forma que documenta Meta para esto. */
+    const r = await graphMandar(env.META_PAGE_TOKEN, 'META_PAGE_TOKEN', '/me/messages',
+      comentarioId
+        ? { recipient: { comment_id: comentarioId }, message: { text: texto } }
+        : { recipient: { id: chat.externo_id }, messaging_type: 'RESPONSE', message: { text: texto } });
+    if (comentarioId) {
+      await emparejarConElPrivado(env, chat, r?.recipient_id)
+        .catch((e) => console.error('No se pudo emparejar el comentario con el privado:', e?.message ?? e));
+    }
     return r?.message_id ?? null;
   }
 
@@ -4333,26 +4563,29 @@ async function atenderSolo(env, disparos) {
    Lo que ya está guardado no cuesta nada; si falta, se pregunta una sola vez
    y `deQueEs` deja guardado el auto. Si Instagram no contesta, sale sin datos
    y el chat se abre igual. */
-async function datosDePublicacion(env, mediaId) {
-  const guardada = ((await leerEstado(env, 'instagram_numeros'))?.valor?.publicaciones ?? [])
-    .find((p) => p.id === mediaId);
+async function datosDePublicacion(env, canal, mediaId) {
+  const guardada = canal === 'instagram'
+    ? ((await leerEstado(env, 'instagram_numeros'))?.valor?.publicaciones ?? [])
+      .find((p) => p.id === mediaId)
+    : null;
   let texto = guardada?.texto ?? null;
   let enlace = guardada?.enlace ?? null;
   let imagen = null;
   let video = null;
-  const sabida = ((await leerEstado(env, 'publicaciones'))?.valor ?? {})[CLAVE_PUBLICACION(`ig:${mediaId}`)];
+  const clave = CLAVE_DE_RED(canal, mediaId);
+  const sabida = ((await leerEstado(env, 'publicaciones'))?.valor ?? {})[CLAVE_PUBLICACION(clave)];
   if (!enlace || !texto || !sabida) {
     try {
-      const m = await igLlamar(env, `/${mediaId}?fields=caption,permalink,media_url,thumbnail_url`);
-      texto = texto ?? m?.caption ?? null;
-      enlace = enlace ?? m?.permalink ?? null;
-      imagen = m?.thumbnail_url ?? m?.media_url ?? null;
-      video = m?.thumbnail_url ? m?.media_url ?? null : null;
+      const m = await leerPublicacion(env, canal, mediaId);
+      texto = texto ?? m.texto;
+      enlace = enlace ?? m.enlace;
+      imagen = m.imagen;
+      video = m.video;
     } catch (e) {
       console.error('No se pudo leer la publicación:', e?.message ?? e);
     }
   }
-  const res = sabida ?? await deQueEs(env, `ig:${mediaId}`, { texto, imagen, video });
+  const res = sabida ?? await deQueEs(env, clave, { texto, imagen, video });
   const auto = res?.tipo === 'auto'
     ? await env.DB.prepare('SELECT marca, modelo, anio, estado FROM autos WHERE id = ?').bind(res.auto).first()
     : null;
@@ -4363,7 +4596,12 @@ async function datosDePublicacion(env, mediaId) {
   };
 }
 
-/* UN COMENTARIO DE INSTAGRAM.
+/* UN COMENTARIO, EN INSTAGRAM O EN FACEBOOK. Los dos se atienden igual
+   y a propósito: para el que comenta y para el negocio es lo mismo
+   —alguien preguntando abajo de una publicación— y lo único que cambia
+   es a qué API hay que pedírselo. Esa diferencia ya quedó resuelta en
+   `megustaEnComentario`, `avisarEnElComentario` y `mandarUno`.
+
    El me gusta va primero y aparte: a un comentario amable se le pone
    aunque no haya nada que contestar, y si falla no frena lo demás.
    Después, si hay que escribirle, va UN privado —la respuesta privada a
@@ -4373,10 +4611,10 @@ async function datosDePublicacion(env, mediaId) {
    escrito es mentirle a todo el que lo lea. */
 async function atenderComentario(env, chat, r) {
   const comentario = r.ultimo;
-  if (chat.canal !== 'instagram' || !comentario?.externo_id) return;
+  if ((chat.canal !== 'instagram' && chat.canal !== 'messenger') || !comentario?.externo_id) return;
 
   if (r.megusta) {
-    try { await megustaEnInstagram(env, comentario.externo_id); }
+    try { await megustaEnComentario(env, chat.canal, comentario.externo_id); }
     catch (e) { console.error('No se pudo dar me gusta:', e?.message ?? e); }
   }
 
@@ -4407,7 +4645,7 @@ async function atenderComentario(env, chat, r) {
   const id = await mandarUno(env, chat, texto, { comentarioId: comentario.externo_id });
   await guardarSaliente(env, chat.id, texto, 'ia', id, { mediaId: comentario.media_id });
 
-  try { await avisarEnElComentario(env, comentario.externo_id, enIdioma(r.idioma)?.avisos ?? AVISOS); }
+  try { await avisarEnElComentario(env, chat.canal, comentario.externo_id, enIdioma(r.idioma)?.avisos ?? AVISOS); }
   catch (e) { console.error('No se pudo avisar en el comentario:', e?.message ?? e); }
 }
 
@@ -4426,7 +4664,7 @@ async function agradecerComentario(env, chat, comentario, idioma) {
   const clave = `${chat.id}:${comentario.media_id ?? comentario.externo_id}`;
   if (hechos.includes(clave) || cuantos >= TOPE_GRACIAS_POR_DIA) return;
 
-  await avisarEnElComentario(env, comentario.externo_id, enIdioma(idioma)?.gracias ?? GRACIAS);
+  await avisarEnElComentario(env, chat.canal, comentario.externo_id, enIdioma(idioma)?.gracias ?? GRACIAS);
   await guardarEstado(env, 'gracias_comentarios', {
     dia: hoy, cuantos: cuantos + 1, hechos: [...hechos, clave].slice(-1000),
   });
@@ -5189,7 +5427,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       .filter((m) => m.clase === 'comentario' && m.direccion === 'entrante' && m.media_id)
       .map((m) => m.media_id))].slice(-3);
     const publicaciones = {};
-    for (const id of medios) publicaciones[id] = await datosDePublicacion(env, id);
+    for (const id of medios) publicaciones[id] = await datosDePublicacion(env, chat.canal, id);
 
     return json({ chat, mensajes: results, publicaciones });
   }
@@ -5361,11 +5599,15 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     /* `autor: persona` porque esto lo mandó alguien del equipo desde el
        panel, aunque el borrador lo haya escrito la IA: lo leyó y decidió
        mandarlo una persona. Lo que sale solo queda como 'ia'. */
-    /* SI SÓLO COMENTÓ, NO HAY PRIVADO ABIERTO: Instagram rechaza un
-       mensaje común ("outside of allowed window"). La única puerta es la
-       respuesta privada a su comentario, que es UN mensaje y se usa una
-       vez, así que las partes van juntas. */
-    if (chat.canal === 'instagram') {
+    /* SI SÓLO COMENTÓ, NO HAY PRIVADO ABIERTO: Instagram y Facebook
+       rechazan un mensaje común ("outside of allowed window"). La única
+       puerta es la respuesta privada a su comentario, que es UN mensaje
+       y se usa una vez, así que las partes van juntas.
+
+       VALE PARA LOS DOS CANALES. Desde el panel se contesta igual un
+       comentario de Instagram que uno de Facebook: quien está
+       atendiendo no tiene por qué saber que abajo son dos APIs. */
+    if (chat.canal === 'instagram' || chat.canal === 'messenger') {
       const privado = await env.DB.prepare(
         `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
             AND clase = 'mensaje' AND creado > datetime('now','-24 hours') LIMIT 1`
@@ -5382,11 +5624,11 @@ async function admin(peticion, env, ruta, metodo, ctx) {
           /* `avisoEnComentario`: un mensaje pedido por Maxi que deja el chat
              en manos del bot y además avisa abajo que le escribimos. */
           if (cuerpo?.comoBot !== true || cuerpo?.avisoEnComentario === true) {
-            try { await avisarEnElComentario(env, comentario.externo_id); } catch { /* secundario */ }
+            try { await avisarEnElComentario(env, chat.canal, comentario.externo_id); } catch { /* secundario */ }
           }
           return json({ ok: true, partes: 1, comoComentario: true });
         } catch (e) {
-          return error(e?.message || 'Instagram no aceptó la respuesta al comentario', 502);
+          return error(e?.message || 'Meta no aceptó la respuesta al comentario', 502);
         }
       }
     }
@@ -5627,13 +5869,18 @@ async function admin(peticion, env, ruta, metodo, ctx) {
   /* LO QUE LE ENSEÑÓ MAXI AL BOT EN LAS CHARLAS, para revisarlo en el panel. */
   /* DE QUÉ AUTO ES UNA PUBLICACIÓN, cargado a mano por Maxi: gana sobre lo que
      se reconoce solo. `auto` null la marca como que no es de ningún auto. */
-  const dePublicacion = ruta.match(/^\/api\/admin\/publicaciones\/(\d+)$/);
+  /* EL ID PUEDE VENIR CON LA RED ADELANTE ("fb:123_456") O SIN NADA.
+     Sin nada es Instagram, que es lo que había antes de que existieran
+     los de Facebook: lo que ya estaba cargado sigue andando igual. Y el
+     id de Facebook no es sólo números —es página_posteo, con un guión
+     bajo en el medio—, por eso acá no dice `\d+`. */
+  const dePublicacion = ruta.match(/^\/api\/admin\/publicaciones\/(?:(ig|fb):)?([\w-]+)$/);
   if (dePublicacion && metodo === 'PUT') {
     const cuerpo = await peticion.json().catch(() => ({}));
     const auto = cuerpo?.auto === null ? null : entero(cuerpo?.auto, 1, 1e9);
     if (auto === undefined || (cuerpo?.auto !== null && !auto)) return error('Falta el auto');
     const guardadas = (await leerEstado(env, 'publicaciones'))?.valor ?? {};
-    guardadas[CLAVE_PUBLICACION(`ig:${dePublicacion[1]}`)] = auto ? { tipo: 'auto', auto } : { tipo: 'general' };
+    guardadas[CLAVE_PUBLICACION(`${dePublicacion[1] ?? 'ig'}:${dePublicacion[2]}`)] = auto ? { tipo: 'auto', auto } : { tipo: 'general' };
     await guardarEstado(env, 'publicaciones', guardadas);
     return json({ ok: true });
   }
@@ -5900,6 +6147,36 @@ async function admin(peticion, env, ruta, metodo, ctx) {
       return json({ ok: true, ...r, comentarios: c });
     } catch (e) {
       return error(e?.message || 'No se pudo consultar a Instagram', 502);
+    }
+  }
+
+  /* Y LO MISMO CON FACEBOOK: los comentarios que ya estaban abajo de
+     las publicaciones de la página. Va en su propia dirección y no
+     pegado al de Instagram porque cada red tiene su cuenta de
+     publicaciones, y mezclar las dos en un solo contador terminaba
+     siempre con una de las dos a medio traer. El panel llama a las dos,
+     una después de la otra, sin que nadie tenga que elegir. */
+  if (ruta === '/api/admin/facebook/traer' && metodo === 'POST') {
+    try {
+      const cuerpo = await peticion.json().catch(() => ({}));
+      const desde = Number(cuerpo?.desde) || 0;
+
+      const c = await traerComentariosDeFacebook(env, { desde });
+
+      /* Las fechas, igual que en Instagram y en cada tanda: un corte a
+         la mitad no puede dejar comentarios de hace meses fechados como
+         de hoy, que los pondría primeros en la bandeja. */
+      await env.DB.prepare(
+        `UPDATE conversaciones SET ultimo = COALESCE(
+           (SELECT MAX(m.creado) FROM mensajes m
+             WHERE m.conversacion_id = conversaciones.id),
+           ultimo)
+         WHERE canal = 'messenger'`
+      ).run();
+
+      return json({ ok: true, comentarios: c });
+    } catch (e) {
+      return error(e?.message || 'No se pudo consultar a Facebook', 502);
     }
   }
 
