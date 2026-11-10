@@ -6002,6 +6002,44 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     return json(salida);
   }
 
+  /* QUE LA PÁGINA MANDE TAMBIÉN LOS COMENTARIOS.
+
+     LA MISMA TRAMPA QUE EN WHATSAPP, Y CUESTA VERLA IGUAL. Suscribir un
+     campo en la pantalla de Webhooks de la app no alcanza: eso dice qué
+     campos puede recibir la app, no qué campos manda ESTA página. Lo
+     segundo vive en `subscribed_apps` de la página y NO TIENE PANTALLA
+     en Meta —se ve, no se edita—, así que se pide por la API.
+
+     Mientras falte, desde afuera es idéntico a que no comente nadie: el
+     webhook queda mudo y no hay ningún error en ningún lado.
+
+     `subscribed_fields` REEMPLAZA LA LISTA, no le suma. Por eso van los
+     cinco juntos y no `feed` solo: mandar uno dejaría a la página sin
+     los mensajes, que es como se rompe Messenger sin darse cuenta.
+
+     Sin ?activar=1 sólo dice cómo está hoy, sin tocar nada. */
+  if (ruta === '/api/admin/facebook/suscribir' && metodo === 'GET') {
+    const q = new URL(peticion.url).searchParams;
+    const CAMPOS = ['messages', 'message_echoes', 'messaging_postbacks', 'messaging_referrals', 'feed'];
+    const pagina = (q.get('pagina') || '').replace(/\D/g, '') || 'me';
+
+    const salida = { pagina, campos: CAMPOS };
+    try {
+      if (q.get('activar') === '1') {
+        salida.suscripcion = await fbLlamar(env,
+          `/${pagina}/subscribed_apps?subscribed_fields=${CAMPOS.join(',')}`, { method: 'POST' });
+      }
+      salida.suscritas = await fbLlamar(env, `/${pagina}/subscribed_apps`);
+      /* Lo que importa de verdad, en una línea: si los comentarios van a
+         llegar o no. Leerlo de la lista entera es fácil equivocarse. */
+      salida.llegan_los_comentarios = (salida.suscritas?.data ?? [])
+        .some((a) => (a?.subscribed_fields ?? []).includes('feed'));
+      return json(salida);
+    } catch (e) {
+      return error(e?.message || 'Facebook no contestó', 502);
+    }
+  }
+
   /* MANDAR LAS PLANTILLAS A REVISION.
 
      El texto vive en src/plantillas.js; esto solo lo sube. Se separa a
