@@ -60,6 +60,9 @@ export const PANEL = `<!doctype html>
   --ease:cubic-bezier(.22,1,.36,1);
   --display:"Syncopate",ui-sans-serif,system-ui,sans-serif;
   --texto:"Montserrat",ui-sans-serif,system-ui,sans-serif;
+  /* El color de cada canal (Maxi, 10/11: "así los identifico
+     visualmente"). Más claros de noche para que se lean sobre negro. */
+  --whatsapp:#3ddc84; --messenger:#4da3ff; --instagram:#ff8a3d;
 }
 /* De dia el fondo no es blanco puro: un blanco de verdad contra texto
    negro cansa a los diez minutos. Un gris muy claro apaga el golpe y
@@ -70,6 +73,7 @@ export const PANEL = `<!doctype html>
   --panel:#fff;
   --hueco:#e9e9ec;
   --realce:#ececef;
+  --whatsapp:#128c4b; --messenger:#0866ff; --instagram:#e8590c;
 }
 
 *{margin:0;padding:0;box-sizing:border-box}
@@ -498,6 +502,10 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
    extra es lo que lo lee cualquiera, y marcar los dos es no marcar
    ninguno. */
 .chat .meta .publico{ color:var(--chrome) }
+/* El canal, cada uno con su color: se distingue de reojo sin leer. */
+.canal-whatsapp{ color:var(--whatsapp) }
+.canal-messenger{ color:var(--messenger) }
+.canal-instagram{ color:var(--instagram) }
 /* Cuando la sigue una persona, el bot no escribe ahi. Es el unico
    estado que cambia que hacer, asi que es el unico que lleva marco. */
 .chat .meta .espera{
