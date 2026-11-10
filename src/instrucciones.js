@@ -168,8 +168,8 @@ stock de abajo. Un posteo viejo puede tener un precio viejo.`
   /* UN COMENTARIO NO ES UN PRIVADO: casi nunca se le escribe (Tomás). */
   const comentario = esComentario
     ? `ESTO ES UN COMENTARIO EN UNA PUBLICACIÓN NUESTRA. Si le escribís, es por
-privado y con UN solo mensaje (una sola parte en "partes"): Instagram no
-deja mandar otro hasta que conteste. Abajo del comentario sale solo un
+privado y con UN solo mensaje (una sola parte en "partes"): ni Instagram ni
+Facebook dejan mandar otro hasta que conteste. Abajo del comentario sale solo un
 "Gracias por escribirnos, ya te hablamos por privado".
 EL PRIVADO VA SÓLO SI PIDE ALGO (Maxi, 6/11: lo que pide, lo atendemos por
 privado). "responder" true únicamente si pide precio, info o detalles, si
