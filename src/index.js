@@ -2195,7 +2195,18 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
 
      UN PRIVADO SÍ ES UNA CHARLA, pero sólo con los privados, y los
      últimos veinte: más atrás ya no se está hablando de lo mismo. */
-  const privados = todos.filter((m) => m.clase !== 'comentario').slice(-20);
+  const todosPrivados = todos.filter((m) => m.clase !== 'comentario');
+  /* UNA TANDA DE FOTOS NO TAPA LA CHARLA (Maxi, 9/11): un cliente mandó
+     veinte fotos seguidas, ocuparon los veinte lugares y el bot creyó que
+     era el primer mensaje: lo volvió a saludar y le preguntó por qué auto
+     venía, cuando ya lo habían hablado. De cada tanda seguida de fotos del
+     cliente quedan tres; las demás ya están resumidas en esas. */
+  const privados = todosPrivados.filter((m, i, arr) => {
+    if (m.tipo !== 'imagen' || m.direccion !== 'entrante') return true;
+    let antes = 0;
+    for (let j = i - 1; j >= 0 && arr[j].tipo === 'imagen' && arr[j].direccion === 'entrante'; j--) antes++;
+    return antes < 3;
+  }).slice(-20);
   const hilo = esComentario
     ? todos.filter((m) => m.clase === 'comentario' && m.media_id === ultimo.media_id)
     : (privados.length ? privados : [ultimo]);
@@ -2355,9 +2366,9 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
         .filter((v) => v.chat !== conversacionId && v.visita.length > 10).map((v) => v.visita),
       /* Si ya le escribimos por privado, no vuelve a saludar. Lo decide
          el código y no el bot: en una charla larga, el bot se olvidaba. */
-      yaHablamos: privados.some((m) => m.direccion === 'saliente'),
+      yaHablamos: todosPrivados.some((m) => m.direccion === 'saliente'),
       /* "Hoy" es el día de Buenos Aires. Las fechas de la base son UTC. */
-      saludamosHoy: privados.some((m) => m.direccion === 'saliente' && diaDeBsAs(m.creado) === diaDeBsAs()),
+      saludamosHoy: todosPrivados.some((m) => m.direccion === 'saliente' && diaDeBsAs(m.creado) === diaDeBsAs()),
     }) + FORMA_EN_TEXTO,
     /* BUSCAR EN LA WEB, PARA NO INVENTAR: el modelo del auto del cliente
        (una versión, un motor) y, desde el 28/10, el tema que traiga a la
@@ -2438,7 +2449,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
   /* El número de auto se cruza con el stock: uno inventado o vendido no
      llega a ningún lado. */
   /* EL LINK SALE SÓLO SI EL BOT LO PIDE: cuando piden info o fotos (Maxi, 5/11). */
-  const yaHablo = privados.some((m) => m.direccion === 'saliente');
+  const yaHablo = todosPrivados.some((m) => m.direccion === 'saliente');
   const enWhatsapp = chat.canal === 'whatsapp';
   /* Sin link al confirmar una visita ni cuando se habla de su auto o de
      números (Maxi, 5/11). */
