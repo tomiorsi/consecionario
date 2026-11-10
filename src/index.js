@@ -6021,10 +6021,26 @@ async function admin(peticion, env, ruta, metodo, ctx) {
   if (ruta === '/api/admin/facebook/suscribir' && metodo === 'GET') {
     const q = new URL(peticion.url).searchParams;
     const CAMPOS = ['messages', 'message_echoes', 'messaging_postbacks', 'messaging_referrals', 'feed'];
-    const pagina = (q.get('pagina') || '').replace(/\D/g, '') || 'me';
 
-    const salida = { pagina, campos: CAMPOS };
+    const salida = { campos: CAMPOS };
     try {
+      /* `/me` NO SIRVE PARA ESTO, Y EL ERROR NO LO DICE. Meta contesta
+         "Object with ID 'me' does not exist... or does not support this
+         operation", que suena a token vencido o a permiso faltante y no
+         es ninguna de las dos: `subscribed_apps` sólo acepta el id de la
+         página escrito. Así que primero se pregunta quién es el token y
+         después se usa ESE número.
+
+         Y DE PASO DICE QUÉ TOKEN ES. Si `META_PAGE_TOKEN` fuera un token
+         de usuario y no de la página, acá se ve —vendría un nombre de
+         persona y no el de la página—, que es lo único que distingue
+         "falta suscribir" de "está cargada la llave equivocada". */
+      salida.quien = await fbLlamar(env, '/me?fields=id,name');
+
+      const pagina = (q.get('pagina') || '').replace(/\D/g, '') || salida.quien?.id;
+      if (!pagina) return error('Facebook no dijo el id de la página', 502);
+      salida.pagina = pagina;
+
       if (q.get('activar') === '1') {
         salida.suscripcion = await fbLlamar(env,
           `/${pagina}/subscribed_apps?subscribed_fields=${CAMPOS.join(',')}`, { method: 'POST' });
@@ -6036,7 +6052,10 @@ async function admin(peticion, env, ruta, metodo, ctx) {
         .some((a) => (a?.subscribed_fields ?? []).includes('feed'));
       return json(salida);
     } catch (e) {
-      return error(e?.message || 'Facebook no contestó', 502);
+      /* El error de Meta con lo que ya habíamos averiguado: sin esto, un
+         fallo en el POST borra el dato de quién es el token, que suele
+         ser justo lo que explica el fallo. */
+      return json({ ...salida, error: e?.message || 'Facebook no contestó' }, 502);
     }
   }
 
