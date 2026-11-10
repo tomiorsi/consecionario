@@ -5960,6 +5960,23 @@ async function admin(peticion, env, ruta, metodo, ctx) {
        "PARA HACER" TAMBIÉN (4/11): si ya le escribimos después del aviso,
        la tarea quedó vieja y no se cuenta. */
     const conRespuesta = async (a) => {
+      /* "PARA TASAR" AL DÍA (Maxi, 10/11: "hay muchos que ya se les pasó la
+         diferencia y siguen ahí"). Si alguien del equipo le escribió una
+         diferencia o un número en dólares después del aviso, ya está. */
+      if (!a.hecho && /^(Para tasar|Para cotizar|\*TASACIÓN)/.test(a.texto)) {
+        const dig = soloDigitos((a.texto.match(/\+54 9 [\d -]{8,14}\d/) ?? [''])[0]).slice(-10);
+        const usu = (a.texto.match(/@([\w.]{3,})/) ?? [])[1];
+        const ct = dig.length >= 8
+          ? await env.DB.prepare('SELECT id FROM conversaciones WHERE externo_id LIKE ? LIMIT 1').bind(`%${dig}`).first()
+          : usu ? await env.DB.prepare('SELECT id FROM conversaciones WHERE nombre = ? LIMIT 1').bind(usu).first() : null;
+        if (!ct) return a;
+        const { results: delEquipo } = await env.DB.prepare(
+          `SELECT texto FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente' AND autor = 'persona'
+             AND creado > ? AND texto IS NOT NULL`).bind(ct.id, aSqlite(a.cuando)).all();
+        const pasada = (delEquipo ?? []).some((m) =>
+          /diferencia|usd|u\$s|d[oó]lares|\b\d{1,3}[.,]?\d{3}\b|\b\d{2,3} ?mil\b/i.test(m.texto));
+        return pasada ? { ...a, hecho: true } : a;
+      }
       const esTarea = !a.hecho && (a.tipo === 'hacer' || a.texto.startsWith('*PARA HACER'));
       if (!esTarea && !/^(Te paso un chat|Contestó la confirmación|Te escribió un cliente)/.test(a.texto)) return a;
       const digitos = soloDigitos((a.texto.match(/\+54 9 [\d -]{8,14}\d/) ?? [''])[0]).slice(-10);
@@ -5974,9 +5991,31 @@ async function admin(peticion, env, ruta, metodo, ctx) {
         ).bind(c.id, aSqlite(a.cuando)).first();
         return yaLeEscribimos ? { ...a, hecho: true } : a;
       }
-      const ultimo = await env.DB.prepare(
-        'SELECT direccion FROM mensajes WHERE conversacion_id = ? ORDER BY creado DESC, id DESC LIMIT 1').bind(c.id).first();
-      return { ...a, contestado: ultimo?.direccion === 'saliente' };
+      /* CONTESTADO TAMBIÉN SI CERRÓ ÉL (Maxi, 10/11: "a los que ya se les
+         respondió, eliminalos vos, que no tenga que ponerle ya está").
+         Si le escribimos después del aviso y lo que mandó después de
+         nuestro último mensaje es sólo un cierre —gracias, ok, dale, un
+         sticker, un emoji—, la charla terminó y no espera nada. */
+      const { results: ultimos } = await env.DB.prepare(
+        `SELECT direccion, tipo, texto, creado FROM mensajes WHERE conversacion_id = ?
+          ORDER BY creado DESC, id DESC LIMIT 8`).bind(c.id).all();
+      const ms = ultimos ?? [];
+      if (ms[0]?.direccion === 'saliente') return { ...a, contestado: true };
+      const iNuestro = ms.findIndex((m) => m.direccion === 'saliente');
+      const despues = iNuestro < 0 ? [] : ms.slice(0, iNuestro);
+      /* Las dos fechas en UTC y con el mismo formato: se comparan como texto. */
+      const leRespondimos = iNuestro >= 0 && String(ms[iNuestro].creado) > aSqlite(a.cuando);
+      /* Un cierre: sticker, sólo emojis, o pocas palabras todas de despedida. */
+      const CIERRE = new Set(['ok', 'oka', 'okey', 'okis', 'dale', 'gracias', 'mil', 'muchas', 'perfecto', 'genial',
+        'buenisimo', 'joya', 'listo', 'bueno', 'de', 'nada', 'igualmente', 'un', 'abrazo', 'saludos', 'abz', 'si',
+        'genio', 'crack', 'capo', 'amigo', 'che', 'maxi', 'franco', 'bien', 'todo', 'tranqui', 'ah', 'buenas', 'noches']);
+      const cierra = (m) => {
+        if (m.tipo === 'otro' || m.tipo === 'sticker') return true;
+        const palabras = String(m.texto ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(Boolean);
+        return palabras.length <= 6 && palabras.every((w) => CIERRE.has(w));
+      };
+      return { ...a, contestado: leRespondimos && despues.length > 0 && despues.every(cierra) };
     };
     const deChat = async (id) => id ? env.DB.prepare(
       'SELECT id, canal, externo_id, nombre FROM conversaciones WHERE id = ?').bind(id).first() : null;
