@@ -982,7 +982,7 @@ function pintarChats() {
        eran tres pastillas por fila; con veinte filas eran sesenta
        rectangulos. El dato es el mismo y se mira de reojo. */
     const meta = [
-      '<span>' + escapar(CANALES[c.canal] || c.canal) + '</span>',
+      '<span class="canal-' + escapar(c.canal) + '">' + escapar(CANALES[c.canal] || c.canal) + '</span>',
       c.clase === 'comentario'
         ? '<span class="publico">Comentario</span>'
         : '<span>Privado</span>',
