@@ -4439,8 +4439,8 @@ async function hacerPosventa(env) {
 }
 
 /* SI SE QUEDÓ CALLADO DESPUÉS DEL LINK, UNA PREGUNTA PARA AGENDAR (Maxi,
-   10/11: "si no contesta, tratemos de sacarle un día... si le queda mejor
-   por la mañana o por la tarde... sin ser pesado").
+   10/11: "si no contesta, tratemos de sacarle un día... sin ser pesado".
+   El texto lo eligió él).
 
    UNA SOLA VEZ POR CHAT y nada más: si tampoco contesta, queda ahí.
    Sólo si el bot le mandó el link de un auto, el último mensaje es
@@ -4448,7 +4448,7 @@ async function hacerPosventa(env) {
    puede escribir), no tiene visita, no es para tasar y no lo sigue una
    persona. De 10 a 20 en Buenos Aires. Sale por la cola, que no manda
    nada si en el medio escribió el cliente o lo tomó alguien. */
-const PREGUNTA_DIA = 'Si te interesa verlo en persona, ¿te queda mejor venir a la mañana o a la tarde? Así lo coordinamos con la agenda.';
+const PREGUNTA_DIA = 'Si te interesa verlo en persona, agendemos un día. ¿Qué días podés de esta semana?';
 async function pedirDiaACallados(env) {
   if (!(await configDelBot(env)).encendida) return;
   const horaBsAs = new Date(Date.now() - 3 * HORAS).getUTCHours();
