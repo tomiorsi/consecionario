@@ -1029,19 +1029,67 @@ async function igLlamar(env, camino, opciones = {}) {
    EL ERROR DE META VUELVE TAL CUAL, igual que en Instagram: es lo que
    dice si se venció la ventana, si falta un permiso o si el token
    murió, y es lo que tiene que leer el que está atendiendo. */
-async function fbLlamar(env, camino, opciones = {}) {
-  if (!env.META_PAGE_TOKEN) throw new Error('Falta cargar META_PAGE_TOKEN');
+async function fbPedir(token, nombre, camino, opciones = {}) {
+  if (!token) throw new Error(`Falta cargar ${nombre}`);
   const r = await fetch(camino.startsWith('http') ? camino : GRAPH + camino, {
     ...opciones,
     headers: {
-      authorization: `Bearer ${env.META_PAGE_TOKEN}`,
+      authorization: `Bearer ${token}`,
       ...(opciones.body ? { 'content-type': 'application/json' } : {}),
       ...opciones.headers,
     },
   });
-  const dato = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(dato?.error?.message || `Facebook contestó ${r.status}`);
-  return dato;
+  return { ok: r.ok, estado: r.status, dato: await r.json().catch(() => ({})) };
+}
+
+async function fbLlamar(env, camino, opciones = {}) {
+  const r = await fbPedir(env.META_PAGE_TOKEN, 'META_PAGE_TOKEN', camino, opciones);
+  if (!r.ok) throw new Error(r.dato?.error?.message || `Facebook contestó ${r.estado}`);
+  return r.dato;
+}
+
+/* ── Y UNA LLAVE MÁS, QUE NO ESTABA A LA VISTA ───────────────────
+
+   HAY DOS TOKENS DE FACEBOOK, NO UNO, Y ESTO COSTÓ UN RATO.
+
+   `META_PAGE_TOKEN` es de un usuario del sistema ("manna-hub"). Sirve
+   para mirar: listar a qué páginas llega, leer publicaciones. Pero hay
+   cosas que la página NO acepta de él —suscribirla a los webhooks,
+   mandar un mensaje, comentar— y ahí contesta:
+
+     (#210) A page access token is required to request this resource.
+
+   Lo que falta no es un permiso: es OTRA LLAVE. El token de la página
+   se pide con el del usuario del sistema (`/{pagina}?fields=access_token`)
+   y es el que vale para actuar COMO la página.
+
+   SE GUARDA EN MEMORIA Y NUNCA EN LA BASE. Es un secreto como
+   cualquier otro: en `estado` quedaría escrito en D1 y en los backups.
+   Vive lo que vive esta instancia del Worker y se vuelve a pedir
+   cuando haga falta, que es barato.
+
+   Y SI LA GUARDADA DEJÓ DE SERVIR, SE PIDE DE NUEVO Y SE REINTENTA UNA
+   VEZ. Un token revocado no puede costar un mensaje a un cliente. */
+let llaveDeLaPagina = null;
+
+async function pedirLlaveDeLaPagina(env) {
+  const r = await fbLlamar(env, `/${LA_PAGINA(env)}?fields=access_token`);
+  if (!r?.access_token) throw new Error('Facebook no dio el token de la página');
+  llaveDeLaPagina = r.access_token;
+  return llaveDeLaPagina;
+}
+
+const LLAVE_VENCIDA = [102, 190, 200, 210];
+
+async function fbComoPagina(env, camino, opciones = {}) {
+  let r = await fbPedir(llaveDeLaPagina ?? await pedirLlaveDeLaPagina(env),
+    'el token de la página', camino, opciones);
+  if (!r.ok && LLAVE_VENCIDA.includes(r.dato?.error?.code)) {
+    llaveDeLaPagina = null;
+    r = await fbPedir(await pedirLlaveDeLaPagina(env), 'el token de la página', camino, opciones);
+  }
+  if (!r.ok) throw new Error(r.dato?.error?.message || `Facebook contestó ${r.estado}`);
+  return r.dato;
 }
 
 /* LA PÁGINA, SIEMPRE POR SU NÚMERO Y NUNCA COMO "/me".
@@ -1076,7 +1124,7 @@ const LA_PAGINA = (env) => env.META_PAGINA_ID || 'me';
 async function megustaEnComentario(env, canal, comentarioId) {
   return canal === 'instagram'
     ? igLlamar(env, '/me/likes', { method: 'POST', body: JSON.stringify({ comment_id: comentarioId }) })
-    : fbLlamar(env, `/${comentarioId}/likes`, { method: 'POST' });
+    : fbComoPagina(env, `/${comentarioId}/likes`, { method: 'POST' });
 }
 
 /* CONTESTAR ABAJO DE LA PUBLICACIÓN, a la vista de todos.
@@ -1146,7 +1194,7 @@ async function avisarEnElComentario(env, canal, comentarioId, lista = AVISOS) {
     : `/${comentarioId}/comments?message=${encodeURIComponent(texto)}`;
   return canal === 'instagram'
     ? igLlamar(env, camino, { method: 'POST' })
-    : fbLlamar(env, camino, { method: 'POST' });
+    : fbComoPagina(env, camino, { method: 'POST' });
 }
 
 /* Deja asentado lo que mandamos, en la misma conversación.
@@ -1295,7 +1343,7 @@ async function charlaEnMeta(env, chat) {
      Facebook va el número de la página (ver `LA_PAGINA`). */
   return chat.canal === 'instagram'
     ? igLlamar(env, `/me/${cola}`)
-    : fbLlamar(env, `/${LA_PAGINA(env)}/${cola}`);
+    : fbComoPagina(env, `/${LA_PAGINA(env)}/${cola}`);
 }
 
 async function mensajesDelEquipoEnMeta(env, chat) {
@@ -1473,8 +1521,8 @@ async function traerComentariosDeFacebook(env, { desde = 0, porTanda = 5 } = {})
 
      Si `ads_posts` falla (es otro permiso), se sigue con las del muro:
      traer la mitad es mejor que no traer nada. */
-  const delMuro = await fbLlamar(env, `/${miPagina}/posts?fields=id&limit=100`);
-  const deAnuncios = await fbLlamar(env, `/${miPagina}/ads_posts?fields=id&limit=100`)
+  const delMuro = await fbComoPagina(env, `/${miPagina}/posts?fields=id&limit=100`);
+  const deAnuncios = await fbComoPagina(env, `/${miPagina}/ads_posts?fields=id&limit=100`)
     .catch((e) => { console.error('No se pudieron leer las publicaciones de anuncio:', e?.message ?? e); return null; });
 
   const vistas = new Set();
@@ -1486,7 +1534,7 @@ async function traerComentariosDeFacebook(env, { desde = 0, porTanda = 5 } = {})
   let guardados = 0;
 
   for (const p of tanda) {
-    const com = await fbLlamar(env,
+    const com = await fbComoPagina(env,
       `/${p.id}/comments?fields=id,message,created_time,from&filter=stream&limit=50`
     ).catch(() => null);
 
@@ -1985,7 +2033,7 @@ async function leerPublicacion(env, canal, id) {
       video: m?.thumbnail_url ? m?.media_url ?? null : null,
     };
   }
-  const p = await fbLlamar(env,
+  const p = await fbComoPagina(env,
     `/${id}?fields=message,permalink_url,full_picture,attachments{media_type,media}`);
   const adjunto = p?.attachments?.data?.[0];
   return {
@@ -2623,10 +2671,15 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
        Va sin `messaging_type` porque no es la respuesta a un mensaje
        —no hay ninguno— sino la puerta que abre el propio comentario, y
        es la forma que documenta Meta para esto. */
-    const r = await graphMandar(env.META_PAGE_TOKEN, 'META_PAGE_TOKEN', `/${LA_PAGINA(env)}/messages`,
-      comentarioId
+    /* CON EL TOKEN DE LA PÁGINA Y NO CON EL DEL USUARIO DEL SISTEMA: el
+       envío es una de las cosas que la página no acepta del otro (ver
+       `fbComoPagina`). */
+    const r = await fbComoPagina(env, `/${LA_PAGINA(env)}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(comentarioId
         ? { recipient: { comment_id: comentarioId }, message: { text: texto } }
-        : { recipient: { id: chat.externo_id }, messaging_type: 'RESPONSE', message: { text: texto } });
+        : { recipient: { id: chat.externo_id }, messaging_type: 'RESPONSE', message: { text: texto } }),
+    });
     if (comentarioId) {
       await emparejarConElPrivado(env, chat, r?.recipient_id)
         .catch((e) => console.error('No se pudo emparejar el comentario con el privado:', e?.message ?? e));
@@ -6067,10 +6120,10 @@ async function admin(peticion, env, ruta, metodo, ctx) {
         .catch(() => null))?.data ?? []).map((p) => `${p.name} (${p.id})`);
 
       if (q.get('activar') === '1') {
-        salida.suscripcion = await fbLlamar(env,
+        salida.suscripcion = await fbComoPagina(env,
           `/${pagina}/subscribed_apps?subscribed_fields=${CAMPOS.join(',')}`, { method: 'POST' });
       }
-      salida.suscritas = await fbLlamar(env, `/${pagina}/subscribed_apps`);
+      salida.suscritas = await fbComoPagina(env, `/${pagina}/subscribed_apps`);
       /* Lo que importa de verdad, en una línea: si los comentarios van a
          llegar o no. Leerlo de la lista entera es fácil equivocarse. */
       salida.llegan_los_comentarios = (salida.suscritas?.data ?? [])
