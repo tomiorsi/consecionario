@@ -2456,15 +2456,18 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
   const sinLink = /^\d{4}-\d{2}-\d{2}/.test(dato.visita ?? '') || Boolean(dato.para_tasar)
     || Boolean(dato.pasar_a_persona) || /con el equipo|al equipo/i.test(partes.join(' '));
   /* EL LINK, SÓLO SI LO PIDE (Maxi, 5/11: "no mandes link por mandar"). */
+  /* PIDIÓ LA UBICACIÓN DE UN AUTO NUESTRO (Maxi, 10/11): con la dirección
+     va el link, si todavía no lo tiene. Quien pregunta dónde verlo ya
+     está interesado. */
   const loPide = /foto|video|info|imagen|link|ficha|contame m[aá]s|m[aá]s datos/i
-    .test(String(ultimo?.texto ?? '').replace(/\[[^\]]*\]/g, ''));
+    .test(String(ultimo?.texto ?? '').replace(/\[[^\]]*\]/g, '')) || dato.ubicacion === true;
   const auto = loPide ? (autos ?? []).find((a) => a.id === dato.ficha_de) : null;
 
   /* La frase del link la pone `conPresentacion`: si el modelo también la
      escribe, sale dos veces. */
   if (auto) {
     const limpias = partes
-      .map((t) => t.replace(/\s*((Acá )?te (paso|dejo) (más fotos|más info|el link|un link)[^.\n]*|De paso, te (mando|paso) un link[^.\n]*)\.?/gi, '').trim())
+      .map((t) => t.replace(/\s*((Acá )?te (paso|dejo|mando) (más fotos|más info|el link|un link)[^.\n]*|De paso, te (mando|paso) un link[^.\n]*)\.?/gi, '').trim())
       .filter(Boolean);
     partes.splice(0, partes.length, ...(limpias.length ? limpias : ['Dale!']));
   }
@@ -2750,11 +2753,13 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
    se veía el link dos veces. Con el link solo queda la tarjeta con la foto. */
 /* En Instagram y Messenger el link va solo, para que se vea la foto, y la frase
    en el mensaje anterior. En WhatsApp, juntos. */
-const conPresentacion = (link, canal = 'whatsapp', idioma = 'es') => {
+/* PRIMERO EL LINK, SOLO, Y DESPUÉS LA FRASE EN OTRO MENSAJE (Maxi, 10/11:
+   "Primero el link, después el mensaje. En un mensaje diferente"). Así la
+   vista previa con la foto es lo primero que ve, en los tres canales. */
+const FRASE_DEL_LINK = 'Te mando el link con más fotos y un poco más de info, para que lo vayas viendo.';
+const conPresentacion = (link, _canal = 'whatsapp', idioma = 'es') => {
   if (!link) return [];
-  if (canal !== 'whatsapp') return [enIdioma(idioma)?.link
-    ?? 'Acá te dejo un link para que veas más fotos y un poco más de info.', link];
-  return [`${enIdioma(idioma)?.link ?? 'Acá te dejo un link para que veas más fotos y un poco más de info.'}\n${link}`];
+  return [link, enIdioma(idioma)?.link ?? FRASE_DEL_LINK];
 };
 
 const PAUSA_ENTRE_PARTES = 14000;
@@ -2829,9 +2834,10 @@ async function ubicacionSinRepetir(_env, _chatId, ubicacion) {
 async function mandarRespuesta(env, chat, {
   partes, autoId = null, ubicacion = false, aWhatsapp = false, autor, idioma = 'es',
 }) {
+  /* Si pidió la dirección, primero va lo que pidió y después el link. */
   const fijos = [
-    ...conPresentacion(await linkSinRepetir(env, chat.id, autoId), chat.canal, idioma),
     await ubicacionSinRepetir(env, chat.id, ubicacion),
+    ...conPresentacion(await linkSinRepetir(env, chat.id, autoId), chat.canal, idioma),
     aWhatsapp && chat.canal !== 'whatsapp' ? A_WHATSAPP : null,
   ].filter(Boolean);
 
@@ -4432,6 +4438,54 @@ async function hacerPosventa(env) {
   }
 }
 
+/* SI SE QUEDÓ CALLADO DESPUÉS DEL LINK, UNA PREGUNTA PARA AGENDAR (Maxi,
+   10/11: "si no contesta, tratemos de sacarle un día... si le queda mejor
+   por la mañana o por la tarde... sin ser pesado").
+
+   UNA SOLA VEZ POR CHAT y nada más: si tampoco contesta, queda ahí.
+   Sólo si el bot le mandó el link de un auto, el último mensaje es
+   nuestro, pasaron entre 2 y 20 horas (adentro de las 24 en que se le
+   puede escribir), no tiene visita, no es para tasar y no lo sigue una
+   persona. De 10 a 20 en Buenos Aires. Sale por la cola, que no manda
+   nada si en el medio escribió el cliente o lo tomó alguien. */
+const PREGUNTA_DIA = 'Si te interesa verlo en persona, ¿te queda mejor venir a la mañana o a la tarde? Así lo coordinamos con la agenda.';
+async function pedirDiaACallados(env) {
+  if (!(await configDelBot(env)).encendida) return;
+  const horaBsAs = new Date(Date.now() - 3 * HORAS).getUTCHours();
+  if (horaBsAs < 10 || horaBsAs >= 20) return;
+  const { results } = await env.DB.prepare(
+    `SELECT c.id, c.canal, c.externo_id, c.nota FROM conversaciones c
+      WHERE c.humano = 0 AND c.canal IN ('whatsapp','instagram')
+        AND COALESCE(c.etapa, '') <> 'cerrado'
+        AND c.ultimo BETWEEN datetime('now','-20 hours') AND datetime('now','-2 hours')
+        AND (SELECT direccion FROM mensajes m WHERE m.conversacion_id = c.id
+              ORDER BY m.creado DESC, m.id DESC LIMIT 1) = 'saliente'
+        AND (SELECT MAX(creado) FROM mensajes m WHERE m.conversacion_id = c.id
+              AND m.direccion = 'entrante') > datetime('now','-23 hours')
+        AND EXISTS (SELECT 1 FROM mensajes m WHERE m.conversacion_id = c.id
+              AND m.direccion = 'saliente' AND instr(COALESCE(m.texto,''), 'mannaselected.com.ar/auto/') > 0)
+        AND EXISTS (SELECT 1 FROM mensajes m WHERE m.conversacion_id = c.id
+              AND m.direccion = 'saliente' AND (instr(COALESCE(m.texto,''), 'Te mando el link') > 0
+                OR instr(COALESCE(m.texto,''), 'Acá te dejo un link') > 0))
+      LIMIT 20`
+  ).all();
+  if (!results?.length) return;
+  const hechos = (await leerEstado(env, 'pedir_dia'))?.valor ?? {};
+  const agenda = (await leerEstado(env, 'agenda'))?.valor ?? [];
+  for (const c of results) {
+    if (hechos[c.id] || String(c.nota ?? '').startsWith('Para tasar')) continue;
+    if (agenda.some((v) => Number(v.chat) === c.id)) continue;
+    hechos[c.id] = new Date().toISOString();
+    await guardarEstado(env, 'pedir_dia', Object.fromEntries(Object.entries(hechos).slice(-500)));
+    const visto = (await env.DB.prepare(
+      `SELECT COALESCE(MAX(id), 0) AS n FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'`
+    ).bind(c.id).first())?.n ?? 0;
+    await env.ENVIOS.get(env.ENVIOS.idFromName(`dia-${c.id}`))
+      .encolar({ id: c.id, canal: c.canal, externo_id: c.externo_id },
+        [{ texto: PREGUNTA_DIA, espera: 0 }], 'ia', visto, 0);
+  }
+}
+
 async function atenderSolo(env, disparos) {
   const cfg = await configDelBot(env);
   if (!cfg.prueba && !disparos.some((d) => canalActivo(cfg, d.canal))) return;
@@ -5336,6 +5390,8 @@ export default {
 
     try { await hacerPosventa(env); }
     catch (e) { console.error('No se pudo hacer la posventa:', e?.message ?? e); }
+    try { await pedirDiaACallados(env); }
+    catch (e) { console.error('No se pudo pedir el día:', e?.message ?? e); }
     try { await recordatoriosDeHoy(env); }
     catch (e) { console.error('No salieron los recordatorios:', e?.message ?? e); }
     try { await recordarVisitas(env); }
