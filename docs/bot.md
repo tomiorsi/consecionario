@@ -25,7 +25,7 @@ Contesta por WhatsApp, Instagram y Messenger como Manna Selected, con la voz de 
    ```
 1. Las llaves que faltan, con `wrangler secret put` (nunca en el código ni en un chat):
    - `WHATSAPP_TOKEN`: token del usuario del sistema de la cuenta de WhatsApp Business, con `whatsapp_business_messaging`.
-   - `META_PAGE_TOKEN`: token de la página de Facebook, con `pages_messaging` (privados y respuesta privada a un comentario), `pages_manage_engagement` (contestar y dar me gusta abajo de la publicación) y `pages_read_engagement` (leer las publicaciones y sus comentarios).
+   - `META_PAGE_TOKEN`: el token con el que se habla con la página. **Ojo: hoy es de un usuario del sistema (`manna-hub`), no de la página.** Por eso nada se le pide a `/me`: el número de la página va escrito en `META_PAGINA_ID` (`wrangler.jsonc`). Permisos: `pages_messaging` (privados y respuesta privada a un comentario), `pages_manage_engagement` (contestar y dar me gusta abajo de la publicación) y `pages_read_engagement` (leer las publicaciones y sus comentarios).
    - `META_IG_TOKEN` ya está. Para mandar hace falta `instagram_business_manage_messages`.
    - En la consola de Anthropic (console.anthropic.com → Settings → Privacy), habilitar la **búsqueda web** para la organización. El bot la usa para averiguar si el auto que ofrece el cliente es manual o automático. Si no está habilitada, contesta igual sin buscar.
 2. Subir a `main` (se publica solo). La cola de envíos (Durable Object `Envios`) se crea sola con esa publicación. Si el código llega antes que la columna del anuncio, funciona igual y empieza a guardar el anuncio cuando la columna esté.

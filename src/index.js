@@ -1044,6 +1044,22 @@ async function fbLlamar(env, camino, opciones = {}) {
   return dato;
 }
 
+/* LA PÁGINA, SIEMPRE POR SU NÚMERO Y NUNCA COMO "/me".
+
+   `META_PAGE_TOKEN` no es un token de la página: es de un usuario del
+   sistema ("manna-hub"). Con un token así `/me` NO es la página, es el
+   usuario del sistema, y todo lo que se le pida a `/me/...` apunta al
+   lugar equivocado o no existe.
+
+   Y NO SE NOTA COMO UN ERROR CLARO. Meta contesta "Object with ID 'me'
+   does not exist, cannot be loaded due to missing permissions, or does
+   not support this operation", que suena a token vencido o a permiso
+   faltante y no es ninguna de las dos. Costó una tarde la primera vez.
+
+   El número vive en `wrangler.jsonc` y no es secreto: es el de la
+   página pública. */
+const LA_PAGINA = (env) => env.META_PAGINA_ID || 'me';
+
 /* DAR ME GUSTA A UN COMENTARIO.
 
    Meta lo habilitó el 22 de abril de 2026 y pide su propio permiso:
@@ -1273,14 +1289,13 @@ async function traerDeInstagram(env, { limite = 25 } = {}) {
    charla en Meta: lo nuestro que no tenemos guardado, ni por id ni por
    texto, lo escribió alguien del equipo. */
 async function charlaEnMeta(env, chat) {
-  const camino = `/me/conversations?platform=${chat.canal}&user_id=${encodeURIComponent(chat.externo_id)}`
+  const cola = `conversations?platform=${chat.canal}&user_id=${encodeURIComponent(chat.externo_id)}`
     + `&fields=messages.limit(15){id,created_time,from{id},message}`;
-  if (chat.canal === 'instagram') return igLlamar(env, camino);
-  if (!env.META_PAGE_TOKEN) throw new Error('Falta cargar META_PAGE_TOKEN');
-  const r = await fetch(GRAPH + camino, { headers: { authorization: `Bearer ${env.META_PAGE_TOKEN}` } });
-  const dato = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(dato?.error?.message || `Facebook contestó ${r.status}`);
-  return dato;
+  /* En Instagram `/me` sí es la cuenta: ese token es de la cuenta. En
+     Facebook va el número de la página (ver `LA_PAGINA`). */
+  return chat.canal === 'instagram'
+    ? igLlamar(env, `/me/${cola}`)
+    : fbLlamar(env, `/${LA_PAGINA(env)}/${cola}`);
 }
 
 async function mensajesDelEquipoEnMeta(env, chat) {
@@ -1448,18 +1463,18 @@ async function traerComentariosDeInstagram(env, { desde = 0, porTanda = 5 } = {}
    De a tandas, igual que en Instagram y por lo mismo: Cloudflare le
    pone un tope a las llamadas externas de un solo pedido. */
 async function traerComentariosDeFacebook(env, { desde = 0, porTanda = 5 } = {}) {
-  const miPagina = (await fbLlamar(env, '/me?fields=id'))?.id;
+  const miPagina = LA_PAGINA(env);
 
   /* LAS PUBLICACIONES DE ANUNCIO TAMBIÉN, Y NO ES UN DETALLE. Lo que se
      publica para pautar no aparece en el muro de la página, así que
-     `/me/posts` no lo trae — y abajo de esos posteos es donde más
+     `/{pagina}/posts` no lo trae — y abajo de esos posteos es donde más
      pregunta la gente, porque son los que ven los que todavía no nos
      conocen. El comentario de la Ranger del 8/11 estaba ahí.
 
      Si `ads_posts` falla (es otro permiso), se sigue con las del muro:
      traer la mitad es mejor que no traer nada. */
-  const delMuro = await fbLlamar(env, '/me/posts?fields=id&limit=100');
-  const deAnuncios = await fbLlamar(env, '/me/ads_posts?fields=id&limit=100')
+  const delMuro = await fbLlamar(env, `/${miPagina}/posts?fields=id&limit=100`);
+  const deAnuncios = await fbLlamar(env, `/${miPagina}/ads_posts?fields=id&limit=100`)
     .catch((e) => { console.error('No se pudieron leer las publicaciones de anuncio:', e?.message ?? e); return null; });
 
   const vistas = new Set();
@@ -2608,7 +2623,7 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
        Va sin `messaging_type` porque no es la respuesta a un mensaje
        —no hay ninguno— sino la puerta que abre el propio comentario, y
        es la forma que documenta Meta para esto. */
-    const r = await graphMandar(env.META_PAGE_TOKEN, 'META_PAGE_TOKEN', '/me/messages',
+    const r = await graphMandar(env.META_PAGE_TOKEN, 'META_PAGE_TOKEN', `/${LA_PAGINA(env)}/messages`,
       comentarioId
         ? { recipient: { comment_id: comentarioId }, message: { text: texto } }
         : { recipient: { id: chat.externo_id }, messaging_type: 'RESPONSE', message: { text: texto } });
@@ -6037,9 +6052,19 @@ async function admin(peticion, env, ruta, metodo, ctx) {
          "falta suscribir" de "está cargada la llave equivocada". */
       salida.quien = await fbLlamar(env, '/me?fields=id,name');
 
-      const pagina = (q.get('pagina') || '').replace(/\D/g, '') || salida.quien?.id;
-      if (!pagina) return error('Facebook no dijo el id de la página', 502);
+      /* EL NÚMERO DE LA PÁGINA, NO EL DEL TOKEN. Son distintos: el token
+         es de un usuario del sistema (ver `LA_PAGINA`). Usar el del
+         token fue justamente el primer intento fallido. */
+      const pagina = (q.get('pagina') || '').replace(/\D/g, '') || LA_PAGINA(env);
+      if (!pagina || pagina === 'me') return error('Falta META_PAGINA_ID', 500);
       salida.pagina = pagina;
+
+      /* A QUÉ PÁGINAS LLEGA ESTE TOKEN. Si la nuestra no está en esta
+         lista, lo que falta no es suscribir nada: es que al usuario del
+         sistema no le dieron acceso a la página en el portfolio
+         comercial, y eso se arregla en Meta y no acá. */
+      salida.paginas_del_token = ((await fbLlamar(env, '/me/accounts?fields=id,name')
+        .catch(() => null))?.data ?? []).map((p) => `${p.name} (${p.id})`);
 
       if (q.get('activar') === '1') {
         salida.suscripcion = await fbLlamar(env,

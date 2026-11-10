@@ -76,6 +76,20 @@
   "vars": {
     "WHATSAPP_PHONE_ID": "1336740542848389",
     "WHATSAPP_CUENTA_ID": "1784146802921826",
+    // LA PAGINA DE FACEBOOK, ESCRITA Y NO "/me".
+    //
+    // `META_PAGE_TOKEN` no es un token de la pagina: es de un usuario del
+    // sistema ("manna-hub"). Con un token asi, `/me` NO es la pagina —es
+    // el usuario del sistema—, y todo lo que se le pida a `/me/...`
+    // apunta al lugar equivocado o directamente no existe.
+    //
+    // Eso no se nota como un error claro. Meta contesta "Object with ID
+    // 'me' does not exist, cannot be loaded due to missing permissions,
+    // or does not support this operation", que suena a token vencido o a
+    // permiso faltante y no es ninguna de las dos cosas.
+    //
+    // El numero no es secreto: es el de la pagina publica.
+    "META_PAGINA_ID": "1292696420590917",
     // El WhatsApp de Maxi: el bot le consulta lo que no sabe, aprende de
     // lo que él le contesta y a las 21 le manda el repaso del día (ver
     // "MAXI, EL QUE ENSEÑA" en src/index.js). Lo que llega desde este
