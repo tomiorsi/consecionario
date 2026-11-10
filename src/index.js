@@ -2506,7 +2506,9 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     visitaNombre: dato.visita_nombre ? String(dato.visita_nombre).trim().slice(0, 80) : null,
     visitaCondiciones: dato.visita_condiciones ? String(dato.visita_condiciones).slice(0, 300) : null,
     visitaClaves: clavesDeVisita(dato.visita_claves),
-    visitaAConfirmar: dato.visita_a_confirmar === true,
+    /* LA VISITA LA CONFIRMA EL EQUIPO (Maxi, 9/11): un cliente confirmado por
+       el bot fue hasta la puerta y no había nadie. Siempre queda a confirmar. */
+    visitaAConfirmar: true,
     busca: dato.busca ? String(dato.busca).slice(0, 160) : null,
     interesadoReservado: reservados.some((a) => a.id === dato.interesado_reservado) ? dato.interesado_reservado : null,
     conPosteo: Boolean(posteo),
@@ -3820,23 +3822,26 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
   await escribirleAlJefe(env,
     `${aConfirmar ? 'Visita a confirmar' : 'Visita agendada'} · ${fichaDeVisita(nueva)}` +
     (nueva.motivo ? `\n${nueva.motivo}` : '') +
-    (aConfirmar ? `\n\nDijo un día pero no lo cerró: queda en amarillo y no le sale la confirmación de la noche anterior.`
+    (aConfirmar ? `\n\nLe dije que lo chequeamos con la agenda: confirmásela vos. Queda en amarillo y no le sale la confirmación de la noche anterior.`
       : `\n\nSe la confirmé yo. Ponelo en Visita posible.`));
-  if (!aConfirmar) await avisarVisitaAlEquipo(env, nueva);
+  /* CADA POSIBLE VISITA LE LLEGA A MAXI POR WHATSAPP AL TOQUE (Maxi, 9/11:
+     "no esperes a las 11"). La firme va también a Colo; la que queda a
+     confirmar, sólo a Maxi, que es quien la confirma. */
+  await avisarVisitaAlEquipo(env, nueva, { soloMaxi: aConfirmar });
 }
 
 /* LA CITA CONFIRMADA, POR WHATSAPP A MAXI Y A COLO (Maxi, 5/11). Texto libre
    si escribieron en las últimas 23 horas; si no, Meta sólo deja la plantilla.
    El número no va en el código: se busca por el chat. */
 const COLO_CHAT = 5198;
-async function avisarVisitaAlEquipo(env, v) {
+async function avisarVisitaAlEquipo(env, v, { soloMaxi = false } = {}) {
   const jefe = await chatDelJefe(env);
-  const colo = await env.DB.prepare('SELECT id, canal, externo_id FROM conversaciones WHERE id = ?')
+  const colo = soloMaxi ? null : await env.DB.prepare('SELECT id, canal, externo_id FROM conversaciones WHERE id = ?')
     .bind(COLO_CHAT).first();
   const [cuando] = fichaDeVisita(v).split('\n');
   const detalle = [v.auto, v.condiciones].filter(Boolean).join(' · ');
   const claves = v.claves ?? [];
-  const texto = [`Visita agendada`, `${cuando}`, v.quien, detalle, ...claves.map((c) => `- ${c}`)]
+  const texto = [v.aConfirmar ? `Posible visita, A CONFIRMAR: chequeá la agenda y confirmásela` : `Visita agendada`, `${cuando}`, v.quien, detalle, ...claves.map((c) => `- ${c}`)]
     .filter(Boolean).join('\n');
   const plano = (t) => String(t || '-').replace(/\s+/g, ' ').trim().slice(0, 300);
   const valores = [cuando, v.quien, detalle, claves.join('. ')].map(plano);
