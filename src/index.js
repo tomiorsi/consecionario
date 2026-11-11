@@ -1366,12 +1366,17 @@ async function mensajesDelEquipoEnMeta(env, chat) {
 async function anotarAlEquipoDeMeta(env, chat) {
   const hallados = await mensajesDelEquipoEnMeta(env, chat);
   if (!hallados.length) return false;
+  /* Lo viejo se guarda igual, pero sólo lo de la última semana le saca
+     el chat al bot (Maxi, 11/11). */
+  const recientes = hallados.filter((m) =>
+    String(m.created_time ?? '').replace('T', ' ').slice(0, 19) > haceUnaSemana());
   for (const m of hallados) {
     await env.DB.prepare(
       `INSERT OR IGNORE INTO mensajes (conversacion_id, externo_id, direccion, autor, tipo, texto, creado)
        VALUES (?, ?, 'saliente', 'persona', 'texto', ?, ?)`
     ).bind(chat.id, m.id, m.message, String(m.created_time ?? '').replace('T', ' ').slice(0, 19) || aSqlite(new Date().toISOString())).run();
   }
+  if (!recientes.length) return false;
   await env.DB.prepare(
     `UPDATE conversaciones SET humano = 1,
             nota = COALESCE(nota, 'Lo tomó alguien del equipo desde la app') WHERE id = ?`
@@ -3759,12 +3764,37 @@ const whatsappEnCuarentena = (canal) => canal === 'whatsapp' && Date.now() < WHA
    y eso es a propósito.
    SALVO QUE LE DEVUELVAN EL CHAT (Maxi, 6/11: "si continúa el chat,
    continúalo vos"): cuenta lo que escribió una persona después de eso. */
+/* Y SÓLO SI EL EQUIPO ESCRIBIÓ EN LA ÚLTIMA SEMANA (Maxi, 11/11: "si lo
+   último que escribió el equipo tiene más de 7 días, el bot vuelve a
+   atender ese chat"). Un cliente que vuelve después de semanas no puede
+   quedar sin respuesta porque alguien le habló una vez. */
+const DIAS_DEL_EQUIPO = 7;
+const haceUnaSemana = () => aSqlite(new Date(Date.now() - DIAS_DEL_EQUIPO * 24 * HORAS).toISOString());
 async function loAtendioElEquipo(env, chatId) {
   const devuelto = ((await leerEstado(env, 'devueltos_al_bot'))?.valor ?? {})[chatId] ?? '';
+  const desde = devuelto > haceUnaSemana() ? devuelto : haceUnaSemana();
   return Boolean(await env.DB.prepare(
     `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
         AND autor = 'persona' AND creado > ? LIMIT 1`
-  ).bind(chatId, devuelto).first());
+  ).bind(chatId, desde).first());
+}
+
+/* EL CHAT QUEDÓ DEL EQUIPO PERO HACE MÁS DE UNA SEMANA QUE NO ESCRIBE:
+   vuelve al bot. Sólo si alguna vez escribió una persona: un chat que
+   el bot pasó y nadie tocó (pidió una persona, pidió borrar sus datos)
+   sigue como está. */
+async function devolverSiElEquipoSeFue(env, chat) {
+  if (!chat?.humano) return chat;
+  const ultimo = await env.DB.prepare(
+    `SELECT MAX(creado) AS c FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente' AND autor = 'persona'`
+  ).bind(chat.id).first();
+  if (!ultimo?.c || ultimo.c > haceUnaSemana()) return chat;
+  await env.DB.prepare('UPDATE conversaciones SET humano = 0 WHERE id = ?').bind(chat.id).run();
+  const devueltos = (await leerEstado(env, 'devueltos_al_bot'))?.valor ?? {};
+  devueltos[chat.id] = aSqlite(new Date().toISOString());
+  await guardarEstado(env, 'devueltos_al_bot', Object.fromEntries(Object.entries(devueltos).slice(-500)));
+  console.log(JSON.stringify({ bot: 'vuelve a atender', chat: chat.id, equipo_hasta: ultimo.c }));
+  return { ...chat, humano: 0 };
 }
 
 /* Un precio en lo que dijo el bot: "USD 23.900", "US$ 69.000". */
@@ -4514,7 +4544,7 @@ async function atenderSolo(env, disparos) {
        las 8, WhatsApp ya no le toca al bot. */
     if (!cfg.prueba && !canalActivo(cfg, d.canal)) continue;
     try {
-      const chat = await env.DB.prepare(
+      let chat = await env.DB.prepare(
         'SELECT id, canal, externo_id, humano, nombre, nota, etapa FROM conversaciones WHERE id = ?'
       ).bind(d.conversacion).first();
       /* En modo prueba Maxi es un cliente más, y el único si está apagado. */
@@ -4543,9 +4573,11 @@ async function atenderSolo(env, disparos) {
         continue;
       }
       if (!chat || (esElJefe(env, chat) && !esPrueba)) continue;
+      chat = await devolverSiElEquipoSeFue(env, chat);
       /* SI ENTRÓ UNA PERSONA, EL BOT NO CONTESTA MÁS (Maxi, 6/11: "cuando uno
-         de nosotros entra en la conversación, listo"). Sin excepciones por
-         tiempo: reemplaza los 20 minutos del 31/10. */
+         de nosotros entra en la conversación, listo"). Reemplaza los 20
+         minutos del 31/10. Vale mientras el equipo haya escrito en la última
+         semana (Maxi, 11/11): si no, el chat ya volvió al bot arriba. */
       if (!esPrueba && !chat.humano && (chat.canal === 'instagram' || chat.canal === 'messenger')) {
         const entro = await anotarAlEquipoDeMeta(env, chat).catch((e) => {
           console.error('No se pudo mirar la charla en Meta:', e?.message ?? e);
