@@ -1297,6 +1297,12 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
              un cliente no se puede deshacer. -->
         <button class="btn" type="button" id="sugerir">Que escriba la IA</button>
         <button class="btn btn--fuerte" type="submit" id="enviar">Enviar</button>
+        <!-- MESSENGER, MIENTRAS META NO APRUEBE pages_messaging (Maxi, 11/11):
+             desde la app no se le puede escribir a un cliente, así que se
+             contesta en la bandeja de Meta. Abre la bandeja de la página, sin
+             datos del cliente en la dirección. -->
+        <a class="btn oculto" id="enMeta" target="_blank" rel="noopener"
+           href="https://business.facebook.com/latest/inbox/messenger?asset_id=1292696420590917">Responder en Meta</a>
       </div>
     </form>
   </main>
