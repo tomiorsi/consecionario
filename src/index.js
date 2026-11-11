@@ -582,15 +582,27 @@ function mensajesDelAviso(aviso, nuestroId = null) {
           if (c?.wa_id) nombres[c.wa_id] = c?.profile?.name ?? null;
         }
         for (const m of valor.messages ?? []) {
+          /* EL BOTÓN QUE TOCÓ (Maxi, 11/11, caso César: el saludo del anuncio
+             decía "325i", él tocó el botón y el bot le preguntó qué auto
+             buscaba). Un botón o una respuesta rápida llegan como "button"
+             o "interactive", con el texto en otro lado: antes quedaban como
+             "otro" y sin texto, y el bot no sabía de qué hablaba. */
+          const delBoton = m.button?.text ?? m.button?.payload
+            ?? m.interactive?.button_reply?.title ?? m.interactive?.list_reply?.title ?? null;
+          /* Lo que todavía no sabemos leer queda en el log (sólo el tipo y
+             qué campos trae, nada del cliente) para ver qué fue. */
+          if (!delBoton && tipoConocido(m.type) === 'otro') {
+            console.log(JSON.stringify({ whatsapp_otro: m.type, campos: Object.keys(m), con_anuncio: Boolean(m.referral) }));
+          }
           salida.push({
             canal,
             externo_id: m.from,
             nombre: nombres[m.from] ?? null,
             mensaje_id: m.id,
-            tipo: tipoConocido(m.type),
+            tipo: delBoton ? 'texto' : tipoConocido(m.type),
             /* Una foto con leyenda trae texto igual: "este es el mío,
                tiene 40 mil km" es justo lo que el bot tiene que leer. */
-            texto: m.text?.body ?? m[m.type]?.caption ?? null,
+            texto: m.text?.body ?? m[m.type]?.caption ?? delBoton ?? null,
             clase: 'mensaje',
             media_id: null,
             anuncio: anuncioDe(m.referral, canal),
