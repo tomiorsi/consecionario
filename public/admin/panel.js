@@ -1066,6 +1066,8 @@ function prepararRespuesta(chat, mensajes) {
   $('#respuesta').value = '';
   limpiarSugerido();
   const red = CANALES[chat.canal] || chat.canal;
+  /* Messenger se contesta en Meta hasta que aprueben el permiso. */
+  $('#enMeta')?.classList.toggle('oculto', chat.canal !== 'messenger');
 
   const ultimoDeEl = [...mensajes].reverse().find((m) => m.direccion === 'entrante');
   const horas = ultimoDeEl
