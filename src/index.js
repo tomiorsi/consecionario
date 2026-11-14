@@ -4622,7 +4622,8 @@ async function linkACallados(env) {
   if (horaBsAs < 9 || horaBsAs >= 22) return;
   const { results } = await env.DB.prepare(
     `SELECT c.id, c.canal, c.externo_id, c.nota FROM conversaciones c
-      WHERE c.humano = 0 AND c.canal IN ('whatsapp','instagram')
+      WHERE c.ultimo > datetime('now','-3 hours')
+        AND c.humano = 0 AND c.canal IN ('whatsapp','instagram')
         AND COALESCE(c.etapa, '') <> 'cerrado'
         AND (SELECT direccion || '|' || COALESCE(autor,'') FROM mensajes m WHERE m.conversacion_id = c.id
               ORDER BY m.creado DESC, m.id DESC LIMIT 1) = 'saliente|ia'
