@@ -4602,6 +4602,66 @@ async function pedirDiaACallados(env) {
   }
 }
 
+/* SI PIDIÓ INFO, SE LA DIMOS Y SE QUEDÓ CALLADO, VA EL LINK (Maxi, 14/11:
+   "después de 30, 40 minutos que el tilde se puso azul y nadie contestó...
+   ahí va el link con más fotos. Y después va el mensaje... aparte").
+
+   UNA SOLA VEZ POR CHAT. Sólo si el último mensaje es del bot y salió
+   hace entre 30 minutos y 2 horas, el cliente escribió en las últimas 23
+   horas, todavía no se le mandó el link de ningún auto, no es para tasar
+   y no lo sigue una persona. El auto sale de lo que le contestó el bot:
+   tiene que nombrar uno solo de los publicados. Primero el link solo
+   (para que se vea la foto) y después la frase, en otro mensaje. De 9 a
+   22 en Buenos Aires. */
+const FRASE_LINK_A_CALLADOS = 'Acá te dejo un link con más fotos y un poco más de info para que conozcas mejor la unidad.';
+async function linkACallados(env) {
+  if (!(await configDelBot(env)).encendida) return;
+  const horaBsAs = new Date(Date.now() - 3 * HORAS).getUTCHours();
+  if (horaBsAs < 9 || horaBsAs >= 22) return;
+  const { results } = await env.DB.prepare(
+    `SELECT c.id, c.canal, c.externo_id, c.nota FROM conversaciones c
+      WHERE c.humano = 0 AND c.canal IN ('whatsapp','instagram')
+        AND COALESCE(c.etapa, '') <> 'cerrado'
+        AND (SELECT direccion || '|' || COALESCE(autor,'') FROM mensajes m WHERE m.conversacion_id = c.id
+              ORDER BY m.creado DESC, m.id DESC LIMIT 1) = 'saliente|ia'
+        AND (SELECT MAX(creado) FROM mensajes m WHERE m.conversacion_id = c.id AND m.direccion = 'saliente')
+              BETWEEN datetime('now','-2 hours') AND datetime('now','-30 minutes')
+        AND (SELECT MAX(creado) FROM mensajes m WHERE m.conversacion_id = c.id
+              AND m.direccion = 'entrante') > datetime('now','-23 hours')
+        AND NOT EXISTS (SELECT 1 FROM mensajes m WHERE m.conversacion_id = c.id
+              AND m.direccion = 'saliente' AND instr(COALESCE(m.texto,''), 'mannaselected.com.ar/auto/') > 0)
+      LIMIT 20`
+  ).all();
+  if (!results?.length) return;
+  const { results: autos } = await env.DB.prepare(
+    `SELECT id, marca, modelo, anio FROM autos WHERE estado = 'publicado'`
+  ).all();
+  const hechos = (await leerEstado(env, 'link_a_callados'))?.valor ?? {};
+  for (const c of results) {
+    if (hechos[c.id] || String(c.nota ?? '').startsWith('Para tasar')) continue;
+    const { results: dichos } = await env.DB.prepare(
+      `SELECT texto FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente' AND autor = 'ia'
+        ORDER BY creado DESC, id DESC LIMIT 4`
+    ).bind(c.id).all();
+    const charla = (dichos ?? []).map((m) => String(m.texto ?? '')).join(' ').toLowerCase();
+    /* La primera palabra del modelo ("320i", "GLA", "Hilux"), suelta. */
+    const nombrados = (autos ?? []).filter((a) => {
+      const clave = String(a.modelo ?? '').split(/\s+/)[0].toLowerCase();
+      return clave.length >= 2 && new RegExp(`(^|[^a-z0-9])${clave.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`).test(charla);
+    });
+    if (nombrados.length !== 1) continue;
+    hechos[c.id] = new Date().toISOString();
+    await guardarEstado(env, 'link_a_callados', Object.fromEntries(Object.entries(hechos).slice(-500)));
+    const visto = (await env.DB.prepare(
+      `SELECT COALESCE(MAX(id), 0) AS n FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'`
+    ).bind(c.id).first())?.n ?? 0;
+    await env.ENVIOS.get(env.ENVIOS.idFromName(`link-${c.id}`))
+      .encolar({ id: c.id, canal: c.canal, externo_id: c.externo_id },
+        [{ texto: SITIO + enlaceDe(nombrados[0]), espera: 0 },
+         { texto: FRASE_LINK_A_CALLADOS, espera: PAUSA_TRAS_EL_LINK }], 'ia', visto, 0);
+  }
+}
+
 async function atenderSolo(env, disparos) {
   const cfg = await configDelBot(env);
   if (!cfg.prueba && !disparos.some((d) => canalActivo(cfg, d.canal))) return;
@@ -5510,6 +5570,8 @@ export default {
     catch (e) { console.error('No se pudo hacer la posventa:', e?.message ?? e); }
     try { await pedirDiaACallados(env); }
     catch (e) { console.error('No se pudo pedir el día:', e?.message ?? e); }
+    try { await linkACallados(env); }
+    catch (e) { console.error('No salió el link a los callados:', e?.message ?? e); }
     try { await recordatoriosDeHoy(env); }
     catch (e) { console.error('No salieron los recordatorios:', e?.message ?? e); }
     try { await recordarVisitas(env); }
