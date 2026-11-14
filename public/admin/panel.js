@@ -556,9 +556,10 @@ async function fotosParaWhatsApp() {
   let hechas = 0;
   try {
     const { autos: lista } = await api('/api/admin/autos');
-    for (const a of lista ?? []) {
-      const f = a.fotos?.[0];
-      if (!f) continue;
+    /* Las primeras cinco de cada auto: la primera es la de la vista
+       previa del link, y las cinco son las que manda el bot cuando
+       piden fotos (Maxi, 13/11). */
+    for (const a of lista ?? []) for (const f of (a.fotos ?? []).slice(0, 5)) {
       const ya = await fetch('/fotos/' + f.clave + '-og.jpg', { method: 'HEAD' });
       if (ya.ok) continue;
       boton.textContent = 'Armando ' + (hechas + 1) + '…';

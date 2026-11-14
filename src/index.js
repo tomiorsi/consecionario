@@ -2656,8 +2656,11 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
     /* LA UBICACIÓN, COMO UBICACIÓN DE WHATSAPP: el pin en el mapa con el
        nombre y la dirección, que se toca y abre el mapa. Un link suelto
        salía sin vista previa (Maxi, 28/10). */
+    const foto = fotoDelMensaje(texto);
     const contenido = texto === UBICACION
       ? { type: 'location', location: UBICACION_WHATSAPP }
+      : foto
+      ? { type: 'image', image: { link: foto } }
       : { type: 'text', text: { body: texto, preview_url: true } };
     const mandarA = (to) => graphMandar(env.WHATSAPP_TOKEN, 'WHATSAPP_TOKEN',
       `/${env.WHATSAPP_PHONE_ID}/messages`, {
@@ -2711,7 +2714,7 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
       method: 'POST',
       body: JSON.stringify(comentarioId
         ? { recipient: { comment_id: comentarioId }, message: { text: texto } }
-        : { recipient: { id: chat.externo_id }, messaging_type: 'RESPONSE', message: { text: texto } }),
+        : { recipient: { id: chat.externo_id }, messaging_type: 'RESPONSE', message: comoMensajeDeMeta(texto) }),
     });
     if (comentarioId) {
       await emparejarConElPrivado(env, chat, r?.recipient_id)
@@ -2725,7 +2728,7 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
       method: 'POST',
       body: JSON.stringify({
         recipient: comentarioId ? { comment_id: comentarioId } : { id: chat.externo_id },
-        message: { text: texto },
+        message: comentarioId ? { text: texto } : comoMensajeDeMeta(texto),
       }),
     });
     return r?.message_id ?? null;
@@ -2779,7 +2782,40 @@ const conPresentacion = (link, _canal = 'whatsapp', idioma = 'es') => {
   return [link, enIdioma(idioma)?.link ?? FRASE_DEL_LINK];
 };
 
+/* SI PIDE FOTOS, VAN FOTOS (Maxi, 13/11: "si te preguntan si tenés fotos,
+   no le digas solamente esto. Mandale fotos... 4 o 5 fotos y también el
+   link"). Antes del link salen las primeras fotos del auto del panel web,
+   cada una como imagen. En la base quedan como "[foto] dirección", que es
+   lo que reconoce `mandarUno` para mandarla como imagen y no como texto. */
+const FOTOS_A_MANDAR = 5;
+const MARCA_DE_FOTO = '[foto] ';
+const fotoDelMensaje = (texto) => {
+  const m = String(texto ?? '').match(/^\[foto\] (https:\/\/\S+)$/);
+  return m ? m[1] : null;
+};
+const comoMensajeDeMeta = (texto) => {
+  const foto = fotoDelMensaje(texto);
+  return foto ? { attachment: { type: 'image', payload: { url: foto } } } : { text: texto };
+};
+/* Sólo JPG: WhatsApp no acepta WebP como imagen. Las fotos que se suben
+   desde el panel ya traen su JPG de 800 px (`-og.jpg`); las viejas que no
+   lo tienen se saltean. */
+async function fotosDelAuto(env, autoId) {
+  const { results } = await env.DB.prepare(
+    `SELECT f.clave FROM fotos f JOIN autos a ON a.id = f.auto_id
+      WHERE f.auto_id = ? AND a.estado = 'publicado' ORDER BY f.orden, f.id LIMIT 12`
+  ).bind(autoId).all();
+  const fotos = [];
+  for (const { clave } of results ?? []) {
+    if (fotos.length >= FOTOS_A_MANDAR) break;
+    const hay = await env.FOTOS.head(`${clave}-og.jpg`).catch(() => null);
+    if (hay) fotos.push(`${MARCA_DE_FOTO}${SITIO}/fotos/${clave}-og.jpg`);
+  }
+  return fotos;
+}
+
 const PAUSA_ENTRE_PARTES = 14000;
+const PAUSA_ENTRE_FOTOS = 2500;
 const PAUSA_TRAS_EL_LINK = 24000;
 const conVaivén = (ms) => ms + Math.floor(Math.random() * 8000);
 
@@ -2852,9 +2888,11 @@ async function mandarRespuesta(env, chat, {
   partes, autoId = null, ubicacion = false, aWhatsapp = false, autor, idioma = 'es',
 }) {
   /* Si pidió la dirección, primero va lo que pidió y después el link. */
+  const link = await linkSinRepetir(env, chat.id, autoId);
   const fijos = [
     await ubicacionSinRepetir(env, chat.id, ubicacion),
-    ...conPresentacion(await linkSinRepetir(env, chat.id, autoId), chat.canal, idioma),
+    ...(link ? await fotosDelAuto(env, autoId) : []),
+    ...conPresentacion(link, chat.canal, idioma),
     aWhatsapp && chat.canal !== 'whatsapp' ? A_WHATSAPP : null,
   ].filter(Boolean);
 
@@ -2862,7 +2900,9 @@ async function mandarRespuesta(env, chat, {
   const textos = armarTextos(partes, fijos);
   const pasos = textos.map((texto, n) => ({
     texto,
-    espera: n === 0 ? 0 : conVaivén(/https?:\/\//.test(textos[n - 1]) ? PAUSA_TRAS_EL_LINK : PAUSA_ENTRE_PARTES),
+    espera: n === 0 ? 0
+      : fotoDelMensaje(texto) && fotoDelMensaje(textos[n - 1]) ? PAUSA_ENTRE_FOTOS
+      : conVaivén(/https?:\/\//.test(textos[n - 1]) && !fotoDelMensaje(textos[n - 1]) ? PAUSA_TRAS_EL_LINK : PAUSA_ENTRE_PARTES),
   }));
 
   const [primero, ...resto] = pasos;
