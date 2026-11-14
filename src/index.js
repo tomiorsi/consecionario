@@ -2476,7 +2476,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
   const partes = dato.partes.map((p) => String(p)
     .replace(/<\/?cite\b[^>]*>/gi, '')
     .replace(/<\/?[a-z][^>]*>/gi, '')
-    .replace(/¿/g, '').replace(/[ \t]{2,}/g, ' ').trim()).filter(Boolean);
+    .replace(/[¿¡]/g, '').replace(/[ \t]{2,}/g, ' ').trim()).filter(Boolean);
   if (!partes.length) throw new Error('Claude no devolvió una respuesta');
 
   /* El número de auto se cruza con el stock: uno inventado o vendido no
@@ -2903,6 +2903,10 @@ async function ubicacionSinRepetir(_env, _chatId, ubicacion) {
 async function mandarRespuesta(env, chat, {
   partes, autoId = null, ubicacion = false, aWhatsapp = false, autor, idioma = 'es',
 }) {
+  /* NI "¿" NI "¡" DE APERTURA, EN NINGÚN CANAL (Maxi, 14/11: "no se
+     utiliza acá para hablar por teléfono, se usa solo el que cierra").
+     También lo que sale a mano desde el panel. */
+  partes = (partes ?? []).map((t) => String(t).replace(/[¿¡]/g, '').replace(/[ \t]{2,}/g, ' ').trim()).filter(Boolean);
   /* Si pidió la dirección, primero va lo que pidió y después el link. */
   const link = await linkSinRepetir(env, chat.id, autoId);
   const fijos = [
@@ -4546,7 +4550,7 @@ async function hacerPosventa(env) {
    puede escribir), NO TIENE NI TUVO VISITA (ni en la agenda ni hablada en
    la charla), no es para tasar y no lo sigue una persona. De 10 a 20 en Buenos Aires. Sale por la cola, que no manda
    nada si en el medio escribió el cliente o lo tomó alguien. */
-const PREGUNTA_DIA = 'Si te interesa verlo en persona, agendemos un día. ¿Qué días podés de esta semana?';
+const PREGUNTA_DIA = 'Si te interesa verlo en persona, agendemos un día. Qué días podés de esta semana?';
 async function pedirDiaACallados(env) {
   if (!(await configDelBot(env)).encendida) return;
   const horaBsAs = new Date(Date.now() - 3 * HORAS).getUTCHours();
