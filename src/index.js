@@ -3932,7 +3932,7 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
   await escribirleAlJefe(env,
     `${aConfirmar ? 'Visita a confirmar' : 'Visita agendada'} · ${fichaDeVisita(nueva)}` +
     (nueva.motivo ? `\n${nueva.motivo}` : '') +
-    (aConfirmar ? `\n\n${visita.slice(0, 10) === diaDeBsAs() ? 'QUIERE VENIR HOY: le dije que te consulto. Decime si hay alguien y le confirmo.' : 'No lo cerró del todo: confirmásela vos.'} Queda en amarillo y no le sale la confirmación de la noche anterior.`
+    (aConfirmar ? `\n\n${visita.slice(0, 10) === diaDeBsAs() ? 'QUIERE VENIR HOY: no le contesté nada y el chat queda para el equipo. Escribile vos.' : 'No lo cerró del todo: confirmásela vos.'} Queda en amarillo y no le sale la confirmación de la noche anterior.`
       : `\n\nSe la confirmé yo. Ponelo en Visita posible.`));
   /* CADA POSIBLE VISITA LE LLEGA A MAXI POR WHATSAPP AL TOQUE (Maxi, 9/11:
      "no esperes a las 11"). La firme va también a Colo; la que queda a
@@ -3951,7 +3951,7 @@ async function avisarVisitaAlEquipo(env, v, { soloMaxi = false } = {}) {
   const [cuando] = fichaDeVisita(v).split('\n');
   const detalle = [v.auto, v.condiciones].filter(Boolean).join(' · ');
   const claves = v.claves ?? [];
-  const texto = [v.aConfirmar ? (String(v.visita).slice(0, 10) === diaDeBsAs() ? `QUIERE VENIR HOY, A CONFIRMAR: decime si hay alguien` : `Posible visita, A CONFIRMAR`) : `Visita agendada`, `${cuando}`, v.quien, detalle, ...claves.map((c) => `- ${c}`)]
+  const texto = [v.aConfirmar ? (String(v.visita).slice(0, 10) === diaDeBsAs() ? `QUIERE VENIR HOY: no le contesté nada, escribile vos` : `Posible visita, A CONFIRMAR`) : `Visita agendada`, `${cuando}`, v.quien, detalle, ...claves.map((c) => `- ${c}`)]
     .filter(Boolean).join('\n');
   const plano = (t) => String(t || '-').replace(/\s+/g, ' ').trim().slice(0, 300);
   const valores = [cuando, v.quien, detalle, claves.join('. ')].map(plano);
@@ -4785,6 +4785,15 @@ async function atenderSolo(env, disparos) {
       if (r.derivar && r.visita && /visita|venir|viene|salón|salon/i.test(r.derivar)
           && !/negoci|señ|reserv|pag|enoj|reclam|borr|persona|equipo|150\.000|130\.000/i.test(r.derivar)) {
         r.derivar = null;
+      }
+      /* SI QUIERE VENIR HOY, EL BOT NO CONTESTA NADA (Maxi, 14/11: "no
+         contestás nada, mandás el WhatsApp y a partir de ahí se encarga el
+         equipo"). Le llega a Maxi por WhatsApp y el chat pasa al equipo. */
+      const hoyViene = Boolean(r.visita && !r.esComentario && r.visita.slice(0, 10) === diaDeBsAs());
+      if (hoyViene) {
+        r.responder = false;
+        r.visitaAConfirmar = true;
+        r.derivar = r.derivar ?? 'Quiere venir hoy: lo sigue el equipo';
       }
       if (r.derivar) {
         /* Si es para tasar, la nota de tasar se queda: dice más. */
