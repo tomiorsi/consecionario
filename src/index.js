@@ -804,6 +804,22 @@ async function guardarEntrantes(env, lista) {
 
     if (!conv?.id || m.soloAnuncio) continue;
 
+    /* EL NOMBRE DE INSTAGRAM (Maxi, 14/11: "acá arriba está clarito que
+       dice Marcos. ¿Para qué le preguntás el nombre?"). El aviso de un
+       privado de Instagram no trae el nombre: se le pide al perfil una
+       sola vez, cuando el chat todavía no tiene. Si falla, sigue sin. */
+    if (m.canal === 'instagram' && !m.nombre && m.direccion !== 'saliente' && m.clase !== 'comentario') {
+      const ya = await env.DB.prepare('SELECT nombre FROM conversaciones WHERE id = ?').bind(conv.id).first();
+      if (!ya?.nombre) {
+        const perfil = await igLlamar(env, `/${encodeURIComponent(m.externo_id)}?fields=name,username`).catch(() => null);
+        const nombre = String(perfil?.name || perfil?.username || '').trim().slice(0, 80);
+        if (nombre) {
+          await env.DB.prepare('UPDATE conversaciones SET nombre = ? WHERE id = ? AND nombre IS NULL')
+            .bind(nombre, conv.id).run();
+        }
+      }
+    }
+
     if (m.media_id && m.historiaUrl) {
       const h = (await leerEstado(env, 'historias'))?.valor ?? {};
       h[m.media_id] = m.historiaUrl;
