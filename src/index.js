@@ -2542,9 +2542,11 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     visitaNombre: dato.visita_nombre ? String(dato.visita_nombre).trim().slice(0, 80) : null,
     visitaCondiciones: dato.visita_condiciones ? String(dato.visita_condiciones).slice(0, 300) : null,
     visitaClaves: clavesDeVisita(dato.visita_claves),
-    /* LA VISITA LA CONFIRMA EL EQUIPO (Maxi, 9/11): un cliente confirmado por
-       el bot fue hasta la puerta y no había nadie. Siempre queda a confirmar. */
-    visitaAConfirmar: true,
+    /* LA DE HOY LA CONFIRMA MAXI (Maxi, 14/11: "si quiere venir ese mismo
+       día, ahí me consultás a mí"). Otro día con día y hora firmes queda
+       agendada; si el bot dice que no está cerrada, también a confirmar. */
+    visitaAConfirmar: String(dato.visita ?? '').slice(0, 10) === diaDeBsAs() || dato.visita_a_confirmar === true
+      || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(dato.visita ?? ''),
     busca: dato.busca ? String(dato.busca).slice(0, 160) : null,
     interesadoReservado: reservados.some((a) => a.id === dato.interesado_reservado) ? dato.interesado_reservado : null,
     conPosteo: Boolean(posteo),
@@ -3930,7 +3932,7 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
   await escribirleAlJefe(env,
     `${aConfirmar ? 'Visita a confirmar' : 'Visita agendada'} · ${fichaDeVisita(nueva)}` +
     (nueva.motivo ? `\n${nueva.motivo}` : '') +
-    (aConfirmar ? `\n\nLe dije que lo chequeamos con la agenda: confirmásela vos. Queda en amarillo y no le sale la confirmación de la noche anterior.`
+    (aConfirmar ? `\n\n${visita.slice(0, 10) === diaDeBsAs() ? 'QUIERE VENIR HOY: le dije que te consulto. Decime si hay alguien y le confirmo.' : 'No lo cerró del todo: confirmásela vos.'} Queda en amarillo y no le sale la confirmación de la noche anterior.`
       : `\n\nSe la confirmé yo. Ponelo en Visita posible.`));
   /* CADA POSIBLE VISITA LE LLEGA A MAXI POR WHATSAPP AL TOQUE (Maxi, 9/11:
      "no esperes a las 11"). La firme va también a Colo; la que queda a
@@ -3949,7 +3951,7 @@ async function avisarVisitaAlEquipo(env, v, { soloMaxi = false } = {}) {
   const [cuando] = fichaDeVisita(v).split('\n');
   const detalle = [v.auto, v.condiciones].filter(Boolean).join(' · ');
   const claves = v.claves ?? [];
-  const texto = [v.aConfirmar ? `Posible visita, A CONFIRMAR: chequeá la agenda y confirmásela` : `Visita agendada`, `${cuando}`, v.quien, detalle, ...claves.map((c) => `- ${c}`)]
+  const texto = [v.aConfirmar ? (String(v.visita).slice(0, 10) === diaDeBsAs() ? `QUIERE VENIR HOY, A CONFIRMAR: decime si hay alguien` : `Posible visita, A CONFIRMAR`) : `Visita agendada`, `${cuando}`, v.quien, detalle, ...claves.map((c) => `- ${c}`)]
     .filter(Boolean).join('\n');
   const plano = (t) => String(t || '-').replace(/\s+/g, ' ').trim().slice(0, 300);
   const valores = [cuando, v.quien, detalle, claves.join('. ')].map(plano);
