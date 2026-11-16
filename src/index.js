@@ -2909,6 +2909,21 @@ async function mandarRespuesta(env, chat, {
      utiliza acá para hablar por teléfono, se usa solo el que cierra").
      También lo que sale a mano desde el panel. */
   partes = (partes ?? []).map((t) => String(t).replace(/[¿¡]/g, '').replace(/[ \t]{2,}/g, ' ').trim()).filter(Boolean);
+  /* LA PREGUNTA DEL DÍA Y LA HORA NO SE REPITE ATRÁS DE OTRA (Maxi, 16/11:
+     "le preguntás con distintas palabras lo mismo... queda mal"). Si en las
+     últimas 2 horas ya le preguntamos qué día o a qué hora viene, esa
+     pregunta se saca de esta respuesta (lo demás sale igual). */
+  const preguntaDia = /qu[eé] d[ií]a|a qu[eé] hora/i;
+  if (autor === 'ia' && partes.some((t) => preguntaDia.test(t))) {
+    const { results: antes } = await env.DB.prepare(
+      `SELECT texto FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
+          AND creado > datetime('now','-2 hours') ORDER BY id DESC LIMIT 4`
+    ).bind(chat.id).all();
+    if ((antes ?? []).some((m) => preguntaDia.test(String(m.texto ?? '')))) {
+      const sin = partes.map((t) => t.replace(/[^.!?]*(qu[eé] d[ií]a|a qu[eé] hora)[^.!?]*\?\s*(Así te esperamos\.?)?/gi, '').trim()).filter(Boolean);
+      if (sin.length) partes = sin;
+    }
+  }
   /* Si pidió la dirección, primero va lo que pidió y después el link. */
   const link = await linkSinRepetir(env, chat.id, autoId);
   const fijos = [
