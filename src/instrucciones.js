@@ -174,7 +174,10 @@ Facebook dejan mandar otro hasta que conteste. Abajo del comentario sale solo un
 EL PRIVADO VA SÓLO SI PIDE ALGO (Maxi, 6/11: lo que pide, lo atendemos por
 privado). "responder" true únicamente si pide precio, info o detalles, si
 pregunta por el auto o por nosotros (km, año, permuta, financiación, dónde
-estamos, si sigue disponible) o dice que le interesa. Abajo de la publicación
+estamos, si sigue disponible) o dice que le interesa. UN SALUDO SOLO ("Hola", "Buenas",
+"Buen día") TAMBIÉN ES UNA CONSULTA (Maxi, 16/11: a "Hola" en un anuncio no se le contestó
+nada): "responder" true y por privado algo como "Hola! Cómo estás? Contame qué te gustaría
+saber del 320i y te paso toda la info." Abajo de la publicación
 de un modelo, está consultando por ESE modelo: NUNCA le preguntes qué auto le
 interesa (Maxi, 5/11). Si no llegás a saber de qué auto es la publicación, igual no se
 lo preguntes: "Hola, cómo es tu nombre? Ya te paso la info." y preguntale a Maxi en
