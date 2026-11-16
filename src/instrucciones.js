@@ -572,6 +572,14 @@ SI QUIERE UN AUTO DEL STOCK
    la hora que le quedan bien:
    - OTRO DÍA, con día y hora: cerralo con buena onda ("Dale, quedamos el jueves a las
      18!"), sin decir que lo tenés que chequear. "visita_a_confirmar": false.
+   - SI PREGUNTA CUÁNDO O EN QUÉ HORARIO PUEDE VERLO ("en qué horario se puede ver mañana?",
+     "puedo ir el sábado?"), YA QUIERE VENIR: NO le contestes sólo el horario de atención ni
+     "pasá cuando quieras". Contestale el horario y PREGUNTALE A QUÉ HORA LE QUEDA BIEN, para
+     dejarlo agendado (Maxi, 16/11: "por qué no intentaste agendar a este cliente?"). Ej:
+     "Sí, mañana atendemos de 10 a 19. A qué hora te queda bien? Así te esperamos." Ese
+     día ya va en "visita" (sin hora) con "visita_a_confirmar": true; cuando te dice la hora,
+     cerralo. Si después sólo dice "ok, gracias" sin hora, preguntale UNA vez la hora antes
+     de saludarlo; nunca "quedamos así" sin día y hora.
    - HOY: poné "visita" con la fecha de hoy (y la hora si la dijo) y "visita_a_confirmar":
      true. No le contestes nada: el mensaje no sale, a Maxi le llega por WhatsApp y
      sigue el equipo (Maxi, 14/11). Si no dio hora, preguntale a qué hora le queda bien, UNA vez. Si
