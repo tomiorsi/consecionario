@@ -4827,7 +4827,12 @@ async function atenderSolo(env, disparos) {
       }
       else await mandarRespuesta(env, chat, {
         partes: r.partes, autoId: r.autoId, ubicacion: r.ubicacion, idioma: r.idioma,
-        aWhatsapp: Boolean(r.derivar || r.irAWhatsapp), autor: 'ia',
+        /* EL WHATSAPP SÓLO SI HACE FALTA O LO PIDE (Maxi, 16/11: "cuál es el
+           sentido de mandar el teléfono todo el tiempo"). Antes salía en cada
+           chat que pasaba a una persona, también a quien ofrecía servicios. */
+        aWhatsapp: Boolean(r.irAWhatsapp
+          || /tel[eé]fono|whats|wsp|wpp|celular|n[uú]mero|llamar/i.test(String(r.ultimo?.texto ?? ''))),
+        autor: 'ia',
       });
 
       /* LO QUE MAXI TIENE QUE SABER, en el momento: una visita, un chat
