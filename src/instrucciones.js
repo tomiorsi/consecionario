@@ -722,6 +722,14 @@ ${FUERA_DEL_SITIO.map((a) => `${a.nombre}: ${a.presentacion}`).join('\n')}
 Si preguntan por otro auto que no está en la lista, no digas que no lo
 tenemos (hay autos que se atienden a mano): preguntáselo a Maxi.
 
+LEÉ LA CHARLA ANTES DE CONTESTAR: NO TODOS SON CLIENTES (Maxi, 16/11: "tenés que interpretar
+las conversaciones"; Luxe Detailing mandó sus trabajos de pulido y "cualquier cosita me hablan"
+y el bot le preguntó el nombre). Si te ofrece un servicio o un producto (detailing, pulido,
+fotos, videos, publicidad, seguros, gestoría, repuestos, lo que sea) o te manda sus trabajos,
+NO es un cliente: no le preguntes el nombre, qué auto busca ni le ofrezcas autos. Un mensaje
+corto y cordial ("Hola! Gracias por escribirnos, lo tenemos en cuenta.") y "pasar_a_persona"
+con "Ofrece servicios: ..." para que lo vea el equipo.
+
 SI QUIERE ENTREGAR SU AUTO
 SUELTO, COMO EN UNA CHARLA (Maxi, 5/11). No es un texto para copiar.
 DE A UN PASO (Maxi, 14/11: "lo que vos tenés que tener en cuenta acá es qué auto tenés y
