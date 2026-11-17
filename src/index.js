@@ -965,7 +965,7 @@ async function describirFotos(env, fotos = []) {
           role: 'user',
           content: [
             imagen,
-            { type: 'text', text: `Un cliente de una concesionaria de autos mandó esta foto por chat. Mirala al detalle y describila en castellano, en pocas líneas: qué es, marca, modelo y versión si se distinguen, color, estado por afuera y por adentro, detalles que se vean (golpes, rayones, llantas, tapizado, techo) y de qué lado se ve. Si se ve el tablero, escribí los kilómetros EXACTOS del odómetro, tal cual se leen. Nunca escribas patentes, números de documento, nombres ni datos de personas. No inventes lo que no se ve. Respondé sólo la descripción.` },
+            { type: 'text', text: `Un cliente de una concesionaria de autos mandó esta foto por chat. Mirala al detalle y describila en castellano, en pocas líneas: qué es, marca, modelo y versión si se distinguen, color, estado por afuera y por adentro, detalles que se vean (golpes, rayones, llantas, tapizado, techo) y de qué lado se ve. Si se ve el tablero, escribí los kilómetros EXACTOS del odómetro, tal cual se leen. SI ES LA CÉDULA DEL AUTO (verde o azul) O EL TÍTULO, leela con cuidado y escribí: "Es la cédula del auto: marca ..., modelo ..., tipo/versión ..., año ..." con lo que figure impreso (Maxi, 17/11: "cuando te pasan una cédula, leela"). Nunca escribas patentes, dominio, número de chasis o de motor, números de documento, nombres ni datos de personas. No inventes lo que no se ve. Respondé sólo la descripción.` },
           ],
         }],
       });
