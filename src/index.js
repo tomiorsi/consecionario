@@ -3801,7 +3801,7 @@ async function repasarElDia(env) {
          AND creado > datetime('now','-24 hours') ORDER BY creado, id LIMIT 40`
     ).bind(c.id).all();
     charlas.push(`### ${quienEs(c)}\n` + (ms ?? []).map((m) =>
-      `${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto.slice(0, 220)}`).join('\n'));
+      `${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto ? m.texto.slice(0, 220) : `[${m.tipo ?? 'mensaje'}]`}`).join('\n'));
   }
   const pendientes = ((await leerEstado(env, 'consultas'))?.valor ?? [])
     .map((c) => `Consulta ${c.n}: ${c.pregunta}`).join('\n');
@@ -4392,9 +4392,9 @@ escribí sólo "${aPedido ? 'Hoy no hay nada pendiente' : 'Buen día. Hoy sin no
   if (devolver) return texto;
 }
 
-/* LA LISTA DEL DÍA PARA MAXI Y COLO (Maxi, 6/11): de lunes a viernes a las 8,
-   por WhatsApp, con teléfono, nombre y qué hacer con cada cliente, para que
-   quien llama sepa qué pasó. Lo escribe Claude con lo de las últimas charlas. */
+/* LA LISTA DEL DÍA, SÓLO PARA MAXI (Maxi, 17/11: "me lo tenés que mandar al
+   2494, más resumido, con los importantes y las visitas posibles solamente").
+   De lunes a viernes a las 8. A Colo ya no le va. */
 async function armarListaDelDia(env) {
   const jefe = await chatDelJefe(env);
   const hoy = diaDeBsAs();
@@ -4409,12 +4409,12 @@ async function armarListaDelDia(env) {
   const charlas = [];
   for (const c of chats ?? []) {
     const { results: ms } = await env.DB.prepare(
-      `SELECT direccion, autor, texto, creado FROM mensajes WHERE conversacion_id = ? AND texto IS NOT NULL
+      `SELECT direccion, autor, tipo, texto, creado FROM mensajes WHERE conversacion_id = ?
         ORDER BY creado DESC, id DESC LIMIT 14`
     ).bind(c.id).all();
     charlas.push(`### ${quienEs(c)}${c.humano ? ' (lo atiende el equipo)' : ''}${c.nota ? ` · ${c.nota}` : ''}\n` +
       (ms ?? []).reverse().map((m) =>
-        `[${String(m.creado).slice(5, 16)}] ${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto.slice(0, 220)}`).join('\n'));
+        `[${String(m.creado).slice(5, 16)}] ${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto ? m.texto.slice(0, 220) : `[${m.tipo ?? 'mensaje'}]`}`).join('\n'));
   }
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
   const r = await client.messages.create({
@@ -4422,32 +4422,37 @@ async function armarListaDelDia(env) {
     max_tokens: 8000,
     thinking: { type: 'disabled' },
     output_config: { effort: 'low' },
-    system: `Armás la lista de llamados y mensajes de hoy para el equipo de Manna Selected
-(autos, Barracas). Hoy es ${hoyEnBsAs()}. La usa la persona que llama a los clientes:
-tiene que entender qué pasó con cada uno y qué hacer ahora, sin abrir el chat.
+    system: `Armás la lista del día para Maxi, de Manna Selected (autos, Barracas).
+Hoy es ${hoyEnBsAs()}. Maxi la quiere CORTA (17/11): sólo dos cosas, nada más.
 
-Cada cliente en su propio párrafo, exactamente con este formato, sin asteriscos ni títulos:
-+54 9 11 3408-3680, Edgar
-Pasarle la diferencia que dé Maxi por su Peugeot 208 2021, 65.000 km, por la GLA.
+IMPORTANTE: los que ofrecen su auto en permuta o consignación Y mandaron fotos, y todavía
+esperan que el equipo les pase la diferencia o la valuación. Una línea cada uno:
++54 9 11 3408-3680, Edgar: Peugeot 208 2021, 65.000 km, por la GLA.
+(teléfono, nombre, su auto con año y km si están, y por cuál auto lo quiere; si es
+consignación, "para consignar").
+
+VISITAS POSIBLES: las de VISITAS de hoy en adelante y los que en la charla quedaron en venir
+pero falta el día. Una línea cada uno:
++54 9 11 4156-4762, Ernesto: falta coordinar el día.
++54 9 11 3117-8996, Leo: martes 18 a las 11, GLA.
+
+Formato exacto, sin asteriscos:
+IMPORTANTE
+(líneas)
+
+VISITAS POSIBLES
+(líneas)
 
 REGLAS
-- Sólo los que necesitan que una persona haga algo HOY: visitas de hoy, permutas y
-  consignaciones esperando cotización, consultas sin contestar, promesas nuestras de
-  escribirle o llamarlo, y chats del equipo que quedaron esperando. Los que sólo deben
-  contestar ellos no van. Lo más urgente primero.
-- Si una charla no tiene teléfono (Instagram), va el usuario tal como viene.
-- Los teléfonos tal cual vienen: nunca inventes ni completes uno.
-- Qué hay que hacer, en una o dos líneas cortas, con el auto si hace falta para entender.
-- NUNCA des valores, rangos ni diferencias que no estén escritos en la charla. Si hay que
-  cotizar, "pasarle la diferencia que dé Maxi".
-- Mirá las fechas: lo que ya pasó o ya se resolvió no va. Una permuta o consignación con
-  datos y fotos sigue pendiente hasta que el equipo le pase la diferencia, aunque la charla esté
-  quieta: va. Si el equipo ya le dio la respuesta y sólo falta que conteste el cliente, no va.
-- LAS VISITAS, CON EL DÍA TAL COMO VIENE EN "VISITAS": nunca escribas "mañana" ni calcules
-  el día. Las que dicen "firme" ya están confirmadas: no pidas confirmarlas. Las de otro día que
-  no sea hoy no van, salvo que haya algo concreto que hacer antes.
-- Corto: el teléfono y el nombre en una línea, y qué hacer en otra, de una o dos oraciones.
-- Sin títulos ni comentarios finales. Si no hay nadie, escribí sólo: SIN PENDIENTES`,
+- Nada de consultas de precio, quejas, comentarios de Facebook o Instagram, ni gente sin
+  algo concreto. Si no entra en esas dos secciones, no va.
+- Sólo datos que estén escritos en la charla o en VISITAS. Nunca inventes autos, precios,
+  ventas ni fechas. Los teléfonos tal cual vienen; si no hay teléfono, el usuario tal como viene.
+- Las visitas con el día tal como viene en VISITAS: nunca "mañana" ni calcules el día.
+- Si el equipo ya le contestó después de las fotos (texto, [audio] o cualquier mensaje del
+  Equipo), se considera que ya le pasó la diferencia: NO va en IMPORTANTE (Maxi 17/11, el del
+  Yaris ya estaba contestado).
+- Si una sección queda vacía, no la pongas. Si no hay nadie, escribí sólo: SIN PENDIENTES`,
     messages: [{ role: 'user', content:
       `VISITAS\n${agenda.map((v) => `${v.visita.slice(0, 10) === hoy ? 'HOY' : 'otro día'}: ${new Date(`${v.visita.slice(0, 10)}T12:00:00-03:00`).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' })}${v.visita.length > 10 ? ` a las ${v.visita.slice(11, 16)}` : ''} · ${v.aConfirmar ? 'a confirmar' : 'firme'} · ${v.quien} · ${v.auto ?? ''} · ${v.condiciones ?? v.motivo ?? ''}`).join('\n') || '(ninguna)'}\n\n` +
       `CONSULTAS SIN CONTESTAR\n${consultas.map((c) => `${c.n}. ${c.pregunta}`).join('\n') || '(ninguna)'}\n\n` +
@@ -4477,9 +4482,7 @@ async function mandarListaDelDia(env) {
   if (/^SIN PENDIENTES/i.test(texto)) return;
   await anotarAviso(env, `*LISTA DEL DÍA*\n\n${texto}`);
   const jefe = await chatDelJefe(env);
-  const colo = await env.DB.prepare('SELECT id, canal, externo_id FROM conversaciones WHERE id = ?')
-    .bind(COLO_CHAT).first();
-  for (const [quien, d] of [['Maxi', jefe], ['Colo', colo]]) {
+  for (const [quien, d] of [['Maxi', jefe]]) {
     if (!d) continue;
     try {
       const abierta = await env.DB.prepare(
