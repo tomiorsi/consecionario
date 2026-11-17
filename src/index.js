@@ -3801,7 +3801,7 @@ async function repasarElDia(env) {
          AND creado > datetime('now','-24 hours') ORDER BY creado, id LIMIT 40`
     ).bind(c.id).all();
     charlas.push(`### ${quienEs(c)}\n` + (ms ?? []).map((m) =>
-      `${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto.slice(0, 220)}`).join('\n'));
+      `${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto ? m.texto.slice(0, 220) : `[${m.tipo ?? 'mensaje'}]`}`).join('\n'));
   }
   const pendientes = ((await leerEstado(env, 'consultas'))?.valor ?? [])
     .map((c) => `Consulta ${c.n}: ${c.pregunta}`).join('\n');
@@ -4409,12 +4409,12 @@ async function armarListaDelDia(env) {
   const charlas = [];
   for (const c of chats ?? []) {
     const { results: ms } = await env.DB.prepare(
-      `SELECT direccion, autor, texto, creado FROM mensajes WHERE conversacion_id = ? AND texto IS NOT NULL
+      `SELECT direccion, autor, tipo, texto, creado FROM mensajes WHERE conversacion_id = ?
         ORDER BY creado DESC, id DESC LIMIT 14`
     ).bind(c.id).all();
     charlas.push(`### ${quienEs(c)}${c.humano ? ' (lo atiende el equipo)' : ''}${c.nota ? ` · ${c.nota}` : ''}\n` +
       (ms ?? []).reverse().map((m) =>
-        `[${String(m.creado).slice(5, 16)}] ${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto.slice(0, 220)}`).join('\n'));
+        `[${String(m.creado).slice(5, 16)}] ${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto ? m.texto.slice(0, 220) : `[${m.tipo ?? 'mensaje'}]`}`).join('\n'));
   }
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
   const r = await client.messages.create({
@@ -4449,7 +4449,9 @@ REGLAS
 - Sólo datos que estén escritos en la charla o en VISITAS. Nunca inventes autos, precios,
   ventas ni fechas. Los teléfonos tal cual vienen; si no hay teléfono, el usuario tal como viene.
 - Las visitas con el día tal como viene en VISITAS: nunca "mañana" ni calcules el día.
-- Si el equipo ya le pasó la diferencia, ya no va en IMPORTANTE.
+- Si el equipo ya le contestó después de las fotos (texto, [audio] o cualquier mensaje del
+  Equipo), se considera que ya le pasó la diferencia: NO va en IMPORTANTE (Maxi 17/11, el del
+  Yaris ya estaba contestado).
 - Si una sección queda vacía, no la pongas. Si no hay nadie, escribí sólo: SIN PENDIENTES`,
     messages: [{ role: 'user', content:
       `VISITAS\n${agenda.map((v) => `${v.visita.slice(0, 10) === hoy ? 'HOY' : 'otro día'}: ${new Date(`${v.visita.slice(0, 10)}T12:00:00-03:00`).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' })}${v.visita.length > 10 ? ` a las ${v.visita.slice(11, 16)}` : ''} · ${v.aConfirmar ? 'a confirmar' : 'firme'} · ${v.quien} · ${v.auto ?? ''} · ${v.condiciones ?? v.motivo ?? ''}`).join('\n') || '(ninguna)'}\n\n` +
