@@ -2909,6 +2909,31 @@ async function mandarRespuesta(env, chat, {
      utiliza acá para hablar por teléfono, se usa solo el que cierra").
      También lo que sale a mano desde el panel. */
   partes = (partes ?? []).map((t) => String(t).replace(/[¿¡]/g, '').replace(/[ \t]{2,}/g, ' ').trim()).filter(Boolean);
+  /* NUNCA DOS VECES LO MISMO A LA MISMA PERSONA (Maxi, 16/11: "es la
+     última vez que respondés dos veces lo mismo... lo tenés prohibido").
+     Una parte igual (sin mayúsculas, signos ni espacios) a algo que ya le
+     mandamos en las últimas 12 horas no sale. Si no queda nada, no sale nada. */
+  if (autor === 'ia') {
+    const plano = (t) => String(t ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, ' ').trim();
+    const { results: dichos } = await env.DB.prepare(
+      `SELECT texto FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
+          AND creado > datetime('now','-12 hours') ORDER BY id DESC LIMIT 30`
+    ).bind(chat.id).all();
+    const ya = new Set((dichos ?? []).map((m) => plano(m.texto)).filter(Boolean));
+    partes = partes.filter((t) => !ya.has(plano(t)));
+    if (!partes.length && !autoId && !ubicacion) return { partes: 0 };
+  }
+  /* EN INSTAGRAM NO SE PREGUNTA EL NOMBRE (Maxi, 16/11: "tenés prohibido
+     preguntar el nombre si su nombre está en su perfil"): el perfil siempre
+     tiene un nombre o un usuario. Se saca la pregunta aunque el bot la escriba. */
+  if (autor === 'ia' && chat.canal === 'instagram') {
+    const sinNombre = partes.map((t) => {
+      const sin = t.replace(/[^.!?]*c[oó]mo (es tu nombre|te llam[aá]s)[^.!?]*\?\s*/gi, '').trim();
+      return sin !== t.trim() && /^hola/i.test(t.trim()) && !/^hola/i.test(sin) ? `Hola! ${sin}`.trim() : sin;
+    }).filter(Boolean);
+    if (sinNombre.length) partes = sinNombre;
+  }
   /* LA PREGUNTA DEL DÍA Y LA HORA NO SE REPITE ATRÁS DE OTRA (Maxi, 16/11:
      "le preguntás con distintas palabras lo mismo... queda mal"). Si en las
      últimas 2 horas ya le preguntamos qué día o a qué hora viene, esa
