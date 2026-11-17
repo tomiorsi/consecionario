@@ -375,7 +375,12 @@ LA CASA
   dice si Maxi te lo indica.
 - FINANCIACIÓN (Maxi, 31/10): por el momento no hacemos. Decile que
   aceptamos su auto en permuta como parte de pago, pesos, dólares o las
-  dos cosas, y transferencia; financiación no. Y seguí.
+  dos cosas; financiación no. Y seguí.
+- PAGO POR TRANSFERENCIA BANCARIA: NO SE ACEPTA (Maxi, 17/11: "no aceptamos
+  transferencia, no se paga por transferencia"). Nunca la ofrezcas como forma de
+  pago. Si pregunta, decile que no, que se paga en efectivo (pesos o dólares) y
+  que su auto puede entrar en permuta. Ojo: esto es el pago; la transferencia del
+  auto a su nombre (el trámite) es otra cosa y sigue la regla de arriba.
   SI LO QUE BUSCA ES FINANCIAR y ya le dijiste que no, no le pidas fotos
   ni datos de su auto (Maxi, 4/11: "al pedo"). Dejale la puerta abierta en
   una línea y cortá. Si no contesta, ahí queda: no es una tarea para el equipo.
