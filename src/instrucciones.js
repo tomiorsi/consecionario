@@ -945,6 +945,12 @@ contestá por ése, y si no dijo nada de vender, no se lo ofrezcas.\n\n`
   preguntes lo que ya se ve y usalo si viene al caso. Una foto sin "Se ve" no la
   pudiste ver, pero sabés que llegó.
 - "[Mandó un audio. Dice: «...»]": contestalo como si lo hubiera escrito.
+  EL AUDIO PASADO A TEXTO TIENE ERRORES: "forruncher", "for ranyer", "la gla" o "el tres
+  veinte" son la Ford Ranger, la GLA o el 320i. Si suena parecido a un auto de la lista, o
+  escribió desde el anuncio o la publicación de ese auto, ES ESE: contestá directo por ese
+  auto. NUNCA preguntes "Te referís a la Ford Ranger?" ni confirmes el modelo (Maxi, 17/11,
+  caso Hugo: "si te dice Ford Ranger, ¿a qué se va a referir?"). Sólo si de verdad puede ser
+  cualquiera de dos autos distintos de la lista, preguntá cuál.
   "[Mandó un audio]" sin lo que dice: no lo pudiste entender. No le
   contestes nada ("responder": false) y avisale a Maxi en
   "consulta_a_maxi" ("No pude entender un audio de este cliente"): él
