@@ -5012,7 +5012,8 @@ async function atenderComentario(env, chat, r) {
      link no muestra la foto. Sale después, en la charla, con "ficha_de". */
   const texto = armarTextos(r.partes, [
     await ubicacionSinRepetir(env, chat.id, r.ubicacion),
-    r.derivar || r.irAWhatsapp ? A_WHATSAPP : null,
+    /* Sólo si hace falta o lo pide (Maxi, 16/11), igual que en los privados. */
+    r.irAWhatsapp || /tel[eé]fono|whats|wsp|wpp|celular|n[uú]mero|llamar/i.test(String(r.ultimo?.texto ?? '')) ? A_WHATSAPP : null,
   ].filter(Boolean)).join('\n\n');
 
   const id = await mandarUno(env, chat, texto, { comentarioId: comentario.externo_id });
