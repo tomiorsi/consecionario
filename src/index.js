@@ -4398,6 +4398,7 @@ escribí sólo "${aPedido ? 'Hoy no hay nada pendiente' : 'Buen día. Hoy sin no
     messages: [{ role: 'user', content:
       `VISITAS\n${agenda.map((v) => `${v.visita} · ${v.quien} · ${v.auto ?? ''} · ${v.condiciones ?? v.motivo ?? ''}`).join('\n') || '(ninguna)'}\n\n` +
       `PARA TASAR\n${(tasar ?? []).map((c) => `${quienEs(c)}: ${c.nota}`).join('\n') || '(ninguno)'}\n\n` +
+      `IMPORTANTE (YA DECIDIDO)\n${importantes.join('\n') || '(nadie)'}\n\n` +
       `CONSULTAS SIN CONTESTAR\n${consultas.map((c) => `${c.n}. ${c.pregunta}`).join('\n') || '(ninguna)'}\n\n` +
       `STOCK\n${(autos ?? []).map((a) => `${a.marca} ${a.modelo} ${a.anio} · ${a.km} km · ${a.moneda} ${a.precio}`).join('\n')}\n\n` +
       `CHARLAS DE LAS ÚLTIMAS 36 HORAS (cada mensaje con su fecha y hora UTC; Buenos Aires es UTC-3)\n\n${charlas.join('\n\n')}` }],
@@ -4419,22 +4420,17 @@ async function armarListaDelDia(env) {
   const esLunes = new Date(Date.now() - 3 * HORAS).getUTCDay() === 1;
   const agenda = ((await leerEstado(env, 'agenda'))?.valor ?? []).filter((v) => v.visita.slice(0, 10) >= hoy);
   const consultas = (await leerEstado(env, 'consultas'))?.valor ?? [];
-  /* QUE NO SE ESCAPE NADIE (Maxi, 18/11: "está medio incompleto"). Además de las
-     charlas de las últimas horas, entran todos los que ofrecieron su auto en los
-     últimos 7 días (para tasar, permuta o vendedor), aunque la charla esté quieta. */
+  /* Las charlas de los últimos 4 días (Maxi, 18/11: "andá a los de los últimos 4 días"). */
   const { results: chats } = await env.DB.prepare(
     `SELECT id, canal, externo_id, nombre, humano, nota, tipo, ultimo FROM conversaciones
-      WHERE id NOT IN (?, ?) AND (ultimo > datetime('now', ?)
-        OR (ultimo > datetime('now', '-7 days')
-            AND (nota LIKE 'Para tasar%' OR nota LIKE 'Para cotizar%' OR tipo IN ('permuta', 'vendedor'))))
-      ORDER BY (nota IS NULL), ultimo DESC LIMIT 80`
-  ).bind(jefe?.id ?? 0, COLO_CHAT, esLunes ? '-84 hours' : '-36 hours').all();
+      WHERE id NOT IN (?, ?) AND ultimo > datetime('now', ?)
+      ORDER BY (nota IS NULL), ultimo DESC LIMIT 90`
+  ).bind(jefe?.id ?? 0, COLO_CHAT, '-4 days').all();
   const charlas = [];
-  const desde = aSqlite(new Date(Date.now() - (esLunes ? 84 : 36) * HORAS).toISOString());
   const enAgenda = new Set(agenda.map((v) => v.chat));
-  /* IMPORTANTE SE ARMA ACÁ, NO LO DECIDE EL MODELO (Maxi, 18/11: le faltaban y le
-     sobraban). Va quien ofrece su auto por WhatsApp, mandó fotos, el equipo no le
-     contestó después y no tiene visita en la agenda. El renglón sale de la nota. */
+  /* QUIÉN VA EN IMPORTANTE LO DECIDE EL CÓDIGO (Maxi, 18/11: le faltaban y le sobraban);
+     el renglón lo escribe el modelo. Va quien ofrece su auto por WhatsApp, mandó fotos,
+     el equipo no le contestó después y no tiene visita en la agenda. */
   const importantes = [];
   /* Los que el equipo ya dio por hechos o descartó en el panel (todos sus "Para tasar"
      con "Ya está") no vuelven: Maxi, 16/11, "no lo tomamos". */
@@ -4456,15 +4452,10 @@ async function armarListaDelDia(env) {
     ).bind(c.id, fotos.ultima).first() : null;
     /* Los viejos (de más de 36 h) sólo entran si mandaron fotos y el equipo todavía
        no les contestó después: esos son los que no se pueden escapar. */
-    const reciente = String(c.ultimo ?? '') > desde;
-    if (!reciente && !enAgenda.has(c.id) && (!(fotos?.n > 0) || equipo)) continue;
+
     const ofrece = /^Para (tasar|cotizar)/.test(String(c.nota ?? '')) || ['permuta', 'vendedor'].includes(c.tipo);
     if (c.canal === 'whatsapp' && ofrece && fotos?.n > 0 && !equipo && !enAgenda.has(c.id) && !descartado(c)) {
-      const resumen = String(c.nota ?? '').replace(/^Para (tasar|cotizar)\s*/, '').replace(/\s*Fotos:.*$/s, '')
-        .replace(/^\((permuta|consignaci[oó]n)\):\s*/, (_, t) => t.startsWith('p') ? 'permuta: ' : 'para consignar: ')
-        .replace(/\s+/g, ' ').trim().split(/(?<=\.)\s/)[0].slice(0, 140);
-      importantes.push(`${quienEs(c)}: ${resumen || 'ofrece su auto, mandó fotos'}`);
-      continue;
+      importantes.push(quienEs(c));
     }
     const { results: ms } = await env.DB.prepare(
       `SELECT direccion, autor, tipo, texto, creado FROM mensajes WHERE conversacion_id = ?
@@ -4483,7 +4474,12 @@ async function armarListaDelDia(env) {
     system: `Armás la lista del día para Maxi, de Manna Selected (autos, Barracas).
 Hoy es ${hoyEnBsAs()}. Maxi la quiere CORTA (17/11): sólo estas secciones, nada más.
 
-LA SECCIÓN IMPORTANTE YA ESTÁ ARMADA APARTE: vos NO escribís IMPORTANTE.
+IMPORTANTE: van EXACTAMENTE las personas de la lista "IMPORTANTE (YA DECIDIDO)" que viene abajo,
+todas y ninguna más (Maxi, 18/11: "que no se escape nadie" y "no me traigas cualquier cosa").
+Un renglón descriptivo por cada una, con el teléfono adelante tal cual viene para que Maxi lo
+toque y le escriba:
++54 9 11 XXXX-XXXX, Nombre: quiere dejar en consignación (o entregar en permuta por el auto que
+pida) su Marca Modelo Año con tantos km. Mandó fotos y espera el valor (o la diferencia).
 
 VISITAS POSIBLES: las de VISITAS de hoy en adelante y los que en la charla quedaron en venir
 pero falta el día. Una línea cada uno:
@@ -4502,7 +4498,10 @@ marcadas [instagram] (mensajes privados, no comentarios), una línea cada uno co
   @usuario: auto que le interesa y en qué quedó.
 Los de Instagram que ofrecen su auto con fotos no se repiten en IMPORTANTE: van acá.
 
-Formato exacto, sin asteriscos:
+Formato exacto, sin asteriscos ni puntos suspensivos, todo escrito completo:
+IMPORTANTE
+(líneas)
+
 VISITAS POSIBLES
 (líneas)
 
@@ -4533,10 +4532,9 @@ REGLAS
       `CONSULTAS SIN CONTESTAR\n${consultas.map((c) => `${c.n}. ${c.pregunta}`).join('\n') || '(ninguna)'}\n\n` +
       `CHARLAS (fecha y hora UTC; Buenos Aires es UTC-3)\n\n${charlas.join('\n\n')}` }],
   });
-  let resto = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
-  if (/^SIN PENDIENTES/i.test(resto)) resto = '';
-  const texto = [importantes.length ? `IMPORTANTE\n${importantes.join('\n')}` : '', resto].filter(Boolean).join('\n\n');
-  return texto || 'SIN PENDIENTES';
+  const texto = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+  if (!texto) throw new Error(`Claude no escribió la lista (corte: ${r.stop_reason})`);
+  return texto;
 }
 
 /* De a tramos que entren en un WhatsApp, sin cortar a un cliente por la mitad. */
