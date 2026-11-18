@@ -4526,7 +4526,7 @@ REGLAS
 - CADA CLIENTE UNA SOLA VEZ, TODO EN EL MISMO RENGLÓN (Maxi, 18/11). Si tiene visita, va en
   VISITAS POSIBLES con lo que trae: "+54 9 11 XXXX-XXXX, Nombre: quiere dejar en consignación una
   GLA 250 2016, 93.000 km, viene el sábado 28, falta confirmar el horario." Y no se repite en
-  CONSIGNACIONES POSIBLES.
+  CONSIGNACIONES POSIBLES ni en VENTAS POSIBLES.
 - Si una sección queda vacía, no la pongas. Si no hay nadie, escribí sólo: SIN PENDIENTES`,
     messages: [{ role: 'user', content:
       `VISITAS\n${agenda.map((v) => `${v.visita.slice(0, 10) === hoy ? 'HOY' : 'otro día'}: ${new Date(`${v.visita.slice(0, 10)}T12:00:00-03:00`).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' })}${v.visita.length > 10 ? ` a las ${v.visita.slice(11, 16)}` : ''} · ${v.aConfirmar ? 'a confirmar' : 'firme'} · ${v.quien} · ${v.auto ?? ''} · ${v.condiciones ?? v.motivo ?? ''}`).join('\n') || '(ninguna)'}\n\n` +
