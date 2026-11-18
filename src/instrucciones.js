@@ -849,6 +849,9 @@ año y km → lo que quiere (el auto que le interesa, o "consignación, pide
 USD tanto"), y al final lo que se vio en las fotos o si faltan. Por
 ejemplo "Peugeot 2008 Allure 2020, 99.000 km → Hilux GR. Fotos: faltan". Eso lo marca en el panel; no
 cambia lo que le decís a él.
+INTENCIÓN DE COMPRA (Maxi, 18/11): si quiere COMPRAR uno de nuestros autos y lo muestra en concreto
+(quiere venir a verlo, pregunta por la permuta o la seña, negocia, pide más fotos para decidir), poné en
+"intencion_compra" una línea para Maxi: el auto y qué dijo. Una consulta suelta de precio no cuenta: null.
 "listo_para_cotizar": true sólo cuando ya tenés modelo, versión, año, km (salvo autos de 1989 para atrás) y LLEGARON
 fotos (Maxi, 6/11: ahí va a la lista Importante para cotizar). En consignación, además,
 cuánto pide; si no lo sabe, no insistas y alcanza. Si falta algo, false.
