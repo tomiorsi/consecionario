@@ -4546,18 +4546,19 @@ REGLAS
   /* CONTROL FINAL (Maxi, 18/11): en IMPORTANTE quedan sólo los que eligió el código, aunque
      el modelo haya puesto otros; y si se olvidó de alguno, va con el resumen de su nota. */
   const tels = new Set(importantes.map((q) => q.split(',')[0].trim()));
-  const secciones = crudo.split(/\n\s*\n/);
-  const i = secciones.findIndex((b) => /^IMPORTANTE\b/.test(b.trim()));
+  /* Todo lo que el modelo puso bajo cualquier título IMPORTANTE se junta en un solo bloque. */
+  const bloques = crudo.split(/\n\s*\n/);
+  const deImportante = bloques.filter((b) => /^IMPORTANTE\b/.test(b.trim()));
+  const secciones = bloques.filter((b) => !/^IMPORTANTE\b/.test(b.trim()));
   const puestas = new Set();
-  if (i >= 0) {
-    const renglones = secciones[i].trim().split('\n').slice(1).filter((l) => {
-      const tel = l.split(',')[0].trim();
-      if (!tels.has(tel) || puestas.has(tel)) return false;
-      puestas.add(tel);
-      return true;
-    });
-    secciones[i] = ['IMPORTANTE', ...renglones].join('\n');
-  }
+  const renglones = deImportante.flatMap((b) => b.trim().split('\n').slice(1)).filter((l) => {
+    const tel = l.split(',')[0].trim();
+    if (!tels.has(tel) || puestas.has(tel)) return false;
+    puestas.add(tel);
+    return true;
+  });
+  secciones.unshift(['IMPORTANTE', ...renglones].join('\n'));
+  const i = 0;
   const faltan = importantes.filter((q) => !puestas.has(q.split(',')[0].trim()))
     .map((q) => `${q}: ${notasImportantes.get(q) || 'ofrece su auto. Mandó fotos y espera respuesta.'}`);
   if (faltan.length) {
