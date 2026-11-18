@@ -528,10 +528,9 @@ async function firmaDeMetaValida(crudo, cabecera, secreto) {
    `object` vale 'whatsapp_business_account', 'instagram' o —ojo— 'page'
    para Messenger, que no se llama 'messenger' en ningún lado.
 
-   SE IGNORAN DOS COSAS a propósito: los avisos de estado de WhatsApp
-   (entregado, leído) porque no son mensajes de nadie, y los `is_echo` de
-   Instagram y Messenger, que son nuestras propias respuestas volviendo.
-   Guardar un eco sería guardar dos veces lo que ya escribimos nosotros. */
+   SE IGNORAN los avisos de estado de WhatsApp (entregado, leído) porque no son
+   mensajes de nadie. Los `is_echo` de Instagram y Messenger SÍ se miran (Maxi,
+   18/11): si no los mandó el bot, los mandó alguien del equipo y el chat es suyo. */
 /* DE QUÉ ANUNCIO VINO, si vino de uno. Cada canal lo manda con otra
    forma; acá queda una sola: id, título y texto del anuncio. */
 function anuncioDe(ref, canal) {
@@ -655,7 +654,29 @@ function mensajesDelAviso(aviso, nuestroId = null) {
             soloAnuncio: true, anuncio: anuncioDe(ev.referral, canal) });
           continue;
         }
-        if (!ev?.message || ev.message.is_echo) continue;
+        /* LO QUE CONTESTA EL EQUIPO DESDE INSTAGRAM O MESSENGER (Maxi, 18/11: "¡Sigue el
+           equipo!"). Vuelve como eco (is_echo). Antes se tiraban todos y el bot no se
+           enteraba de que había entrado una persona: seguía contestando encima. Ahora el
+           eco se guarda como del equipo; `guardarEntrantes` descarta los que son del bot. */
+        if (ev?.message?.is_echo) {
+          if (ev.recipient?.id) {
+            salida.push({
+              canal,
+              externo_id: ev.recipient.id,
+              nombre: null,
+              mensaje_id: ev.message.mid,
+              tipo: ev.message.text ? 'texto' : tipoConocido(ev.message.attachments?.[0]?.type),
+              texto: ev.message.text ?? null,
+              clase: 'mensaje',
+              media_id: null,
+              direccion: 'saliente',
+              autor: 'persona',
+              ecoMeta: true,
+            });
+          }
+          continue;
+        }
+        if (!ev?.message) continue;
         salida.push({
           canal,
           externo_id: ev.sender?.id,
@@ -803,6 +824,22 @@ async function guardarEntrantes(env, lista) {
       ).bind(m.canal, m.externo_id, m.nombre).first();
 
     if (!conv?.id || m.soloAnuncio) continue;
+
+    /* UN ECO DE INSTAGRAM O MESSENGER: si lo mandó el bot no es del equipo. Se espera
+       un momento a que el bot termine de guardar lo suyo y se compara: mismo id, o un
+       mensaje del bot de los últimos 3 minutos con el mismo texto (o, si es una foto o
+       un adjunto, cualquier mensaje del bot de los últimos 3 minutos). */
+    if (m.ecoMeta) {
+      await new Promise((listo) => setTimeout(listo, 4000));
+      const delBot = await env.DB.prepare(
+        `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
+            AND (externo_id = ? OR (autor = 'ia' AND creado > datetime('now','-3 minutes')
+                 AND (? IS NULL OR texto = ? OR instr(?, texto) > 0 OR instr(texto, ?) > 0)))
+          LIMIT 1`
+      ).bind(conv.id, m.mensaje_id ?? '', m.texto ?? null, m.texto ?? '', m.texto ?? '', m.texto ?? '').first();
+      if (delBot) continue;
+      m.desdeElCelular = true;
+    }
 
     /* EL NOMBRE DE INSTAGRAM (Maxi, 14/11: "acá arriba está clarito que
        dice Marcos. ¿Para qué le preguntás el nombre?"). El aviso de un
