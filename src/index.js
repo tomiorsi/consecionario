@@ -4299,7 +4299,7 @@ async function buenDia(env, { aPedido = false, porPanel = false, devolver = fals
       `SELECT direccion, autor, texto, creado FROM mensajes WHERE conversacion_id = ? AND texto IS NOT NULL
         ORDER BY creado DESC, id DESC LIMIT 10`
     ).bind(c.id).all();
-    charlas.push(`### [${c.canal}] [fotos del cliente: ${fotos?.n ?? 0}]${fotos?.n > 0 ? (equipo ? ' [el equipo ya le contestó después de las fotos]' : ' [ESPERA RESPUESTA DEL EQUIPO]') : ''}${enAgenda.has(c.id) ? ' [TIENE VISITA EN AGENDA: va sólo en VISITAS POSIBLES]' : ''} ${quienEs(c)}${c.humano ? ' (lo atiende el equipo)' : ''}${c.nota ? ` · ${c.nota}` : ''}\n` +
+    charlas.push(`### ${quienEs(c)}${c.humano ? ' (lo atiende el equipo)' : ''}${c.nota ? ` · ${c.nota}` : ''}\n` +
       (ms ?? []).reverse().map((m) =>
         `[${String(m.creado).slice(5, 16)}] ${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto.slice(0, 180)}`).join('\n'));
   }
@@ -4398,7 +4398,6 @@ escribí sólo "${aPedido ? 'Hoy no hay nada pendiente' : 'Buen día. Hoy sin no
     messages: [{ role: 'user', content:
       `VISITAS\n${agenda.map((v) => `${v.visita} · ${v.quien} · ${v.auto ?? ''} · ${v.condiciones ?? v.motivo ?? ''}`).join('\n') || '(ninguna)'}\n\n` +
       `PARA TASAR\n${(tasar ?? []).map((c) => `${quienEs(c)}: ${c.nota}`).join('\n') || '(ninguno)'}\n\n` +
-      `IMPORTANTE (YA DECIDIDO)\n${importantes.join('\n') || '(nadie)'}\n\n` +
       `CONSULTAS SIN CONTESTAR\n${consultas.map((c) => `${c.n}. ${c.pregunta}`).join('\n') || '(ninguna)'}\n\n` +
       `STOCK\n${(autos ?? []).map((a) => `${a.marca} ${a.modelo} ${a.anio} · ${a.km} km · ${a.moneda} ${a.precio}`).join('\n')}\n\n` +
       `CHARLAS DE LAS ÚLTIMAS 36 HORAS (cada mensaje con su fecha y hora UTC; Buenos Aires es UTC-3)\n\n${charlas.join('\n\n')}` }],
@@ -4417,55 +4416,60 @@ escribí sólo "${aPedido ? 'Hoy no hay nada pendiente' : 'Buen día. Hoy sin no
 async function armarListaDelDia(env) {
   const jefe = await chatDelJefe(env);
   const hoy = diaDeBsAs();
-  const esLunes = new Date(Date.now() - 3 * HORAS).getUTCDay() === 1;
   const agenda = ((await leerEstado(env, 'agenda'))?.valor ?? []).filter((v) => v.visita.slice(0, 10) >= hoy);
-  const consultas = (await leerEstado(env, 'consultas'))?.valor ?? [];
-  /* Las charlas de los últimos 4 días (Maxi, 18/11: "andá a los de los últimos 4 días"). */
-  const { results: chats } = await env.DB.prepare(
-    `SELECT id, canal, externo_id, nombre, humano, nota, tipo, ultimo FROM conversaciones
-      WHERE id NOT IN (?, ?) AND ultimo > datetime('now', ?)
-      ORDER BY (nota IS NULL), ultimo DESC LIMIT 90`
-  ).bind(jefe?.id ?? 0, COLO_CHAT, '-4 days').all();
-  const charlas = [];
-  const enAgenda = new Set(agenda.map((v) => v.chat));
-  /* QUIÉN VA EN IMPORTANTE LO DECIDE EL CÓDIGO (Maxi, 18/11: le faltaban y le sobraban);
-     el renglón lo escribe el modelo. Va quien ofrece su auto por WhatsApp, mandó fotos,
-     el equipo no le contestó después y no tiene visita en la agenda. */
-  const importantes = [];
-  const notasImportantes = new Map();
-  /* Los que el equipo ya dio por hechos o descartó en el panel (todos sus "Para tasar"
-     con "Ya está") no vuelven: Maxi, 16/11, "no lo tomamos". */
-  const tasar = ((await leerEstado(env, 'avisos'))?.valor ?? []).filter((a) => /^Para (tasar|cotizar)/.test(a.texto ?? ''));
-  const descartado = (c) => {
-    const tel = telefono(c.externo_id);
-    const suyos = tasar.filter((a) => (a.texto ?? '').includes(tel));
-    return suyos.length > 0 && suyos.every((a) => a.hecho);
-  };
-  for (const c of chats ?? []) {
-    /* Fotos del cliente, y si el equipo (una persona) le escribió después de la última. */
-    const fotos = await env.DB.prepare(
-      `SELECT COUNT(*) AS n, MAX(creado) AS ultima FROM mensajes WHERE conversacion_id = ?
-          AND direccion = 'entrante' AND tipo IN ('imagen', 'video')`
-    ).bind(c.id).first();
-    const equipo = fotos?.ultima ? await env.DB.prepare(
-      `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
-          AND autor = 'persona' AND creado > ? LIMIT 1`
-    ).bind(c.id, fotos.ultima).first() : null;
-    /* Los viejos (de más de 36 h) sólo entran si mandaron fotos y el equipo todavía
-       no les contestó después: esos son los que no se pueden escapar. */
+  const fila = (id) => env.DB.prepare(
+    'SELECT id, canal, externo_id, nombre, nota, tipo FROM conversaciones WHERE id = ?').bind(id).first();
+  const diaDe = (v) => `${new Date(`${v.visita.slice(0, 10)}T12:00:00-03:00`).toLocaleDateString('es-AR',
+    { weekday: 'long', day: 'numeric', month: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' })}${
+    v.visita.length > 10 ? ` a las ${v.visita.slice(11, 16)}` : ', falta confirmar la hora'}`;
 
-    const ofrece = /^Para (tasar|cotizar)/.test(String(c.nota ?? '')) || ['permuta', 'vendedor'].includes(c.tipo);
-    if (c.canal === 'whatsapp' && ofrece && fotos?.n > 0 && !equipo && !enAgenda.has(c.id) && !descartado(c)) {
-      importantes.push(quienEs(c));
-      const nota = String(c.nota ?? '').replace(/\s+/g, ' ');
-      const tipo = /\(permuta\)/.test(nota) || c.tipo === 'permuta' ? 'permuta' : 'consignacion';
-      const cuerpo = nota.replace(/^Para (tasar|cotizar)\s*(\([^)]*\))?:?\s*/, '');
-      const [suAuto, porCual] = cuerpo.split(/\s*→\s*/);
-      const limpio = (t) => String(t ?? '').replace(/\s*\([^)]*\)/g, '').split(/\.\s|,\s*(pide|no dijo|falta|versi)/i)[0].replace(/[.,;]\s*$/, '').trim();
-      notasImportantes.set(quienEs(c), tipo === 'permuta'
-        ? `quiere entregar en permuta su ${limpio(suAuto)}${limpio(porCual) ? ` por ${limpio(porCual)}` : ''}. Mandó fotos y espera la diferencia.`
-        : `quiere dejar en consignación su ${limpio(suAuto)}. Mandó fotos y espera el valor.`);
-    }
+  /* IMPORTANTE = LA LISTA QUE LLEVA MAXI (18/11: "al único que le pegaste es a la Hilux").
+     No la adivina nadie: son los chats guardados en 'importantes' (los que tienen la
+     etiqueta Importante en su WhatsApp y esperan la tasación). Se cargan y se sacan por
+     /api/admin/importantes. Si además tienen visita, va en el mismo renglón. */
+  const ids = (await leerEstado(env, 'importantes'))?.valor ?? [];
+  const importantes = [];
+  const yaEstan = new Set();
+  for (const id of ids) {
+    const c = await fila(id);
+    if (!c) continue;
+    const fotos = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
+          AND tipo IN ('imagen', 'video')`).bind(c.id).first();
+    const nota = String(c.nota ?? '').replace(/\s+/g, ' ');
+    const permuta = /\(permuta\)/.test(nota) || c.tipo === 'permuta';
+    const cuerpo = nota.replace(/^(Para (tasar|cotizar)|La IA lo pasó)\s*(\([^)]*\))?:?\s*/, '');
+    const [suAuto, porCual] = cuerpo.split(/\s*→\s*/);
+    const limpio = (t) => String(t ?? '').replace(/\s*\([^)]*\)/g, '')
+      .split(/\.\s|,\s*(pide|no dijo|falta|versi|gomas|fotos)/i)[0].replace(/[.,;]\s*$/, '').trim();
+    const auto = limpio(suAuto) || 'su auto';
+    const visita = agenda.find((v) => v.chat === c.id);
+    importantes.push(`${quienEs(c)}: ${permuta
+      ? `quiere entregar en permuta su ${auto}${limpio(porCual) ? ` por ${limpio(porCual)}` : ''}`
+      : `quiere dejar en consignación su ${auto}`}.${visita ? ` Viene el ${diaDe(visita)}.` : ''} ${
+      fotos?.n > 0 ? 'Mandó fotos y' : 'Faltan las fotos y'} ${permuta ? 'espera la diferencia' : 'espera el valor'}.`);
+    yaEstan.add(c.id);
+  }
+
+  /* VISITAS POSIBLES = LA AGENDA DEL PANEL, y nada más (Maxi, 18/11: "visita posible es
+     visita posible" y "las visitas posibles van a la agenda del panel"). */
+  const visitas = [];
+  for (const v of agenda) {
+    if (yaEstan.has(v.chat)) continue;
+    const c = v.chat ? await fila(v.chat) : null;
+    visitas.push(`${c ? quienEs(c) : v.quien}: viene el ${diaDe(v)}${v.auto ? `, ${v.auto}` : ''}.`);
+    if (c) yaEstan.add(c.id);
+  }
+
+  /* INSTAGRAM: consignaciones y ventas posibles de los últimos 4 días, las escribe el modelo. */
+  const { results: chats } = await env.DB.prepare(
+    `SELECT id, canal, externo_id, nombre, humano, nota, tipo FROM conversaciones
+      WHERE canal = 'instagram' AND id NOT IN (?, ?) AND ultimo > datetime('now', '-4 days')
+      ORDER BY (nota IS NULL), ultimo DESC LIMIT 50`
+  ).bind(jefe?.id ?? 0, COLO_CHAT).all();
+  const charlas = [];
+  for (const c of chats ?? []) {
+    if (yaEstan.has(c.id)) continue;
     const { results: ms } = await env.DB.prepare(
       `SELECT direccion, autor, tipo, texto, creado FROM mensajes WHERE conversacion_id = ?
         ORDER BY creado DESC, id DESC LIMIT 14`
@@ -4474,110 +4478,47 @@ async function armarListaDelDia(env) {
       (ms ?? []).reverse().map((m) =>
         `[${String(m.creado).slice(5, 16)}] ${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto ? m.texto.slice(0, 220) : `[${m.tipo ?? 'mensaje'}]`}`).join('\n'));
   }
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-  const r = await client.messages.create({
-    model: MODELO,
-    max_tokens: 8000,
-    thinking: { type: 'disabled' },
-    output_config: { effort: 'medium' },
-    system: `Armás la lista del día para Maxi, de Manna Selected (autos, Barracas).
-Hoy es ${hoyEnBsAs()}. Maxi la quiere CORTA (17/11): sólo estas secciones, nada más.
+  let instagram = '';
+  if (charlas.length) {
+    const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+    const r = await client.messages.create({
+      model: MODELO,
+      max_tokens: 3000,
+      thinking: { type: 'disabled' },
+      output_config: { effort: 'medium' },
+      system: `Armás dos secciones de la lista del día de Manna Selected (autos, Barracas), sólo con
+estas charlas de Instagram (mensajes privados). Hoy es ${hoyEnBsAs()}.
 
-IMPORTANTE: van EXACTAMENTE las personas de la lista "IMPORTANTE (YA DECIDIDO)" que viene abajo,
-todas y ninguna más (Maxi, 18/11: "que no se escape nadie" y "no me traigas cualquier cosa").
-Un renglón descriptivo por cada una, con el teléfono adelante tal cual viene para que Maxi lo
-toque y le escriba:
-+54 9 11 XXXX-XXXX, Nombre: quiere dejar en consignación (o entregar en permuta por el auto que
-pida) su Marca Modelo Año con tantos km. Mandó fotos y espera el valor (o la diferencia).
+CONSIGNACIONES POSIBLES (INSTAGRAM): los que ofrecen su auto para que se lo vendamos o para
+entregar en permuta y todavía no tienen un valor del equipo.
+@usuario: Marca Modelo Año, km, para consignar (o en permuta por cuál), y si mandó fotos.
 
-VISITAS POSIBLES: las de VISITAS de hoy en adelante y los que en la charla quedaron en venir
-pero falta el día. Una línea cada uno:
-+54 9 11 XXXX-XXXX, Nombre: día y hora tal como vienen en VISITAS (o "falta coordinar el día"), auto.
+VENTAS POSIBLES (INSTAGRAM): SÓLO conversaciones de venta en curso: hubo ida y vuelta sobre
+comprar uno de nuestros autos y el cliente todavía no se despidió ni dejó de contestar. El que
+consultó, recibió la info o el link y no contestó más es un franela: NO va. Una consulta suelta
+tampoco.
+@usuario: auto que le interesa y en qué quedó.
 
-INSTAGRAM (Maxi, 18/11: "estoy convirtiendo por Instagram y tengo el mismo método"). Sólo charlas
-marcadas [instagram] (mensajes privados, no comentarios), una línea cada uno con el @usuario:
-- CONSIGNACIONES POSIBLES (INSTAGRAM): los que ofrecen su auto para que se lo vendamos o
-  para entregar en permuta, y todavía no tienen respuesta del equipo con un valor.
-  @usuario: Marca Modelo Año, km, "para consignar" o "por cuál auto", y si mandó fotos.
-- VENTAS POSIBLES (INSTAGRAM): SÓLO los que tienen una conversación de venta en curso con
-  nosotros: hubo ida y vuelta sobre comprar uno de nuestros autos y el cliente todavía no se
-  despidió ni dejó de contestar (Maxi, 18/11: "la única venta posible es Richard, que estamos
-  en contacto"). El que consultó, recibió la info o el link y no contestó más es un franela:
-  NO va. Una consulta suelta tampoco.
-  @usuario: auto que le interesa y en qué quedó.
-Los de Instagram que ofrecen su auto con fotos no se repiten en IMPORTANTE: van acá.
-
-Formato exacto, sin asteriscos ni puntos suspensivos, todo escrito completo:
-IMPORTANTE
-(líneas)
-
-VISITAS POSIBLES
-(líneas)
-
+Formato exacto, sin asteriscos ni puntos suspensivos, cada renglón completo:
 CONSIGNACIONES POSIBLES (INSTAGRAM)
 (líneas)
 
 VENTAS POSIBLES (INSTAGRAM)
 (líneas)
 
-REGLAS
-- Nada de consultas de precio sueltas, quejas, comentarios en publicaciones de Facebook o
-  Instagram, ni gente sin algo concreto. Si no entra en una de las secciones, no va.
-- Sólo datos que estén escritos en la charla o en VISITAS. Nunca inventes autos, precios,
-  ventas ni fechas. Los teléfonos tal cual vienen; si no hay teléfono, el usuario tal como viene.
-- Las visitas con el día tal como viene en VISITAS: nunca "mañana" ni calcules el día.
-- Las que dicen "[TIENE VISITA EN AGENDA...]" van sólo en VISITAS POSIBLES, con el auto que trae
-  en el mismo renglón.
-- LOS DE ARRIBA SON MOLDES, NO CLIENTES: nunca copies un teléfono, nombre o auto que no esté en
-  CHARLAS o en VISITAS (Maxi, 18/11: salieron "Edgar" y "Leo" del ejemplo, que no existen).
-- Sin notas ni comentarios al final.
-- CADA CLIENTE UNA SOLA VEZ, TODO EN EL MISMO RENGLÓN (Maxi, 18/11). Si tiene visita, va en
-  VISITAS POSIBLES con lo que trae: "+54 9 11 XXXX-XXXX, Nombre: quiere dejar en consignación una
-  GLA 250 2016, 93.000 km, viene el sábado 28, falta confirmar el horario." Y no se repite en
-  CONSIGNACIONES POSIBLES ni en VENTAS POSIBLES.
-- Si una sección queda vacía, no la pongas. Si no hay nadie, escribí sólo: SIN PENDIENTES`,
-    messages: [{ role: 'user', content:
-      `VISITAS\n${agenda.map((v) => `${v.visita.slice(0, 10) === hoy ? 'HOY' : 'otro día'}: ${new Date(`${v.visita.slice(0, 10)}T12:00:00-03:00`).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' })}${v.visita.length > 10 ? ` a las ${v.visita.slice(11, 16)}` : ''} · ${v.aConfirmar ? 'a confirmar' : 'firme'} · ${v.quien} · ${v.auto ?? ''} · ${v.condiciones ?? v.motivo ?? ''}`).join('\n') || '(ninguna)'}\n\n` +
-      `CONSULTAS SIN CONTESTAR\n${consultas.map((c) => `${c.n}. ${c.pregunta}`).join('\n') || '(ninguna)'}\n\n` +
-      `CHARLAS (fecha y hora UTC; Buenos Aires es UTC-3)\n\n${charlas.join('\n\n')}` }],
-  });
-  const crudo = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
-  if (!crudo) throw new Error(`Claude no escribió la lista (corte: ${r.stop_reason})`);
-  /* CONTROL FINAL (Maxi, 18/11): en IMPORTANTE quedan sólo los que eligió el código, aunque
-     el modelo haya puesto otros; y si se olvidó de alguno, va con el resumen de su nota. */
-  const tels = new Set(importantes.map((q) => q.split(',')[0].trim()));
-  /* Todo lo que el modelo puso bajo cualquier título IMPORTANTE se junta en un solo bloque. */
-  const bloques = crudo.split(/\n\s*\n/);
-  const deImportante = bloques.filter((b) => /^IMPORTANTE\b/.test(b.trim()));
-  const secciones = bloques.filter((b) => !/^IMPORTANTE\b/.test(b.trim()));
-  const puestas = new Set();
-  const renglones = deImportante.flatMap((b) => b.trim().split('\n').slice(1)).filter((l) => {
-    const tel = l.split(',')[0].trim();
-    if (!tels.has(tel) || puestas.has(tel)) return false;
-    puestas.add(tel);
-    return true;
-  });
-  secciones.unshift(['IMPORTANTE', ...renglones].join('\n'));
-  const i = 0;
-  const faltan = importantes.filter((q) => !puestas.has(q.split(',')[0].trim()))
-    .map((q) => `${q}: ${notasImportantes.get(q) || 'ofrece su auto. Mandó fotos y espera respuesta.'}`);
-  if (faltan.length) {
-    if (i >= 0) secciones[i] += `\n${faltan.join('\n')}`;
-    else secciones.unshift(`IMPORTANTE\n${faltan.join('\n')}`);
-  }
-  /* CADA CLIENTE UNA SOLA VEZ: si ya apareció en una sección, no se repite en otra. */
-  const vistos = new Set();
-  const unaVez = secciones.map((b) => {
-    const [titulo, ...rs] = b.trim().split('\n');
-    const quedan = rs.filter((l) => {
-      const clave = (l.match(/^\+[\d -]+\d|^@[\w.]+/) ?? [l])[0].trim();
-      if (vistos.has(clave)) return false;
-      vistos.add(clave);
-      return true;
+Sólo datos que estén en las charlas; nunca inventes. Cada usuario una sola vez. Sin notas al
+final. Si una sección queda vacía, no la pongas. Si no hay nadie, escribí sólo: NADIE`,
+      messages: [{ role: 'user', content: `CHARLAS DE INSTAGRAM (hora UTC)\n\n${charlas.join('\n\n')}` }],
     });
-    return quedan.length ? [titulo, ...quedan].join('\n') : '';
-  });
-  const texto = unaVez.filter((b) => b.trim()).join('\n\n').trim();
+    instagram = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+    if (/^NADIE/i.test(instagram)) instagram = '';
+  }
+
+  const texto = [
+    importantes.length ? `IMPORTANTE\n${importantes.join('\n')}` : '',
+    visitas.length ? `VISITAS POSIBLES\n${visitas.join('\n')}` : '',
+    instagram,
+  ].filter(Boolean).join('\n\n');
   return texto || 'SIN PENDIENTES';
 }
 
@@ -6172,6 +6113,21 @@ async function admin(peticion, env, ruta, metodo, ctx) {
   /* EL RESUMEN DE LAS 23, PARA VERLO SIN MANDARLO A NADIE. */
   if (ruta === '/api/admin/resumen-noche' && metodo === 'POST') {
     return json({ texto: textoVisitasDeLaNoche((await leerEstado(env, 'agenda'))?.valor ?? []) });
+  }
+
+  /* LOS IMPORTANTES DE MAXI (18/11): la lista fija de chats que van en IMPORTANTE.
+     GET la devuelve; POST {agregar: [ids], sacar: [ids]} la cambia. */
+  if (ruta === '/api/admin/importantes') {
+    const actual = (await leerEstado(env, 'importantes'))?.valor ?? [];
+    if (metodo === 'GET') return json({ chats: actual });
+    if (metodo === 'POST') {
+      const cuerpo = await peticion.json().catch(() => ({}));
+      const sacar = new Set((cuerpo.sacar ?? []).map(Number));
+      const nueva = [...new Set([...actual, ...(cuerpo.agregar ?? []).map(Number)])]
+        .filter((id) => Number.isInteger(id) && id > 0 && !sacar.has(id));
+      await guardarEstado(env, 'importantes', nueva);
+      return json({ chats: nueva });
+    }
   }
 
   /* LA LISTA DEL DÍA, PARA VERLA SIN MANDARLA A NADIE. */
