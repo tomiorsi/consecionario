@@ -4457,8 +4457,14 @@ async function armarListaDelDia(env) {
     const ofrece = /^Para (tasar|cotizar)/.test(String(c.nota ?? '')) || ['permuta', 'vendedor'].includes(c.tipo);
     if (c.canal === 'whatsapp' && ofrece && fotos?.n > 0 && !equipo && !enAgenda.has(c.id) && !descartado(c)) {
       importantes.push(quienEs(c));
-      notasImportantes.set(quienEs(c), String(c.nota ?? '').replace(/^Para (tasar|cotizar)\s*\([^)]*\):\s*/, '')
-        .replace(/\s*Fotos:.*$/s, '').replace(/\s+/g, ' ').trim().slice(0, 140));
+      const nota = String(c.nota ?? '').replace(/\s+/g, ' ');
+      const tipo = /\(permuta\)/.test(nota) || c.tipo === 'permuta' ? 'permuta' : 'consignacion';
+      const cuerpo = nota.replace(/^Para (tasar|cotizar)\s*(\([^)]*\))?:?\s*/, '');
+      const [suAuto, porCual] = cuerpo.split(/\s*→\s*/);
+      const limpio = (t) => String(t ?? '').replace(/\s*\([^)]*\)/g, '').split(/\.\s|,\s*(pide|no dijo|falta|versi)/i)[0].replace(/[.,;]\s*$/, '').trim();
+      notasImportantes.set(quienEs(c), tipo === 'permuta'
+        ? `quiere entregar en permuta su ${limpio(suAuto)}${limpio(porCual) ? ` por ${limpio(porCual)}` : ''}. Mandó fotos y espera la diferencia.`
+        : `quiere dejar en consignación su ${limpio(suAuto)}. Mandó fotos y espera el valor.`);
     }
     const { results: ms } = await env.DB.prepare(
       `SELECT direccion, autor, tipo, texto, creado FROM mensajes WHERE conversacion_id = ?
@@ -4553,12 +4559,24 @@ REGLAS
     secciones[i] = ['IMPORTANTE', ...renglones].join('\n');
   }
   const faltan = importantes.filter((q) => !puestas.has(q.split(',')[0].trim()))
-    .map((q) => `${q}: ofrece su auto${notasImportantes.get(q) ? ` (${notasImportantes.get(q)})` : ''}. Mandó fotos y espera respuesta.`);
+    .map((q) => `${q}: ${notasImportantes.get(q) || 'ofrece su auto. Mandó fotos y espera respuesta.'}`);
   if (faltan.length) {
     if (i >= 0) secciones[i] += `\n${faltan.join('\n')}`;
     else secciones.unshift(`IMPORTANTE\n${faltan.join('\n')}`);
   }
-  const texto = secciones.filter((b) => b.trim() && b.trim() !== 'IMPORTANTE').join('\n\n').trim();
+  /* CADA CLIENTE UNA SOLA VEZ: si ya apareció en una sección, no se repite en otra. */
+  const vistos = new Set();
+  const unaVez = secciones.map((b) => {
+    const [titulo, ...rs] = b.trim().split('\n');
+    const quedan = rs.filter((l) => {
+      const clave = (l.match(/^\+[\d -]+\d|^@[\w.]+/) ?? [l])[0].trim();
+      if (vistos.has(clave)) return false;
+      vistos.add(clave);
+      return true;
+    });
+    return quedan.length ? [titulo, ...quedan].join('\n') : '';
+  });
+  const texto = unaVez.filter((b) => b.trim()).join('\n\n').trim();
   return texto || 'SIN PENDIENTES';
 }
 
