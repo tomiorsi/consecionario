@@ -4468,6 +4468,8 @@ la tarea"): "Tarea: ...". Ejemplos: "Tarea: insistirle para que lo deje en consi
 pidió que le recomendemos precio o dejó de contestar), "Tarea: tasar y pasarle la diferencia",
 "Tarea: esperar que responda", "Tarea: darle el valor cuando venga el sábado 28", "Tarea: pedirle
 las fotos". Sin "sin visita" ni datos de relleno.
+EN CONSIGNACIÓN, SI PIDIÓ QUE LE RECOMENDEMOS UN PRECIO O NO DEFINIÓ CUÁNTO PIDE, la tarea es
+"Tarea: insistirle para que lo deje en consignación" (Maxi, 18/11, caso Yair). Nunca "pasarle un precio".
 Respondé SÓLO un JSON: {"<id>": "renglón", ...} con todos los ids.`,
       messages: [{ role: 'user', content: fichas.map((f) => f.texto).join('\n\n') }],
     });
