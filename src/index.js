@@ -4427,14 +4427,13 @@ Hoy es ${hoyEnBsAs()}. Maxi la quiere CORTA (17/11): sólo dos cosas, nada más.
 
 IMPORTANTE: los que ofrecen su auto en permuta o consignación Y mandaron fotos, y todavía
 esperan que el equipo les pase la diferencia o la valuación. Una línea cada uno:
-+54 9 11 3408-3680, Edgar: Peugeot 208 2021, 65.000 km, por la GLA.
++54 9 11 XXXX-XXXX, Nombre: Marca Modelo Año, km, por cuál auto (o "para consignar").
 (teléfono, nombre, su auto con año y km si están, y por cuál auto lo quiere; si es
 consignación, "para consignar").
 
 VISITAS POSIBLES: las de VISITAS de hoy en adelante y los que en la charla quedaron en venir
 pero falta el día. Una línea cada uno:
-+54 9 11 4156-4762, Ernesto: falta coordinar el día.
-+54 9 11 3117-8996, Leo: martes 18 a las 11, GLA.
++54 9 11 XXXX-XXXX, Nombre: día y hora tal como vienen en VISITAS (o "falta coordinar el día"), auto.
 
 Formato exacto, sin asteriscos:
 IMPORTANTE
@@ -4452,6 +4451,10 @@ REGLAS
 - Si el equipo ya le contestó después de las fotos (texto, [audio] o cualquier mensaje del
   Equipo), se considera que ya le pasó la diferencia: NO va en IMPORTANTE (Maxi 17/11, el del
   Yaris ya estaba contestado).
+- LOS DE ARRIBA SON MOLDES, NO CLIENTES: nunca copies un teléfono, nombre o auto que no esté en
+  CHARLAS o en VISITAS (Maxi, 18/11: salieron "Edgar" y "Leo" del ejemplo, que no existen).
+- IMPORTANTE sólo si en la charla el Cliente mandó fotos de su auto ("[Se ve: ...]" o "[imagen]"). Sin fotos, no va.
+- Sin notas ni comentarios al final, y cada cliente una sola vez.
 - Si una sección queda vacía, no la pongas. Si no hay nadie, escribí sólo: SIN PENDIENTES`,
     messages: [{ role: 'user', content:
       `VISITAS\n${agenda.map((v) => `${v.visita.slice(0, 10) === hoy ? 'HOY' : 'otro día'}: ${new Date(`${v.visita.slice(0, 10)}T12:00:00-03:00`).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' })}${v.visita.length > 10 ? ` a las ${v.visita.slice(11, 16)}` : ''} · ${v.aConfirmar ? 'a confirmar' : 'firme'} · ${v.quien} · ${v.auto ?? ''} · ${v.condiciones ?? v.motivo ?? ''}`).join('\n') || '(ninguna)'}\n\n` +
