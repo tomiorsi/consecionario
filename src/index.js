@@ -4432,6 +4432,7 @@ async function armarListaDelDia(env) {
      el renglón lo escribe el modelo. Va quien ofrece su auto por WhatsApp, mandó fotos,
      el equipo no le contestó después y no tiene visita en la agenda. */
   const importantes = [];
+  const notasImportantes = new Map();
   /* Los que el equipo ya dio por hechos o descartó en el panel (todos sus "Para tasar"
      con "Ya está") no vuelven: Maxi, 16/11, "no lo tomamos". */
   const tasar = ((await leerEstado(env, 'avisos'))?.valor ?? []).filter((a) => /^Para (tasar|cotizar)/.test(a.texto ?? ''));
@@ -4456,6 +4457,8 @@ async function armarListaDelDia(env) {
     const ofrece = /^Para (tasar|cotizar)/.test(String(c.nota ?? '')) || ['permuta', 'vendedor'].includes(c.tipo);
     if (c.canal === 'whatsapp' && ofrece && fotos?.n > 0 && !equipo && !enAgenda.has(c.id) && !descartado(c)) {
       importantes.push(quienEs(c));
+      notasImportantes.set(quienEs(c), String(c.nota ?? '').replace(/^Para (tasar|cotizar)\s*\([^)]*\):\s*/, '')
+        .replace(/\s*Fotos:.*$/s, '').replace(/\s+/g, ' ').trim().slice(0, 140));
     }
     const { results: ms } = await env.DB.prepare(
       `SELECT direccion, autor, tipo, texto, creado FROM mensajes WHERE conversacion_id = ?
@@ -4532,9 +4535,31 @@ REGLAS
       `CONSULTAS SIN CONTESTAR\n${consultas.map((c) => `${c.n}. ${c.pregunta}`).join('\n') || '(ninguna)'}\n\n` +
       `CHARLAS (fecha y hora UTC; Buenos Aires es UTC-3)\n\n${charlas.join('\n\n')}` }],
   });
-  const texto = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
-  if (!texto) throw new Error(`Claude no escribió la lista (corte: ${r.stop_reason})`);
-  return texto;
+  const crudo = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+  if (!crudo) throw new Error(`Claude no escribió la lista (corte: ${r.stop_reason})`);
+  /* CONTROL FINAL (Maxi, 18/11): en IMPORTANTE quedan sólo los que eligió el código, aunque
+     el modelo haya puesto otros; y si se olvidó de alguno, va con el resumen de su nota. */
+  const tels = new Set(importantes.map((q) => q.split(',')[0].trim()));
+  const secciones = crudo.split(/\n\s*\n/);
+  const i = secciones.findIndex((b) => /^IMPORTANTE\b/.test(b.trim()));
+  const puestas = new Set();
+  if (i >= 0) {
+    const renglones = secciones[i].trim().split('\n').slice(1).filter((l) => {
+      const tel = l.split(',')[0].trim();
+      if (!tels.has(tel) || puestas.has(tel)) return false;
+      puestas.add(tel);
+      return true;
+    });
+    secciones[i] = ['IMPORTANTE', ...renglones].join('\n');
+  }
+  const faltan = importantes.filter((q) => !puestas.has(q.split(',')[0].trim()))
+    .map((q) => `${q}: ofrece su auto${notasImportantes.get(q) ? ` (${notasImportantes.get(q)})` : ''}. Mandó fotos y espera respuesta.`);
+  if (faltan.length) {
+    if (i >= 0) secciones[i] += `\n${faltan.join('\n')}`;
+    else secciones.unshift(`IMPORTANTE\n${faltan.join('\n')}`);
+  }
+  const texto = secciones.filter((b) => b.trim() && b.trim() !== 'IMPORTANTE').join('\n\n').trim();
+  return texto || 'SIN PENDIENTES';
 }
 
 /* De a tramos que entren en un WhatsApp, sin cortar a un cliente por la mitad. */
