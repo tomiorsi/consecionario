@@ -4463,6 +4463,11 @@ cuál auto) o consignación, y EN QUÉ QUEDÓ LA CHARLA leyendo los últimos men
 "quedó en que lo piensa", "ya le escribimos, esperamos que responda", "el valor se lo damos cuando
 venga el sábado 28", "avisa cuando pasa por acá y ahí le damos la diferencia", "no contestó más,
 hay que insistirle". Si tiene VISITA, poné el día. Sólo lo que dicen los mensajes, sin inventar.
+Y TERMINÁ CADA RENGLÓN CON LA TAREA DEL EQUIPO, para organizar el día (Maxi, 18/11: "que me pongas
+la tarea"): "Tarea: ...". Ejemplos: "Tarea: insistirle para que lo deje en consignación" (si
+pidió que le recomendemos precio o dejó de contestar), "Tarea: tasar y pasarle la diferencia",
+"Tarea: esperar que responda", "Tarea: darle el valor cuando venga el sábado 28", "Tarea: pedirle
+las fotos". Sin "sin visita" ni datos de relleno.
 Respondé SÓLO un JSON: {"<id>": "renglón", ...} con todos los ids.`,
       messages: [{ role: 'user', content: fichas.map((f) => f.texto).join('\n\n') }],
     });
