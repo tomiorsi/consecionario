@@ -4299,7 +4299,7 @@ async function buenDia(env, { aPedido = false, porPanel = false, devolver = fals
       `SELECT direccion, autor, texto, creado FROM mensajes WHERE conversacion_id = ? AND texto IS NOT NULL
         ORDER BY creado DESC, id DESC LIMIT 10`
     ).bind(c.id).all();
-    charlas.push(`### [${c.canal}] ${quienEs(c)}${c.humano ? ' (lo atiende el equipo)' : ''}${c.nota ? ` · ${c.nota}` : ''}\n` +
+    charlas.push(`### [${c.canal}] [fotos del cliente: ${fotos?.n ?? 0}] ${quienEs(c)}${c.humano ? ' (lo atiende el equipo)' : ''}${c.nota ? ` · ${c.nota}` : ''}\n` +
       (ms ?? []).reverse().map((m) =>
         `[${String(m.creado).slice(5, 16)}] ${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto.slice(0, 180)}`).join('\n'));
   }
@@ -4419,13 +4419,22 @@ async function armarListaDelDia(env) {
   const esLunes = new Date(Date.now() - 3 * HORAS).getUTCDay() === 1;
   const agenda = ((await leerEstado(env, 'agenda'))?.valor ?? []).filter((v) => v.visita.slice(0, 10) >= hoy);
   const consultas = (await leerEstado(env, 'consultas'))?.valor ?? [];
+  /* QUE NO SE ESCAPE NADIE (Maxi, 18/11: "está medio incompleto"). Además de las
+     charlas de las últimas horas, entran todos los que ofrecieron su auto en los
+     últimos 7 días (para tasar, permuta o vendedor), aunque la charla esté quieta. */
   const { results: chats } = await env.DB.prepare(
     `SELECT id, canal, externo_id, nombre, humano, nota FROM conversaciones
-      WHERE ultimo > datetime('now', ?) AND id NOT IN (?, ?)
-      ORDER BY (nota IS NULL), ultimo DESC LIMIT 60`
-  ).bind(esLunes ? '-84 hours' : '-36 hours', jefe?.id ?? 0, COLO_CHAT).all();
+      WHERE id NOT IN (?, ?) AND (ultimo > datetime('now', ?)
+        OR (ultimo > datetime('now', '-7 days')
+            AND (nota LIKE 'Para tasar%' OR nota LIKE 'Para cotizar%' OR tipo IN ('permuta', 'vendedor'))))
+      ORDER BY (nota IS NULL), ultimo DESC LIMIT 80`
+  ).bind(jefe?.id ?? 0, COLO_CHAT, esLunes ? '-84 hours' : '-36 hours').all();
   const charlas = [];
   for (const c of chats ?? []) {
+    const fotos = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
+          AND tipo IN ('imagen', 'video')`
+    ).bind(c.id).first();
     const { results: ms } = await env.DB.prepare(
       `SELECT direccion, autor, tipo, texto, creado FROM mensajes WHERE conversacion_id = ?
         ORDER BY creado DESC, id DESC LIMIT 14`
@@ -4458,9 +4467,11 @@ marcadas [instagram] (mensajes privados, no comentarios), una línea cada uno co
 - CONSIGNACIONES POSIBLES (INSTAGRAM): los que ofrecen su auto para que se lo vendamos o
   para entregar en permuta, y todavía no tienen respuesta del equipo con un valor.
   @usuario: Marca Modelo Año, km, "para consignar" o "por cuál auto", y si mandó fotos.
-- VENTAS POSIBLES (INSTAGRAM): los que quieren comprar uno de nuestros autos con interés
-  concreto (quieren verlo, preguntan por la permuta, piden más fotos o detalles, vuelven a
-  escribir). Una sola pregunta de precio sin nada más no alcanza.
+- VENTAS POSIBLES (INSTAGRAM): SÓLO los que tienen una conversación de venta en curso con
+  nosotros: hubo ida y vuelta sobre comprar uno de nuestros autos y el cliente todavía no se
+  despidió ni dejó de contestar (Maxi, 18/11: "la única venta posible es Richard, que estamos
+  en contacto"). El que consultó, recibió la info o el link y no contestó más es un franela:
+  NO va. Una consulta suelta tampoco.
   @usuario: auto que le interesa y en qué quedó.
 Los de Instagram que ofrecen su auto con fotos no se repiten en IMPORTANTE: van acá.
 
@@ -4488,8 +4499,16 @@ REGLAS
   Yaris ya estaba contestado).
 - LOS DE ARRIBA SON MOLDES, NO CLIENTES: nunca copies un teléfono, nombre o auto que no esté en
   CHARLAS o en VISITAS (Maxi, 18/11: salieron "Edgar" y "Leo" del ejemplo, que no existen).
-- IMPORTANTE sólo si en la charla el Cliente mandó fotos de su auto ("[Se ve: ...]" o "[imagen]"). Sin fotos, no va.
-- Sin notas ni comentarios al final, y cada cliente una sola vez.
+- IMPORTANTE sólo si "[fotos del cliente: N]" es mayor a 0. Sin fotos, no va.
+- Sin notas ni comentarios al final.
+- CADA CLIENTE UNA SOLA VEZ, TODO EN EL MISMO RENGLÓN (Maxi, 18/11). Si tiene visita, va en
+  VISITAS POSIBLES con lo que trae: "+54 9 11 6567-8894, Jorge: quiere dejar en consignación una
+  GLA 250 2016, 93.000 km, viene el sábado 28, falta confirmar el horario." Y no se repite en
+  IMPORTANTE ni en CONSIGNACIONES POSIBLES.
+- QUE NO SE ESCAPE NADIE: cada charla que dice "[fotos del cliente: N]" con N mayor a 0 y que
+  ofrece su auto (permuta o consignación) TIENE que aparecer en alguna sección, salvo que el
+  Equipo ya le haya pasado un valor o la charla haya terminado (no le interesa, ya vendió).
+  Con "[fotos del cliente: 0]" no va en IMPORTANTE.
 - Si una sección queda vacía, no la pongas. Si no hay nadie, escribí sólo: SIN PENDIENTES`,
     messages: [{ role: 'user', content:
       `VISITAS\n${agenda.map((v) => `${v.visita.slice(0, 10) === hoy ? 'HOY' : 'otro día'}: ${new Date(`${v.visita.slice(0, 10)}T12:00:00-03:00`).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' })}${v.visita.length > 10 ? ` a las ${v.visita.slice(11, 16)}` : ''} · ${v.aConfirmar ? 'a confirmar' : 'firme'} · ${v.quien} · ${v.auto ?? ''} · ${v.condiciones ?? v.motivo ?? ''}`).join('\n') || '(ninguna)'}\n\n` +
