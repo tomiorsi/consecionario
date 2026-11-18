@@ -4428,28 +4428,57 @@ async function armarListaDelDia(env) {
      etiqueta Importante en su WhatsApp y esperan la tasación). Se cargan y se sacan por
      /api/admin/importantes. Si además tienen visita, va en el mismo renglón. */
   const ids = (await leerEstado(env, 'importantes'))?.valor ?? [];
-  const importantes = [];
   const yaEstan = new Set();
+  const fichas = [];
   for (const id of ids) {
     const c = await fila(id);
     if (!c) continue;
     const fotos = await env.DB.prepare(
       `SELECT COUNT(*) AS n FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
           AND tipo IN ('imagen', 'video')`).bind(c.id).first();
-    const nota = String(c.nota ?? '').replace(/\s+/g, ' ');
-    const permuta = /\(permuta\)/.test(nota) || c.tipo === 'permuta';
-    const cuerpo = nota.replace(/^(Para (tasar|cotizar)|La IA lo pasó)\s*(\([^)]*\))?:?\s*/, '');
-    const [suAuto, porCual] = cuerpo.split(/\s*→\s*/);
-    const limpio = (t) => String(t ?? '').replace(/\s*\([^)]*\)/g, '')
-      .split(/\.\s|,\s*(pide|no dijo|falta|versi|gomas|fotos)/i)[0].replace(/[.,;]\s*$/, '').trim();
-    const auto = limpio(suAuto) || 'su auto';
+    const { results: ms } = await env.DB.prepare(
+      `SELECT direccion, autor, tipo, texto, creado FROM mensajes WHERE conversacion_id = ?
+        ORDER BY creado DESC, id DESC LIMIT 16`).bind(c.id).all();
     const visita = agenda.find((v) => v.chat === c.id);
-    importantes.push(`${quienEs(c)}: ${permuta
-      ? `quiere entregar en permuta su ${auto}${limpio(porCual) ? ` por ${limpio(porCual)}` : ''}`
-      : `quiere dejar en consignación su ${auto}`}.${visita ? ` Viene el ${diaDe(visita)}.` : ''} ${
-      fotos?.n > 0 ? 'Mandó fotos y' : 'Faltan las fotos y'} ${permuta ? 'espera la diferencia' : 'espera el valor'}.`);
+    fichas.push({ id: c.id, quien: quienEs(c), conFotos: fotos?.n > 0,
+      texto: `### id ${c.id} · ${quienEs(c)} · ${c.nota ?? ''}${visita ? ` · VISITA: ${diaDe(visita)}` : ''}\n` +
+        (ms ?? []).reverse().map((m) => `[${String(m.creado).slice(5, 16)}] ${m.direccion === 'entrante' ? 'Cliente'
+          : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto ? m.texto.slice(0, 200) : `[${m.tipo ?? 'mensaje'}]`}`).join('\n') });
     yaEstan.add(c.id);
   }
+  /* EL RENGLÓN DE CADA IMPORTANTE DICE EN QUÉ QUEDÓ LA CHARLA (Maxi, 18/11: "leé la
+     conversación: quedó en que lo piensa"). Quiénes van lo decide la lista fija; el
+     grupo (Tasar o Esperando fotos) lo deciden las fotos; el modelo sólo escribe el renglón. */
+  const renglon = new Map();
+  if (fichas.length) {
+    const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+    const r = await client.messages.create({
+      model: MODELO,
+      max_tokens: 3000,
+      thinking: { type: 'disabled' },
+      output_config: { effort: 'medium' },
+      system: `Para cada cliente de abajo (gente que ofrece su auto en permuta o consignación a Manna
+Selected), escribí UN renglón corto y claro: su auto (marca, modelo, año, km), si es permuta (por
+cuál auto) o consignación, y EN QUÉ QUEDÓ LA CHARLA leyendo los últimos mensajes: por ejemplo
+"quedó en que lo piensa", "ya le escribimos, esperamos que responda", "el valor se lo damos cuando
+venga el sábado 28", "avisa cuando pasa por acá y ahí le damos la diferencia", "no contestó más,
+hay que insistirle". Si tiene VISITA, poné el día. Sólo lo que dicen los mensajes, sin inventar.
+Respondé SÓLO un JSON: {"<id>": "renglón", ...} con todos los ids.`,
+      messages: [{ role: 'user', content: fichas.map((f) => f.texto).join('\n\n') }],
+    });
+    const crudo = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('');
+    try {
+      const j = JSON.parse(crudo.slice(crudo.indexOf('{'), crudo.lastIndexOf('}') + 1));
+      for (const [k, v] of Object.entries(j)) renglon.set(Number(k), String(v).replace(/\s+/g, ' ').trim());
+    } catch { /* si no vino bien, va el nombre solo */ }
+  }
+  const linea = (f) => `${f.quien}: ${renglon.get(f.id) || 'ofrece su auto.'}`;
+  const tasar = fichas.filter((f) => f.conFotos).map(linea);
+  const sinFotos = fichas.filter((f) => !f.conFotos).map(linea);
+  const importantes = [
+    tasar.length ? `Tasar:\n${tasar.join('\n')}` : '',
+    sinFotos.length ? `Esperando fotos:\n${sinFotos.join('\n')}` : '',
+  ].filter(Boolean);
 
   /* VISITAS POSIBLES = LA AGENDA DEL PANEL, y nada más (Maxi, 18/11: "visita posible es
      visita posible" y "las visitas posibles van a la agenda del panel"). */
@@ -4515,7 +4544,7 @@ final. Si una sección queda vacía, no la pongas. Si no hay nadie, escribí só
   }
 
   const texto = [
-    importantes.length ? `IMPORTANTE\n${importantes.join('\n')}` : '',
+    importantes.length ? `IMPORTANTE\n${importantes.join('\n\n')}` : '',
     visitas.length ? `VISITAS POSIBLES\n${visitas.join('\n')}` : '',
     instagram,
   ].filter(Boolean).join('\n\n');
