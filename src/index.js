@@ -1867,6 +1867,7 @@ const FORMA_DE_RESPUESTA = {
     ir_a_whatsapp: { type: 'boolean' },
     para_tasar: { anyOf: [{ type: 'string', enum: ['permuta', 'consignacion'] }, { type: 'null' }] },
     resumen_para_tasar: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    intencion_compra: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     listo_para_cotizar: { type: 'boolean' },
     consulta_a_maxi: { anyOf: [{ type: 'string' }, { type: 'null' }] },
     visita: { anyOf: [{ type: 'string' }, { type: 'null' }] },
@@ -1880,14 +1881,14 @@ const FORMA_DE_RESPUESTA = {
     busca: { anyOf: [{ type: 'string' }, { type: 'null' }] },
   },
   required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion',
-    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'listo_para_cotizar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_nombre', 'visita_condiciones', 'visita_claves', 'interesado_reservado', 'idioma', 'visita_a_confirmar', 'busca'],
+    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'intencion_compra', 'listo_para_cotizar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_nombre', 'visita_condiciones', 'visita_claves', 'interesado_reservado', 'idioma', 'visita_a_confirmar', 'busca'],
   additionalProperties: false,
 };
 
 const FORMA_EN_TEXTO = `
 
 TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
-{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "listo_para_cotizar": false, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "visita_claves": [], "interesado_reservado": null, "idioma": "es", "visita_a_confirmar": false, "busca": null}
+{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "intencion_compra": null, "listo_para_cotizar": false, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "visita_claves": [], "interesado_reservado": null, "idioma": "es", "visita_a_confirmar": false, "busca": null}
 Escribí "partes" siempre, aunque "responder" sea false: así se puede revisar
 qué hubieras dicho.`;
 
@@ -2535,6 +2536,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     /* Un auto que dejan para evaluar, con lo que se juntó. */
     paraTasar: ['permuta', 'consignacion'].includes(dato.para_tasar) ? dato.para_tasar : null,
     resumenParaTasar: dato.resumen_para_tasar ? String(dato.resumen_para_tasar).slice(0, 300) : null,
+    intencionCompra: dato.intencion_compra ? String(dato.intencion_compra).slice(0, 200) : null,
     listoParaCotizar: dato.listo_para_cotizar === true && ['permuta', 'consignacion'].includes(dato.para_tasar),
     consulta: dato.consulta_a_maxi ? String(dato.consulta_a_maxi).slice(0, 400) : null,
     visita: !esComentario && /^\d{4}-\d{2}-\d{2}( \d{2}:\d{2})?$/.test(dato.visita ?? '') ? dato.visita : null,
@@ -4002,6 +4004,35 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
    si escribieron en las últimas 23 horas; si no, Meta sólo deja la plantilla.
    El número no va en el código: se busca por el chat. */
 const COLO_CHAT = 5198;
+
+/* Un WhatsApp a Maxi para que mire Instagram. Si la ventana de 24 h con él está
+   cerrada, queda en el panel. No se repite por la misma persona en el día. */
+async function avisarInstagramAMaxi(env, chat, motivo) {
+  const jefe = await chatDelJefe(env);
+  if (!jefe) return;
+  const quien = `@${chat.nombre ?? 'sin nombre'}`;
+  const ya = await env.DB.prepare(
+    `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
+        AND creado > datetime('now','-24 hours') AND texto LIKE ? LIMIT 1`
+  ).bind(jefe.id, `ATENCIÓN INSTAGRAM%${quien}%`).first();
+  if (ya) return;
+  const texto = `ATENCIÓN INSTAGRAM\n${quien} ${String(motivo).replace(/\s+/g, ' ').trim()}`;
+  try {
+    const abierta = await env.DB.prepare(
+      `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
+          AND creado > datetime('now','-23 hours') LIMIT 1`
+    ).bind(jefe.id).first();
+    if (!abierta) {
+      await anotarAviso(env, `${texto}\n(No te llegó por WhatsApp: no escribiste al número en las últimas 23 horas.)`);
+      return;
+    }
+    const id = await mandarUno(env, jefe, texto);
+    await guardarSaliente(env, jefe.id, texto, 'ia', id);
+  } catch (e) {
+    await anotarAviso(env, `No pude avisarte por WhatsApp de Instagram (${quien}): ${String(e?.message ?? e).slice(0, 150)}`);
+  }
+}
+
 async function avisarVisitaAlEquipo(env, v, { soloMaxi = false } = {}) {
   const jefe = await chatDelJefe(env);
   const colo = soloMaxi ? null : await env.DB.prepare('SELECT id, canal, externo_id FROM conversaciones WHERE id = ?')
@@ -4927,6 +4958,19 @@ async function atenderSolo(env, disparos) {
       const notaTasar = r.paraTasar
         ? `${PARA_TASAR} (${r.paraTasar === 'permuta' ? 'permuta' : 'consignación'}): ${r.resumenParaTasar ?? ''}`.trim()
         : null;
+      /* ATENCIÓN INSTAGRAM (Maxi, 18/11: "cuando en Instagram te mandan fotos de
+         consignación, de permuta o hay una intención de compra, mandame un WhatsApp al
+         2494"). Una vez por persona y por día. */
+      if (chat.canal === 'instagram' && !r.esComentario) {
+        const fotosRecien = r.paraTasar ? await env.DB.prepare(
+          `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
+              AND tipo IN ('imagen', 'video') AND creado > datetime('now','-30 minutes') LIMIT 1`
+        ).bind(chat.id).first() : null;
+        const motivo = fotosRecien
+          ? `mandó fotos de su auto (${r.paraTasar === 'permuta' ? 'permuta' : 'consignación'}): ${r.resumenParaTasar ?? ''}`
+          : r.intencionCompra ? `quiere comprar: ${r.intencionCompra}` : null;
+        if (motivo) await avisarInstagramAMaxi(env, chat, motivo);
+      }
       if (notaTasar) {
         await env.DB.prepare('UPDATE conversaciones SET nota = ?, tipo = ? WHERE id = ?')
           .bind(notaTasar, r.paraTasar === 'permuta' ? 'permuta' : 'vendedor', chat.id).run();
