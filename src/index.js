@@ -4436,6 +4436,14 @@ async function armarListaDelDia(env) {
      sobraban). Va quien ofrece su auto por WhatsApp, mandó fotos, el equipo no le
      contestó después y no tiene visita en la agenda. El renglón sale de la nota. */
   const importantes = [];
+  /* Los que el equipo ya dio por hechos o descartó en el panel (todos sus "Para tasar"
+     con "Ya está") no vuelven: Maxi, 16/11, "no lo tomamos". */
+  const tasar = ((await leerEstado(env, 'avisos'))?.valor ?? []).filter((a) => /^Para (tasar|cotizar)/.test(a.texto ?? ''));
+  const descartado = (c) => {
+    const tel = telefono(c.externo_id);
+    const suyos = tasar.filter((a) => (a.texto ?? '').includes(tel));
+    return suyos.length > 0 && suyos.every((a) => a.hecho);
+  };
   for (const c of chats ?? []) {
     /* Fotos del cliente, y si el equipo (una persona) le escribió después de la última. */
     const fotos = await env.DB.prepare(
@@ -4451,10 +4459,10 @@ async function armarListaDelDia(env) {
     const reciente = String(c.ultimo ?? '') > desde;
     if (!reciente && !enAgenda.has(c.id) && (!(fotos?.n > 0) || equipo)) continue;
     const ofrece = /^Para (tasar|cotizar)/.test(String(c.nota ?? '')) || ['permuta', 'vendedor'].includes(c.tipo);
-    if (c.canal === 'whatsapp' && ofrece && fotos?.n > 0 && !equipo && !enAgenda.has(c.id)) {
+    if (c.canal === 'whatsapp' && ofrece && fotos?.n > 0 && !equipo && !enAgenda.has(c.id) && !descartado(c)) {
       const resumen = String(c.nota ?? '').replace(/^Para (tasar|cotizar)\s*/, '').replace(/\s*Fotos:.*$/s, '')
         .replace(/^\((permuta|consignaci[oó]n)\):\s*/, (_, t) => t.startsWith('p') ? 'permuta: ' : 'para consignar: ')
-        .replace(/\s+/g, ' ').trim().slice(0, 160);
+        .replace(/\s+/g, ' ').trim().split(/(?<=\.)\s/)[0].slice(0, 140);
       importantes.push(`${quienEs(c)}: ${resumen || 'ofrece su auto, mandó fotos'}`);
       continue;
     }
