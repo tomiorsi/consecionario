@@ -2922,6 +2922,24 @@ async function mandarRespuesta(env, chat, {
     ).bind(chat.id).all();
     const ya = new Set((dichos ?? []).map((m) => plano(m.texto)).filter(Boolean));
     partes = partes.filter((t) => !ya.has(plano(t)));
+    /* TAMPOCO LO MISMO CON OTRAS PALABRAS (Maxi, 17/11, fa.salgadoo en
+       Instagram: "ese Fiat 500C ya se vendió, qué estás buscando" y al minuto
+       "ese 500C ya se vendió, qué auto estás buscando"). Cada oración de 3
+       palabras o más que se parece mucho (60% de las palabras en común) a una
+       que ya le mandamos en las últimas 12 horas, se saca. */
+    const oraciones = (t) => String(t ?? '').split(/(?<=[.!?])\s+|\n+/).map((o) => o.trim()).filter(Boolean);
+    const palabras = (o) => new Set(plano(o).split(' ').filter(Boolean));
+    const previas = (dichos ?? []).flatMap((m) => oraciones(m.texto)).map(palabras).filter((w) => w.size >= 3);
+    const repetida = (o) => {
+      const w = palabras(o);
+      if (w.size < 3) return false;
+      return previas.some((p) => {
+        let comunes = 0;
+        for (const x of w) if (p.has(x)) comunes++;
+        return comunes / (w.size + p.size - comunes) >= 0.6;
+      });
+    };
+    partes = partes.map((t) => oraciones(t).filter((o) => !repetida(o)).join(' ').trim()).filter(Boolean);
     if (!partes.length && !autoId && !ubicacion) return { partes: 0 };
   }
   /* EN INSTAGRAM NO SE PREGUNTA EL NOMBRE (Maxi, 16/11: "tenés prohibido
@@ -4281,7 +4299,7 @@ async function buenDia(env, { aPedido = false, porPanel = false, devolver = fals
       `SELECT direccion, autor, texto, creado FROM mensajes WHERE conversacion_id = ? AND texto IS NOT NULL
         ORDER BY creado DESC, id DESC LIMIT 10`
     ).bind(c.id).all();
-    charlas.push(`### ${quienEs(c)}${c.humano ? ' (lo atiende el equipo)' : ''}${c.nota ? ` · ${c.nota}` : ''}\n` +
+    charlas.push(`### [${c.canal}] ${quienEs(c)}${c.humano ? ' (lo atiende el equipo)' : ''}${c.nota ? ` · ${c.nota}` : ''}\n` +
       (ms ?? []).reverse().map((m) =>
         `[${String(m.creado).slice(5, 16)}] ${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto.slice(0, 180)}`).join('\n'));
   }
@@ -4423,7 +4441,7 @@ async function armarListaDelDia(env) {
     thinking: { type: 'disabled' },
     output_config: { effort: 'low' },
     system: `Armás la lista del día para Maxi, de Manna Selected (autos, Barracas).
-Hoy es ${hoyEnBsAs()}. Maxi la quiere CORTA (17/11): sólo dos cosas, nada más.
+Hoy es ${hoyEnBsAs()}. Maxi la quiere CORTA (17/11): sólo estas secciones, nada más.
 
 IMPORTANTE: los que ofrecen su auto en permuta o consignación Y mandaron fotos, y todavía
 esperan que el equipo les pase la diferencia o la valuación. Una línea cada uno:
@@ -4435,6 +4453,17 @@ VISITAS POSIBLES: las de VISITAS de hoy en adelante y los que en la charla queda
 pero falta el día. Una línea cada uno:
 +54 9 11 XXXX-XXXX, Nombre: día y hora tal como vienen en VISITAS (o "falta coordinar el día"), auto.
 
+INSTAGRAM (Maxi, 18/11: "estoy convirtiendo por Instagram y tengo el mismo método"). Sólo charlas
+marcadas [instagram] (mensajes privados, no comentarios), una línea cada uno con el @usuario:
+- CONSIGNACIONES POSIBLES (INSTAGRAM): los que ofrecen su auto para que se lo vendamos o
+  para entregar en permuta, y todavía no tienen respuesta del equipo con un valor.
+  @usuario: Marca Modelo Año, km, "para consignar" o "por cuál auto", y si mandó fotos.
+- VENTAS POSIBLES (INSTAGRAM): los que quieren comprar uno de nuestros autos con interés
+  concreto (quieren verlo, preguntan por la permuta, piden más fotos o detalles, vuelven a
+  escribir). Una sola pregunta de precio sin nada más no alcanza.
+  @usuario: auto que le interesa y en qué quedó.
+Los de Instagram que ofrecen su auto con fotos no se repiten en IMPORTANTE: van acá.
+
 Formato exacto, sin asteriscos:
 IMPORTANTE
 (líneas)
@@ -4442,9 +4471,15 @@ IMPORTANTE
 VISITAS POSIBLES
 (líneas)
 
+CONSIGNACIONES POSIBLES (INSTAGRAM)
+(líneas)
+
+VENTAS POSIBLES (INSTAGRAM)
+(líneas)
+
 REGLAS
-- Nada de consultas de precio, quejas, comentarios de Facebook o Instagram, ni gente sin
-  algo concreto. Si no entra en esas dos secciones, no va.
+- Nada de consultas de precio sueltas, quejas, comentarios en publicaciones de Facebook o
+  Instagram, ni gente sin algo concreto. Si no entra en una de las secciones, no va.
 - Sólo datos que estén escritos en la charla o en VISITAS. Nunca inventes autos, precios,
   ventas ni fechas. Los teléfonos tal cual vienen; si no hay teléfono, el usuario tal como viene.
 - Las visitas con el día tal como viene en VISITAS: nunca "mañana" ni calcules el día.
