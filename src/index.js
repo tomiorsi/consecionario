@@ -4423,7 +4423,7 @@ async function armarListaDelDia(env) {
      charlas de las últimas horas, entran todos los que ofrecieron su auto en los
      últimos 7 días (para tasar, permuta o vendedor), aunque la charla esté quieta. */
   const { results: chats } = await env.DB.prepare(
-    `SELECT id, canal, externo_id, nombre, humano, nota, ultimo FROM conversaciones
+    `SELECT id, canal, externo_id, nombre, humano, nota, tipo, ultimo FROM conversaciones
       WHERE id NOT IN (?, ?) AND (ultimo > datetime('now', ?)
         OR (ultimo > datetime('now', '-7 days')
             AND (nota LIKE 'Para tasar%' OR nota LIKE 'Para cotizar%' OR tipo IN ('permuta', 'vendedor'))))
@@ -4432,6 +4432,10 @@ async function armarListaDelDia(env) {
   const charlas = [];
   const desde = aSqlite(new Date(Date.now() - (esLunes ? 84 : 36) * HORAS).toISOString());
   const enAgenda = new Set(agenda.map((v) => v.chat));
+  /* IMPORTANTE SE ARMA ACÁ, NO LO DECIDE EL MODELO (Maxi, 18/11: le faltaban y le
+     sobraban). Va quien ofrece su auto por WhatsApp, mandó fotos, el equipo no le
+     contestó después y no tiene visita en la agenda. El renglón sale de la nota. */
+  const importantes = [];
   for (const c of chats ?? []) {
     /* Fotos del cliente, y si el equipo (una persona) le escribió después de la última. */
     const fotos = await env.DB.prepare(
@@ -4446,6 +4450,14 @@ async function armarListaDelDia(env) {
        no les contestó después: esos son los que no se pueden escapar. */
     const reciente = String(c.ultimo ?? '') > desde;
     if (!reciente && !enAgenda.has(c.id) && (!(fotos?.n > 0) || equipo)) continue;
+    const ofrece = /^Para (tasar|cotizar)/.test(String(c.nota ?? '')) || ['permuta', 'vendedor'].includes(c.tipo);
+    if (c.canal === 'whatsapp' && ofrece && fotos?.n > 0 && !equipo && !enAgenda.has(c.id)) {
+      const resumen = String(c.nota ?? '').replace(/^Para (tasar|cotizar)\s*/, '').replace(/\s*Fotos:.*$/s, '')
+        .replace(/^\((permuta|consignaci[oó]n)\):\s*/, (_, t) => t.startsWith('p') ? 'permuta: ' : 'para consignar: ')
+        .replace(/\s+/g, ' ').trim().slice(0, 160);
+      importantes.push(`${quienEs(c)}: ${resumen || 'ofrece su auto, mandó fotos'}`);
+      continue;
+    }
     const { results: ms } = await env.DB.prepare(
       `SELECT direccion, autor, tipo, texto, creado FROM mensajes WHERE conversacion_id = ?
         ORDER BY creado DESC, id DESC LIMIT 14`
@@ -4463,11 +4475,7 @@ async function armarListaDelDia(env) {
     system: `Armás la lista del día para Maxi, de Manna Selected (autos, Barracas).
 Hoy es ${hoyEnBsAs()}. Maxi la quiere CORTA (17/11): sólo estas secciones, nada más.
 
-IMPORTANTE: los que ofrecen su auto en permuta o consignación Y mandaron fotos, y todavía
-esperan que el equipo les pase la diferencia o la valuación. Una línea cada uno:
-+54 9 11 XXXX-XXXX, Nombre: Marca Modelo Año, km, por cuál auto (o "para consignar").
-(teléfono, nombre, su auto con año y km si están, y por cuál auto lo quiere; si es
-consignación, "para consignar").
+LA SECCIÓN IMPORTANTE YA ESTÁ ARMADA APARTE: vos NO escribís IMPORTANTE.
 
 VISITAS POSIBLES: las de VISITAS de hoy en adelante y los que en la charla quedaron en venir
 pero falta el día. Una línea cada uno:
@@ -4487,9 +4495,6 @@ marcadas [instagram] (mensajes privados, no comentarios), una línea cada uno co
 Los de Instagram que ofrecen su auto con fotos no se repiten en IMPORTANTE: van acá.
 
 Formato exacto, sin asteriscos:
-IMPORTANTE
-(líneas)
-
 VISITAS POSIBLES
 (líneas)
 
@@ -4505,31 +4510,25 @@ REGLAS
 - Sólo datos que estén escritos en la charla o en VISITAS. Nunca inventes autos, precios,
   ventas ni fechas. Los teléfonos tal cual vienen; si no hay teléfono, el usuario tal como viene.
 - Las visitas con el día tal como viene en VISITAS: nunca "mañana" ni calcules el día.
-- IMPORTANTE = charlas de whatsapp con "[ESPERA RESPUESTA DEL EQUIPO]" que ofrecen su auto. Las
-  que dicen "[el equipo ya le contestó después de las fotos]" NO van en IMPORTANTE (Maxi 17/11,
-  el del Yaris ya estaba contestado). Las que dicen "[TIENE VISITA EN AGENDA...]" van sólo en
-  VISITAS POSIBLES, con el auto que trae en el mismo renglón.
+- Las que dicen "[TIENE VISITA EN AGENDA...]" van sólo en VISITAS POSIBLES, con el auto que trae
+  en el mismo renglón.
 - LOS DE ARRIBA SON MOLDES, NO CLIENTES: nunca copies un teléfono, nombre o auto que no esté en
   CHARLAS o en VISITAS (Maxi, 18/11: salieron "Edgar" y "Leo" del ejemplo, que no existen).
-- IMPORTANTE sólo si "[fotos del cliente: N]" es mayor a 0. Sin fotos, no va.
 - Sin notas ni comentarios al final.
 - CADA CLIENTE UNA SOLA VEZ, TODO EN EL MISMO RENGLÓN (Maxi, 18/11). Si tiene visita, va en
-  VISITAS POSIBLES con lo que trae: "+54 9 11 6567-8894, Jorge: quiere dejar en consignación una
+  VISITAS POSIBLES con lo que trae: "+54 9 11 XXXX-XXXX, Nombre: quiere dejar en consignación una
   GLA 250 2016, 93.000 km, viene el sábado 28, falta confirmar el horario." Y no se repite en
-  IMPORTANTE ni en CONSIGNACIONES POSIBLES.
-- QUE NO SE ESCAPE NADIE: cada charla que dice "[fotos del cliente: N]" con N mayor a 0 y que
-  ofrece su auto (permuta o consignación) TIENE que aparecer en alguna sección, salvo que el
-  Equipo ya le haya pasado un valor o la charla haya terminado (no le interesa, ya vendió).
-  Con "[fotos del cliente: 0]" no va en IMPORTANTE.
+  CONSIGNACIONES POSIBLES.
 - Si una sección queda vacía, no la pongas. Si no hay nadie, escribí sólo: SIN PENDIENTES`,
     messages: [{ role: 'user', content:
       `VISITAS\n${agenda.map((v) => `${v.visita.slice(0, 10) === hoy ? 'HOY' : 'otro día'}: ${new Date(`${v.visita.slice(0, 10)}T12:00:00-03:00`).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' })}${v.visita.length > 10 ? ` a las ${v.visita.slice(11, 16)}` : ''} · ${v.aConfirmar ? 'a confirmar' : 'firme'} · ${v.quien} · ${v.auto ?? ''} · ${v.condiciones ?? v.motivo ?? ''}`).join('\n') || '(ninguna)'}\n\n` +
       `CONSULTAS SIN CONTESTAR\n${consultas.map((c) => `${c.n}. ${c.pregunta}`).join('\n') || '(ninguna)'}\n\n` +
       `CHARLAS (fecha y hora UTC; Buenos Aires es UTC-3)\n\n${charlas.join('\n\n')}` }],
   });
-  const texto = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
-  if (!texto) throw new Error(`Claude no escribió la lista (corte: ${r.stop_reason})`);
-  return texto;
+  let resto = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
+  if (/^SIN PENDIENTES/i.test(resto)) resto = '';
+  const texto = [importantes.length ? `IMPORTANTE\n${importantes.join('\n')}` : '', resto].filter(Boolean).join('\n\n');
+  return texto || 'SIN PENDIENTES';
 }
 
 /* De a tramos que entren en un WhatsApp, sin cortar a un cliente por la mitad. */
