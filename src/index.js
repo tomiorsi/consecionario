@@ -4504,13 +4504,18 @@ Respondé SÓLO un JSON: {"<id>": "renglón", ...} con todos los ids.`,
       ORDER BY (nota IS NULL), ultimo DESC LIMIT 50`
   ).bind(jefe?.id ?? 0, COLO_CHAT).all();
   const charlas = [];
+  const activos = new Set();
   for (const c of chats ?? []) {
     if (yaEstan.has(c.id)) continue;
     const { results: ms } = await env.DB.prepare(
       `SELECT direccion, autor, tipo, texto, creado FROM mensajes WHERE conversacion_id = ?
         ORDER BY creado DESC, id DESC LIMIT 14`
     ).bind(c.id).all();
-    charlas.push(`### ${quienEs(c)}${c.humano ? ' (lo atiende el equipo)' : ''}${c.nota ? ` · ${c.nota}` : ''}\n` +
+    /* Charla viva: lo último lo escribió el cliente. Si lo último es nuestro, dejó de
+       contestar (un franela, Maxi 18/11) y no puede ser venta posible. */
+    const vivo = ms?.[0]?.direccion === 'entrante';
+    if (vivo) activos.add(`@${c.nombre ?? ''}`.trim());
+    charlas.push(`### ${quienEs(c)}${vivo ? ' [CHARLA VIVA]' : ' [DEJÓ DE CONTESTAR]'}${c.humano ? ' (lo atiende el equipo)' : ''}${c.nota ? ` · ${c.nota}` : ''}\n` +
       (ms ?? []).reverse().map((m) =>
         `[${String(m.creado).slice(5, 16)}] ${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto ? m.texto.slice(0, 220) : `[${m.tipo ?? 'mensaje'}]`}`).join('\n'));
   }
@@ -4532,7 +4537,7 @@ entregar en permuta y todavía no tienen un valor del equipo.
 VENTAS POSIBLES (INSTAGRAM): SÓLO conversaciones de venta en curso: hubo ida y vuelta sobre
 comprar uno de nuestros autos y el cliente todavía no se despidió ni dejó de contestar. El que
 consultó, recibió la info o el link y no contestó más es un franela: NO va. Una consulta suelta
-tampoco.
+tampoco. Las marcadas [DEJÓ DE CONTESTAR] NUNCA van en VENTAS POSIBLES.
 @usuario: auto que le interesa y en qué quedó.
 
 Formato exacto, sin asteriscos ni puntos suspensivos, cada renglón completo:
@@ -4548,6 +4553,13 @@ final. Si una sección queda vacía, no la pongas. Si no hay nadie, escribí só
     });
     instagram = (r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join('').trim();
     if (/^NADIE/i.test(instagram)) instagram = '';
+    /* En VENTAS POSIBLES quedan sólo las charlas vivas, lo diga o no el modelo. */
+    instagram = instagram.split(/\n\s*\n/).map((b) => {
+      const [titulo, ...rs] = b.trim().split('\n');
+      if (!/^VENTAS POSIBLES/i.test(titulo)) return b.trim();
+      const quedan = rs.filter((l) => activos.has((l.match(/^@\S+/) ?? [''])[0].replace(/:$/, '')));
+      return quedan.length ? [titulo, ...quedan].join('\n') : '';
+    }).filter(Boolean).join('\n\n');
   }
 
   const texto = [
