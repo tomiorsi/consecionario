@@ -4299,7 +4299,7 @@ async function buenDia(env, { aPedido = false, porPanel = false, devolver = fals
       `SELECT direccion, autor, texto, creado FROM mensajes WHERE conversacion_id = ? AND texto IS NOT NULL
         ORDER BY creado DESC, id DESC LIMIT 10`
     ).bind(c.id).all();
-    charlas.push(`### [${c.canal}] [fotos del cliente: ${fotos?.n ?? 0}] ${quienEs(c)}${c.humano ? ' (lo atiende el equipo)' : ''}${c.nota ? ` · ${c.nota}` : ''}\n` +
+    charlas.push(`### [${c.canal}] [fotos del cliente: ${fotos?.n ?? 0}]${fotos?.n > 0 ? (equipo ? ' [el equipo ya le contestó después de las fotos]' : ' [ESPERA RESPUESTA DEL EQUIPO]') : ''}${enAgenda.has(c.id) ? ' [TIENE VISITA EN AGENDA: va sólo en VISITAS POSIBLES]' : ''} ${quienEs(c)}${c.humano ? ' (lo atiende el equipo)' : ''}${c.nota ? ` · ${c.nota}` : ''}\n` +
       (ms ?? []).reverse().map((m) =>
         `[${String(m.creado).slice(5, 16)}] ${m.direccion === 'entrante' ? 'Cliente' : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto.slice(0, 180)}`).join('\n'));
   }
@@ -4423,18 +4423,29 @@ async function armarListaDelDia(env) {
      charlas de las últimas horas, entran todos los que ofrecieron su auto en los
      últimos 7 días (para tasar, permuta o vendedor), aunque la charla esté quieta. */
   const { results: chats } = await env.DB.prepare(
-    `SELECT id, canal, externo_id, nombre, humano, nota FROM conversaciones
+    `SELECT id, canal, externo_id, nombre, humano, nota, ultimo FROM conversaciones
       WHERE id NOT IN (?, ?) AND (ultimo > datetime('now', ?)
         OR (ultimo > datetime('now', '-7 days')
             AND (nota LIKE 'Para tasar%' OR nota LIKE 'Para cotizar%' OR tipo IN ('permuta', 'vendedor'))))
       ORDER BY (nota IS NULL), ultimo DESC LIMIT 80`
   ).bind(jefe?.id ?? 0, COLO_CHAT, esLunes ? '-84 hours' : '-36 hours').all();
   const charlas = [];
+  const desde = aSqlite(new Date(Date.now() - (esLunes ? 84 : 36) * HORAS).toISOString());
+  const enAgenda = new Set(agenda.map((v) => v.chat));
   for (const c of chats ?? []) {
+    /* Fotos del cliente, y si el equipo (una persona) le escribió después de la última. */
     const fotos = await env.DB.prepare(
-      `SELECT COUNT(*) AS n FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
-          AND tipo IN ('imagen', 'video')`
+      `SELECT COUNT(*) AS n, MAX(creado) AS ultima FROM mensajes WHERE conversacion_id = ?
+          AND direccion = 'entrante' AND tipo IN ('imagen', 'video')`
     ).bind(c.id).first();
+    const equipo = fotos?.ultima ? await env.DB.prepare(
+      `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
+          AND autor = 'persona' AND creado > ? LIMIT 1`
+    ).bind(c.id, fotos.ultima).first() : null;
+    /* Los viejos (de más de 36 h) sólo entran si mandaron fotos y el equipo todavía
+       no les contestó después: esos son los que no se pueden escapar. */
+    const reciente = String(c.ultimo ?? '') > desde;
+    if (!reciente && !enAgenda.has(c.id) && (!(fotos?.n > 0) || equipo)) continue;
     const { results: ms } = await env.DB.prepare(
       `SELECT direccion, autor, tipo, texto, creado FROM mensajes WHERE conversacion_id = ?
         ORDER BY creado DESC, id DESC LIMIT 14`
@@ -4448,7 +4459,7 @@ async function armarListaDelDia(env) {
     model: MODELO,
     max_tokens: 8000,
     thinking: { type: 'disabled' },
-    output_config: { effort: 'low' },
+    output_config: { effort: 'medium' },
     system: `Armás la lista del día para Maxi, de Manna Selected (autos, Barracas).
 Hoy es ${hoyEnBsAs()}. Maxi la quiere CORTA (17/11): sólo estas secciones, nada más.
 
@@ -4494,9 +4505,10 @@ REGLAS
 - Sólo datos que estén escritos en la charla o en VISITAS. Nunca inventes autos, precios,
   ventas ni fechas. Los teléfonos tal cual vienen; si no hay teléfono, el usuario tal como viene.
 - Las visitas con el día tal como viene en VISITAS: nunca "mañana" ni calcules el día.
-- Si el equipo ya le contestó después de las fotos (texto, [audio] o cualquier mensaje del
-  Equipo), se considera que ya le pasó la diferencia: NO va en IMPORTANTE (Maxi 17/11, el del
-  Yaris ya estaba contestado).
+- IMPORTANTE = charlas de whatsapp con "[ESPERA RESPUESTA DEL EQUIPO]" que ofrecen su auto. Las
+  que dicen "[el equipo ya le contestó después de las fotos]" NO van en IMPORTANTE (Maxi 17/11,
+  el del Yaris ya estaba contestado). Las que dicen "[TIENE VISITA EN AGENDA...]" van sólo en
+  VISITAS POSIBLES, con el auto que trae en el mismo renglón.
 - LOS DE ARRIBA SON MOLDES, NO CLIENTES: nunca copies un teléfono, nombre o auto que no esté en
   CHARLAS o en VISITAS (Maxi, 18/11: salieron "Edgar" y "Leo" del ejemplo, que no existen).
 - IMPORTANTE sólo si "[fotos del cliente: N]" es mayor a 0. Sin fotos, no va.
