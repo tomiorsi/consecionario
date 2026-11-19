@@ -2857,6 +2857,46 @@ const comoMensajeDeMeta = (texto) => {
 /* Sólo JPG: WhatsApp no acepta WebP como imagen. Las fotos que se suben
    desde el panel ya traen su JPG de 800 px (`-og.jpg`); las viejas que no
    lo tienen se saltean. */
+/* Las fotos de la Ranger están en un auto en borrador del panel (marca Ford, modelo
+   Ranger): no sale en el sitio, pero sus fotos se sirven igual. */
+async function fotosDeLaRanger(env, chat) {
+  const c = await env.DB.prepare('SELECT humano, anuncio FROM conversaciones WHERE id = ?').bind(chat.id).first();
+  if (!c || c.humano) return;
+  const { results: ms } = await env.DB.prepare(
+    `SELECT direccion, tipo, texto FROM mensajes WHERE conversacion_id = ? ORDER BY creado, id`
+  ).bind(chat.id).all();
+  const todo = (ms ?? []).map((m) => m.texto ?? '').join(' ');
+  if (!/ranger/i.test(`${c.anuncio ?? ''} ${todo}`)) return;
+  const ya = await leerEstado(env, 'ranger_fotos');
+  const mandadas = ya?.valor ?? {};
+  if (mandadas[chat.id]) return;
+  const auto = await env.DB.prepare(
+    `SELECT id FROM autos WHERE marca LIKE 'Ford%' AND modelo LIKE 'Ranger%' AND estado = 'borrador' ORDER BY id DESC LIMIT 1`
+  ).first();
+  if (!auto) return;
+  const { results: fs } = await env.DB.prepare(
+    'SELECT clave FROM fotos WHERE auto_id = ? ORDER BY orden, id LIMIT 4').bind(auto.id).all();
+  const fotos = [];
+  for (const { clave } of fs ?? []) {
+    const hay = await env.FOTOS.head(`${clave}-og.jpg`).catch(() => null);
+    if (hay) fotos.push(`${MARCA_DE_FOTO}${SITIO}/fotos/${clave}-og.jpg`);
+  }
+  if (!fotos.length) return;
+  mandadas[chat.id] = new Date().toISOString();
+  await guardarEstado(env, 'ranger_fotos', Object.fromEntries(Object.entries(mandadas).slice(-500)));
+  for (const f of fotos) {
+    await new Promise((listo) => setTimeout(listo, PAUSA_ENTRE_FOTOS));
+    const id = await mandarUno(env, chat, f);
+    await guardarSaliente(env, chat.id, f, 'ia', id);
+  }
+  const dijo = (ms ?? []).filter((m) => m.direccion === 'entrante').map((m) => m.texto ?? '').join(' ');
+  if (/permuta|entregar|tengo (un|una)|mi auto|mi camioneta|compra directa|contado|efectivo|en mano/i.test(dijo)) return;
+  await new Promise((listo) => setTimeout(listo, PAUSA_ENTRE_FOTOS));
+  const pregunta = 'La estás evaluando para compra directa o tenés un vehículo para entregar?';
+  const id = await mandarUno(env, chat, pregunta);
+  await guardarSaliente(env, chat.id, pregunta, 'ia', id);
+}
+
 async function fotosDelAuto(env, autoId) {
   const { results } = await env.DB.prepare(
     `SELECT f.clave FROM fotos f JOIN autos a ON a.id = f.auto_id
@@ -5050,6 +5090,14 @@ async function atenderSolo(env, disparos) {
           || /tel[eé]fono|whats|wsp|wpp|celular|n[uú]mero|llamar/i.test(String(r.ultimo?.texto ?? ''))),
         autor: 'ia',
       });
+
+      /* LA RANGER LTD: 4 FOTOS Y LA PREGUNTA (Maxi, 17-18/11). Si la charla es por la
+         Ranger y todavía no se le mandaron, salen las 4 fotos (3 de afuera y 1 de
+         adentro) y después, aparte, si es compra directa o tiene un auto para entregar
+         (salvo que ya lo haya dicho). Una sola vez por chat. */
+      if (!r.esComentario && ['whatsapp', 'instagram', 'messenger'].includes(chat.canal)) {
+        await fotosDeLaRanger(env, chat).catch((e) => console.error('Fotos de la Ranger:', e?.message ?? e));
+      }
 
       /* LO QUE MAXI TIENE QUE SABER, en el momento: una visita, un chat
          que pasa al equipo, un auto nuevo para tasar. Uno por evento. */
