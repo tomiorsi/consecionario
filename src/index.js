@@ -2874,6 +2874,8 @@ async function fotosDeLaRanger(env, chat) {
     `SELECT id FROM autos WHERE marca LIKE 'Ford%' AND modelo LIKE 'Ranger%' AND estado = 'borrador' ORDER BY id DESC LIMIT 1`
   ).first();
   if (!auto) return;
+  /* Si ya le salieron (desde el panel o a mano), no se repiten. */
+  if ((ms ?? []).some((m) => m.direccion === 'saliente' && String(m.texto ?? '').includes(`/fotos/autos/${auto.id}/`))) return;
   const { results: fs } = await env.DB.prepare(
     'SELECT clave FROM fotos WHERE auto_id = ? ORDER BY orden, id LIMIT 4').bind(auto.id).all();
   const fotos = [];
