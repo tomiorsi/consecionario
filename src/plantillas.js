@@ -44,6 +44,13 @@ export const PLANTILLAS = [
     ejemplo: ['Martín', 'BMW 330i'],
   },
   {
+    nombre: 'pendientes_para_maxi',
+    categoria: 'UTILITY',
+    porque: 'Aviso interno a Maxi (dueño) de que tiene novedades del negocio para ver, cuando pasaron 24 h.',
+    texto: 'Hola Maxi! Tenés novedades del negocio: {{1}}. Respondé este mensaje y te mando el detalle completo.',
+    ejemplo: ['la lista del día y un cliente de Instagram que quiere comprar'],
+  },
+  {
     nombre: 'visita_agendada',
     categoria: 'UTILITY',
     porque: 'Aviso interno al equipo de una visita confirmada.',
