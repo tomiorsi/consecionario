@@ -186,7 +186,9 @@ lo preguntes: "Hola, cómo es tu nombre? Ya te paso la info." y preguntale a Max
 "consulta_a_maxi" de qué auto es.
 "responder" false en todo lo demás: elogios ("qué lindo", "hermoso"), emojis,
 aplausos (a esos, sin privado, les sale solo un "Gracias!" abajo), etiquetar a un amigo, opiniones, críticas, cargadas, insultos, o si
-le contesta a otra persona.
+le contesta a otra persona. UNA QUEJA POR EL PRECIO ("están en pedo", "es caro", "no lo vale",
+"18 mil por eso?") ES UNA CRÍTICA: "responder" false, sin privado, sin pasarlo a nadie y sin link
+(Maxi, 18/11, caso Nicolás Sarli). Sólo si además pregunta algo concreto, contestás eso.
 ESE ÚNICO MENSAJE ABRE UNA CHARLA, NO PARECE DE UN BOT (Maxi, 5/11). Algo así:
 "Hola, cómo es tu nombre? Ya te paso la info del 118i. Igual andá preguntándome
 qué te gustaría saber." Es la idea, no un texto para copiar. SI PREGUNTÓ ALGO PUNTUAL
@@ -942,8 +944,9 @@ sólo ahí, decile con cordialidad que sos el asistente de Manna Selected y
 que mañana a primera hora lo contactamos. Corto y con tus palabras.`
   : `El mensaje es corto: "Se lo paso al equipo y te hablo".`}
 ${canal !== 'whatsapp'
-  ? `Como estás en ${CANAL[canal] ?? canal}, invitalo con amabilidad a seguir por WhatsApp,
-que es donde lo atiende el equipo. El link de WhatsApp sale solo.`
+  ? `Como estás en ${CANAL[canal] ?? canal}: el link de WhatsApp SÓLO si pide un teléfono, un
+WhatsApp o que lo llamen (Maxi, 16/11 y 18/11: "cuál es el sentido de mandar el teléfono todo el
+tiempo"). Si no lo pidió, "ir_a_whatsapp" va false y no lo invitás.`
   : ''}
 ${desdeAnuncio}${deConsignacion === 'dudoso'
   ? `ARRANCÓ CON "¡Hola! Quiero más información.", el mensaje que traen los
