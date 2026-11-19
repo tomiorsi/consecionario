@@ -3035,7 +3035,15 @@ async function mandarRespuesta(env, chat, {
         return comunes / (w.size + p.size - comunes) >= 0.6;
       });
     };
-    partes = partes.map((t) => oraciones(t).filter((o) => !repetida(o)).join(' ').trim()).filter(Boolean);
+    /* Sólo se tocan las partes que tienen algo repetido, y se saca la oración sin juntar los
+       renglones (19/11: la lista del día le llegó a Maxi toda pegada en un renglón). */
+    partes = partes.map((t) => {
+      const sacar = oraciones(t).filter((o) => repetida(o));
+      if (!sacar.length) return t;
+      let queda = t;
+      for (const o of sacar) queda = queda.replace(o, '');
+      return queda.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+    }).filter(Boolean);
     if (!partes.length && !autoId && !ubicacion) return { partes: 0 };
   }
   /* EN INSTAGRAM NO SE PREGUNTA EL NOMBRE (Maxi, 16/11: "tenés prohibido
