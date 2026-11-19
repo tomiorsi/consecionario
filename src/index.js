@@ -4117,7 +4117,7 @@ async function avisarInstagramAMaxi(env, chat, motivo) {
           AND creado > datetime('now','-23 hours') LIMIT 1`
     ).bind(jefe.id).first();
     if (!abierta) {
-      await anotarAviso(env, `${texto}\n(No te llegó por WhatsApp: no escribiste al número en las últimas 23 horas.)`);
+      await guardarParaMaxi(env, texto, 'un cliente de Instagram para mirar');
       return;
     }
     const id = await mandarUno(env, jefe, texto);
@@ -4709,6 +4709,44 @@ function enTramos(texto, tope = 3500) {
 
 /* SIN PLANTILLAS (Maxi, 6/11). Meta sólo deja texto libre si escribieron en las
    últimas 23 horas: si no, queda en el panel. Si no hay nada, no sale nada. */
+
+/* LO QUE NO LE PUDO LLEGAR A MAXI (ventana de 24 h cerrada): se guarda, sale la plantilla
+   aprobada `pendientes_para_maxi` (una por día y por tema) y, cuando él contesta, le llega
+   todo junto. También queda en el panel, como siempre. */
+async function guardarParaMaxi(env, texto, tema) {
+  await anotarAviso(env, `${texto}\n(Te avisé por WhatsApp con la plantilla: cuando contestes, te llega completo.)`);
+  const pend = (await leerEstado(env, 'para_maxi'))?.valor ?? { textos: [], avisados: {} };
+  pend.textos = [...(pend.textos ?? []), texto].slice(-10);
+  const hoy = diaDeBsAs();
+  const clave = `${hoy} ${tema}`;
+  const yaAvisado = pend.avisados?.[clave];
+  pend.avisados = Object.fromEntries(Object.entries({ ...(pend.avisados ?? {}), [clave]: true }).slice(-30));
+  await guardarEstado(env, 'para_maxi', pend);
+  if (yaAvisado) return;
+  const jefe = await chatDelJefe(env);
+  if (!jefe) return;
+  try {
+    const id = await mandarPlantilla(env, jefe, 'pendientes_para_maxi', [tema]);
+    await guardarSaliente(env, jefe.id, `Hola Maxi! Tenés novedades del negocio: ${tema}. Respondé este mensaje y te mando el detalle completo.`, 'ia', id);
+  } catch (e) {
+    await anotarAviso(env, `No pude mandarte la plantilla de aviso por WhatsApp: ${String(e?.message ?? e).slice(0, 150)}`);
+  }
+}
+
+async function entregarPendientesAMaxi(env) {
+  const pend = (await leerEstado(env, 'para_maxi'))?.valor;
+  if (!pend?.textos?.length) return;
+  const jefe = await chatDelJefe(env);
+  if (!jefe) return;
+  await guardarEstado(env, 'para_maxi', { ...pend, textos: [] });
+  for (const t of pend.textos) {
+    for (const tramo of enTramos(t)) {
+      const id = await mandarUno(env, jefe, tramo);
+      await guardarSaliente(env, jefe.id, tramo, 'ia', id);
+    }
+  }
+}
+
 async function mandarListaDelDia(env) {
   const texto = await armarListaDelDia(env);
   if (/^SIN PENDIENTES/i.test(texto)) return;
@@ -4722,7 +4760,9 @@ async function mandarListaDelDia(env) {
             AND creado > datetime('now','-23 hours') LIMIT 1`
       ).bind(d.id).first();
       if (!abierta) {
-        await anotarAviso(env, `La lista del día no le llegó a ${quien} por WhatsApp: no escribió al número en las últimas 23 horas. Está acá en el panel.`);
+        /* LA VENTANA ESTÁ CERRADA (Maxi, 19/11: "no me mandaste el mensaje"): queda guardada
+           y le sale la plantilla aprobada. Cuando conteste, le llega completa. */
+        await guardarParaMaxi(env, `*LISTA DEL DÍA*\n\n${texto}`, 'la lista del día');
         continue;
       }
       for (const tramo of enTramos(texto)) {
@@ -5405,6 +5445,7 @@ async function recibirDeMeta(peticion, env, ctx) {
           .bind(d.conversacion).first();
         (esElJefe(env, c) && !cfgPrueba ? delJefe : deClientes).push(d);
       }
+      if (delJefe.length) await entregarPendientesAMaxi(env).catch((e) => console.error('Pendientes de Maxi:', e?.message ?? e));
       for (const d of delJefe) {
         await atenderAlJefe(env, d.conversacion, d.mensaje)
           .catch((e) => console.error('No se pudo atender a Maxi:', e?.message ?? e));
