@@ -2767,12 +2767,21 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
     /* CON EL TOKEN DE LA PÁGINA Y NO CON EL DEL USUARIO DEL SISTEMA: el
        envío es una de las cosas que la página no acepta del otro (ver
        `fbComoPagina`). */
-    const r = await fbComoPagina(env, `/${LA_PAGINA(env)}/messages`, {
-      method: 'POST',
-      body: JSON.stringify(comentarioId
-        ? { recipient: { comment_id: comentarioId }, message: { text: texto } }
-        : { recipient: { id: chat.externo_id }, messaging_type: 'RESPONSE', message: comoMensajeDeMeta(texto) }),
-    });
+    const cuerpoFb = (conEtiqueta) => JSON.stringify(comentarioId
+      ? { recipient: { comment_id: comentarioId }, message: { text: texto } }
+      : conEtiqueta
+      ? { recipient: { id: chat.externo_id }, messaging_type: 'MESSAGE_TAG', tag: 'HUMAN_AGENT', message: comoMensajeDeMeta(texto) }
+      : { recipient: { id: chat.externo_id }, messaging_type: 'RESPONSE', message: comoMensajeDeMeta(texto) });
+    let r;
+    try {
+      r = await fbComoPagina(env, `/${LA_PAGINA(env)}/messages`, { method: 'POST', body: cuerpoFb(false) });
+    } catch (e) {
+      /* PASADAS LAS 24 H, UNA PERSONA DEL EQUIPO PUEDE ESCRIBIR HASTA 7 DÍAS (etiqueta
+         HUMAN_AGENT de Meta). Sólo para lo que manda el equipo desde el panel (Maxi, 19/11:
+         la confirmación de la visita de Richard no salía). */
+      if (!chat.etiquetaHumana || comentarioId || !/allowed window/i.test(String(e?.message))) throw e;
+      r = await fbComoPagina(env, `/${LA_PAGINA(env)}/messages`, { method: 'POST', body: cuerpoFb(true) });
+    }
     if (comentarioId) {
       await emparejarConElPrivado(env, chat, r?.recipient_id)
         .catch((e) => console.error('No se pudo emparejar el comentario con el privado:', e?.message ?? e));
@@ -2781,13 +2790,19 @@ async function mandarUno(env, chat, texto, { comentarioId = null } = {}) {
   }
 
   if (chat.canal === 'instagram') {
-    const r = await igLlamar(env, '/me/messages', {
-      method: 'POST',
-      body: JSON.stringify({
-        recipient: comentarioId ? { comment_id: comentarioId } : { id: chat.externo_id },
-        message: comentarioId ? { text: texto } : comoMensajeDeMeta(texto),
-      }),
+    const cuerpoIg = (conEtiqueta) => JSON.stringify({
+      recipient: comentarioId ? { comment_id: comentarioId } : { id: chat.externo_id },
+      message: comentarioId ? { text: texto } : comoMensajeDeMeta(texto),
+      ...(conEtiqueta ? { messaging_type: 'MESSAGE_TAG', tag: 'HUMAN_AGENT' } : {}),
     });
+    let r;
+    try {
+      r = await igLlamar(env, '/me/messages', { method: 'POST', body: cuerpoIg(false) });
+    } catch (e) {
+      /* Igual que en Messenger: el equipo puede escribir hasta 7 días con HUMAN_AGENT. */
+      if (!chat.etiquetaHumana || comentarioId || !/allowed window/i.test(String(e?.message))) throw e;
+      r = await igLlamar(env, '/me/messages', { method: 'POST', body: cuerpoIg(true) });
+    }
     return r?.message_id ?? null;
   }
 
@@ -6253,6 +6268,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     }
 
     try {
+      if (cuerpo?.comoBot !== true) chat.etiquetaHumana = true;
       return json({ ok: true, ...(await mandarRespuesta(env, chat, {
         /* `comoBot`: un mensaje pedido por Maxi que no le saca el chat al bot. */
         partes, autoId, ubicacion, autor: cuerpo?.comoBot === true ? 'ia' : 'persona',
