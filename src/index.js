@@ -4946,13 +4946,24 @@ async function hacerPosventa(env) {
    puede escribir), NO TIENE NI TUVO VISITA (ni en la agenda ni hablada en
    la charla), no es para tasar y no lo sigue una persona. De 10 a 20 en Buenos Aires. Sale por la cola, que no manda
    nada si en el medio escribió el cliente o lo tomó alguien. */
-const PREGUNTA_DIA = 'Si te interesa verlo en persona, agendemos un día. Qué días podés de esta semana?';
+/* PRIMERO SE SALUDA (Maxi, 20/11: "tenés que saludar primero. Buen día,
+   nombre, cómo estás? Si te interesa verlo en persona, podemos agendar un
+   día sin compromiso... ni siquiera saludaste"). El nombre va sólo si es
+   un nombre de verdad (no un usuario de Instagram ni un número). */
+function preguntaDia(nombre) {
+  const hora = new Date(Date.now() - 3 * HORAS).getUTCHours();
+  const saludo = hora < 13 ? 'Buen día' : 'Buenas tardes';
+  const primero = String(nombre ?? '').trim().split(/\s+/)[0] ?? '';
+  const n = /^[A-Za-zÁÉÍÓÚÑáéíóúñ]{2,15}$/.test(primero)
+    ? primero[0].toUpperCase() + primero.slice(1).toLowerCase() : '';
+  return `${saludo}${n ? ` ${n}` : ''}, cómo estás? Si te interesa verlo en persona, podemos agendar un día sin compromiso.`;
+}
 async function pedirDiaACallados(env) {
   if (!(await configDelBot(env)).encendida) return;
   const horaBsAs = new Date(Date.now() - 3 * HORAS).getUTCHours();
   if (horaBsAs < 10 || horaBsAs >= 20) return;
   const { results } = await env.DB.prepare(
-    `SELECT c.id, c.canal, c.externo_id, c.nota FROM conversaciones c
+    `SELECT c.id, c.canal, c.externo_id, c.nota, c.nombre FROM conversaciones c
       WHERE c.humano = 0 AND c.canal IN ('whatsapp','instagram')
         AND COALESCE(c.etapa, '') <> 'cerrado'
         AND c.ultimo BETWEEN datetime('now','-20 hours') AND datetime('now','-2 hours')
@@ -5011,7 +5022,7 @@ async function pedirDiaACallados(env) {
     ).bind(c.id).first())?.n ?? 0;
     await env.ENVIOS.get(env.ENVIOS.idFromName(`dia-${c.id}`))
       .encolar({ id: c.id, canal: c.canal, externo_id: c.externo_id },
-        [{ texto: PREGUNTA_DIA, espera: 0 }], 'ia', visto, 0);
+        [{ texto: preguntaDia(c.nombre), espera: 0 }], 'ia', visto, 0);
   }
 }
 
