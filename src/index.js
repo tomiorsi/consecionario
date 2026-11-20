@@ -2400,6 +2400,14 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
       + (a.estado === 'vendido' ? ' (YA SE VENDIÓ)' : reservadosIds.includes(a.id) ? ' (RESERVADO CON SEÑA)' : '');
   }
 
+  /* UN CLIENTE QUE YA VENÍA HABLANDO POR OTRO LADO (Maxi, 20/11: Marcelo
+     Toledo, el de la C250, habló por Instagram y con Maxi; le pasaron el
+     celular y puede escribir por WhatsApp. "No lo tomes como una
+     conversación nueva, es muy importante ese cliente"). Los esperados se
+     cargan en /api/admin/esperados; si este chat es uno de ellos, el bot
+     lee la charla anterior y sigue desde ahí, y a Maxi le llega el aviso. */
+  const previa = simulacion ? null : await charlaPreviaDeEsperado(env, conversacionId, chat, todos);
+
   const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
   const pedido = {
     model: MODELO_CHARLA,
@@ -2440,7 +2448,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
       yaHablamos: todosPrivados.some((m) => m.direccion === 'saliente'),
       /* "Hoy" es el día de Buenos Aires. Las fechas de la base son UTC. */
       saludamosHoy: todosPrivados.some((m) => m.direccion === 'saliente' && diaDeBsAs(m.creado) === diaDeBsAs()),
-    }) + FORMA_EN_TEXTO,
+    }) + (previa ?? '') + FORMA_EN_TEXTO,
     /* BUSCAR EN LA WEB, PARA NO INVENTAR: el modelo del auto del cliente
        (una versión, un motor) y, desde el 28/10, el tema que traiga a la
        charla (Maxi: "que converse de cualquier tema e investigue"). Se
@@ -4109,6 +4117,69 @@ const COLO_CHAT = 5198;
 
 /* Un WhatsApp a Maxi para que mire Instagram. Si la ventana de 24 h con él está
    cerrada, queda en el panel. No se repite por la misma persona en el día. */
+/* ── LOS CLIENTES ESPERADOS POR OTRO CANAL ─────────────────────────────
+   estado 'esperados': [{origen: idChat, nombres: ['marcelo','toledo'],
+   palabras: ['c250','c 250'], nota, hasta: 'AAAA-MM-DD', chat: idEncontrado}].
+   Un chat nuevo (de otro canal que el origen) es el esperado si su nombre
+   tiene alguno de los nombres o lo que escribió tiene alguna de las
+   palabras. Una vez encontrado queda atado a ese chat. */
+async function charlaPreviaDeEsperado(env, conversacionId, chat, todos) {
+  try {
+    const lista = (await leerEstado(env, 'esperados'))?.valor ?? [];
+    if (!lista.length) return null;
+    const hoy = diaDeBsAs();
+    const nombre = String(chat.nombre ?? '').toLowerCase();
+    const dicho = todos.filter((m) => m.direccion === 'entrante' && m.texto)
+      .map((m) => m.texto.toLowerCase()).join(' ');
+    let e = lista.find((x) => x.chat === conversacionId);
+    if (!e) {
+      e = lista.find((x) => !x.chat && x.origen !== conversacionId && (!x.hasta || x.hasta >= hoy)
+        && ((x.nombres ?? []).some((n) => n && nombre.includes(String(n).toLowerCase()))
+          || (x.palabras ?? []).some((w) => w && dicho.includes(String(w).toLowerCase()))));
+      if (!e) return null;
+      e.chat = conversacionId;
+      await guardarEstado(env, 'esperados', lista);
+      await avisarEsperadoAMaxi(env, chat, e);
+    }
+    const { results: viejos } = await env.DB.prepare(
+      `SELECT direccion, autor, tipo, texto, creado FROM mensajes
+        WHERE conversacion_id = ? AND (texto IS NOT NULL OR tipo != 'texto')
+        ORDER BY creado DESC, id DESC LIMIT 40`
+    ).bind(e.origen).all();
+    const origen = await env.DB.prepare('SELECT canal, nombre FROM conversaciones WHERE id = ?')
+      .bind(e.origen).first();
+    const renglones = (viejos ?? []).reverse().map((m) => `[${String(m.creado).slice(5, 16)}] `
+      + (m.direccion === 'entrante' ? 'CLIENTE' : m.autor === 'ia' ? 'NOSOTROS (bot)' : 'NOSOTROS (Maxi/equipo)')
+      + `: ${String(m.texto || `[${m.tipo}]`).replace(/\s+/g, ' ').slice(0, 300)}`);
+    return `\n\nESTE CLIENTE NO ES NUEVO, ES MUY IMPORTANTE (Maxi): ya viene hablando con nosotros por ${origen?.canal ?? 'otro canal'}`
+      + `${origen?.nombre ? ` (@${origen.nombre})` : ''}${e.nota ? `. ${e.nota}` : ''}.\n`
+      + 'No lo saludes como a alguien nuevo, no le preguntes qué auto tiene ni datos que ya dio, y no le repitas lo que ya se le dijo. '
+      + 'Seguí la charla desde donde quedó, con calidez, y si quiere coordinar el día y la hora de la visita, coordinala. '
+      + `Esto es lo que se habló antes:\n${renglones.join('\n')}`;
+  } catch (e) {
+    console.error('Esperados:', e?.message ?? e);
+    return null;
+  }
+}
+
+async function avisarEsperadoAMaxi(env, chat, e) {
+  const jefe = await chatDelJefe(env);
+  if (!jefe) return;
+  const quien = chat.canal === 'whatsapp' ? `+${chat.externo_id}${chat.nombre ? `, ${chat.nombre}` : ''}` : `@${chat.nombre ?? chat.externo_id}`;
+  const texto = `ATENCIÓN: escribió ${e.nota ? e.nota.split('.')[0] : 'el cliente que esperabas'} por ${chat.canal}\n${quien}\nLo sigo con la charla de antes.`;
+  try {
+    const abierta = await env.DB.prepare(
+      `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
+          AND creado > datetime('now','-23 hours') LIMIT 1`
+    ).bind(jefe.id).first();
+    if (!abierta) { await guardarParaMaxi(env, texto, 'escribió un cliente que esperabas'); return; }
+    const id = await mandarUno(env, jefe, texto);
+    await guardarSaliente(env, jefe.id, texto, 'ia', id);
+  } catch (err) {
+    await anotarAviso(env, `${texto}\n(No te llegó por WhatsApp: ${String(err?.message ?? err).slice(0, 120)})`);
+  }
+}
+
 async function avisarInstagramAMaxi(env, chat, motivo) {
   const jefe = await chatDelJefe(env);
   if (!jefe) return;
@@ -6357,6 +6428,30 @@ async function admin(peticion, env, ruta, metodo, ctx) {
   /* EL RESUMEN DE LAS 23, PARA VERLO SIN MANDARLO A NADIE. */
   if (ruta === '/api/admin/resumen-noche' && metodo === 'POST') {
     return json({ texto: textoVisitasDeLaNoche((await leerEstado(env, 'agenda'))?.valor ?? []) });
+  }
+
+  /* LOS ESPERADOS POR OTRO CANAL (20/11). GET la lista; POST {agregar:{...}}
+     o {sacar: origen}. */
+  if (ruta === '/api/admin/esperados') {
+    const actual = (await leerEstado(env, 'esperados'))?.valor ?? [];
+    if (metodo === 'GET') return json({ esperados: actual });
+    if (metodo === 'POST') {
+      const cuerpo = await peticion.json().catch(() => ({}));
+      let nueva = actual.filter((x) => x.origen !== Number(cuerpo.sacar ?? cuerpo.agregar?.origen));
+      const a = cuerpo.agregar;
+      if (a && Number.isInteger(Number(a.origen))) {
+        nueva.push({
+          origen: Number(a.origen),
+          nombres: (a.nombres ?? []).map((x) => texto(x, 40)).filter(Boolean),
+          palabras: (a.palabras ?? []).map((x) => texto(x, 40)).filter(Boolean),
+          nota: texto(a.nota, 300),
+          hasta: /^\d{4}-\d{2}-\d{2}$/.test(a.hasta ?? '') ? a.hasta : null,
+          chat: a.chat ? Number(a.chat) : null,
+        });
+      }
+      await guardarEstado(env, 'esperados', nueva);
+      return json({ esperados: nueva });
+    }
   }
 
   /* LOS IMPORTANTES DE MAXI (18/11): la lista fija de chats que van en IMPORTANTE.
