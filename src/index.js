@@ -4979,6 +4979,23 @@ async function pedirDiaACallados(env) {
                 OR instr(lower(COALESCE(m.texto,'')), 'tu visita') > 0
                 OR instr(lower(COALESCE(m.texto,'')), 'confirmar la visita') > 0))
         AND instr(lower(COALESCE(c.nota,'')), 'visita') = 0
+        /* SI YA SE LE PREGUNTÓ EL DÍA, NO SE REPITE (Maxi, 20/11: a un
+           cliente del 325i el bot le preguntó "Qué día y a qué hora te
+           queda bien para pasar?", él dijo "Tengo q ver en la semana", el
+           bot cerró "Cuando sepas qué día te queda cómodo, avisame" y a la
+           mañana igual le salió esta pregunta: lo mismo dos veces, con una
+           charla ya cerrada). Si ya le pedimos el día o quedamos en que
+           avisa él, esta pregunta no va. */
+        AND NOT EXISTS (SELECT 1 FROM mensajes m WHERE m.conversacion_id = c.id
+              AND m.direccion = 'saliente' AND (
+                instr(lower(COALESCE(m.texto,'')), 'qué día') > 0
+                OR instr(lower(COALESCE(m.texto,'')), 'que dia') > 0
+                OR instr(lower(COALESCE(m.texto,'')), 'qué días') > 0
+                OR instr(lower(COALESCE(m.texto,'')), 'cuando sepas') > 0
+                OR instr(lower(COALESCE(m.texto,'')), 'quedamos así') > 0
+                OR instr(lower(COALESCE(m.texto,'')), 'avisame') > 0
+                OR instr(lower(COALESCE(m.texto,'')), 'coordinamos el día') > 0
+                OR instr(lower(COALESCE(m.texto,'')), 'cuando quieras') > 0))
       LIMIT 20`
   ).all();
   if (!results?.length) return;
