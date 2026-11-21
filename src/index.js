@@ -5019,7 +5019,16 @@ async function pedirDiaACallados(env) {
                 OR instr(lower(COALESCE(m.texto,'')), 'quedamos así') > 0
                 OR instr(lower(COALESCE(m.texto,'')), 'avisame') > 0
                 OR instr(lower(COALESCE(m.texto,'')), 'coordinamos el día') > 0
-                OR instr(lower(COALESCE(m.texto,'')), 'cuando quieras') > 0))
+                OR instr(lower(COALESCE(m.texto,'')), 'cuando quieras') > 0
+                /* NI A QUIEN OFRECE SU AUTO (21/11: a uno que quiere vendernos su
+                   Mercedes C250 le salió "si te interesa verlo en persona"). */
+                OR instr(lower(COALESCE(m.texto,'')), 'de qué zona') > 0
+                OR instr(lower(COALESCE(m.texto,'')), 'lo traigas') > 0
+                OR instr(lower(COALESCE(m.texto,'')), 'la traigas') > 0
+                OR instr(lower(COALESCE(m.texto,'')), 'vender tu auto') > 0
+                OR instr(lower(COALESCE(m.texto,'')), 'como permuta') > 0))
+        AND COALESCE(c.tipo,'') NOT IN ('permuta','vendedor')
+        AND instr(COALESCE(c.nota,''), 'Para tasar') = 0
       LIMIT 20`
   ).all();
   if (!results?.length) return;
