@@ -882,6 +882,9 @@ año y km → lo que quiere (el auto que le interesa, o "consignación, pide
 USD tanto"), y al final lo que se vio en las fotos o si faltan. Por
 ejemplo "Peugeot 2008 Allure 2020, 99.000 km → Hilux GR. Fotos: faltan". Eso lo marca en el panel; no
 cambia lo que le decís a él.
+SI MANDA FOTOS DE SU AUTO PARA PERMUTA O CONSIGNACIÓN, "para_tasar" VA SIEMPRE (Maxi,
+21/11: un Clase B de Ramos Mejía mandó fotos y no quedó en Importante), aunque falten
+año, versión o km y aunque lo vaya a traer: poné lo que tengas en "resumen_para_tasar".
 INTENCIÓN DE COMPRA (Maxi, 18/11): si quiere COMPRAR uno de nuestros autos y lo muestra en concreto
 (quiere venir a verlo, pregunta por la permuta o la seña, negocia, pide más fotos para decidir), poné en
 "intencion_compra" una línea para Maxi: el auto y qué dijo. Una consulta suelta de precio no cuenta: null.

@@ -4180,6 +4180,19 @@ async function avisarEsperadoAMaxi(env, chat, e) {
   }
 }
 
+async function sumarAImportantesSiHayFotos(env, chatId) {
+  const lista = (await leerEstado(env, 'importantes'))?.valor ?? [];
+  if (lista.includes(chatId)) return;
+  const sacados = (await leerEstado(env, 'importantes_sacados'))?.valor ?? [];
+  if (sacados.includes(chatId)) return;
+  const fotos = await env.DB.prepare(
+    `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
+        AND tipo IN ('imagen', 'video') LIMIT 1`
+  ).bind(chatId).first();
+  if (!fotos) return;
+  await guardarEstado(env, 'importantes', [...lista, chatId]);
+}
+
 async function avisarInstagramAMaxi(env, chat, motivo) {
   const jefe = await chatDelJefe(env);
   if (!jefe) return;
@@ -5211,6 +5224,14 @@ async function atenderSolo(env, disparos) {
           ? `mandó fotos de su auto (${r.paraTasar === 'permuta' ? 'permuta' : 'consignación'}): ${r.resumenParaTasar ?? ''}`
           : r.intencionCompra ? `quiere comprar: ${r.intencionCompra}` : null;
         if (motivo) await avisarInstagramAMaxi(env, chat, motivo);
+      }
+      /* CON FOTOS DE SU AUTO, A IMPORTANTE SOLO (Maxi, 21/11, furioso: "después de
+         que te mandan las fotos, ponelo en importante"; se escaparon una Ranger y un
+         Clase B). Si el chat es de alguien que deja su auto (permuta o consignación)
+         y ya mandó fotos o video, entra a la lista fija de Importantes en el momento.
+         Si Maxi lo sacó a mano, no vuelve a entrar. */
+      if (r.paraTasar || String(chat.nota ?? '').startsWith(PARA_TASAR) || ['permuta', 'vendedor'].includes(chat.tipo)) {
+        await sumarAImportantesSiHayFotos(env, chat.id).catch((e) => console.error('Importantes:', e?.message ?? e));
       }
       if (notaTasar) {
         await env.DB.prepare('UPDATE conversaciones SET nota = ?, tipo = ? WHERE id = ?')
@@ -6490,6 +6511,10 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     if (metodo === 'POST') {
       const cuerpo = await peticion.json().catch(() => ({}));
       const sacar = new Set((cuerpo.sacar ?? []).map(Number));
+      if (sacar.size) {
+        const sacados = (await leerEstado(env, 'importantes_sacados'))?.valor ?? [];
+        await guardarEstado(env, 'importantes_sacados', [...new Set([...sacados, ...sacar])].slice(-2000));
+      }
       const nueva = [...new Set([...actual, ...(cuerpo.agregar ?? []).map(Number)])]
         .filter((id) => Number.isInteger(id) && id > 0 && !sacar.has(id));
       await guardarEstado(env, 'importantes', nueva);
