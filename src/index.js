@@ -2595,8 +2595,13 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     megusta: esComentario && dato.megusta === true,
     /* SI PIDE DÓNDE ESTAMOS, LA UBICACIÓN SALE SÍ O SÍ (Maxi, 2/11: a
        "dónde están ubicados?" el bot contestó con otra pregunta). */
+    /* CAMBIO 22/11 (Maxi): a "dónde están" primero va "Barracas, CABA" y el mapa
+       sólo si es una posible visita. La regla de abajo ya no fuerza el mapa a
+       cualquiera: lo fuerza si hay visita en juego o si ya le dijimos Barracas y
+       vuelve a pedir la dirección. */
     ubicacion: dato.ubicacion === true || (!esComentario
-      && /(d[oó]nde (est[aá]n|est[aá]s|quedan|queda|son|sos|es|los encuentro)|de d[oó]nde (son|sos)|ubicaci[oó]n|direcci[oó]n|c[oó]mo llego)/i.test(String(ultimo?.texto ?? ''))),
+      && /(d[oó]nde (est[aá]n|est[aá]s|quedan|queda|son|sos|es|los encuentro)|ubicaci[oó]n|direcci[oó]n|c[oó]mo llego)/i.test(String(ultimo?.texto ?? ''))
+      && (Boolean(dato.visita) || todosPrivados.some((m) => m.direccion === 'saliente' && /Barracas, CABA/i.test(m.texto ?? '')))),
     /* Que siga por WhatsApp sin pasarlo a una persona: la Ranger, que se
        atiende sólo por ahí (ver AUTOS QUE NO ESTÁN EN EL SITIO). */
     irAWhatsapp: dato.ir_a_whatsapp === true,
