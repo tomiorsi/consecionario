@@ -4203,6 +4203,10 @@ async function avisarEsperadoAMaxi(env, chat, e) {
 }
 
 async function sumarAImportantesSiHayFotos(env, chatId) {
+  /* Los chats del equipo (Maxi y Colo) nunca son Importante (22/11: entró el de Maxi). */
+  if (chatId === COLO_CHAT) return;
+  const jefe = await chatDelJefe(env);
+  if (jefe && jefe.id === chatId) return;
   const lista = (await leerEstado(env, 'importantes'))?.valor ?? [];
   if (lista.includes(chatId)) return;
   const sacados = (await leerEstado(env, 'importantes_sacados'))?.valor ?? [];
