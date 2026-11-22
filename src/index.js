@@ -4212,6 +4212,16 @@ async function sumarAImportantesSiHayFotos(env, chatId) {
         AND tipo IN ('imagen', 'video') LIMIT 1`
   ).bind(chatId).first();
   if (!fotos) return;
+  /* REGLA NÚMERO UNO (Maxi 18/11): sólo autos y camionetas. Ni motos, ni
+     lanchas o yates, ni terrenos, casas o departamentos. */
+  const otro = await env.DB.prepare(
+    `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
+        AND (lower(COALESCE(texto,'')) LIKE '%yate%' OR lower(COALESCE(texto,'')) LIKE '%lancha%'
+          OR lower(COALESCE(texto,'')) LIKE '%moto %' OR lower(COALESCE(texto,'')) LIKE '%terreno%'
+          OR lower(COALESCE(texto,'')) LIKE '%departamento%' OR lower(COALESCE(texto,'')) LIKE '%no es un auto%')
+      LIMIT 1`
+  ).bind(chatId).first();
+  if (otro) return;
   await guardarEstado(env, 'importantes', [...lista, chatId]);
 }
 
