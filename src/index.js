@@ -4966,7 +4966,12 @@ async function hacerPosventa(env) {
 function preguntaDia(nombre) {
   const hora = new Date(Date.now() - 3 * HORAS).getUTCHours();
   const saludo = hora < 13 ? 'Buen día' : 'Buenas tardes';
-  const primero = String(nombre ?? '').trim().split(/\s+/)[0] ?? '';
+  /* Sólo si el perfil parece un nombre de persona: una o dos palabras con
+     mayúscula (22/11: a "Cosecha Lo Que Siembra" le salió "Buen día Cosecha"). */
+  const palabras = String(nombre ?? '').trim().split(/\s+/).filter(Boolean);
+  const pareceNombre = palabras.length >= 1 && palabras.length <= 2
+    && palabras.every((p) => /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+$/.test(p));
+  const primero = pareceNombre ? palabras[0] : '';
   const n = /^[A-Za-zÁÉÍÓÚÑáéíóúñ]{2,15}$/.test(primero)
     ? primero[0].toUpperCase() + primero.slice(1).toLowerCase() : '';
   return `${saludo}${n ? ` ${n}` : ''}, cómo estás? Si te interesa verlo en persona, podemos agendar un día sin compromiso.`;
