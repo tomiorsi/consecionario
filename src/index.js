@@ -5232,7 +5232,19 @@ async function atenderSolo(env, disparos) {
         });
         if (entro) continue;
       }
-      if (!esPrueba && (chat.humano || await loAtendioElEquipo(env, chat.id))) continue;
+      /* EL PRECIO SE CONTESTA SIEMPRE (Maxi, 22/11, a los gritos: a Nicolás, de
+         Ushuaia, la IA lo pasó al equipo por una pregunta de la transferencia y
+         cuando pidió "Me dirías el precio?" nadie le contestó). Si el chat lo pasó
+         la IA (no entró nadie del equipo todavía) y pregunta el precio, el bot
+         contesta igual. */
+      let soloPrecio = false;
+      if (!esPrueba && chat.humano && String(chat.nota ?? '').startsWith('La IA lo pasó')
+          && !(await loAtendioElEquipo(env, chat.id))) {
+        const dijo = await env.DB.prepare('SELECT texto FROM mensajes WHERE id = ?').bind(d.mensaje).first();
+        soloPrecio = /precio|cu[aá]nto (sale|vale|est[aá]|cuesta|pedís|pedis|es)|valor|en cu[aá]nto|cu[aá]nto la|cu[aá]nto el/i
+          .test(String(dijo?.texto ?? ''));
+      }
+      if (!esPrueba && !soloPrecio && (chat.humano || await loAtendioElEquipo(env, chat.id))) continue;
 
       const ultimo = await env.DB.prepare(
         `SELECT id FROM mensajes WHERE conversacion_id = ?
