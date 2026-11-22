@@ -875,6 +875,28 @@ async function guardarEntrantes(env, lista) {
       m.tipo, m.texto, m.clase ?? 'mensaje', m.media_id ?? null
     ).run();
 
+    /* LA FOTO DE SU AUTO, A IMPORTANTE AL LLEGAR (Maxi, 22/11: "mandaron algunas
+       fotos y no los pusiste en importante"). Gus mandó la foto de su 323i y
+       Maxi tomó la charla al toque: el bot ya no pasó y no quedó. Ahora no
+       depende de quién conteste: si llega una foto o un video y el cliente habló
+       de su auto (tengo un..., mi auto, permuta, parte de pago, vender el mío,
+       consignación) o el chat ya está marcado para tasar, entra a Importante. */
+    if (r.meta?.changes && (m.direccion ?? 'entrante') === 'entrante' && ['imagen', 'video'].includes(m.tipo)) {
+      try {
+        const ch = await env.DB.prepare('SELECT tipo, nota FROM conversaciones WHERE id = ?').bind(conv.id).first();
+        const habla = await env.DB.prepare(
+          `SELECT group_concat(lower(COALESCE(texto,'')), ' ') AS t FROM mensajes
+            WHERE conversacion_id = ? AND direccion = 'entrante' AND tipo = 'texto'`
+        ).bind(conv.id).first();
+        const ofrece = /tengo (un|una)\b|mi (auto|camioneta|coche|vehículo|vehiculo)|permut|parte de pago|toman? usad|me (lo|la) tom|vender (mi|el mío|el mio|la mía|la mia)|consign|tasar|cotiz/.test(habla?.t ?? '');
+        if (ofrece || ['permuta', 'vendedor'].includes(ch?.tipo) || String(ch?.nota ?? '').startsWith('Para tasar')) {
+          await sumarAImportantesSiHayFotos(env, conv.id);
+        }
+      } catch (e) {
+        console.error('Importantes al llegar la foto:', e?.message ?? e);
+      }
+    }
+
     /* SI ALGUIEN DEL EQUIPO ESCRIBE DESDE EL CELULAR, EL CHAT ES SUYO.
        Antes el bot se callaba sólo frente a ese mensaje y al siguiente
        del cliente volvía a contestar, encima de la persona (Ram, 28/10:
