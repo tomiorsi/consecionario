@@ -4808,7 +4808,12 @@ function enTramos(texto, tope = 3500) {
 async function guardarParaMaxi(env, texto, tema) {
   await anotarAviso(env, `${texto}\n(Te avisé por WhatsApp con la plantilla: cuando contestes, te llega completo.)`);
   const pend = (await leerEstado(env, 'para_maxi'))?.valor ?? { textos: [], avisados: {} };
-  pend.textos = [...(pend.textos ?? []), texto].slice(-10);
+  /* SIN REPETIDOS NI VIEJOS (Maxi, 22/11: "me estás mandando este mensaje varias
+     veces"; le llegaron juntos tres ATENCIÓN INSTAGRAM del mismo cliente y una
+     lista de otro día). Cada pendiente tiene una clave: si llega otro con la
+     misma clave, reemplaza al anterior. */
+  const nuevo = { t: texto, dia: diaDeBsAs(), clave: claveDePendiente(texto) };
+  pend.textos = [...(pend.textos ?? []).filter((x) => (typeof x === 'string' ? claveDePendiente(x) : x.clave) !== nuevo.clave), nuevo].slice(-10);
   const hoy = diaDeBsAs();
   const clave = `${hoy} ${tema}`;
   const yaAvisado = pend.avisados?.[clave];
@@ -4825,13 +4830,35 @@ async function guardarParaMaxi(env, texto, tema) {
   }
 }
 
+function claveDePendiente(t) {
+  const s = String(t ?? '');
+  const ig = s.match(/^ATENCIÓN INSTAGRAM\s+(@\S+)/);
+  if (ig) return `ig ${ig[1].toLowerCase()}`;
+  if (/LISTA DEL DÍA|^\*RESUMEN|VISITAS POSIBLES|CONSIGNACIONES POSIBLES/.test(s)) return 'lista';
+  return s.split('\n')[0].slice(0, 80);
+}
+
 async function entregarPendientesAMaxi(env) {
   const pend = (await leerEstado(env, 'para_maxi'))?.valor;
   if (!pend?.textos?.length) return;
   const jefe = await chatDelJefe(env);
   if (!jefe) return;
   await guardarEstado(env, 'para_maxi', { ...pend, textos: [] });
-  for (const t of pend.textos) {
+  /* Sólo lo de hoy y ayer, uno por clave (el último). */
+  const ayer = diaDeBsAs(new Date(Date.now() - 24 * 3600 * 1000).toISOString().replace('T', ' ').slice(0, 19));
+  const porClave = new Map();
+  for (const x of pend.textos) {
+    const e = typeof x === 'string' ? { t: x, dia: diaDeBsAs(), clave: claveDePendiente(x) } : x;
+    if (e.dia < ayer) continue;
+    porClave.delete(e.clave);
+    porClave.set(e.clave, e);
+  }
+  const deHoy = [...porClave.values()];
+  /* La lista va sólo si es la de hoy: una de otro día ya no sirve. */
+  const lista = deHoy.filter((e) => e.clave === 'lista' && e.dia === diaDeBsAs()).pop();
+  const textos = deHoy.filter((e) => e.clave !== 'lista').map((e) => e.t);
+  if (lista) textos.unshift(lista.t);
+  for (const t of textos) {
     for (const tramo of enTramos(t)) {
       const id = await mandarUno(env, jefe, tramo);
       await guardarSaliente(env, jefe.id, tramo, 'ia', id);
