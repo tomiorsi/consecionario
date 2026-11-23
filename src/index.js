@@ -5293,6 +5293,14 @@ async function atenderSolo(env, disparos) {
         `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante' AND id > ? LIMIT 1`
       ).bind(chat.id, d.mensaje).first();
       if (despues) continue;
+      /* SI MIENTRAS PENSABA CONTESTÓ ALGUIEN DEL EQUIPO, el bot se calla (22/11:
+         Maxi le dijo "Dale" a Pacha y el bot, que ya venía pensando, le mandó
+         "Dale, cuando sepas me avisás" un instante después). */
+      const equipoEscribio = await env.DB.prepare(
+        `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
+            AND COALESCE(autor,'') != 'ia' AND id > ? LIMIT 1`
+      ).bind(chat.id, d.mensaje).first();
+      if (equipoEscribio) continue;
       if (r.ultimo?.direccion !== 'entrante') continue;
 
       /* PASAR A UNA PERSONA ES AUTOMÁTICO TAMBIÉN. Si pide hablar con
