@@ -4832,9 +4832,25 @@ final. Si una sección queda vacía, no la pongas. Si no hay nadie, escribí só
 function enTramos(texto, tope = 3500) {
   const tramos = [];
   let actual = '';
+  /* UN PÁRRAFO MÁS LARGO QUE EL TOPE SE CORTA POR RENGLONES (23/11: la lista del
+     día no le llegó a Maxi porque IMPORTANTE era un solo párrafo de más de 4096
+     caracteres y Meta lo rechazó). */
+  const partes = [];
   for (const p of texto.split(/\n\s*\n/)) {
+    if (p.length <= tope) { partes.push([p, '\n\n']); continue; }
+    let trozo = '';
+    for (const r of p.split('\n')) {
+      for (let i = 0; i < Math.max(r.length, 1); i += tope) {
+        const pedazo = r.slice(i, i + tope);
+        if (trozo && trozo.length + pedazo.length + 1 > tope) { partes.push([trozo, '\n']); trozo = ''; }
+        trozo = trozo ? `${trozo}\n${pedazo}` : pedazo;
+      }
+    }
+    if (trozo) partes.push([trozo, '\n']);
+  }
+  for (const [p, sep] of partes) {
     if (actual && actual.length + p.length + 2 > tope) { tramos.push(actual); actual = ''; }
-    actual = actual ? `${actual}\n\n${p}` : p;
+    actual = actual ? `${actual}${sep}${p}` : p;
   }
   if (actual) tramos.push(actual);
   return tramos;
