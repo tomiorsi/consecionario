@@ -2246,6 +2246,25 @@ Tiene que ser ese auto: misma marca y mismo modelo. Si es otro que no está en l
   return res;
 }
 
+/* SI CONTESTÓ LO QUE LE PREGUNTAMOS, SE LE CONTESTA (23/11: le preguntamos "Qué
+   auto tenés?", mandó "bmw x1 / 2017 / 120 km / 2.0 sport drive" en cuatro
+   mensajes y el bot decidió que no hacía falta contestar). En un privado, el
+   "responder": false sólo vale si todo lo que mandó desde nuestro último
+   mensaje es un cierre: ok, dale, gracias, perfecto, un emoji o un sticker. */
+function mandoAlgoConcreto(mensajes) {
+  const lista = mensajes ?? [];
+  let i = lista.length - 1;
+  const suyos = [];
+  while (i >= 0 && lista[i].direccion === 'entrante') suyos.push(lista[i--]);
+  if (!suyos.length || i < 0) return false;
+  const cierre = /^[\s\p{Extended_Pictographic}\p{P}]*((ok(a|ey)?|oki|dale|listo|gracias|muchas|mil|perfecto|genial|joya|buen[ií]simo|b[aá]rbaro|excelente|lo vi|visto|s[ií]|bueno|de una|abrazo|saludos|igualmente|vos tambi[eé]n|crack|capo|maestro|hermano|che)[\s\p{Extended_Pictographic}\p{P}]*)*$/iu;
+  return suyos.some((m) => {
+    if (m.tipo === 'sticker' || m.tipo === 'reaccion') return false;
+    if (['imagen', 'video', 'audio', 'ubicacion', 'documento'].includes(m.tipo)) return true;
+    return !cierre.test(String(m.texto ?? '').trim());
+  });
+}
+
 async function pensarRespuesta(env, conversacionId, { automatico = false, deNoche = false, simulacion = null } = {}) {
   if (!env.ANTHROPIC_API_KEY) {
     throw new Error('Falta cargar ANTHROPIC_API_KEY en Cloudflare');
@@ -2591,7 +2610,8 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     derivar: dato.pasar_a_persona ? String(dato.pasar_a_persona).slice(0, 200) : null,
     /* A un privado se le contesta siempre; a un comentario, si el bot
        decide que hay algo concreto que contestar. */
-    responder: esComentario ? dato.responder === true : dato.responder !== false,
+    responder: esComentario ? dato.responder === true
+      : dato.responder !== false || (!dato.pasar_a_persona && mandoAlgoConcreto(todosPrivados)),
     megusta: esComentario && dato.megusta === true,
     /* SI PIDE DÓNDE ESTAMOS, LA UBICACIÓN SALE SÍ O SÍ (Maxi, 2/11: a
        "dónde están ubicados?" el bot contestó con otra pregunta). */
