@@ -25,6 +25,7 @@ import { PLANTILLAS, comoLasPideMeta, textoDe, IDIOMA } from './plantillas.js';
 import { DurableObject } from 'cloudflare:workers';
 import { PANEL } from './admin.js';
 import { instruccionesDelBot } from './instrucciones.js';
+import * as RT from './retargeting.js';
 
 const GRUPOS = ['alta-gama', 'evolution', 'deportivos', 'urbanos'];
 const TAMANOS = ['1600', '640'];
@@ -2490,7 +2491,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
       yaHablamos: todosPrivados.some((m) => m.direccion === 'saliente'),
       /* "Hoy" es el día de Buenos Aires. Las fechas de la base son UTC. */
       saludamosHoy: todosPrivados.some((m) => m.direccion === 'saliente' && diaDeBsAs(m.creado) === diaDeBsAs()),
-    }) + (previa ?? '') + FORMA_EN_TEXTO,
+    }) + (previa ?? '') + (simulacion ? '' : await RT.contextoParaElBot(env, conversacionId)) + FORMA_EN_TEXTO,
     /* BUSCAR EN LA WEB, PARA NO INVENTAR: el modelo del auto del cliente
        (una versión, un motor) y, desde el 28/10, el tema que traiga a la
        charla (Maxi: "que converse de cualquier tema e investigue"). Se
@@ -4198,6 +4199,33 @@ async function fichaClara(env, v) {
    El número no va en el código: se busca por el chat. */
 const COLO_CHAT = 5198;
 
+/* LO QUE EL RETARGETING USA DE ACÁ (ver src/retargeting.js). Se le pasa
+   armado para que ese archivo no dependa de cómo está escrito este. */
+const fragmentosMarketing = PLANTILLAS.filter((p) => p.categoria === 'MARKETING')
+  .flatMap((p) => p.texto.split(/\{\{\d+\}\}/).map((f) => f.trim()))
+  .filter((f) => f.length >= 18);
+function ayudasRetargeting() {
+  return {
+    json, error, SITIO, GRAPH, graphMandar, soloDigitos, enlaceDe, fragmentosMarketing,
+    esDelEquipo: async (env, chat) => false,
+  };
+}
+function ayudasRT(env) {
+  const h = ayudasRetargeting();
+  h.esDelEquipo = async (chat) => {
+    const jefe = await chatDelJefe(env).catch(() => null);
+    const d = soloDigitos(chat?.externo_id);
+    return Boolean(chat && (chat.id === jefe?.id || chat.id === COLO_CHAT
+      || (soloDigitos(env.SUPERVISOR_WHATSAPP) && d === soloDigitos(env.SUPERVISOR_WHATSAPP))
+      || d.endsWith('1176703813')));
+  };
+  h.mandarYGuardar = async (env2, chat, texto) => {
+    const id = await mandarUno(env2, chat, texto);
+    await guardarSaliente(env2, chat.id, texto, 'ia', id);
+  };
+  return h;
+}
+
 /* Un WhatsApp a Maxi para que mire Instagram. Si la ventana de 24 h con él está
    cerrada, queda en el panel. No se repite por la misma persona en el día. */
 /* ── LOS CLIENTES ESPERADOS POR OTRO CANAL ─────────────────────────────
@@ -5326,6 +5354,12 @@ async function atenderSolo(env, disparos) {
         continue;
       }
       if (!chat || (esElJefe(env, chat) && !esPrueba)) continue;
+      /* RETARGETING: si contesta a una campaña, se anota; si pide la baja
+         ("No me interesa" o un "no me escriban"), queda bloqueado para
+         siempre, se le contesta una sola vez y el bot no dice nada más. */
+      const rt = await RT.alEntrarMensaje(env, chat, d.mensaje, ayudasRT(env))
+        .catch((e) => { console.error('Retargeting al entrar:', e?.message ?? e); return null; });
+      if (rt === 'baja') continue;
       chat = await devolverSiElEquipoSeFue(env, chat);
       /* SI ENTRÓ UNA PERSONA, EL BOT NO CONTESTA MÁS (Maxi, 6/11: "cuando uno
          de nosotros entra en la conversación, listo"). Reemplaza los 20
@@ -5743,6 +5777,10 @@ async function recibirDeMeta(peticion, env, ctx) {
 
   let aviso = null;
   try { aviso = JSON.parse(crudo); } catch { /* cuerpo ilegible */ }
+
+  /* LOS ESTADOS DE LOS ENVÍOS DEL RETARGETING (entregado, leído, falló).
+     Sólo con firma verificada, como todo lo que se usa. */
+  if (verificado) await RT.estadosDelAviso(env, aviso).catch((e) => console.error('Retargeting, estados:', e?.message ?? e));
 
   let guardados = 0;
   let disparos = [];
@@ -6176,6 +6214,10 @@ export default {
       /* ── DE ACÁ PARA ABAJO, TODO PIDE SESIÓN ─────────────────── */
       if (ruta.startsWith('/api/admin')) {
         if (!(await sesionValida(peticion, env))) return error('Sin sesión', 401);
+        if (ruta.startsWith('/api/admin/retargeting/')) {
+          const r = await RT.rutas(peticion, env, ruta, metodo, ayudasRT(env));
+          if (r) return r;
+        }
         return admin(peticion, env, ruta, metodo, ctx);
       }
 
@@ -6255,6 +6297,11 @@ export default {
 
 
     const minuto = new Date(evento.scheduledTime ?? Date.now()).getUTCMinutes();
+
+    /* RETARGETING: si hay una campaña enviando (Maxi aprobó la lista y
+       apagó el simulacro), sale una tanda, uno cada 20 a 30 segundos. */
+    try { await RT.enviarTanda(env, ayudasRT(env), { hasta: Date.now() + 9 * 60 * 1000 }); }
+    catch (e) { console.error('Retargeting, envío:', e?.message ?? e); }
 
     try { await hacerPosventa(env); }
     catch (e) { console.error('No se pudo hacer la posventa:', e?.message ?? e); }

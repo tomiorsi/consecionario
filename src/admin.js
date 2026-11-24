@@ -910,6 +910,120 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   margin:-.6rem 0 1.4rem;
 }
 
+/* ── RETARGETING (Maxi, 24/11) ── el mismo vidrio de la agenda */
+.rt .tab-sub{ text-transform:none }
+.rt-cabeza-acc{ display:flex; gap:.5rem; align-items:center }
+.rt-btn{ border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.08); color:inherit; border-radius:999px;
+  padding:.5rem 1rem; font:inherit; font-size:.76rem; cursor:pointer; backdrop-filter:blur(12px); transition:background .2s var(--ease), transform .2s var(--ease) }
+.rt-btn:hover{ background:rgba(255,255,255,.16) }
+.rt-btn:active{ transform:scale(.97) }
+.rt-btn:disabled{ opacity:.4; cursor:default }
+.rt-btn--claro{ background:#f4efe9; color:#1b1714; border-color:#f4efe9; font-weight:600 }
+.rt-btn--claro:hover{ background:#fff }
+.rt-btn--naranja{ background:#e0884a; border-color:#e0884a; color:#fff; font-weight:600 }
+.rt-btn--chico{ padding:.28rem .7rem; font-size:.68rem }
+.rt-grilla{ display:grid; gap:1rem; grid-template-columns:repeat(auto-fill, minmax(19rem,1fr)) }
+.rt-camp{ position:relative; overflow:hidden; border-radius:18px; cursor:pointer; text-align:left; color:inherit; font:inherit; padding:0;
+  background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.14); backdrop-filter:blur(16px);
+  transition:transform .3s var(--ease), border-color .3s var(--ease), background .3s var(--ease); animation:rtSube .5s var(--ease) both }
+.rt-camp:hover{ transform:translateY(-3px); border-color:rgba(255,217,176,.45); background:rgba(255,255,255,.1) }
+.rt-camp-foto{ height:9.5rem; background:#000 center/cover no-repeat; position:relative }
+.rt-camp-foto::after{ content:''; position:absolute; inset:0; background:linear-gradient(180deg, transparent 35%, rgba(27,23,20,.92)) }
+.rt-camp-titulo{ position:absolute; left:1rem; right:1rem; bottom:.7rem; z-index:1; font-family:var(--display); font-size:1rem;
+  font-weight:700; letter-spacing:.08em; text-transform:uppercase }
+.rt-camp-cuerpo{ padding:.9rem 1rem 1rem; display:grid; gap:.7rem }
+.rt-camp-fila{ display:flex; justify-content:space-between; align-items:center; gap:.5rem; font-size:.7rem; opacity:.8 }
+.rt-mini{ display:grid; grid-template-columns:repeat(4,1fr); gap:.4rem }
+.rt-mini div{ padding:.45rem .5rem; border-radius:10px; background:rgba(0,0,0,.2); border:1px solid rgba(255,255,255,.08) }
+.rt-mini b{ display:block; font-family:var(--display); font-size:1.05rem }
+.rt-mini span{ font-size:.55rem; letter-spacing:.08em; text-transform:uppercase; opacity:.6 }
+.rt-estado{ display:inline-flex; align-items:center; gap:.4rem; padding:.28rem .65rem; border-radius:999px; font-size:.64rem;
+  font-weight:600; letter-spacing:.04em; border:1px solid currentColor; white-space:nowrap }
+.rt-estado::before{ content:''; width:6px; height:6px; border-radius:50%; background:currentColor }
+.rt-estado--simulacro{ color:#9cc7ff; background:rgba(156,199,255,.1) }
+.rt-estado--esperando_meta{ color:#f0c83c; background:rgba(240,200,60,.1) }
+.rt-estado--enviando{ color:#8fd6a8; background:rgba(143,214,168,.1); animation:rtLate 1.6s ease-in-out infinite }
+.rt-estado--terminada{ color:rgba(244,239,233,.6) }
+.rt-vacio{ padding:3rem 1rem; text-align:center; opacity:.7; font-size:.9rem; line-height:1.7 }
+.rt-volver{ border:0; background:none; color:#ffd9b0; font:inherit; font-size:.78rem; cursor:pointer; padding:0; margin-bottom:1rem }
+.rt-hero{ display:grid; grid-template-columns:minmax(0,1.6fr) minmax(12rem,1fr); gap:1rem; margin-bottom:1.2rem }
+.rt-hero-info{ padding:1.1rem 1.2rem; display:grid; gap:.7rem; align-content:start }
+.rt-hero-auto{ font-family:var(--display); font-size:1.3rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase }
+.rt-hero-precio{ font-size:.95rem; color:#ffcf9f }
+.rt-hero-acc{ display:flex; flex-wrap:wrap; gap:.45rem }
+.rt-video{ border-radius:16px; overflow:hidden; background:#000; border:1px solid rgba(255,255,255,.14); display:grid; place-items:center; min-height:12rem }
+.rt-video video{ width:100%; max-height:22rem; display:block; object-fit:contain; background:#000 }
+.rt-video .rt-vacio{ padding:1.5rem }
+.rt-progreso{ padding:.9rem 1.1rem; margin-bottom:1.2rem; display:grid; gap:.55rem }
+.rt-riel{ height:8px; border-radius:999px; background:rgba(255,255,255,.1); overflow:hidden }
+.rt-riel span{ display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,#e0884a,#ffcf9f); transition:width .6s var(--ease) }
+.rt-progreso-txt{ display:flex; justify-content:space-between; gap:1rem; font-size:.74rem; opacity:.85; flex-wrap:wrap; align-items:center }
+.rt-kpis{ display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:.6rem; margin-bottom:1.2rem }
+.rt-kpi{ padding:.75rem .85rem; border-radius:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); cursor:pointer;
+  text-align:left; color:inherit; font:inherit; transition:background .2s var(--ease), border-color .2s var(--ease) }
+.rt-kpi:hover{ background:rgba(255,255,255,.1) }
+.rt-kpi[aria-pressed="true"]{ background:#f4efe9; color:#1b1714; border-color:#f4efe9 }
+.rt-kpi b{ display:block; font-family:var(--display); font-size:1.5rem; line-height:1.1 }
+.rt-kpi span{ font-size:.6rem; letter-spacing:.08em; text-transform:uppercase; opacity:.7 }
+.rt-kpi small{ display:block; font-size:.58rem; opacity:.55; margin-top:.15rem }
+.rt-barra-lista{ display:flex; justify-content:space-between; align-items:center; gap:1rem; flex-wrap:wrap; padding:.8rem 1rem; margin-bottom:.9rem }
+.rt-barra-lista p{ margin:0; font-size:.8rem; line-height:1.5; opacity:.9 }
+.rt-barra-lista b{ color:#ffcf9f }
+.rt-personas{ display:grid; gap:.7rem }
+.rt-p{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.05fr); gap:1rem; padding:1rem 1.1rem; border-radius:16px;
+  background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); backdrop-filter:blur(16px); animation:rtSube .45s var(--ease) both }
+.rt-p--sacado{ opacity:.45 }
+.rt-p-cabeza{ display:flex; align-items:center; gap:.7rem; margin-bottom:.6rem }
+.rt-p-cabeza b{ font-size:.95rem }
+.rt-p-cabeza small{ display:block; font-size:.62rem; letter-spacing:.08em; text-transform:uppercase; opacity:.55 }
+.rt-conf{ margin-left:auto; font-size:.62rem; padding:.2rem .5rem; border-radius:999px; background:rgba(0,0,0,.25); border:1px solid rgba(255,255,255,.1); white-space:nowrap }
+.rt-dato{ font-size:.8rem; line-height:1.5; margin:.35rem 0 }
+.rt-dato small{ display:block; font-size:.56rem; letter-spacing:.14em; text-transform:uppercase; opacity:.5 }
+.rt-cita{ border-left:2px solid #e0884a; padding:.15rem 0 .15rem .6rem; font-style:italic; opacity:.9 }
+.rt-p-acc{ display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.7rem; align-items:center }
+.rt-p-acc select{ background:rgba(0,0,0,.3); color:inherit; border:1px solid rgba(255,255,255,.2); border-radius:999px; padding:.28rem .6rem; font:inherit; font-size:.68rem }
+.rt-wa{ border-radius:14px; padding:.7rem; background:#0b141a; border:1px solid rgba(255,255,255,.08); align-self:start }
+.rt-burbuja{ max-width:22rem; border-radius:10px 10px 10px 4px; overflow:hidden; background:#202c33; color:#e9edef; box-shadow:0 1px 2px rgba(0,0,0,.4) }
+.rt-burbuja-video{ height:7rem; background:#111 center/cover; display:grid; place-items:center; font-size:1.6rem; color:#fff; position:relative }
+.rt-burbuja-video video{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.85 }
+.rt-burbuja-video span{ position:relative; z-index:1; width:2.6rem; height:2.6rem; border-radius:50%; background:rgba(0,0,0,.55); display:grid; place-items:center; font-size:1rem }
+.rt-burbuja-texto{ padding:.55rem .7rem .4rem; font-size:.8rem; line-height:1.45; white-space:pre-wrap }
+.rt-burbuja-texto mark{ background:rgba(224,136,74,.25); color:#ffd9b0; border-radius:4px; padding:0 .15rem }
+.rt-burbuja-hora{ text-align:right; font-size:.6rem; opacity:.5; padding:0 .6rem .4rem }
+.rt-burbuja-boton{ border-top:1px solid rgba(255,255,255,.08); text-align:center; padding:.45rem; font-size:.78rem; color:#53bdeb }
+.rt-sin-msj{ font-size:.78rem; opacity:.65; padding:.6rem; text-align:center }
+.rt-linea{ display:flex; gap:.4rem; margin-top:.5rem }
+.rt-linea input{ flex:1; min-width:0; background:rgba(0,0,0,.3); color:inherit; border:1px solid rgba(255,255,255,.2); border-radius:999px; padding:.35rem .75rem; font:inherit; font-size:.74rem }
+.rt-envio{ font-size:.66rem; padding:.22rem .55rem; border-radius:999px; border:1px solid currentColor }
+.rt-envio--enviado,.rt-envio--entregado{ color:#9cc7ff } .rt-envio--leido{ color:#8fd6a8 } .rt-envio--respondido{ color:#ffcf9f }
+.rt-envio--fallido{ color:#ff8f8f } .rt-envio--salteado{ color:rgba(244,239,233,.6) }
+.rt-ajustes{ padding:1rem 1.1rem; margin-top:1.4rem; display:grid; gap:.9rem }
+.rt-ajustes h3{ margin:0; font-size:.7rem; letter-spacing:.14em; text-transform:uppercase; opacity:.7 }
+.rt-ajustes-fila{ display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; font-size:.8rem }
+.rt-ajustes input[type=number]{ width:5rem; background:rgba(0,0,0,.3); color:inherit; border:1px solid rgba(255,255,255,.2); border-radius:999px; padding:.35rem .7rem; font:inherit }
+.rt-plantillas{ display:grid; gap:.6rem; grid-template-columns:repeat(auto-fill, minmax(15rem,1fr)) }
+.rt-plantilla{ padding:.7rem .8rem; border-radius:12px; background:rgba(0,0,0,.22); border:1px solid rgba(255,255,255,.08); font-size:.72rem; line-height:1.45; white-space:pre-wrap }
+.rt-plantilla b{ display:block; font-size:.62rem; letter-spacing:.06em; opacity:.7; margin-bottom:.3rem; white-space:normal }
+.rt-modal{ position:fixed; inset:0; z-index:50; display:grid; place-items:center; background:rgba(0,0,0,.6); backdrop-filter:blur(6px); padding:1rem; animation:rtAparece .25s ease both }
+.rt-modal-caja{ width:min(32rem,100%); max-height:85vh; overflow:auto; border-radius:20px; padding:1.3rem; color:#f4efe9;
+  background:radial-gradient(60% 50% at 15% 10%, rgba(214,150,92,.4), transparent 70%), #1b1714; border:1px solid rgba(255,255,255,.14) }
+.rt-modal-caja h3{ margin:0 0 .4rem; font-family:var(--display); letter-spacing:.1em; text-transform:uppercase; font-size:1rem }
+.rt-modal-caja p{ font-size:.82rem; opacity:.8; line-height:1.5 }
+.rt-autos{ display:grid; gap:.45rem; margin:1rem 0 }
+.rt-auto{ display:flex; justify-content:space-between; gap:1rem; padding:.7rem .9rem; border-radius:12px; cursor:pointer; text-align:left;
+  background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.12); color:inherit; font:inherit; font-size:.84rem }
+.rt-auto:hover{ background:rgba(255,255,255,.14) }
+.rt-auto span{ opacity:.6 }
+.rt-chips-hist{ margin-bottom:1rem }
+@keyframes rtSube{ from{ opacity:0; transform:translateY(10px) } to{ opacity:1; transform:none } }
+@keyframes rtAparece{ from{ opacity:0 } to{ opacity:1 } }
+@keyframes rtLate{ 50%{ opacity:.55 } }
+@media (max-width:860px){
+  .rt-hero{ grid-template-columns:1fr }
+  .rt-kpis{ grid-template-columns:repeat(3, minmax(0,1fr)) }
+  .rt-p{ grid-template-columns:1fr }
+}
+
 .oculto{ display:none !important }
 .vacio{ padding:4rem 1rem; text-align:center; color:var(--apagado); font-size:.85rem }
 </style>
@@ -956,6 +1070,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
         <button class="pestania" type="button" id="pesMedios" aria-pressed="false">Imágenes del sitio</button>
         <button class="pestania" type="button" id="pesBandeja" aria-pressed="false">Mensajes</button>
         <button class="pestania" type="button" id="pesNumeros" aria-pressed="false">Instagram</button>
+        <button class="pestania" type="button" id="pesRetargeting" aria-pressed="false">Retargeting</button>
       </div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap">
         <button class="btn" id="fotosWA" type="button" title="Arma la foto que usa WhatsApp en la vista previa de cada auto">Fotos para WhatsApp</button>
@@ -1061,6 +1176,25 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
     </section>
 
     <!-- LOS MENSAJES DE WHATSAPP, INSTAGRAM Y MESSENGER -->
+    <!-- RETARGETING (Maxi, 24/11): una tarjeta por campaña, cada una con
+         sus listas. Mismo tablero de vidrio que la agenda. Nada sale sin
+         que Maxi apruebe la lista y apague el simulacro. -->
+    <section id="zonaRetargeting" class="oculto">
+      <div class="tablero rt">
+        <div class="tab-cabeza">
+          <div>
+            <div class="tab-titulo">Retargeting · Campañas</div>
+            <div class="tab-sub" id="rtSub">Cada auto es una campaña. Nada sale sin tu OK.</div>
+          </div>
+          <div class="rt-cabeza-acc">
+            <button class="rt-btn rt-btn--claro" type="button" id="rtNueva">+ Nueva campaña</button>
+            <button class="tab-refrescar" type="button" id="rtRefrescar" title="Actualizar">↻</button>
+          </div>
+        </div>
+        <div id="rtCuerpo"></div>
+      </div>
+    </section>
+
     <section id="zonaBandeja" class="oculto">
       <!-- SIN EXPLICACION NI FILTROS NI EMBUDO.
            Esto era una parrafada, cuatro pastillas de canal y una tabla

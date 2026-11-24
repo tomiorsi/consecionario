@@ -2107,7 +2107,7 @@ $('#tabRefrescar').addEventListener('click', cargarAvisos);
 function verPestania(cual) {
   const autos = cual === 'autos';
   [['avisos', '#pesAvisos'], ['autos', '#pesAutos'], ['medios', '#pesMedios'],
-   ['bandeja', '#pesBandeja'], ['numeros', '#pesNumeros']]
+   ['bandeja', '#pesBandeja'], ['numeros', '#pesNumeros'], ['retargeting', '#pesRetargeting']]
     .forEach(([c, sel]) => $(sel).setAttribute('aria-pressed', String(cual === c)));
 
   $('#filtros').classList.toggle('oculto', !autos);
@@ -2121,6 +2121,7 @@ function verPestania(cual) {
   $('#zonaMedios').classList.toggle('oculto', cual !== 'medios');
   $('#zonaBandeja').classList.toggle('oculto', cual !== 'bandeja');
   $('#zonaNumeros').classList.toggle('oculto', cual !== 'numeros');
+  $('#zonaRetargeting').classList.toggle('oculto', cual !== 'retargeting');
   $('#sinAutos').classList.add('oculto');
   $('#sinChats').classList.add('oculto');
 
@@ -2128,6 +2129,7 @@ function verPestania(cual) {
   else if (cual === 'avisos') cargarAvisos();
   else if (cual === 'medios') cargarMedios();
   else if (cual === 'numeros') cargarNumeros();
+  else if (cual === 'retargeting') rtCargar();
   else {
     cargarChats().catch((err) => avisar(err.message, true));
     cargarIA();
@@ -2141,6 +2143,291 @@ $('#pesAutos').addEventListener('click', () => verPestania('autos'));
 $('#pesMedios').addEventListener('click', () => verPestania('medios'));
 $('#pesBandeja').addEventListener('click', () => verPestania('bandeja'));
 $('#pesNumeros').addEventListener('click', () => verPestania('numeros'));
+$('#pesRetargeting').addEventListener('click', () => verPestania('retargeting'));
+
+
+/* ── RETARGETING (Maxi, 24/11) ─────────────────────────────────────
+   Una tarjeta por campaña; adentro, las listas. Todo en simulacro hasta
+   que Maxi apruebe cada lista y apague el simulacro escribiendo ENVIAR.
+   El teléfono de nadie llega acá: con el nombre y la charla alcanza. */
+let rtVista = { cual: 'campanas', id: null, lista: 'precio', historial: false };
+let rtDetalle = null;
+let rtLeyendo = false;
+
+const RT_ORDEN = ['precio', 'charla_caida', 'resto', 'otros', 'dudoso', 'no_escribir'];
+const RT_ENVIO = { enviado: 'Enviado', entregado: 'Entregado', leido: 'Leído', respondido: 'Respondió', fallido: 'Falló', salteado: 'Salteado' };
+const RT_BOTON = { visita: 'Tocó «Coordinar una visita»', auto: 'Tocó «Tengo auto para entregar»', baja: 'Pidió la baja', texto: 'Contestó con un mensaje' };
+
+function rtFecha(f) {
+  if (!f) return '—';
+  const d = new Date(String(f).replace(' ', 'T') + (String(f).includes('Z') ? '' : 'Z'));
+  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+async function rtCargar() {
+  const cuerpo = $('#rtCuerpo');
+  try {
+    if (rtVista.cual === 'campanas') {
+      const d = await api('/api/admin/retargeting/campanas');
+      rtPintarCampanas(d);
+    } else {
+      rtDetalle = await api('/api/admin/retargeting/campanas/' + rtVista.id);
+      rtPintarDetalle();
+    }
+  } catch (e) {
+    cuerpo.innerHTML = '<div class="rt-vacio">' + escapar(e.message) + '</div>';
+  }
+}
+
+function rtPintarCampanas({ campanas, autos }) {
+  window.__rtAutos = autos;
+  const activas = campanas.filter((c) => c.estado !== 'terminada');
+  const viejas = campanas.filter((c) => c.estado === 'terminada');
+  const lista = rtVista.historial ? viejas : activas;
+  const chips = '<nav class="tab-chips rt-chips-hist">'
+    + '<button type="button" data-h="0" aria-pressed="' + !rtVista.historial + '">Activas <span>' + (activas.length || '') + '</span></button>'
+    + '<button type="button" data-h="1" aria-pressed="' + rtVista.historial + '">Historial <span>' + (viejas.length || '') + '</span></button></nav>';
+  const tarjetas = lista.map((c, i) => {
+    const r = c.resumen;
+    return '<button type="button" class="rt-camp" data-id="' + c.id + '" style="animation-delay:' + (i * 60) + 'ms">'
+      + '<div class="rt-camp-foto" style="background-image:url(\'' + (c.foto || '') + '\')"><div class="rt-camp-titulo">' + escapar(c.titulo) + '</div></div>'
+      + '<div class="rt-camp-cuerpo">'
+      + '<div class="rt-camp-fila"><span>Creada el ' + rtFecha(c.creado) + '</span><span class="rt-estado rt-estado--' + c.estado + '">' + escapar(c.estado_texto) + '</span></div>'
+      + '<div class="rt-mini">'
+      + '<div><b>' + (r.listas.precio || 0) + '</b><span>Precio</span></div>'
+      + '<div><b>' + (r.listas.charla_caida || 0) + '</b><span>Charla caída</span></div>'
+      + '<div><b>' + (r.listas.resto || 0) + '</b><span>Resto</span></div>'
+      + '<div><b>' + (r.listas.dudoso || 0) + '</b><span>Dudosos</span></div>'
+      + '</div>'
+      + '<div class="rt-camp-fila"><span>' + r.enviados + ' enviados · ' + r.respondidos + ' respondieron · ' + r.visitas + ' pidieron visita</span>'
+      + '<span>' + escapar(c.precio_texto) + '</span></div>'
+      + (r.clasificacion.total && r.clasificacion.hechos < r.clasificacion.total
+        ? '<div class="rt-riel"><span style="width:' + Math.round(100 * r.clasificacion.hechos / r.clasificacion.total) + '%"></span></div>' : '')
+      + '</div></button>';
+  }).join('');
+  $('#rtCuerpo').innerHTML = chips + (lista.length
+    ? '<div class="rt-grilla">' + tarjetas + '</div>'
+    : '<div class="rt-vacio">' + (rtVista.historial ? 'Todavía no hay campañas terminadas.'
+      : 'Todavía no hay campañas.<br>Tocá <b>+ Nueva campaña</b> y elegí un auto del stock.') + '</div>');
+  $$('#rtCuerpo [data-h]').forEach((b) => b.addEventListener('click', () => { rtVista.historial = b.dataset.h === '1'; rtCargar(); }));
+  $$('#rtCuerpo .rt-camp').forEach((b) => b.addEventListener('click', () => {
+    rtVista = { ...rtVista, cual: 'detalle', id: Number(b.dataset.id), lista: 'precio' };
+    rtCargar();
+  }));
+}
+
+function rtMensajeHTML(p, d) {
+  if (!p.mensaje || !p.mensaje.texto) {
+    const por = p.lista === 'otros' ? 'La lista 4 está apagada: su mensaje se escribe cuando la actives.'
+      : p.lista === 'dudoso' ? 'Es dudoso: no se le manda nada salvo que lo pases a una lista.'
+      : 'A esta persona no se le escribe.';
+    return '<div class="rt-wa"><div class="rt-sin-msj">' + por + '</div></div>';
+  }
+  let t = escapar(p.mensaje.texto);
+  (p.mensaje.valores || []).forEach((v) => { if (v) t = t.replace(escapar(v), '<mark>' + escapar(v) + '</mark>'); });
+  const video = d.campana.video
+    ? '<video src="' + d.campana.video + '#t=1" muted playsinline preload="metadata"></video><span>▶</span>'
+    : '<span title="Falta subir el video">🎬</span>';
+  return '<div class="rt-wa"><div class="rt-burbuja">'
+    + '<div class="rt-burbuja-video">' + video + '</div>'
+    + '<div class="rt-burbuja-texto">' + t + '</div><div class="rt-burbuja-hora">' + escapar(p.mensaje.plantilla || '') + '</div>'
+    + d.botones.map((b) => '<div class="rt-burbuja-boton">↩ ' + escapar(b.texto) + '</div>').join('')
+    + '</div></div>';
+}
+
+function rtPintarDetalle() {
+  const d = rtDetalle;
+  const c = d.campana;
+  const r = d.resumen;
+  const lista = rtVista.lista;
+  const def = d.definicion_listas;
+  const personas = d.personas.filter((p) => p.lista === lista);
+  const activos = personas.filter((p) => !p.sacado && p.estado === 'pendiente');
+  const aprobada = Boolean(d.listas[lista] && d.listas[lista].aprobada);
+  const prog = r.clasificacion;
+  const falta = prog.total - prog.hechos;
+
+  const kpis = RT_ORDEN.map((k) => '<button type="button" class="rt-kpi" data-l="' + k + '" aria-pressed="' + (k === lista) + '">'
+    + '<b>' + (r.listas[k] || 0) + '</b><span>' + escapar(def[k].corto) + '</span><small>' + escapar(def[k].dia)
+    + (d.listas[k] && d.listas[k].aprobada ? ' · aprobada ✓' : '') + '</small></button>').join('');
+
+  let barra = '';
+  if (def[lista].envia && lista !== 'otros') {
+    barra = '<div class="vidrio rt-barra-lista"><p>' + escapar(def[lista].nombre) + ': si la aprobás salen <b>' + activos.length
+      + ' mensajes</b> (Meta cobra cada conversación de marketing).<br>'
+      + (c.simulacro ? 'Estás en <b>simulacro</b>: aunque la apruebes, no sale nada hasta que actives el envío abajo.' : 'El envío está activado.')
+      + '</p><button type="button" class="rt-btn ' + (aprobada ? '' : 'rt-btn--claro') + '" id="rtAprobar">'
+      + (aprobada ? 'Quitar la aprobación' : 'Aprobar esta lista') + '</button></div>';
+  } else if (lista === 'otros') {
+    barra = '<div class="vidrio rt-barra-lista"><p>La lista 4 está <b>apagada</b>: consultaron por los 325i que ya se vendieron. Se arma, pero no se envía hasta que la actives (y escribamos su mensaje).</p></div>';
+  } else if (lista === 'dudoso') {
+    barra = '<div class="vidrio rt-barra-lista"><p>Los dudosos <b>no se envían</b>. Si alguno te parece bien, pasalo a una lista desde su tarjeta.</p></div>';
+  } else {
+    barra = '<div class="vidrio rt-barra-lista"><p>A estas personas <b>no se les escribe</b>. Están acá para que veas por qué.</p></div>';
+  }
+
+  const filas = personas.map((p, i) => {
+    const ini = (p.nombre || '?').trim()[0].toUpperCase();
+    const envio = p.estado !== 'pendiente'
+      ? '<span class="rt-envio rt-envio--' + p.estado + '">' + escapar(RT_ENVIO[p.estado] || p.estado) + (p.enviado_en ? ' · ' + rtFecha(p.enviado_en) : '') + '</span>' : '';
+    const mover = '<select data-mover="' + p.id + '"><option value="">Pasar a…</option>'
+      + RT_ORDEN.filter((k) => k !== p.lista).map((k) => '<option value="' + k + '">' + escapar(def[k].nombre) + '</option>').join('') + '</select>';
+    const editable = p.estado === 'pendiente';
+    return '<article class="rt-p' + (p.sacado ? ' rt-p--sacado' : '') + '" style="animation-delay:' + Math.min(i, 12) * 40 + 'ms">'
+      + '<div>'
+      + '<div class="rt-p-cabeza"><span class="vis-ini">' + escapar(ini) + '</span><div><b>' + escapar(p.nombre) + '</b>'
+      + '<small>' + escapar(p.canal) + ' · última charla ' + rtFecha(p.ultima_charla) + (p.perfil && p.perfil !== p.nombre ? ' · perfil «' + escapar(p.perfil) + '»' : '') + '</small></div>'
+      + (p.confianza != null ? '<span class="rt-conf">confianza ' + Math.round(p.confianza * 100) + '%</span>' : '') + '</div>'
+      + '<div class="rt-dato"><small>Motivo</small>' + escapar(p.motivo || '—') + '</div>'
+      + (p.evidencia ? '<div class="rt-dato"><small>Evidencia</small><div class="rt-cita">«' + escapar(p.evidencia) + '»</div></div>' : '')
+      + (p.auto_ofrecido ? '<div class="rt-dato"><small>Auto que ofreció</small>' + escapar(p.auto_ofrecido) + '</div>' : '')
+      + (p.tono ? '<div class="rt-dato"><small>Tono</small>' + escapar(p.tono) + (p.charla_avanzada ? ' · charla avanzada' : '') + '</div>' : '')
+      + (p.respuesta ? '<div class="rt-dato"><small>Respuesta</small>' + escapar(RT_BOTON[p.respuesta] || p.respuesta) + '</div>' : '')
+      + (p.error ? '<div class="rt-dato"><small>Error</small>' + escapar(p.error) + '</div>' : '')
+      + (editable && ['precio', 'charla_caida', 'dudoso'].includes(p.lista)
+        ? '<div class="rt-linea"><input data-linea="' + p.id + '" value="' + escapar(p.linea || '') + '" maxlength="59" placeholder="y de coordinar una visita"><button type="button" class="rt-btn rt-btn--chico" data-guardar="' + p.id + '">Guardar línea</button></div>' : '')
+      + '<div class="rt-p-acc">' + envio
+      + (editable ? '<button type="button" class="rt-btn rt-btn--chico" data-sacar="' + p.id + '" data-v="' + (p.sacado ? 0 : 1) + '">' + (p.sacado ? 'Volver a poner' : 'Sacar') + '</button>' + mover : '')
+      + (p.mensaje && p.mensaje.texto ? '<button type="button" class="rt-btn rt-btn--chico" data-prueba="' + p.id + '">Enviarme una prueba</button>' : '')
+      + '<button type="button" class="rt-btn rt-btn--chico" data-charla="' + p.conversacion + '">Ver charla</button>'
+      + '</div></div>'
+      + rtMensajeHTML(p, d)
+      + '</article>';
+  }).join('');
+
+  const progreso = prog.total
+    ? '<div class="vidrio rt-progreso"><div class="rt-progreso-txt"><span>' + (falta ? 'Leyendo charlas con la IA: ' + prog.hechos + ' de ' + prog.total : 'Charlas leídas: ' + prog.total + ' (' + d.fuera + ' eran por otro auto y quedaron afuera)') + '</span>'
+      + (falta ? '<button type="button" class="rt-btn rt-btn--chico rt-btn--naranja" id="rtLeer">' + (rtLeyendo ? 'Leyendo…' : 'Seguir leyendo') + '</button>' : '') + '</div>'
+      + '<div class="rt-riel"><span style="width:' + Math.round(100 * prog.hechos / prog.total) + '%"></span></div></div>' : '';
+
+  const plantillas = d.plantillas.map((p) => '<div class="rt-plantilla"><b>' + escapar(p.nombre) + '</b>' + escapar(p.texto) + '</div>').join('');
+
+  $('#rtCuerpo').innerHTML = '<button type="button" class="rt-volver" id="rtVolver">← Todas las campañas</button>'
+    + '<div class="rt-hero"><div class="vidrio rt-hero-info">'
+    + '<div class="rt-hero-auto">' + escapar(c.titulo) + '</div>'
+    + '<div class="rt-hero-precio">' + escapar(c.precio_texto) + ' · <a href="' + escapar(c.ficha) + '" target="_blank" rel="noopener">ver la ficha</a></div>'
+    + '<div><span class="rt-estado rt-estado--' + c.estado + '">' + escapar(c.estado_texto) + '</span> '
+    + (c.simulacro ? '<span class="rt-estado rt-estado--simulacro">Modo simulacro · no sale nada</span>' : '') + '</div>'
+    + '<div class="rt-camp-fila"><span>' + r.enviados + ' enviados · ' + r.respondidos + ' respondieron · ' + r.visitas + ' pidieron visita · ' + r.bajas + ' bajas' + (r.fallidos ? ' · ' + r.fallidos + ' fallaron' : '') + '</span></div>'
+    + '</div><div class="rt-video">' + (c.video ? '<video src="' + c.video + '" controls playsinline preload="metadata"></video>'
+      : '<div class="rt-vacio">Falta el video.<br><button type="button" class="rt-btn rt-btn--claro" id="rtSubirVideo">Subir video (MP4, hasta 16 MB)</button></div>') + '</div></div>'
+    + progreso
+    + '<div class="rt-kpis">' + kpis + '</div>'
+    + barra
+    + (filas ? '<div class="rt-personas">' + filas + '</div>' : '<div class="rt-vacio">No hay nadie en esta lista.</div>')
+    + '<div class="vidrio rt-ajustes"><h3>Ajustes y envío</h3>'
+    + '<div class="rt-ajustes-fila">Tope de mensajes por día: <input type="number" id="rtTope" min="1" max="500" value="' + c.tope_diario + '"><button type="button" class="rt-btn rt-btn--chico" id="rtGuardarTope">Guardar</button>'
+    + '<span style="opacity:.65">Salen de 10 a 20 h, uno cada 20 a 30 segundos. Si uno falla, no se reintenta.</span></div>'
+    + '<div class="rt-ajustes-fila">' + (c.video ? '<button type="button" class="rt-btn rt-btn--chico" id="rtSubirVideo">Cambiar el video</button>' : '')
+    + (c.simulacro ? '<button type="button" class="rt-btn rt-btn--chico rt-btn--naranja" id="rtActivar">Activar el envío real…</button>'
+      : '<button type="button" class="rt-btn rt-btn--chico rt-btn--claro" id="rtPausar">Pausar y volver a simulacro</button>')
+    + (c.estado !== 'terminada' ? '<button type="button" class="rt-btn rt-btn--chico" id="rtTerminar">Terminar campaña</button>' : '') + '</div>'
+    + '<h3>Las plantillas (se mandan a Meta solo con tu OK)</h3><div class="rt-plantillas">' + plantillas + '</div>'
+    + '<div style="font-size:.72rem;opacity:.7">Botones de las tres: ' + d.botones.map((b) => '«' + escapar(b.texto) + '»').join(' · ') + '</div>'
+    + '</div>'
+    + '<input type="file" id="rtArchivoVideo" accept="video/mp4" hidden>';
+
+  $('#rtVolver').addEventListener('click', () => { rtVista = { ...rtVista, cual: 'campanas', id: null }; rtCargar(); });
+  $$('#rtCuerpo .rt-kpi').forEach((b) => b.addEventListener('click', () => { rtVista.lista = b.dataset.l; rtPintarDetalle(); }));
+  const ap = $('#rtAprobar');
+  if (ap) ap.addEventListener('click', async () => {
+    if (!aprobada && !confirm('Aprobar ' + def[lista].nombre + ' (' + activos.length + ' mensajes)?' + (c.simulacro ? '\n\nSeguís en simulacro: no sale nada hasta que actives el envío.' : '\n\nEl envío está activado: empiezan a salir en la próxima vuelta (de 10 a 20 h).'))) return;
+    await rtAccion('/api/admin/retargeting/campanas/' + c.id + '/listas/' + lista, { aprobada: !aprobada });
+  });
+  const leer = $('#rtLeer');
+  if (leer) leer.addEventListener('click', () => rtLeerTodo(c.id));
+  $$('#rtCuerpo [data-sacar]').forEach((b) => b.addEventListener('click', () => rtAccion('/api/admin/retargeting/personas/' + b.dataset.sacar, { sacado: b.dataset.v === '1' })));
+  $$('#rtCuerpo [data-mover]').forEach((s) => s.addEventListener('change', () => {
+    if (!s.value) return;
+    const linea = ($('[data-linea="' + s.dataset.mover + '"]') || {}).value;
+    rtAccion('/api/admin/retargeting/personas/' + s.dataset.mover, { lista: s.value, ...(linea !== undefined ? { linea } : {}) });
+  }));
+  $$('#rtCuerpo [data-guardar]').forEach((b) => b.addEventListener('click', () =>
+    rtAccion('/api/admin/retargeting/personas/' + b.dataset.guardar, { linea: $('[data-linea="' + b.dataset.guardar + '"]').value })));
+  $$('#rtCuerpo [data-prueba]').forEach((b) => b.addEventListener('click', async () => {
+    if (!confirm('Te mando a tu WhatsApp el mensaje de esta persona, tal cual le llegaría. A ella no le llega nada. ¿Dale?')) return;
+    try {
+      const r = await api('/api/admin/retargeting/personas/' + b.dataset.prueba + '/prueba', { method: 'POST', body: '{}' });
+      avisar(r.como === 'plantilla' ? 'Listo, te llegó la plantilla real' : 'Listo, te llegó la vista previa con video y botones');
+    } catch (e) { avisar(e.message, true); }
+  }));
+  $$('#rtCuerpo [data-charla]').forEach((b) => b.addEventListener('click', () => {
+    verPestania('bandeja');
+    setTimeout(() => { if (typeof abrirChat === 'function') abrirChat(Number(b.dataset.charla)); }, 400);
+  }));
+  $('#rtGuardarTope').addEventListener('click', () => rtAccion('/api/admin/retargeting/campanas/' + c.id + '/ajustes', { tope_diario: Number($('#rtTope').value) }));
+  $$('#rtSubirVideo').forEach((b) => b.addEventListener('click', () => $('#rtArchivoVideo').click()));
+  $('#rtArchivoVideo').addEventListener('change', async (ev) => {
+    const f = ev.target.files[0];
+    if (!f) return;
+    if (f.size > 16 * 1048576) { avisar('WhatsApp acepta hasta 16 MB: hace falta una copia más liviana', true); return; }
+    avisar('Subiendo el video…');
+    const r = await fetch('/api/admin/retargeting/campanas/' + c.id + '/video', { method: 'POST', headers: { 'content-type': 'video/mp4' }, body: f });
+    const dd = await r.json().catch(() => ({}));
+    if (!r.ok) { avisar(dd.error || 'No se pudo subir', true); return; }
+    avisar('Video cargado');
+    rtCargar();
+  });
+  const act = $('#rtActivar');
+  if (act) act.addEventListener('click', async () => {
+    const t = prompt('Esto hace que salgan mensajes DE VERDAD a las listas aprobadas (con plantilla aprobada por Meta).\n\nPara confirmar, escribí ENVIAR');
+    if (t !== 'ENVIAR') return;
+    await rtAccion('/api/admin/retargeting/campanas/' + c.id + '/ajustes', { simulacro: false, confirmo: t });
+  });
+  const pau = $('#rtPausar');
+  if (pau) pau.addEventListener('click', () => rtAccion('/api/admin/retargeting/campanas/' + c.id + '/ajustes', { simulacro: true }));
+  const ter = $('#rtTerminar');
+  if (ter) ter.addEventListener('click', async () => {
+    if (!confirm('Terminar la campaña? Pasa al historial y no sale nada más.')) return;
+    await rtAccion('/api/admin/retargeting/campanas/' + c.id + '/ajustes', { terminar: true });
+  });
+}
+
+async function rtAccion(ruta, cuerpo) {
+  try {
+    await api(ruta, { method: 'POST', body: JSON.stringify(cuerpo) });
+    await rtCargar();
+  } catch (e) { avisar(e.message, true); }
+}
+
+async function rtLeerTodo(id) {
+  if (rtLeyendo) return;
+  rtLeyendo = true;
+  try {
+    for (let vuelta = 0; vuelta < 400; vuelta++) {
+      const p = await api('/api/admin/retargeting/campanas/' + id + '/clasificar', { method: 'POST', body: '{}' });
+      if (rtVista.cual === 'detalle' && rtVista.id === id) { rtDetalle = await api('/api/admin/retargeting/campanas/' + id); rtPintarDetalle(); }
+      if (p.hechos >= p.total) break;
+    }
+    avisar('Listo: todas las charlas leídas');
+  } catch (e) { avisar(e.message, true); }
+  rtLeyendo = false;
+  if (rtVista.cual === 'detalle') rtCargar();
+}
+
+$('#rtRefrescar').addEventListener('click', rtCargar);
+$('#rtNueva').addEventListener('click', async () => {
+  let autos = window.__rtAutos;
+  if (!autos) { try { autos = (await api('/api/admin/retargeting/campanas')).autos; } catch (e) { avisar(e.message, true); return; } }
+  const caja = document.createElement('div');
+  caja.className = 'rt-modal';
+  caja.innerHTML = '<div class="rt-modal-caja"><h3>Nueva campaña</h3><p>Elegí el auto. Se arma la campaña en simulacro y se buscan las charlas que lo nombran; después tocás «Leer charlas» para que la IA las clasifique.</p>'
+    + '<div class="rt-autos">' + autos.map((a) => '<button type="button" class="rt-auto" data-a="' + a.id + '"><b>' + escapar([a.marca, a.modelo, a.anio].filter(Boolean).join(' ')) + '</b><span>' + escapar((a.moneda || 'USD') + ' ' + Number(a.precio || 0).toLocaleString('es-AR')) + '</span></button>').join('') + '</div>'
+    + '<button type="button" class="rt-btn" data-cerrar>Cancelar</button></div>';
+  document.body.appendChild(caja);
+  caja.addEventListener('click', async (ev) => {
+    if (ev.target === caja || ev.target.closest('[data-cerrar]')) { caja.remove(); return; }
+    const b = ev.target.closest('[data-a]');
+    if (!b) return;
+    try {
+      const r = await api('/api/admin/retargeting/campanas', { method: 'POST', body: JSON.stringify({ auto_id: Number(b.dataset.a) }) });
+      caja.remove();
+      avisar(r.existia ? 'Ya había una campaña activa de ese auto' : 'Campaña creada: ' + r.candidatos + ' charlas para leer');
+      rtVista = { ...rtVista, cual: 'detalle', id: r.id, lista: 'precio' };
+      rtCargar();
+    } catch (e) { avisar(e.message, true); }
+  });
+});
 
 /* ── arranque ───────────────────────────────────────────────────── */
 
