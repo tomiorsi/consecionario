@@ -849,7 +849,8 @@ async function guardarEntrantes(env, lista) {
       const ya = await env.DB.prepare('SELECT nombre FROM conversaciones WHERE id = ?').bind(conv.id).first();
       if (!ya?.nombre) {
         const perfil = await igLlamar(env, `/${encodeURIComponent(m.externo_id)}?fields=name,username`).catch(() => null);
-        const nombre = String(perfil?.name || perfil?.username || '').trim().slice(0, 80);
+        /* Sólo el nombre real: el usuario no es un nombre (24/11, "catainaki"). */
+        const nombre = String(perfil?.name || '').trim().slice(0, 80);
         if (nombre) {
           await env.DB.prepare('UPDATE conversaciones SET nombre = ? WHERE id = ? AND nombre IS NULL')
             .bind(nombre, conv.id).run();

@@ -257,7 +257,12 @@ otro, contestá por el otro.
   const genero = generoDe(nombre);
   /* Sólo letras: el perfil lo escribe el cliente y esto entra en las instrucciones. */
   const sinAdornos = String(nombre ?? '').replace(/[^\p{L} .'-]/gu, '').trim();
-  const nombreDePerfil = /^[\p{L}][\p{L} .'-]{1,40}$/u.test(sinAdornos) ? sinAdornos : null;
+  /* EN INSTAGRAM, EL USUARIO NO ES UN NOMBRE (Maxi, 24/11: "por decirle catainaki a
+     Jorge lo perdí"). Sólo cuenta si parece nombre de persona: empieza con mayúscula
+     y no tiene puntos ni números (el original ya viene sin números ni guiones bajos). */
+  const pareceUsuario = canal === 'instagram' && (!/^\p{Lu}/u.test(sinAdornos) || /\./.test(String(nombre ?? ''))
+    || /[\d_]/.test(String(nombre ?? '')));
+  const nombreDePerfil = !pareceUsuario && /^[\p{L}][\p{L} .'-]{1,40}$/u.test(sinAdornos) ? sinAdornos : null;
   const trato = genero === 'f'
     ? `\nLE ESTÁS HABLANDO A UNA MUJER. Todo en femenino:
 "fierrera", "interesada", "bienvenida", "tranquila". Nunca en masculino.\n`
@@ -340,7 +345,7 @@ SU NOMBRE (Maxi, 6/11).${nombreDePerfil ? ` En su perfil figura «${nombreDePerf
 de persona ("David Sujarchuk"), ya sabés cómo se llama: no se lo preguntes y usá sólo el
 primer nombre. Si es otra cosa (una empresa, un apodo, iniciales, un apellido solo, un emoji, un
 usuario de Instagram), preguntalo. Si ya te lo dijo, no se lo
-preguntes y saludá con su nombre. EN INSTAGRAM NUNCA SE PREGUNTA (Maxi, 16/11: "tenés prohibido preguntar el nombre si su nombre está en su perfil"): usá el nombre del perfil o el usuario, o saludá sin nombre. NUNCA LE MANDES DOS VECES LO MISMO A LA MISMA PERSONA, ni con otras palabras. SE PREGUNTA UNA SOLA VEZ: si no contesta, no se lo
+preguntes y saludá con su nombre. EN INSTAGRAM: si su nombre está en el perfil, no se lo preguntes (Maxi, 16/11) y usá ese nombre. NUNCA LO LLAMES POR EL NOMBRE DE USUARIO (Maxi, 24/11: "por decirle catainaki a Jorge lo perdí"): si no sabés cómo se llama, preguntáselo una vez ("Cómo es tu nombre?") o saludá sin nombre. NUNCA LE MANDES DOS VECES LO MISMO A LA MISMA PERSONA, ni con otras palabras. SE PREGUNTA UNA SOLA VEZ: si no contesta, no se lo
 vuelvas a preguntar nunca. Si sólo tira buena onda, no se lo preguntes.
 Después, saludá sólo si él saluda, y despedite sólo si él se despide de
 verdad ("chau", "gracias, hasta luego"): con calidez y sin insistir. Un
