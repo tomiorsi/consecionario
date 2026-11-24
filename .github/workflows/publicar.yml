@@ -51,6 +51,10 @@ jobs:
       # cosas un viernes.
       - run: npm ci
 
+      # LOS TESTS DEL RETARGETING (filtro de bajas, dudoso nunca se envía).
+      # Si alguno falla, no se publica.
+      - run: node test/retargeting.test.js
+
       - uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
