@@ -4171,7 +4171,8 @@ async function fichaClara(env, v) {
     .map((t) => String(t).trim()).filter(Boolean);
   return [`*${hora}${v.aConfirmar ? ' (a confirmar)' : ''}* · ${quien}`,
     `Viene a ver: ${v.auto || 'no lo dijo'}`,
-    `Trae: ${trae || 'no habló de un auto suyo'}`,
+    /* "Trae" sólo si dijo que trae su auto (Maxi, 23/11). */
+    ...(trae ? [`Trae: ${trae}`] : []),
     ...(detalles.length ? [`Detalles: ${detalles.join('. ').replace(/\.\./g, '.')}`] : [])].join('\n');
 }
 
