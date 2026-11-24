@@ -536,9 +536,10 @@ export async function contextoParaElBot(env, conversacionId) {
   const boton = R.botonPorTexto(ult?.texto);
   let que = '';
   if (boton === 'visita') {
-    que = p.charla_avanzada
-      ? `Tocó "Coordinar una visita". La charla anterior ya estaba avanzada: retomala desde ahí (no repreguntes lo que ya se habló) y ofrecele venir a ver el ${p.titulo}. El salón atiende solo con cita: proponé dos o tres opciones concretas de día y horario de los próximos días (respetá los horarios del salón y los turnos ya tomados) y que elija.`
-      : `Tocó "Coordinar una visita". Ofrecele venir a ver el ${p.titulo}: el salón atiende solo con cita. Proponé dos o tres opciones concretas de día y horario de los próximos días (respetá los horarios del salón y los turnos ya tomados) y que elija.`;
+    /* SIN PROPONER DÍAS NI HORARIOS (Maxi, 24/11): "no todos pueden en los
+       horarios que nosotros le ofrezcamos y no quiero perder una visita por
+       eso. Nos adaptamos". Se le pregunta a él qué le queda cómodo. */
+    que = `Tocó "Coordinar una visita". ${p.charla_avanzada ? 'La charla anterior ya estaba avanzada: retomala desde ahí, sin repreguntar lo que ya se habló. ' : ''}Invitalo a venir a ver el ${p.titulo} y preguntale qué día y horario le queda cómodo a él. NO le propongas días ni horarios nuestros ni le des opciones cerradas: nos adaptamos a lo que pueda. El salón atiende con cita, así que una vez que diga cuándo, se coordina con él.`;
   } else if (boton === 'auto') {
     que = p.auto_ofrecido
       ? `Tocó "Tengo auto para entregar". En la charla anterior YA habló de un auto: ${p.auto_ofrecido}. NO le vuelvas a pedir los datos: preguntale si el auto que tiene para entregar es el mismo que hablaron antes (nombralo). ${p.auto_completo ? 'De ese auto ya tenemos marca, modelo, año y km.' : 'Si es el mismo, pedile solo lo que falte de marca, modelo, año y km.'} Si es otro, ahí sí pedile marca, modelo, año y km.`
