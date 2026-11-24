@@ -4727,7 +4727,10 @@ escribí sólo "${aPedido ? 'Hoy no hay nada pendiente' : 'Buen día. Hoy sin no
     messages: [{ role: 'user', content:
       `VISITAS\n${agenda.map((v) => `${v.visita} · ${v.quien} · ${v.auto ?? ''} · ${v.condiciones ?? v.motivo ?? ''}`).join('\n') || '(ninguna)'}\n\n` +
       `PARA TASAR\n${(tasar ?? []).map((c) => `${quienEs(c)}: ${c.nota}`).join('\n') || '(ninguno)'}\n\n` +
-      `CONSULTAS SIN CONTESTAR\n${consultas.map((c) => `${c.n}. ${c.pregunta}`).join('\n') || '(ninguna)'}\n\n` +
+      `CONSULTAS SIN CONTESTAR\n${consultas
+        /* Sin las de gente que Maxi sacó o canceló, y sin las de más de 7 días (24/11: volvió una vieja de Santiago). */
+        .filter((c) => !sacadosRes.has(c.chat) && !cancRes[c.chat] && (!c.cuando || Date.now() - Date.parse(c.cuando) < 7 * 24 * HORAS))
+        .map((c) => `${c.n}. ${c.pregunta}`).join('\n') || '(ninguna)'}\n\n` +
       `STOCK\n${(autos ?? []).map((a) => `${a.marca} ${a.modelo} ${a.anio} · ${a.km} km · ${a.moneda} ${a.precio}`).join('\n')}\n\n` +
       `CHARLAS DE LAS ÚLTIMAS 36 HORAS (cada mensaje con su fecha y hora UTC; Buenos Aires es UTC-3)\n\n${charlas.join('\n\n')}` }],
   });
