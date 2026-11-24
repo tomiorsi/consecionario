@@ -256,26 +256,31 @@ async function clasificarUno(env, camp, convId, h) {
   /* A los que ya están bloqueados no se los lee con la IA: no hace falta
      gastar en decidir algo que ya está decidido. */
   let ia = null;
+  let fallo = null;
   if (!esEquipo && !baja && !noContactar && (mensajes ?? []).some((m) => m.direccion === 'entrante')) {
     try { ia = await leerConClaude(env, camp, chat, mensajes ?? []); }
-    catch (e) { console.error('Retargeting, no se pudo leer la charla:', e?.message ?? e); }
+    catch (e) {
+      fallo = String(e?.message ?? e).slice(0, 300);
+      console.error('Retargeting, no se pudo leer la charla:', fallo);
+    }
   }
   const d = R.decidirLista({ canal: chat.canal, ultimo: chat.ultimo, baja, noContactar, esEquipo, marketingReciente: mkt, ia });
   const lista = d ? d.lista : 'fuera';
   await env.DB.prepare(
     `INSERT INTO rt_personas (campana_id, conversacion_id, lista, lista_original, motivo, evidencia, linea, tono, confianza,
-       nombre_saludo, auto_ofrecido, auto_completo, charla_avanzada, ultima_charla, actualizado)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?, datetime('now'))
+       nombre_saludo, auto_ofrecido, auto_completo, charla_avanzada, ultima_charla, error, actualizado)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, datetime('now'))
      ON CONFLICT (campana_id, conversacion_id) DO UPDATE SET lista = excluded.lista, lista_original = excluded.lista_original,
        motivo = excluded.motivo, evidencia = excluded.evidencia, linea = excluded.linea, tono = excluded.tono,
        confianza = excluded.confianza, nombre_saludo = excluded.nombre_saludo, auto_ofrecido = excluded.auto_ofrecido,
        auto_completo = excluded.auto_completo, charla_avanzada = excluded.charla_avanzada,
-       ultima_charla = excluded.ultima_charla, actualizado = excluded.actualizado
+       ultima_charla = excluded.ultima_charla, error = excluded.error, actualizado = excluded.actualizado
      WHERE rt_personas.editado = 0 AND rt_personas.estado = 'pendiente'`
   ).bind(camp.id, convId, lista, lista, d?.motivo ?? ia?.motivo ?? 'No consultó por este auto.',
     baja ? baja.texto : String(ia?.evidencia ?? '').slice(0, 160), R.lineaValida(ia?.linea) ? ia.linea.trim() : '',
     ia?.tono ?? null, ia?.confianza ?? null, R.nombreSeguro(ia?.nombre),
-    ia?.auto_ofrecido ?? null, ia?.auto_ofrecido_completo ? 1 : 0, ia?.charla_avanzada ? 1 : 0, chat.ultimo).run();
+    ia?.auto_ofrecido ?? null, ia?.auto_ofrecido_completo ? 1 : 0, ia?.charla_avanzada ? 1 : 0, chat.ultimo,
+    fallo ? `IA: ${fallo}` : null).run();
 }
 
 /* De a poco: cada llamada lee unas pocas charlas. El panel la repite
@@ -588,6 +593,18 @@ export async function rutas(peticion, env, ruta, metodo, h) {
 
   m = ruta.match(/^\/api\/admin\/retargeting\/campanas\/(\d+)\/clasificar$/);
   if (m && metodo === 'POST') return h.json(await clasificarTanda(env, Number(m[1]), h));
+
+  /* VOLVER A LEER LAS QUE LA IA NO PUDO: vuelven a la fila. */
+  m = ruta.match(/^\/api\/admin\/retargeting\/campanas\/(\d+)\/releer$/);
+  if (m && metodo === 'POST') {
+    const id = Number(m[1]);
+    await env.DB.batch([
+      env.DB.prepare(`UPDATE rt_candidatos SET hecho = 0 WHERE campana_id = ? AND conversacion_id IN
+        (SELECT conversacion_id FROM rt_personas WHERE campana_id = ? AND error LIKE 'IA:%' AND estado = 'pendiente' AND editado = 0)`).bind(id, id),
+      env.DB.prepare(`DELETE FROM rt_personas WHERE campana_id = ? AND error LIKE 'IA:%' AND estado = 'pendiente' AND editado = 0`).bind(id),
+    ]);
+    return h.json({ ok: true });
+  }
 
   m = ruta.match(/^\/api\/admin\/retargeting\/campanas\/(\d+)\/listas\/(\w+)$/);
   if (m && metodo === 'POST') {
