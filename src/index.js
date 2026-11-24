@@ -4600,7 +4600,8 @@ async function buenDia(env, { aPedido = false, porPanel = false, devolver = fals
   /* LO QUE MAXI SACÓ, LO DEL EQUIPO Y LO MARCADO "NO VA" NO ENTRA (24/11: el resumen
      traía a gente que había sacado esa mañana, su propio chat y el número de Manna). */
   const sacadosRes = new Set((await leerEstado(env, 'importantes_sacados'))?.valor ?? []);
-  const fueraRes = (c) => !c || c.id === jefe?.id || c.id === COLO_CHAT || sacadosRes.has(c.id)
+  const cancRes = (await leerEstado(env, 'visitas_canceladas'))?.valor ?? {};
+  const fueraRes = (c) => !c || (cancRes[c.id] && Date.now() - Date.parse(cancRes[c.id]) < 4 * 24 * HORAS) || c.id === jefe?.id || c.id === COLO_CHAT || sacadosRes.has(c.id)
     || String(c.nota ?? '').startsWith('NO VA')
     || soloDigitos(c.externo_id) === soloDigitos(env.SUPERVISOR_WHATSAPP) || soloDigitos(c.externo_id).endsWith('1176703813');
   const { results: tasar0 } = await env.DB.prepare(
@@ -6808,6 +6809,11 @@ async function admin(peticion, env, ruta, metodo, ctx) {
     if (!chat) return error('Faltan datos');
     const ya = (await leerEstado(env, 'agenda'))?.valor ?? [];
     await guardarEstado(env, 'agenda', ya.filter((v) => v.chat !== chat));
+    /* LA VISITA SACADA A MANO NO VUELVE EN EL RESUMEN (24/11, Claudio: se canceló y
+       el resumen lo seguía poniendo "para confirmar"). Se recuerda unos días. */
+    const canc = (await leerEstado(env, 'visitas_canceladas'))?.valor ?? {};
+    canc[chat] = new Date().toISOString();
+    await guardarEstado(env, 'visitas_canceladas', Object.fromEntries(Object.entries(canc).slice(-300)));
     return json({ ok: true });
   }
 
