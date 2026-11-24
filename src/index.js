@@ -4157,6 +4157,24 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
   await avisarVisitaAlEquipo(env, nueva, { soloMaxi: aConfirmar });
 }
 
+/* LA VISITA, BIEN CLARA PARA MAXI (23/11: "bien formulado y bien claro. Quiero
+   saber quién viene, a qué hora, qué viene a ver, qué auto trae y detalles
+   importantes de la conversación"). Un bloque por visita. */
+async function fichaClara(env, v) {
+  const c = await env.DB.prepare('SELECT canal, externo_id, nombre, nota FROM conversaciones WHERE id = ?')
+    .bind(v.chat).first().catch(() => null);
+  const hora = v.visita.length > 10 ? v.visita.slice(11, 16) + ' h' : 'Sin hora';
+  const quien = c ? quienEs(c) : v.quien;
+  const nota = String(c?.nota ?? '');
+  const trae = /^Para tasar/.test(nota) ? nota.replace(/^Para tasar \([^)]*\):\s*/, '').split('→')[0].trim().replace(/[.,]\s*$/, '') : '';
+  const detalles = [v.condiciones, ...(v.claves ?? []), v.motivo].filter(Boolean)
+    .map((t) => String(t).trim()).filter(Boolean);
+  return [`*${hora}${v.aConfirmar ? ' (a confirmar)' : ''}* · ${quien}`,
+    `Viene a ver: ${v.auto || 'no lo dijo'}`,
+    `Trae: ${trae || 'no habló de un auto suyo'}`,
+    ...(detalles.length ? [`Detalles: ${detalles.join('. ').replace(/\.\./g, '.')}`] : [])].join('\n');
+}
+
 /* LA CITA CONFIRMADA, POR WHATSAPP A MAXI Y A COLO (Maxi, 5/11). Texto libre
    si escribieron en las últimas 23 horas; si no, Meta sólo deja la plantilla.
    El número no va en el código: se busca por el chat. */
@@ -4282,13 +4300,15 @@ async function avisarInstagramAMaxi(env, chat, motivo) {
 
 async function avisarVisitaAlEquipo(env, v, { soloMaxi = false } = {}) {
   const jefe = await chatDelJefe(env);
-  const colo = soloMaxi ? null : await env.DB.prepare('SELECT id, canal, externo_id FROM conversaciones WHERE id = ?')
-    .bind(COLO_CHAT).first();
+  /* A COLO YA NO (Maxi, 23/11: "no le mandes más a Colo, ese mensaje no sirve
+     para nada"). Sólo a Maxi, al 2494. */
+  void soloMaxi;
+  const colo = null;
   const [cuando] = fichaDeVisita(v).split('\n');
   const detalle = [v.auto, v.condiciones].filter(Boolean).join(' · ');
   const claves = v.claves ?? [];
-  const texto = [v.aConfirmar ? (String(v.visita).slice(0, 10) === diaDeBsAs() ? `QUIERE VENIR HOY: no le contesté nada, escribile vos` : `Posible visita, A CONFIRMAR`) : `Visita agendada`, `${cuando}`, v.quien, detalle, ...claves.map((c) => `- ${c}`)]
-    .filter(Boolean).join('\n');
+  const dia = cuando.split(/\s\d{1,2}:\d{2}|\s\(sin hora\)/)[0];
+  const texto = `${v.aConfirmar ? (String(v.visita).slice(0, 10) === diaDeBsAs() ? '*QUIERE VENIR HOY* (no le contesté, escribile vos)' : '*POSIBLE VISITA* · a confirmar') : '*VISITA AGENDADA*'} · ${dia}\n\n${await fichaClara(env, v)}`;
   const plano = (t) => String(t || '-').replace(/\s+/g, ' ').trim().slice(0, 300);
   const valores = [cuando, v.quien, detalle, claves.join('. ')].map(plano);
   for (const d of [jefe, colo].filter(Boolean)) {
@@ -4493,7 +4513,7 @@ async function agendaDeManana(env) {
    los datos útiles y si quedaron a menos de 45 minutos. De lunes a viernes, las de
    mañana. El sábado, las del domingo y el lunes. El domingo no sale. Lo arma el
    código: es la agenda tal cual, sin inventar nada. */
-function textoVisitasDe(agenda, enDias) {
+async function textoVisitasDe(env, agenda, enDias) {
   const manana = diaDeBsAs(new Date(Date.now() + enDias * 24 * HORAS).toISOString().replace('T', ' ').slice(0, 19));
   const citas = agenda.filter((v) => v.visita.slice(0, 10) === manana)
     .sort((a, b) => (a.visita.slice(11) || '99').localeCompare(b.visita.slice(11) || '99'));
@@ -4501,24 +4521,24 @@ function textoVisitasDe(agenda, enDias) {
   const dia = new Date(`${manana}T12:00:00-03:00`).toLocaleDateString('es-AR', {
     weekday: 'long', day: 'numeric', month: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' });
   const aMin = (v) => (v.visita.length > 10 ? Number(v.visita.slice(11, 13)) * 60 + Number(v.visita.slice(14, 16)) : null);
-  const lineas = citas.map((v, i) => {
+  const lineas = [];
+  for (const [i, v] of citas.entries()) {
     const antes = i ? aMin(citas[i - 1]) : null;
     const ahora = aMin(v);
     const cerca = antes !== null && ahora !== null && ahora - antes < 45 ? `\nOjo: ${ahora - antes} minutos después de la anterior.` : '';
-    return [`${v.visita.length > 10 ? v.visita.slice(11, 16) : 'Sin hora'}${v.aConfirmar ? ' (a confirmar)' : ''}, ${v.quien}`,
-      [v.auto, v.condiciones].filter(Boolean).join('. '), ...(v.claves ?? [])].filter(Boolean).join('\n') + cerca;
-  });
-  return `VISITAS: ${dia}\n\n${lineas.join('\n\n')}`;
+    lineas.push(`${i + 1}. ${await fichaClara(env, v)}${cerca}`);
+  }
+  return `*VISITAS DE MAÑANA* · ${dia}\n\n${lineas.join('\n\n')}`;
 }
 
-function textoVisitasDeLaNoche(agenda) {
+async function textoVisitasDeLaNoche(env, agenda) {
   const hoy = new Date(Date.now() - 3 * HORAS).getUTCDay();
   const dias = hoy === 0 ? [] : hoy === 6 ? [1, 2] : [1];
-  return dias.map((n) => textoVisitasDe(agenda, n)).filter(Boolean).join('\n\n') || null;
+  return (await Promise.all(dias.map((n) => textoVisitasDe(env, agenda, n)))).filter(Boolean).join('\n\n') || null;
 }
 
 async function resumenDeLaNoche(env) {
-  const texto = textoVisitasDeLaNoche((await leerEstado(env, 'agenda'))?.valor ?? []);
+  const texto = await textoVisitasDeLaNoche(env, (await leerEstado(env, 'agenda'))?.valor ?? []);
   if (!texto) return;
   await anotarAviso(env, texto);
   const jefe = await chatDelJefe(env);
@@ -6614,7 +6634,7 @@ async function admin(peticion, env, ruta, metodo, ctx) {
 
   /* EL RESUMEN DE LAS 23, PARA VERLO SIN MANDARLO A NADIE. */
   if (ruta === '/api/admin/resumen-noche' && metodo === 'POST') {
-    return json({ texto: textoVisitasDeLaNoche((await leerEstado(env, 'agenda'))?.valor ?? []) });
+    return json({ texto: await textoVisitasDeLaNoche(env, (await leerEstado(env, 'agenda'))?.valor ?? []) });
   }
 
   /* LOS ESPERADOS POR OTRO CANAL (20/11). GET la lista; POST {agregar:{...}}
