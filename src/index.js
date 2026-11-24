@@ -4752,7 +4752,7 @@ async function armarListaDelDia(env) {
       `SELECT direccion, autor, tipo, texto, creado FROM mensajes WHERE conversacion_id = ?
         ORDER BY creado DESC, id DESC LIMIT 16`).bind(c.id).all();
     const visita = agenda.find((v) => v.chat === c.id);
-    fichas.push({ id: c.id, quien: quienEs(c), conFotos: fotos?.n > 0,
+    fichas.push({ id: c.id, quien: quienEs(c), conFotos: fotos?.n > 0, nota: c.nota,
       texto: `### id ${c.id} · ${quienEs(c)} · ${c.nota ?? ''}${visita ? ` · VISITA: ${diaDe(visita)}` : ''}\n` +
         (ms ?? []).reverse().map((m) => `[${String(m.creado).slice(5, 16)}] ${m.direccion === 'entrante' ? 'Cliente'
           : m.autor === 'ia' ? 'Bot' : 'Equipo'}: ${m.texto ? m.texto.slice(0, 200) : `[${m.tipo ?? 'mensaje'}]`}`).join('\n') });
@@ -4766,7 +4766,9 @@ async function armarListaDelDia(env) {
     const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
     const r = await client.messages.create({
       model: MODELO,
-      max_tokens: 3000,
+      /* 24/11: con 25 clientes el JSON se cortaba a los 3000 tokens, no se podía leer y
+         a Maxi le llegó "ofrece su auto" en cada renglón. */
+      max_tokens: 12000,
       thinking: { type: 'disabled' },
       output_config: { effort: 'medium' },
       system: `Para cada cliente de abajo (gente que ofrece su auto en permuta o consignación a Manna
@@ -4789,9 +4791,16 @@ Respondé SÓLO un JSON: {"<id>": "renglón", ...} con todos los ids.`,
     try {
       const j = JSON.parse(crudo.slice(crudo.indexOf('{'), crudo.lastIndexOf('}') + 1));
       for (const [k, v] of Object.entries(j)) renglon.set(Number(k), String(v).replace(/\s+/g, ' ').trim());
-    } catch { /* si no vino bien, va el nombre solo */ }
+    } catch {
+      /* SI EL JSON VINO CORTADO, se rescata renglón por renglón lo que llegó entero. */
+      for (const m of crudo.matchAll(/"(\d+)"\s*:\s*"((?:[^"\\]|\\.)*)"/g)) {
+        renglon.set(Number(m[1]), m[2].replace(/\\"/g, '"').replace(/\s+/g, ' ').trim());
+      }
+    }
   }
-  const linea = (f) => `${f.quien}: ${renglon.get(f.id) || 'ofrece su auto.'}`;
+  /* SIN RENGLÓN, LA NOTA DEL CHAT (auto, km, por cuál); nunca "ofrece su auto" solo. */
+  const deNota = (f) => String(f.nota ?? '').replace(/^Para (tasar|cotizar) \([^)]*\):\s*/, '').replace(/\s+/g, ' ').trim().slice(0, 220);
+  const linea = (f) => `${f.quien}: ${renglon.get(f.id) || deNota(f) || 'ofrece su auto (abrí el chat).'}`;
   const tasar = fichas.filter((f) => f.conFotos).map(linea);
   const sinFotos = fichas.filter((f) => !f.conFotos).map(linea);
   const importantes = [
