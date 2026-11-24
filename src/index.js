@@ -2592,6 +2592,19 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     partes.splice(0, partes.length, ...(limpias.length ? limpias : ['Dale!']));
   }
 
+  /* SI YA DIJO POR QUÉ AUTO NUESTRO VIENE, NO SE LE PREGUNTA (23/11, Marce: arrancó
+     con "Quiero información sobre la Ranger LTD", ofreció su Cronos y el bot le
+     preguntó "Con qué auto nuestro lo querés combinar?"). Si en lo que escribió
+     aparece un modelo de nuestro stock, esa pregunta se saca. */
+  const nombrados = todosPrivados.filter((m) => m.direccion === 'entrante')
+    .map((m) => String(m.texto ?? '').toLowerCase()).join(' ');
+  const yaDijoElAuto = (autos ?? []).some((a) => String(a.modelo ?? '').toLowerCase().split(/\s+/)
+    .some((w) => w.length >= 3 && /\d|ranger|hilux|gla|mach|rebel|ram/.test(w) && nombrados.includes(w)));
+  if (yaDijoElAuto) {
+    const sin = partes.filter((t) => !/con qu[eé] auto (nuestro )?(lo|la) quer[eé]s (combinar|permutar)|qu[eé] auto nuestro te interesa|por cu[aá]l de nuestros autos/i.test(t));
+    if (sin.length) partes.splice(0, partes.length, ...sin);
+  }
+
   /* NUNCA TODO EN UN MENSAJE (Maxi, 4/11). Si en un privado la pregunta
      quedó pegada al final de un texto, se separa: es la regla de "partes"
      y el modelo a veces la saltea. En un comentario Meta deja uno solo. */
