@@ -4811,8 +4811,9 @@ Respondé SÓLO un JSON: {"<id>": "renglón", ...} con todos los ids.`,
   /* VISITAS POSIBLES = LA AGENDA DEL PANEL, y nada más (Maxi, 18/11: "visita posible es
      visita posible" y "las visitas posibles van a la agenda del panel"). */
   const visitas = [];
+  /* TODAS LAS VISITAS, aunque ya estén arriba en Importante (24/11: faltó la del
+     sábado de Jorge y Maxi lo marcó: "te falta el del sábado"). */
   for (const v of agenda) {
-    if (yaEstan.has(v.chat)) continue;
     const c = v.chat ? await fila(v.chat) : null;
     visitas.push(`${c ? quienEs(c) : v.quien}: viene el ${diaDe(v)}${v.auto ? `, ${v.auto}` : ''}.`);
     if (c) yaEstan.add(c.id);
