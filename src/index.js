@@ -4597,10 +4597,17 @@ async function buenDia(env, { aPedido = false, porPanel = false, devolver = fals
   const agenda = ((await leerEstado(env, 'agenda'))?.valor ?? [])
     .filter((v) => v.visita.slice(0, 10) >= hoy);
   const consultas = (await leerEstado(env, 'consultas'))?.valor ?? [];
-  const { results: tasar } = await env.DB.prepare(
+  /* LO QUE MAXI SACÓ, LO DEL EQUIPO Y LO MARCADO "NO VA" NO ENTRA (24/11: el resumen
+     traía a gente que había sacado esa mañana, su propio chat y el número de Manna). */
+  const sacadosRes = new Set((await leerEstado(env, 'importantes_sacados'))?.valor ?? []);
+  const fueraRes = (c) => !c || c.id === jefe?.id || c.id === COLO_CHAT || sacadosRes.has(c.id)
+    || String(c.nota ?? '').startsWith('NO VA')
+    || soloDigitos(c.externo_id) === soloDigitos(env.SUPERVISOR_WHATSAPP) || soloDigitos(c.externo_id).endsWith('1176703813');
+  const { results: tasar0 } = await env.DB.prepare(
     `SELECT id, canal, externo_id, nombre, nota FROM conversaciones
-      WHERE nota LIKE ? AND ultimo > datetime('now','-14 days') LIMIT 15`
+      WHERE nota LIKE ? AND ultimo > datetime('now','-14 days') LIMIT 25`
   ).bind(`${PARA_TASAR}%`).all();
+  const tasar = (tasar0 ?? []).filter((c) => !fueraRes(c)).slice(0, 15);
 
   /* Las charlas de los últimos tres días, para leer quién está caliente
      y qué oportunidades hay. Los últimos mensajes de cada una alcanzan. */
@@ -4610,7 +4617,7 @@ async function buenDia(env, { aPedido = false, porPanel = false, devolver = fals
       ORDER BY (nota IS NULL), (canal != 'whatsapp'), ultimo DESC LIMIT 40`
   ).bind(jefe?.id ?? 0).all();
   const charlas = [];
-  for (const c of chats ?? []) {
+  for (const c of (chats ?? []).filter((x) => !fueraRes(x))) {
     const { results: ms } = await env.DB.prepare(
       `SELECT direccion, autor, texto, creado FROM mensajes WHERE conversacion_id = ? AND texto IS NOT NULL
         ORDER BY creado DESC, id DESC LIMIT 10`
@@ -4709,6 +4716,11 @@ Cómo llenar cada parte:
   que el equipo ya resolvió no va. Nunca repitas a un cliente en dos
   partes ni pongas líneas de "ya figura arriba". Los teléfonos, tal cual
   vienen: nunca inventes ni completes uno.
+- LAS VISITAS SALEN SÓLO DE "VISITAS" (la agenda). Una visita que aparece en una charla
+  pero no está en la agenda se canceló o ya pasó: no va (24/11, Claudio).
+- "SIN RESPUESTA" SÓLO SI EL ÚLTIMO MENSAJE ES DEL CLIENTE. Si lo último lo dijo el Bot o
+  el Equipo, ya le contestamos: nunca pongas "sin respuesta" (24/11, Christian Sayar).
+- Nunca pongas como cliente a Maxi, a Colo ni al número de Manna.
 Si no hay nada en una parte, no la pongas. Si no hay nada en ninguna,
 escribí sólo "${aPedido ? 'Hoy no hay nada pendiente' : 'Buen día. Hoy sin novedades'}".`,
     messages: [{ role: 'user', content:
