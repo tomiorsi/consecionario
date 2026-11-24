@@ -5637,7 +5637,11 @@ async function atenderComentario(env, chat, r) {
 
   /* SIN LINK (Maxi, 4/11): Meta deja un solo mensaje y, pegado al texto, el
      link no muestra la foto. Sale después, en la charla, con "ficha_de". */
-  const texto = armarTextos(r.partes, [
+  /* TAMPOCO AL CONTESTAR UN COMENTARIO SE PREGUNTA EL NOMBRE (24/11, Ana Bauer). */
+  const partesSinNombre = (r.partes ?? []).map((t) => String(t)
+    .replace(/[^.!?]*c[oó]mo (es tu nombre|te llam[aá]s)[^.!?]*\?\s*/gi, '')
+    .replace(/^\s*$/, '').trim()).filter(Boolean);
+  const texto = armarTextos(partesSinNombre.length ? partesSinNombre.map((t, i) => (i === 0 && !/^hola/i.test(t) && /^hola/i.test(String(r.partes?.[0] ?? '')) ? `Hola! ${t}` : t)) : r.partes, [
     await ubicacionSinRepetir(env, chat.id, r.ubicacion),
     /* Sólo si hace falta o lo pide (Maxi, 16/11), igual que en los privados. */
     r.irAWhatsapp || /tel[eé]fono|whats|wsp|wpp|celular|n[uú]mero|llamar/i.test(String(r.ultimo?.texto ?? '')) ? A_WHATSAPP : null,
