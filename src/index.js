@@ -4823,6 +4823,7 @@ Respondé SÓLO un JSON: {"<id>": "renglón", ...} con todos los ids.`,
   const { results: chats } = await env.DB.prepare(
     `SELECT id, canal, externo_id, nombre, humano, nota, tipo FROM conversaciones
       WHERE canal = 'instagram' AND id NOT IN (?, ?) AND ultimo > datetime('now', '-4 days')
+        AND COALESCE(nota, '') NOT LIKE 'NO VA%'
       ORDER BY (nota IS NULL), ultimo DESC LIMIT 50`
   ).bind(jefe?.id ?? 0, COLO_CHAT).all();
   const charlas = [];
@@ -6423,6 +6424,22 @@ async function admin(peticion, env, ruta, metodo, ctx) {
      hablar con una persona, y alguien que pide que le borremos los
      datos. Con `humano` en 1 la IA deja de contestar ese chat y la nota
      deja asentado por qué. */
+  /* CAMBIAR A MANO EL NOMBRE O LA NOTA DE UN CHAT (Maxi, 24/11: "CF se llama
+     Clemente"; "Fabián Rubén no se toma"). Una nota que empieza con "NO VA" lo
+     saca de las listas. */
+  const datosDe = ruta.match(/^\/api\/admin\/chats\/(\d+)\/datos$/);
+  if (datosDe && metodo === 'POST') {
+    const c = await peticion.json().catch(() => ({}));
+    const id = Number(datosDe[1]);
+    if (typeof c?.nombre === 'string' && c.nombre.trim()) {
+      await env.DB.prepare('UPDATE conversaciones SET nombre = ? WHERE id = ?').bind(c.nombre.trim().slice(0, 60), id).run();
+    }
+    if (typeof c?.nota === 'string') {
+      await env.DB.prepare('UPDATE conversaciones SET nota = ? WHERE id = ?').bind(c.nota.trim().slice(0, 500) || null, id).run();
+    }
+    return json({ ok: true });
+  }
+
   const aHumano = ruta.match(/^\/api\/admin\/chats\/(\d+)\/humano$/);
   if (aHumano && metodo === 'POST') {
     const cuerpo = await peticion.json().catch(() => ({}));
