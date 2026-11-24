@@ -1935,9 +1935,11 @@ function pintarCita(v) {
     '<div class="vis-quien"><span class="vis-ini" aria-hidden="true">' +
       escapar(quien.replace(/[^\p{L}\d]/gu, '').charAt(0).toUpperCase() || '?') + '</span>' +
       '<div><b>' + linkTel(v.tel, quien) + '</b><small>' + escapar(CANAL[v.canal] ?? '') + '</small></div></div>' +
-    '<div class="vis-dato"><small>Viene a ver</small><b>' + (v.auto ? escapar(v.auto) : '<i>No dijo</i>') + '</b></div>' +
-    '<div class="vis-dato"><small>Trae</small><b>' + (trae ? escapar(queTraeEntero(cond))
-      : '<i>' + (/contado|compra directa/i.test(cond) ? 'Compra directa' : 'Nada') + '</i>') + '</b></div>' +
+    /* Maxi, 23-24/11: "Trae" sólo si trae un auto; y si viene a dejar el suyo
+       sin mirar nada nuestro, no se pone "Viene a ver". */
+    (v.auto || !trae ? '<div class="vis-dato"><small>Viene a ver</small><b>' + (v.auto ? escapar(v.auto) : '<i>No dijo</i>') + '</b></div>' : '') +
+    (trae ? '<div class="vis-dato"><small>Trae</small><b>' + escapar(queTraeEntero(cond)) + '</b></div>'
+      : /contado|compra directa/i.test(cond) ? '<div class="vis-dato"><small>Paga</small><b><i>Compra directa</i></b></div>' : '') +
     '<div class="vis-lado"><div class="vis-estado vis-estado--' + estado[0] + '">' + estado[1] + '</div>' +
       '<button type="button" class="vis-sacar" data-sacar="' + v.chat + '">Ya vino / canceló</button></div>' +
     (claves.length ? '<ul class="vis-claves">' + claves.map((c) => '<li>' + escapar(c) + '</li>').join('') + '</ul>' : '') +
