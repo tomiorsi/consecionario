@@ -3118,7 +3118,10 @@ async function mandarRespuesta(env, chat, {
   /* EN INSTAGRAM NO SE PREGUNTA EL NOMBRE (Maxi, 16/11: "tenés prohibido
      preguntar el nombre si su nombre está en su perfil"): el perfil siempre
      tiene un nombre o un usuario. Se saca la pregunta aunque el bot la escriba. */
-  if (autor === 'ia' && chat.canal === 'instagram') {
+  /* 24/11 (Maxi): "llamalos por el nombre o se lo preguntás". Si el perfil NO tiene un
+     nombre real (sólo el usuario, como "catainaki"), la pregunta sí puede salir. */
+  const tieneNombreReal = /^\p{Lu}[\p{L}'-]+( \p{L}[\p{L}'-]*){0,3}$/u.test(String(chat.nombre ?? '').trim());
+  if (autor === 'ia' && chat.canal === 'instagram' && tieneNombreReal) {
     const sinNombre = partes.map((t) => {
       const sin = t.replace(/[^.!?]*c[oó]mo (es tu nombre|te llam[aá]s)[^.!?]*\?\s*/gi, '').trim();
       return sin !== t.trim() && /^hola/i.test(t.trim()) && !/^hola/i.test(sin) ? `Hola! ${sin}`.trim() : sin;
