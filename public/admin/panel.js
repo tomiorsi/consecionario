@@ -2107,7 +2107,7 @@ $('#tabRefrescar').addEventListener('click', cargarAvisos);
 function verPestania(cual) {
   const autos = cual === 'autos';
   [['avisos', '#pesAvisos'], ['autos', '#pesAutos'], ['medios', '#pesMedios'],
-   ['bandeja', '#pesBandeja'], ['numeros', '#pesNumeros'], ['retargeting', '#pesRetargeting']]
+   ['bandeja', '#pesBandeja'], ['numeros', '#pesNumeros'], ['retargeting', '#pesRetargeting'], ['gasto', '#pesGasto']]
     .forEach(([c, sel]) => $(sel).setAttribute('aria-pressed', String(cual === c)));
 
   $('#filtros').classList.toggle('oculto', !autos);
@@ -2121,6 +2121,7 @@ function verPestania(cual) {
   $('#zonaMedios').classList.toggle('oculto', cual !== 'medios');
   $('#zonaBandeja').classList.toggle('oculto', cual !== 'bandeja');
   $('#zonaNumeros').classList.toggle('oculto', cual !== 'numeros');
+  $('#zonaGasto').classList.toggle('oculto', cual !== 'gasto');
   $('#zonaRetargeting').classList.toggle('oculto', cual !== 'retargeting');
   $('#sinAutos').classList.add('oculto');
   $('#sinChats').classList.add('oculto');
@@ -2130,6 +2131,7 @@ function verPestania(cual) {
   else if (cual === 'medios') cargarMedios();
   else if (cual === 'numeros') cargarNumeros();
   else if (cual === 'retargeting') rtCargar();
+  else if (cual === 'gasto') giCargar();
   else {
     cargarChats().catch((err) => avisar(err.message, true));
     cargarIA();
@@ -2144,6 +2146,59 @@ $('#pesMedios').addEventListener('click', () => verPestania('medios'));
 $('#pesBandeja').addEventListener('click', () => verPestania('bandeja'));
 $('#pesNumeros').addEventListener('click', () => verPestania('numeros'));
 $('#pesRetargeting').addEventListener('click', () => verPestania('retargeting'));
+$('#pesGasto').addEventListener('click', () => verPestania('gasto'));
+
+/* ── GASTO DE LA IA (Maxi, 24/11) ── */
+const giPlata = (n) => 'USD ' + Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+let giAbierto = null;
+let giDato = null;
+async function giCargar(opciones) {
+  try { giDato = await api('/api/admin/gasto-ia', opciones); giPintar(); }
+  catch (err) { avisar(err.message, true); }
+}
+function giPintar() {
+  const g = giDato;
+  const dia = (n) => new Date(Date.parse(g.hoy + 'T12:00:00Z') - n * 864e5).toISOString().slice(0, 10);
+  const de = Object.fromEntries(g.dias.map((d) => [d.dia, d]));
+  const suma = (n) => Array.from({ length: n }, (_, i) => de[dia(i)]?.costo || 0).reduce((a, b) => a + b, 0);
+  /* Promedio de los últimos 7 días completos que el contador estuvo prendido. */
+  const llenos = Array.from({ length: 7 }, (_, i) => dia(i + 1)).filter((d) => g.inicio && d > g.inicio);
+  const prom = llenos.length ? llenos.reduce((a, d) => a + (de[d]?.costo || 0), 0) / llenos.length : null;
+  const s = g.saldo || {};
+  const queda = s.monto == null ? null : Math.max(0, s.monto - (s.gastado || 0));
+  const dias = queda !== null && prom > 0 ? Math.floor(queda / prom) : null;
+  const clase = queda === null ? '' : (queda <= 0 || (dias !== null && dias < 3)) ? ' gi-cifra--mal' : dias !== null && dias < 7 ? ' gi-cifra--ojo' : '';
+  const cifra = (t, v, n, c = '') => '<div class="gi-cifra' + c + '"><span>' + t + '</span><b>' + v + '</b><small>' + n + '</small></div>';
+  const sinPrecio = g.tareas.reduce((a, t) => a + (t.sin_precio || 0), 0);
+  const max = Math.max(0.01, ...g.dias.map((d) => d.costo));
+  const corte = s.corte ? '<div class="gi-alerta"><b>La IA está sin saldo.</b> El último intento falló el ' +
+    new Date(s.corte).toLocaleString('es-AR', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit' }) + '.</div>' : '';
+  const filas = [...g.dias].reverse().map((d) => {
+    const f = new Date(d.dia + 'T12:00:00Z').toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'numeric', timeZone: 'UTC' });
+    const det = giAbierto !== d.dia ? '' : '<div class="gi-detalle">' + g.tareas.filter((t) => t.dia === d.dia).sort((a, b) => b.costo - a.costo)
+      .map((t) => '<div><span>' + escapar(t.tarea) + ' · ' + Number(t.llamadas) + ' consultas</span><span>' + giPlata(t.costo) + '</span></div>').join('') + '</div>';
+    return '<button class="gi-fila" type="button" data-dia="' + escapar(d.dia) + '"><span>' + escapar(f) + '</span><span class="gi-riel"><i style="width:' +
+      Math.round(d.costo / max * 100) + '%"></i></span><em>' + giPlata(d.costo) + '</em></button>' + det;
+  }).join('');
+  $('#giCuerpo').innerHTML = corte + '<div class="gi-cifras">' +
+    cifra('Hoy', giPlata(suma(1)), (de[g.hoy]?.llamadas || 0) + ' consultas') +
+    cifra('Últimos 7 días', giPlata(suma(7)), prom === null ? 'Todavía no hay un día completo' : giPlata(prom) + ' por día') +
+    cifra('Últimos 30 días', giPlata(suma(30)), g.inicio ? 'Cuenta desde el ' + escapar(g.inicio.slice(8) + '/' + g.inicio.slice(5, 7)) : 'Todavía sin consultas') +
+    cifra('Saldo estimado', queda === null ? '—' : giPlata(queda), queda === null ? 'Cargalo abajo' : dias === null ? 'Falta un día completo para calcular' : dias === 1 ? 'Alcanza para 1 día' : 'Alcanza para ' + dias + ' días', clase) +
+    '</div>' + (filas || '<p class="gi-nota">Todavía no hay gasto anotado.</p>') +
+    (sinPrecio ? '<p class="gi-nota">Ojo: ' + Number(sinPrecio) + ' consultas sin precio conocido no están sumadas.</p>' : '');
+}
+$('#giCuerpo').addEventListener('click', (e) => {
+  const f = e.target.closest('[data-dia]');
+  if (!f) return;
+  giAbierto = giAbierto === f.dataset.dia ? null : f.dataset.dia;
+  giPintar();
+});
+$('#giRefrescar').addEventListener('click', () => giCargar());
+$('#giSaldo').addEventListener('submit', (e) => {
+  e.preventDefault();
+  giCargar({ method: 'POST', body: JSON.stringify({ saldo: $('#giMonto').value }) });
+});
 
 
 /* ── RETARGETING (Maxi, 24/11) ─────────────────────────────────────
