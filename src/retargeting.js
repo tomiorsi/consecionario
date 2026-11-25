@@ -20,7 +20,7 @@
    Todo lo que se guarda de una persona cuelga de su conversación con
    ON DELETE CASCADE: si pide que la borremos, se va todo junto. */
 
-import Anthropic from '@anthropic-ai/sdk';
+import { clienteIA } from './gasto.js';
 import * as R from './retargeting-reglas.js';
 
 const DIA = 24 * 3600 * 1000;
@@ -212,7 +212,7 @@ function transcribir(chat, mensajes) {
 }
 
 async function leerConClaude(env, camp, chat, mensajes) {
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const client = clienteIA(env, 'Retargeting');
   const r = await client.messages.create({
     model: MODELO,
     max_tokens: 4000,

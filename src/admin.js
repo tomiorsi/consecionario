@@ -910,6 +910,25 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
   margin:-.6rem 0 1.4rem;
 }
 
+/* ── GASTO DE LA IA (Maxi, 24/11) ── */
+.gi-cifras{ display:grid; gap:.8rem; grid-template-columns:repeat(auto-fit, minmax(10rem,1fr)); margin:1rem 0 1.2rem }
+.gi-cifra{ padding:1rem; border-radius:16px; background:rgba(0,0,0,.2); border:1px solid rgba(255,255,255,.1) }
+.gi-cifra span{ display:block; font-size:.62rem; letter-spacing:.08em; text-transform:uppercase; opacity:.65 }
+.gi-cifra b{ display:block; font-family:var(--display); font-size:1.6rem; margin:.25rem 0 .1rem }
+.gi-cifra small{ font-size:.68rem; opacity:.7 }
+.gi-cifra--mal{ border-color:#ff8f7a; background:rgba(255,120,95,.14) }
+.gi-cifra--ojo{ border-color:#f0c83c; background:rgba(240,200,60,.1) }
+.gi-alerta{ padding:.8rem 1rem; border-radius:14px; background:rgba(255,120,95,.18); border:1px solid #ff8f7a; margin-top:1rem; font-size:.82rem }
+.gi-fila{ display:grid; grid-template-columns:4.2rem 1fr 4.6rem; gap:.7rem; align-items:center; width:100%; padding:.35rem 0; border:0; background:none; color:inherit; font:inherit; font-size:.76rem; text-align:left; cursor:pointer }
+.gi-riel{ height:.8rem; border-radius:999px; background:rgba(255,255,255,.08); overflow:hidden }
+.gi-riel i{ display:block; height:100%; border-radius:999px; background:#ffd9b0; transition:width .5s ease }
+.gi-fila em{ font-style:normal; text-align:right; font-variant-numeric:tabular-nums }
+.gi-detalle{ margin:.1rem 0 .7rem 4.9rem; font-size:.72rem; opacity:.85 }
+.gi-detalle div{ display:flex; justify-content:space-between; gap:1rem; padding:.12rem 0 }
+.gi-saldo{ display:flex; gap:.5rem; flex-wrap:wrap; align-items:center; margin:1.2rem 0 .5rem; font-size:.78rem }
+.gi-saldo input{ width:7rem; padding:.45rem .7rem; border-radius:10px; border:1px solid rgba(255,255,255,.25); background:rgba(0,0,0,.2); color:inherit; font:inherit; font-size:16px }
+.gi-nota{ font-size:.68rem; opacity:.65; line-height:1.6 }
+
 /* ── RETARGETING (Maxi, 24/11) ── el mismo vidrio de la agenda */
 .rt .tab-sub{ text-transform:none }
 .rt-cabeza-acc{ display:flex; gap:.5rem; align-items:center }
@@ -1071,6 +1090,7 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
         <button class="pestania" type="button" id="pesBandeja" aria-pressed="false">Mensajes</button>
         <button class="pestania" type="button" id="pesNumeros" aria-pressed="false">Instagram</button>
         <button class="pestania" type="button" id="pesRetargeting" aria-pressed="false">Retargeting</button>
+        <button class="pestania" type="button" id="pesGasto" aria-pressed="false">Gasto IA</button>
       </div>
       <div style="display:flex;gap:.5rem;flex-wrap:wrap">
         <button class="btn" id="fotosWA" type="button" title="Arma la foto que usa WhatsApp en la vista previa de cada auto">Fotos para WhatsApp</button>
@@ -1176,6 +1196,26 @@ textarea{ resize:vertical; min-height:6rem; line-height:1.6 }
     </section>
 
     <!-- LOS MENSAJES DE WHATSAPP, INSTAGRAM Y MESSENGER -->
+    <!-- CUÁNTO GASTA LA IA POR DÍA. Las cuentas las hace src/gasto.js. -->
+    <section id="zonaGasto" class="oculto">
+      <div class="tablero rt">
+        <div class="tab-cabeza">
+          <div>
+            <div class="tab-titulo">Gasto de la IA</div>
+            <div class="tab-sub">Lo que consume Claudio, en dólares, por día.</div>
+          </div>
+          <button class="rt-btn rt-btn--chico" type="button" id="giRefrescar">Actualizar</button>
+        </div>
+        <div id="giCuerpo"></div>
+        <form class="gi-saldo" id="giSaldo">
+          <label for="giMonto">Saldo que ves hoy en la cuenta de la IA: USD</label>
+          <input id="giMonto" type="number" min="0" step="0.01" inputmode="decimal" required>
+          <button class="rt-btn rt-btn--claro" type="submit">Guardar</button>
+        </form>
+        <p class="gi-nota">Es una estimación con los precios publicados; la cifra oficial está en la consola de Anthropic. Cuenta desde que se publicó este contador. Cada vez que cargues plata, poné acá el saldo nuevo.</p>
+      </div>
+    </section>
+
     <!-- RETARGETING (Maxi, 24/11): una tarjeta por campaña, cada una con
          sus listas. Mismo tablero de vidrio que la agenda. Nada sale sin
          que Maxi apruebe la lista y apague el simulacro. -->

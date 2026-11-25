@@ -26,6 +26,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { PANEL } from './admin.js';
 import { instruccionesDelBot } from './instrucciones.js';
 import * as RT from './retargeting.js';
+import { clienteIA, rutaGasto } from './gasto.js';
 
 const GRUPOS = ['alta-gama', 'evolution', 'deportivos', 'urbanos'];
 const TAMANOS = ['1600', '640'];
@@ -1005,7 +1006,7 @@ const MARCA_FOTO = '[Se ve: ';
 
 async function describirFotos(env, fotos = []) {
   if (!env.ANTHROPIC_API_KEY || !fotos.length) return;
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const client = clienteIA(env, 'Fotos de clientes');
   await Promise.all(fotos.slice(0, 8).map(async (f) => {
     try {
       const bajado = await bajarDeMeta(env, f);
@@ -2199,7 +2200,7 @@ async function deQueEs(env, clave, { texto = '', imagen = null, video = null } =
 
   if (!res && env.ANTHROPIC_API_KEY && (t || imagen)) {
     try {
-      const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+      const client = clienteIA(env, 'De qué auto es el posteo');
       const fotoDelPosteo = imagen ? await imagenParaClaude(imagen) : null;
       const preguntar = async (dicho = '') => { const r = await client.messages.create({
         model: MODELO_CHARLA,
@@ -2451,7 +2452,7 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
      lee la charla anterior y sigue desde ahí, y a Maxi le llega el aviso. */
   const previa = simulacion ? null : await charlaPreviaDeEsperado(env, conversacionId, chat, todos);
 
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const client = clienteIA(env, 'Respuestas a clientes');
   const pedido = {
     model: MODELO_CHARLA,
     /* Sonnet piensa antes de contestar y eso también cuenta acá. */
@@ -3655,7 +3656,7 @@ async function atenderAlJefe(env, conversacionId, mensajeId, { porPanel = false 
   const charla = (porPanel ? (ultimos ?? []).slice(0, 1) : (ultimos ?? []).slice().reverse())
     .map((m) => `${m.direccion === 'entrante' ? 'Maxi' : 'Bot'}: ${m.texto ?? ''}`).join('\n');
 
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const client = clienteIA(env, 'Hablar con Maxi');
   const r = await client.messages.create({
     model: MODELO,
     max_tokens: 4000,
@@ -4001,7 +4002,7 @@ async function repasarElDia(env) {
   const pendientes = ((await leerEstado(env, 'consultas'))?.valor ?? [])
     .map((c) => `Consulta ${c.n}: ${c.pregunta}`).join('\n');
 
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const client = clienteIA(env, 'Repaso del día');
   const r = await client.messages.create({
     model: MODELO,
     max_tokens: 6000,
@@ -4169,10 +4170,7 @@ async function agendarVisita(env, chat, { visita, auto = null, condiciones = nul
     (nueva.motivo ? `\n${nueva.motivo}` : '') +
     (aConfirmar ? `\n\n${visita.slice(0, 10) === diaDeBsAs() ? 'QUIERE VENIR HOY: no le contesté nada y el chat queda para el equipo. Escribile vos.' : 'No lo cerró del todo: confirmásela vos.'} Queda en amarillo y no le sale la confirmación de la noche anterior.`
       : `\n\nSe la confirmé yo. Ponelo en Visita posible.`));
-  /* CADA POSIBLE VISITA LE LLEGA A MAXI POR WHATSAPP AL TOQUE (Maxi, 9/11:
-     "no esperes a las 11"). La firme va también a Colo; la que queda a
-     confirmar, sólo a Maxi, que es quien la confirma. */
-  await avisarVisitaAlEquipo(env, nueva, { soloMaxi: aConfirmar });
+  /* Queda en el panel; por WhatsApp no (Maxi, 24/11). */
 }
 
 /* LA VISITA, BIEN CLARA PARA MAXI (23/11: "bien formulado y bien claro. Quiero
@@ -4274,21 +4272,8 @@ async function charlaPreviaDeEsperado(env, conversacionId, chat, todos) {
 }
 
 async function avisarEsperadoAMaxi(env, chat, e) {
-  const jefe = await chatDelJefe(env);
-  if (!jefe) return;
   const quien = chat.canal === 'whatsapp' ? `+${chat.externo_id}${chat.nombre ? `, ${chat.nombre}` : ''}` : `@${chat.nombre ?? chat.externo_id}`;
-  const texto = `ATENCIÓN: escribió ${e.nota ? e.nota.split('.')[0] : 'el cliente que esperabas'} por ${chat.canal}\n${quien}\nLo sigo con la charla de antes.`;
-  try {
-    const abierta = await env.DB.prepare(
-      `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
-          AND creado > datetime('now','-23 hours') LIMIT 1`
-    ).bind(jefe.id).first();
-    if (!abierta) { await guardarParaMaxi(env, texto, 'escribió un cliente que esperabas'); return; }
-    const id = await mandarUno(env, jefe, texto);
-    await guardarSaliente(env, jefe.id, texto, 'ia', id);
-  } catch (err) {
-    await anotarAviso(env, `${texto}\n(No te llegó por WhatsApp: ${String(err?.message ?? err).slice(0, 120)})`);
-  }
+  await anotarAviso(env, `ATENCIÓN: escribió ${e.nota ? e.nota.split('.')[0] : 'el cliente que esperabas'} por ${chat.canal}\n${quien}\nLo sigo con la charla de antes.`);
 }
 
 async function sumarAImportantesSiHayFotos(env, chatId) {
@@ -4318,58 +4303,13 @@ async function sumarAImportantesSiHayFotos(env, chatId) {
   await guardarEstado(env, 'importantes', [...lista, chatId]);
 }
 
+/* Sólo al panel, una por persona cada 24 h (Maxi, 24/11: nada por WhatsApp). */
 async function avisarInstagramAMaxi(env, chat, motivo) {
-  const jefe = await chatDelJefe(env);
-  if (!jefe) return;
   const quien = `@${chat.nombre ?? 'sin nombre'}`;
-  const ya = await env.DB.prepare(
-    `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
-        AND creado > datetime('now','-24 hours') AND texto LIKE ? LIMIT 1`
-  ).bind(jefe.id, `ATENCIÓN INSTAGRAM%${quien}%`).first();
-  if (ya) return;
-  const texto = `ATENCIÓN INSTAGRAM\n${quien} ${String(motivo).replace(/\s+/g, ' ').trim()}`;
-  try {
-    const abierta = await env.DB.prepare(
-      `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
-          AND creado > datetime('now','-23 hours') LIMIT 1`
-    ).bind(jefe.id).first();
-    if (!abierta) {
-      await guardarParaMaxi(env, texto, 'un cliente de Instagram para mirar');
-      return;
-    }
-    const id = await mandarUno(env, jefe, texto);
-    await guardarSaliente(env, jefe.id, texto, 'ia', id);
-  } catch (e) {
-    await anotarAviso(env, `No pude avisarte por WhatsApp de Instagram (${quien}): ${String(e?.message ?? e).slice(0, 150)}`);
-  }
-}
-
-async function avisarVisitaAlEquipo(env, v, { soloMaxi = false } = {}) {
-  const jefe = await chatDelJefe(env);
-  /* A COLO YA NO (Maxi, 23/11: "no le mandes más a Colo, ese mensaje no sirve
-     para nada"). Sólo a Maxi, al 2494. */
-  void soloMaxi;
-  const colo = null;
-  const [cuando] = fichaDeVisita(v).split('\n');
-  const detalle = [v.auto, v.condiciones].filter(Boolean).join(' · ');
-  const claves = v.claves ?? [];
-  const dia = cuando.split(/\s\d{1,2}:\d{2}|\s\(sin hora\)/)[0];
-  const texto = `${v.aConfirmar ? (String(v.visita).slice(0, 10) === diaDeBsAs() ? '*QUIERE VENIR HOY* (no le contesté, escribile vos)' : '*POSIBLE VISITA* · a confirmar') : '*VISITA AGENDADA*'} · ${dia}\n\n${await fichaClara(env, v)}`;
-  const plano = (t) => String(t || '-').replace(/\s+/g, ' ').trim().slice(0, 300);
-  const valores = [cuando, v.quien, detalle, claves.join('. ')].map(plano);
-  for (const d of [jefe, colo].filter(Boolean)) {
-    try {
-      const abierta = await env.DB.prepare(
-        `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'
-            AND creado > datetime('now','-23 hours') LIMIT 1`
-      ).bind(d.id).first();
-      const id = abierta ? await mandarUno(env, d, texto) : await mandarPlantilla(env, d, 'visita_agendada', valores);
-      await guardarSaliente(env, d.id, texto, 'ia', id);
-    } catch (e) {
-      console.error('No se pudo avisar la visita:', e?.message ?? e);
-      await anotarAviso(env, `No pude avisar por WhatsApp la visita de ${v.quien} a ${d.id === jefe?.id ? 'Maxi' : 'Colo'}: ${String(e?.message ?? e).slice(0, 150)}`);
-    }
-  }
+  const inicio = `ATENCIÓN INSTAGRAM\n${quien} `;
+  const avisos = (await leerEstado(env, 'avisos'))?.valor ?? [];
+  if (avisos.some((a) => String(a.texto).startsWith(inicio) && Date.now() - Date.parse(a.cuando) < 24 * HORAS)) return;
+  await anotarAviso(env, `${inicio}${String(motivo).replace(/\s+/g, ' ').trim()}`);
 }
 
 /* ── LA NOCHE ANTES DE LA VISITA (Maxi, 6/11, antes era a la mañana) ──
@@ -4470,7 +4410,7 @@ async function aQuienLeSirve(env, autoId) {
   const a = await env.DB.prepare('SELECT id, marca, modelo, anio, km, precio, moneda, transmision, combustible FROM autos WHERE id = ?')
     .bind(autoId).first();
   if (!a) return;
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const client = clienteIA(env, 'Buscados');
   const r = await client.messages.create({
     model: MODELO, max_tokens: 600,
     output_config: { effort: 'low', format: { type: 'json_schema', schema: {
@@ -4545,14 +4485,6 @@ async function agendaDeManana(env) {
   if (deManana.length) {
     await anotarAviso(env, `*MAÑANA*\n\n${deManana.map(fichaDeVisita).join('\n\n')}`);
   }
-  /* A LAS 21, A MAXI Y A COLO, LAS DE MAÑANA QUE TODAVÍA NO LES AVISAMOS (Maxi, 6/11):
-     también las que arregló el equipo y entraron a mano. */
-  const faltan = deManana.filter((v) => !v.avisadaEquipo);
-  for (const v of faltan) {
-    await avisarVisitaAlEquipo(env, v);
-    v.avisadaEquipo = true;
-  }
-  if (faltan.length) await guardarEstado(env, 'agenda', agenda);
 }
 
 /* EL RESUMEN DE LAS 23 PARA MAXI (Maxi, 6/11): las visitas, en orden, con el auto,
@@ -4659,7 +4591,7 @@ async function buenDia(env, { aPedido = false, porPanel = false, devolver = fals
     `SELECT marca, modelo, anio, km, precio, moneda FROM autos WHERE estado = 'publicado'`
   ).all().catch(() => ({ results: [] }));
 
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+  const client = clienteIA(env, 'Resumen');
   const r = await client.messages.create({
     model: MODELO,
     max_tokens: 8000,
@@ -4811,7 +4743,7 @@ async function armarListaDelDia(env) {
      grupo (Tasar o Esperando fotos) lo deciden las fotos; el modelo sólo escribe el renglón. */
   const renglon = new Map();
   if (fichas.length) {
-    const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+    const client = clienteIA(env, 'Lista del día');
     const r = await client.messages.create({
       model: MODELO,
       /* 24/11: con 25 clientes el JSON se cortaba a los 3000 tokens, no se podía leer y
@@ -4892,7 +4824,7 @@ Respondé SÓLO un JSON: {"<id>": "renglón", ...} con todos los ids.`,
   }
   let instagram = '';
   if (charlas.length) {
-    const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+    const client = clienteIA(env, 'Lista del día');
     const r = await client.messages.create({
       model: MODELO,
       max_tokens: 3000,
@@ -5818,7 +5750,6 @@ async function recibirDeMeta(peticion, env, ctx) {
           .bind(d.conversacion).first();
         (esElJefe(env, c) && !cfgPrueba ? delJefe : deClientes).push(d);
       }
-      if (delJefe.length) await entregarPendientesAMaxi(env).catch((e) => console.error('Pendientes de Maxi:', e?.message ?? e));
       for (const d of delJefe) {
         await atenderAlJefe(env, d.conversacion, d.mensaje)
           .catch((e) => console.error('No se pudo atender a Maxi:', e?.message ?? e));
@@ -6214,6 +6145,7 @@ export default {
       /* ── DE ACÁ PARA ABAJO, TODO PIDE SESIÓN ─────────────────── */
       if (ruta.startsWith('/api/admin')) {
         if (!(await sesionValida(peticion, env))) return error('Sin sesión', 401);
+        if (ruta === '/api/admin/gasto-ia') return rutaGasto(peticion, env, metodo);
         if (ruta.startsWith('/api/admin/retargeting/')) {
           const r = await RT.rutas(peticion, env, ruta, metodo, ayudasRT(env));
           if (r) return r;
@@ -6269,26 +6201,14 @@ export default {
     if (hora === 10 && minutoDelReloj >= 30 && minutoDelReloj < 35) {
       await hoyEnElSalon(env).catch((e) => console.error('No salió hoy en el salón:', e?.message ?? e));
     }
-    /* LAS 8 EN BUENOS AIRES, DE LUNES A VIERNES: la lista para Maxi y Colo. */
-    const diaBsAs = new Date((evento.scheduledTime ?? Date.now()) - 3 * HORAS).getUTCDay();
-    if (hora === 11 && minutoDelReloj < 5 && diaBsAs >= 1 && diaBsAs <= 5) {
-      await env.ENVIOS.get(env.ENVIOS.idFromName('tareas-lista')).tarea('lista').catch(() => {});
-    }
-    if (hora === 11 && minutoDelReloj >= 30 && minutoDelReloj < 35) {
-      await env.ENVIOS.get(env.ENVIOS.idFromName('tareas-buen-dia')).tarea('buenDia').catch(() => {});
-    }
+    /* A MAXI NO LE SALE NADA SOLO (24/11: "si yo no te lo pido, vos no me lo mandás"):
+       ni la lista de las 8, ni el resumen de las 8:30, ni el repaso de las 21, ni el
+       resumen de las 23. Se arman a pedido (/api/admin/lista-del-dia, /resumen,
+       /resumen-noche). */
     /* LAS 20 EN BUENOS AIRES: se confirman las visitas de mañana (Maxi, 6/11). */
     if (hora === 23 && minutoDelReloj < 5) {
       await confirmarVisitasDeManana(env).catch((e) =>
         anotarAviso(env, `No pude confirmar las visitas de mañana: ${String(e?.message ?? e).slice(0, 200)}`));
-    }
-    /* LAS 23 EN BUENOS AIRES: el resumen de las visitas de mañana para Maxi. */
-    if (hora === 2 && minutoDelReloj < 5) {
-      await resumenDeLaNoche(env).catch((e) =>
-        anotarAviso(env, `No pude armar el resumen de las 23: ${String(e?.message ?? e).slice(0, 200)}`));
-    }
-    if (hora === 0 && minutoDelReloj < 5) {
-      await env.ENVIOS.get(env.ENVIOS.idFromName('tareas-repaso')).tarea('repaso').catch(() => {});
     }
     /* Constancia de que la vuelta arrancó, para poder verificarlo sin
        mirar el log (ver /api/admin/reloj). */
