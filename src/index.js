@@ -6269,11 +6269,9 @@ export default {
     if (hora === 10 && minutoDelReloj >= 30 && minutoDelReloj < 35) {
       await hoyEnElSalon(env).catch((e) => console.error('No salió hoy en el salón:', e?.message ?? e));
     }
-    /* LAS 8 EN BUENOS AIRES, DE LUNES A VIERNES: la lista para Maxi y Colo. */
-    const diaBsAs = new Date((evento.scheduledTime ?? Date.now()) - 3 * HORAS).getUTCDay();
-    if (hora === 11 && minutoDelReloj < 5 && diaBsAs >= 1 && diaBsAs <= 5) {
-      await env.ENVIOS.get(env.ENVIOS.idFromName('tareas-lista')).tarea('lista').catch(() => {});
-    }
+    /* LA LISTA DEL DÍA (8) Y EL RESUMEN DE LA NOCHE (23) NO SALEN SOLOS (Maxi, 24/11:
+       "lo pido yo de ahora en más"). Se arman a pedido: /api/admin/lista-del-dia y
+       /api/admin/resumen-noche. */
     if (hora === 11 && minutoDelReloj >= 30 && minutoDelReloj < 35) {
       await env.ENVIOS.get(env.ENVIOS.idFromName('tareas-buen-dia')).tarea('buenDia').catch(() => {});
     }
@@ -6281,11 +6279,6 @@ export default {
     if (hora === 23 && minutoDelReloj < 5) {
       await confirmarVisitasDeManana(env).catch((e) =>
         anotarAviso(env, `No pude confirmar las visitas de mañana: ${String(e?.message ?? e).slice(0, 200)}`));
-    }
-    /* LAS 23 EN BUENOS AIRES: el resumen de las visitas de mañana para Maxi. */
-    if (hora === 2 && minutoDelReloj < 5) {
-      await resumenDeLaNoche(env).catch((e) =>
-        anotarAviso(env, `No pude armar el resumen de las 23: ${String(e?.message ?? e).slice(0, 200)}`));
     }
     if (hora === 0 && minutoDelReloj < 5) {
       await env.ENVIOS.get(env.ENVIOS.idFromName('tareas-repaso')).tarea('repaso').catch(() => {});
