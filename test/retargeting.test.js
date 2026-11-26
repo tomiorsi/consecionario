@@ -106,7 +106,7 @@ ok(BOTONES.every((b) => b.texto.length <= 25), 'botones de hasta 25 caracteres')
 const m1 = mensajePara(camp, { lista: 'precio', nombre_saludo: 'martín', linea: 'y el número no te cerraba' });
 ok(m1.texto.startsWith('Hola Martín, cómo estás?') && m1.plantilla === 'retarget_325i_precio', 'mensaje con nombre');
 const m2 = mensajePara(camp, { lista: 'charla_caida', nombre_saludo: null, linea: 'y de coordinar una visita' });
-ok(m2.texto.startsWith('Hola, te escribimos') && m2.plantilla === 'retarget_325i_charla_sn', 'mensaje sin nombre');
+ok(m2.texto.startsWith('Hola, te hablo de Manna Selected') && m2.plantilla === 'retarget_325i_charla_sn', 'mensaje sin nombre');
 ok(mensajePara(camp, { lista: 'dudoso' }).texto === null, 'un dudoso no tiene mensaje armado');
 ok(mensajePara(camp, { lista: 'otros' }).texto === null, 'la lista 4 no tiene mensaje hasta activarla');
 
