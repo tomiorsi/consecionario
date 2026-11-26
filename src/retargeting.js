@@ -366,12 +366,20 @@ function cuerpoDePlantilla(c, persona, h) {
       name: m.plantilla,
       language: { code: 'es_AR' },
       components: [
-        { type: 'header', parameters: [{ type: 'video', video: { link: `${h.SITIO}/fotos/${c.video_clave}` } }] },
         ...(m.valores.length ? [{ type: 'body', parameters: m.valores.map((t) => ({ type: 'text', text: String(t) })) }] : []),
         ...R.BOTONES.map((b, i) => ({ type: 'button', sub_type: 'quick_reply', index: String(i),
           parameters: [{ type: 'payload', payload: R.payloadDe(c.id, b.clave) }] })),
       ],
     },
+  };
+}
+
+/* EL SEGUNDO MENSAJE: el video con "Te mando un video". */
+function cuerpoDelVideo(c, h) {
+  return {
+    name: `${c.prefijo}_video`,
+    language: { code: 'es_AR' },
+    components: [{ type: 'header', parameters: [{ type: 'video', video: { link: `${h.SITIO}/fotos/${c.video_clave}` } }] }],
   };
 }
 
@@ -397,21 +405,23 @@ async function mandarPrueba(env, personaId, h) {
   const armado = cuerpoDePlantilla(c, p, h);
   if (!armado) throw new Error('Esta persona no tiene mensaje (está en una lista que no envía)');
   const aprobadas = await estadoDePlantillas(env, c, h).catch(() => ({}));
-  if (aprobadas[armado.m.plantilla]?.estado === 'APPROVED') {
-    await h.graphMandar(env.WHATSAPP_TOKEN, 'WHATSAPP_TOKEN', `/${env.WHATSAPP_PHONE_ID}/messages`,
-      { messaging_product: 'whatsapp', to: a, type: 'template', template: armado.template });
+  const mandar = (cuerpo) => h.graphMandar(env.WHATSAPP_TOKEN, 'WHATSAPP_TOKEN', `/${env.WHATSAPP_PHONE_ID}/messages`,
+    { messaging_product: 'whatsapp', to: a, ...cuerpo });
+  if (aprobadas[armado.m.plantilla]?.estado === 'APPROVED' && aprobadas[`${c.prefijo}_video`]?.estado === 'APPROVED') {
+    await mandar({ type: 'template', template: armado.template });
+    await mandar({ type: 'template', template: cuerpoDelVideo(c, h) });
     return { como: 'plantilla' };
   }
-  await h.graphMandar(env.WHATSAPP_TOKEN, 'WHATSAPP_TOKEN', `/${env.WHATSAPP_PHONE_ID}/messages`, {
-    messaging_product: 'whatsapp', to: a, type: 'interactive',
+  await mandar({
+    type: 'interactive',
     interactive: {
       type: 'button',
-      header: { type: 'video', video: { link: `${h.SITIO}/fotos/${c.video_clave}` } },
       body: { text: armado.m.texto },
       footer: { text: 'Prueba (así le llegaría)' },
       action: { buttons: R.BOTONES.map((b) => ({ type: 'reply', reply: { id: `prueba:${b.clave}`, title: R.BOTONES_INTERACTIVOS[b.clave] } })) },
     },
   });
+  await mandar({ type: 'video', video: { link: `${h.SITIO}/fotos/${c.video_clave}`, caption: R.TEXTO_DEL_VIDEO } });
   return { como: 'interactivo' };
 }
 
@@ -445,7 +455,7 @@ export async function enviarTanda(env, h, { hasta = Date.now() + 11 * 60 * 1000 
         continue;
       }
       const armado = cuerpoDePlantilla(c, p, h);
-      if (!armado || aprobadas[armado.m.plantilla]?.estado !== 'APPROVED') {
+      if (!armado || aprobadas[armado.m.plantilla]?.estado !== 'APPROVED' || aprobadas[`${c.prefijo}_video`]?.estado !== 'APPROVED') {
         await env.DB.prepare(`UPDATE rt_personas SET estado = 'fallido', error = ?, actualizado = datetime('now') WHERE id = ?`)
           .bind('La plantilla no está aprobada por Meta', p.id).run();
         continue;
@@ -454,12 +464,21 @@ export async function enviarTanda(env, h, { hasta = Date.now() + 11 * 60 * 1000 
         const r = await h.graphMandar(env.WHATSAPP_TOKEN, 'WHATSAPP_TOKEN', `/${env.WHATSAPP_PHONE_ID}/messages`,
           { messaging_product: 'whatsapp', to: chat.externo_id, type: 'template', template: armado.template });
         const wa = r?.messages?.[0]?.id ?? null;
+        /* Enseguida, el video. Si falla, el texto ya salió: queda anotado. */
+        let waVideo = null, errVideo = null;
+        try {
+          const rv = await h.graphMandar(env.WHATSAPP_TOKEN, 'WHATSAPP_TOKEN', `/${env.WHATSAPP_PHONE_ID}/messages`,
+            { messaging_product: 'whatsapp', to: chat.externo_id, type: 'template', template: cuerpoDelVideo(c, h) });
+          waVideo = rv?.messages?.[0]?.id ?? null;
+        } catch (e) { errVideo = 'El texto salió, el video no: ' + String(e?.message ?? e).slice(0, 250); }
         await env.DB.batch([
-          env.DB.prepare(`UPDATE rt_personas SET estado = 'enviado', wa_id = ?, enviado_en = datetime('now'), actualizado = datetime('now'), error = NULL WHERE id = ?`).bind(wa, p.id),
+          env.DB.prepare(`UPDATE rt_personas SET estado = 'enviado', wa_id = ?, enviado_en = datetime('now'), actualizado = datetime('now'), error = ? WHERE id = ?`).bind(wa, errVideo, p.id),
           env.DB.prepare('INSERT INTO rt_marketing (conversacion_id, campana_id, plantilla) VALUES (?,?,?)').bind(p.conversacion_id, c.id, armado.m.plantilla),
           /* Queda en la charla, igual a lo que le llegó: el bot y el panel lo ven. */
-          env.DB.prepare(`INSERT OR IGNORE INTO mensajes (conversacion_id, externo_id, direccion, autor, tipo, texto) VALUES (?,?, 'saliente', 'ia', 'video', ?)`)
+          env.DB.prepare(`INSERT OR IGNORE INTO mensajes (conversacion_id, externo_id, direccion, autor, tipo, texto) VALUES (?,?, 'saliente', 'ia', 'texto', ?)`)
             .bind(p.conversacion_id, wa, armado.m.texto),
+          ...(waVideo ? [env.DB.prepare(`INSERT OR IGNORE INTO mensajes (conversacion_id, externo_id, direccion, autor, tipo, texto) VALUES (?,?, 'saliente', 'ia', 'video', ?)`)
+            .bind(p.conversacion_id, waVideo, R.TEXTO_DEL_VIDEO)] : []),
         ]);
       } catch (e) {
         /* NO SE REINTENTA SOLO (Maxi): queda como fallido con el motivo. */
@@ -660,6 +679,50 @@ export async function rutas(peticion, env, ruta, metodo, h) {
   if (m && metodo === 'GET') {
     const c = await leerCampania(env, Number(m[1]));
     return h.json({ plantillas: R.plantillasDeCampania(c), en_meta: await estadoDePlantillas(env, c, h).catch(() => ({})) });
+  }
+
+  /* MANDAR LAS PLANTILLAS A REVISIÓN DE META. Solo con el OK de Maxi en
+     el chat: por eso pide {confirmo: 'META'}. No le llega nada a ningún
+     cliente. Las que ya están en Meta no se vuelven a subir. El video de
+     ejemplo (Meta lo exige para aprobar un encabezado de video) se sube
+     con la subida reanudable de la app y se usa su "handle". */
+  m = ruta.match(/^\/api\/admin\/retargeting\/campanas\/(\d+)\/plantillas\/meta$/);
+  if (m && metodo === 'POST') {
+    const b = await cuerpo();
+    if (b.confirmo !== 'META') return h.error('Para mandarlas a Meta hay que confirmar con META');
+    const c = await leerCampania(env, Number(m[1]));
+    if (!c.video_clave) return h.error('Falta el video de la campaña');
+    const plantillas = R.plantillasDeCampania(c);
+    if (!plantillas.length) return h.error('La campaña no tiene plantillas armadas');
+    const ya = await estadoDePlantillas(env, c, h);
+    const auth = { authorization: `Bearer ${env.WHATSAPP_TOKEN}` };
+    let handle = null;
+    const salida = [];
+    for (const p of plantillas) {
+      if (ya[p.nombre]) { salida.push({ plantilla: p.nombre, resultado: `ya estaba (${ya[p.nombre].estado})` }); continue; }
+      if (p.tipo === 'video' && !handle) {
+        const obj = await env.FOTOS.get(c.video_clave);
+        if (!obj) return h.error('No encuentro el video guardado');
+        const bytes = await obj.arrayBuffer();
+        const app = await (await fetch(`${h.GRAPH}/app`, { headers: auth })).json().catch(() => ({}));
+        if (!app?.id) return h.error('No pude saber el número de la app de Meta');
+        const ses = await (await fetch(`${h.GRAPH}/${app.id}/uploads?file_name=video.mp4&file_length=${bytes.byteLength}&file_type=video/mp4`,
+          { method: 'POST', headers: auth })).json().catch(() => ({}));
+        if (!ses?.id) return h.error('Meta no abrió la subida del video: ' + (ses?.error?.message ?? ''));
+        const up = await (await fetch(`${h.GRAPH}/${ses.id}`, {
+          method: 'POST', headers: { authorization: `OAuth ${env.WHATSAPP_TOKEN}`, file_offset: '0' }, body: bytes,
+        })).json().catch(() => ({}));
+        if (!up?.h) return h.error('Meta no recibió el video: ' + (up?.error?.message ?? ''));
+        handle = up.h;
+      }
+      const r = await fetch(`${h.GRAPH}/${env.WHATSAPP_CUENTA_ID}/message_templates`, {
+        method: 'POST', headers: { ...auth, 'content-type': 'application/json' },
+        body: JSON.stringify(R.plantillaParaMeta(p, handle)),
+      });
+      const d = await r.json().catch(() => ({}));
+      salida.push({ plantilla: p.nombre, estado: r.status, resultado: d?.error?.error_user_msg || d?.error?.message || d?.status || 'subida' });
+    }
+    return h.json({ subidas: salida, en_meta: await estadoDePlantillas(env, c, h).catch(() => ({})) });
   }
 
   m = ruta.match(/^\/api\/admin\/retargeting\/personas\/(\d+)$/);

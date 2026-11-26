@@ -4,7 +4,7 @@
    el proceso termina con error y la publicación se frena. */
 import {
   esBaja, bajaEnCharla, decidirLista, lineaValida, nombreSeguro,
-  mensajePara, plantillasDeCampania, BOTONES, LISTAS_DE_ENVIO, leerPayload, payloadDe, botonPorTexto,
+  mensajePara, plantillasDeCampania, plantillaParaMeta, BOTONES, LISTAS_DE_ENVIO, leerPayload, payloadDe, botonPorTexto,
 } from '../src/retargeting-reglas.js';
 
 const imprimir = typeof console !== 'undefined' ? (...a) => console.log(...a) : (...a) => print(...a);
@@ -96,7 +96,14 @@ ok(nombreSeguro('Juan Pablo') === null, 'nombre compuesto no se arriesga');
 const camp = { prefijo: 'retarget_325i', auto_titulo: 'BMW 325i Coupé 2011', precio_texto: 'USD 25.900',
   destacado: 'Seis cilindros, 68.000 km, original de fábrica y con historial de services.' };
 const pls = plantillasDeCampania(camp);
-ok(pls.length === 6, 'seis plantillas');
+ok(pls.length === 7, 'seis de texto y una de video');
+const pv = pls.find((p) => p.tipo === 'video');
+ok(pv && pv.texto === 'Te mando un video' && pv.nombre === 'retarget_325i_video', 'la del video dice "Te mando un video"');
+for (const p of pls.filter((x) => x.tipo !== 'video')) ok(!/video/i.test(p.texto), `el texto no habla del video: ${p.nombre}`);
+const meta = plantillaParaMeta(pls[0], 'H');
+ok(!meta.components.some((x) => x.type === 'HEADER') && meta.components.some((x) => x.type === 'BUTTONS'), 'el de texto: botones y sin video');
+const metaV = plantillaParaMeta(pv, 'H');
+ok(metaV.components[0].format === 'VIDEO' && !metaV.components.some((x) => x.type === 'BUTTONS'), 'el de video: video y sin botones');
 for (const p of pls) {
   ok(!/[¿¡]/.test(p.texto), `sin signos de apertura: ${p.nombre}`);
   ok(!/^\{\{|\}\}$/.test(p.texto.trim()), `no empieza ni termina con variable: ${p.nombre}`);

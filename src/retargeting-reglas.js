@@ -182,20 +182,21 @@ export const BOTONES_INTERACTIVOS = { visita: 'Coordinar una visita', auto: 'Aut
 export const RESPUESTA_BAJA = 'Entendido, no te vamos a escribir más. Gracias.';
 
 /* Los cuerpos, por tipo de lista. `[N]` es el nombre, `[L]` la línea. */
+/* OPCIÓN A DE MAXI (26/11): dos mensajes. Primero el texto con los
+   botones, sin hablar del video; después el video solo, con "Te mando un
+   video". Cada uno es una plantilla aprobada por Meta. */
 const CUERPOS = {
   precio: 'Hola [N], cómo estás? Te hablo de Manna Selected.\n'
     + 'Hace un tiempo hablamos del [AUTO] [L].\n'
-    + 'Te queríamos avisar antes que a nadie, lo bajamos a [PRECIO].\n'
-    + 'Te dejamos el video para que lo vuelvas a ver.',
+    + 'Te queríamos avisar antes que a nadie, lo bajamos a [PRECIO].',
   charla_caida: 'Hola [N], te hablo de Manna Selected.\n'
     + 'Quedamos hablando del [AUTO] [L].\n'
-    + 'Te cuento una novedad, bajó a [PRECIO].\n'
-    + 'Te dejamos el video.',
+    + 'Te cuento una novedad, bajó a [PRECIO].',
   resto: 'Hola [N], te hablo de Manna Selected.\n'
     + 'El [AUTO] que consultaste bajó a [PRECIO].\n'
-    + '[DESTACADO]\n'
-    + 'Te dejamos el video.',
+    + '[DESTACADO]',
 };
+export const TEXTO_DEL_VIDEO = 'Te mando un video';
 const TIPO_DE_LISTA = { precio: 'precio', charla_caida: 'charla_caida', resto: 'resto' };
 const SUFIJO = { precio: 'precio', charla_caida: 'charla', resto: 'resto' };
 
@@ -226,6 +227,8 @@ export function plantillasDeCampania(c) {
       });
     }
   }
+  /* El segundo mensaje: el video, igual para todos. */
+  out.push({ nombre: `${c.prefijo}_video`, tipo: 'video', conNombre: null, texto: TEXTO_DEL_VIDEO, variables: [], ejemplo: [] });
   return out;
 }
 
@@ -245,7 +248,7 @@ export function mensajePara(c, persona) {
   if (!p) return { plantilla: null, valores: [], texto: null };
   const valores = p.variables.map((v) => (v === 'nombre' ? nombre : String(persona.linea ?? '').trim()));
   const texto = p.texto.replace(/\{\{(\d+)\}\}/g, (_, i) => valores[i - 1] ?? '');
-  return { plantilla: p.nombre, valores, texto };
+  return { plantilla: p.nombre, valores, texto, video: { plantilla: `${c.prefijo}_video`, texto: TEXTO_DEL_VIDEO } };
 }
 
 /* Lo que pide Meta para crear la plantilla. `handle` es el video de
@@ -255,11 +258,17 @@ export function plantillaParaMeta(p, handle) {
     name: p.nombre,
     category: 'MARKETING',
     language: 'es_AR',
-    components: [
-      { type: 'HEADER', format: 'VIDEO', example: { header_handle: [handle] } },
-      { type: 'BODY', text: p.texto, ...(p.variables.length ? { example: { body_text: [p.ejemplo] } } : {}) },
-      { type: 'BUTTONS', buttons: BOTONES.map((b) => ({ type: 'QUICK_REPLY', text: b.texto })) },
-    ],
+    /* El de video lleva el video arriba y no tiene botones; los de
+       texto llevan los botones y no tienen video. */
+    components: p.tipo === 'video'
+      ? [
+        { type: 'HEADER', format: 'VIDEO', example: { header_handle: [handle] } },
+        { type: 'BODY', text: p.texto },
+      ]
+      : [
+        { type: 'BODY', text: p.texto, ...(p.variables.length ? { example: { body_text: [p.ejemplo] } } : {}) },
+        { type: 'BUTTONS', buttons: BOTONES.map((b) => ({ type: 'QUICK_REPLY', text: b.texto })) },
+      ],
   };
 }
 
