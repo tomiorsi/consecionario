@@ -97,7 +97,7 @@ async function armarCampania(env, autoId, h) {
   const prefijo = `retarget_${base || 'auto'}`.slice(0, 40);
   const km = a.km ? `${Number(a.km).toLocaleString('es-AR')} km` : null;
   const destacado = a.id === 16
-    ? 'Seis cilindros, 68.000 km, original de fábrica y con historial de services.'
+    ? 'Seis cilindros, 68.000 km, original de fábrica y sin un detalle.'
     : [a.motor, km].filter(Boolean).join(', ') + '.';
   /* LOS PARECIDOS: mismo modelo base, otro auto (para el 325i, el sedán
      2010 y el Coupé 2007). Sirven para no confundirlos y para la lista 4. */
@@ -622,6 +622,15 @@ export async function rutas(peticion, env, ruta, metodo, h) {
     const b = await cuerpo();
     const sets = [], vals = [];
     if (b.tope_diario !== undefined) { sets.push('tope_diario = ?'); vals.push(Math.max(1, Math.min(500, Number(b.tope_diario) || 50))); }
+    /* EL DESTACADO (la línea del auto en la lista 3) se cambia solo en
+       simulacro: una vez que sale, es el texto que aprobó Meta. */
+    if (b.destacado !== undefined) {
+      const d = String(b.destacado).trim();
+      if (!d || d.length > 160 || /[¿¡]|\{\{|\}\}/.test(d)) return h.error('Ese destacado no sirve');
+      const c = await env.DB.prepare('SELECT simulacro FROM rt_campanas WHERE id = ?').bind(Number(m[1])).first();
+      if (!c?.simulacro) return h.error('El destacado se cambia solo en simulacro');
+      sets.push('destacado = ?'); vals.push(d);
+    }
     /* SALIR DEL SIMULACRO PIDE ESCRIBIR "ENVIAR". Es el único botón que
        hace que salgan mensajes de verdad. */
     if (b.simulacro === false) {
