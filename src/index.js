@@ -3187,7 +3187,84 @@ async function mandarRespuesta(env, chat, {
     await cola.encolar({ id: chat.id, canal: chat.canal, externo_id: chat.externo_id },
       resto, autor, visto, humanoAntes);
   }
+  if (autor === 'ia' && !link) {
+    try { await programarLinkYPregunta(env, chat); }
+    catch (e) { console.error('No se pudo programar el link:', e?.message ?? e); }
+  }
   return { partes: pasos.length };
+}
+
+/* EL LINK A LOS 4 MINUTOS Y LA PREGUNTA (Maxi, 26/11: "vos le das la
+   respuesta corta, a los 4 minutos le mandás el link. Y si no te dijo nada
+   antes sobre si lo está evaluando para compra directa o tiene un vehículo
+   para entregar, se lo preguntamos"). Va en su propia cola (`seguir-`),
+   así una respuesta nueva del bot no la pisa; y si el cliente escribe en
+   esos 4 minutos, no sale: lo que dijo lo contesta el bot. Una sola vez por
+   chat, sólo si todavía no le mandamos el link de ningún auto y si lo que
+   le contestamos nombra un solo auto publicado. */
+const ESPERA_LINK_Y_PREGUNTA = 4 * 60 * 1000;
+const PREGUNTA_COMPRA_O_ENTREGA = (nombre, femenino) =>
+  `${nombre ? `${nombre}, l` : 'L'}${femenino ? 'a' : 'o'} estás evaluando para compra directa o tenés un vehículo para entregar?`;
+
+async function autoNombradoEnLaCharla(env, chatId) {
+  const { results: dichos } = await env.DB.prepare(
+    `SELECT texto FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente' AND autor = 'ia'
+      ORDER BY creado DESC, id DESC LIMIT 4`
+  ).bind(chatId).all();
+  const charla = (dichos ?? []).map((m) => String(m.texto ?? '')).join(' ').toLowerCase();
+  const { results: autos } = await env.DB.prepare(
+    `SELECT id, marca, modelo, anio FROM autos WHERE estado = 'publicado'`
+  ).all();
+  const nombrados = (autos ?? []).filter((a) => {
+    const clave = String(a.modelo ?? '').split(/\s+/)[0].toLowerCase();
+    return clave.length >= 2 && new RegExp(`(^|[^a-z0-9])${clave.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`).test(charla);
+  });
+  return nombrados.length === 1 ? nombrados[0] : null;
+}
+
+/* Ya sabemos si es compra directa o si trae auto: lo dijo él, ya se lo
+   preguntamos, o el chat ya es para tasar. */
+async function yaSabemosSiEntrega(env, chatId) {
+  const c = await env.DB.prepare('SELECT nota FROM conversaciones WHERE id = ?').bind(chatId).first();
+  if (String(c?.nota ?? '').startsWith('Para tasar')) return true;
+  const { results } = await env.DB.prepare(
+    `SELECT direccion, texto FROM mensajes WHERE conversacion_id = ? ORDER BY id DESC LIMIT 40`
+  ).bind(chatId).all();
+  return (results ?? []).some((m) => {
+    const t = String(m.texto ?? '').toLowerCase();
+    return m.direccion === 'entrante'
+      ? /permuta|entreg|parte de pago|tengo (un|una|el|la|mi)|mi auto|mi camioneta|contado|efectivo|compra directa|sin permuta|no tengo auto|no tengo para/.test(t)
+      : /para entregar|compra directa|en permuta|como parte de pago/.test(t) && /\?/.test(t);
+  });
+}
+
+async function programarLinkYPregunta(env, chat) {
+  if (!['whatsapp', 'instagram'].includes(chat.canal)) return;
+  const conv = await env.DB.prepare('SELECT humano, nombre, nota FROM conversaciones WHERE id = ?').bind(chat.id).first();
+  if (!conv || conv.humano) return;
+  const yaLink = await env.DB.prepare(
+    `SELECT 1 FROM mensajes WHERE conversacion_id = ? AND direccion = 'saliente'
+        AND instr(COALESCE(texto,''), 'mannaselected.com.ar/auto/') > 0 LIMIT 1`
+  ).bind(chat.id).first();
+  if (yaLink) return;
+  const hechos = (await leerEstado(env, 'link_y_pregunta'))?.valor ?? {};
+  if (hechos[chat.id]) return;
+  const auto = await autoNombradoEnLaCharla(env, chat.id);
+  if (!auto) return;
+  hechos[chat.id] = new Date().toISOString();
+  await guardarEstado(env, 'link_y_pregunta', Object.fromEntries(Object.entries(hechos).slice(-500)));
+  /* Sin nombre: el del perfil puede ser un apodo ("pollo lolo 2"). */
+  const nombre = null;
+  const femenino = /\b(gla|camioneta|hilux|ranger|amarok|ecosport|tracker)\b/i.test(`${auto.modelo}`);
+  const pasos = [{ texto: SITIO + enlaceDe(auto), espera: ESPERA_LINK_Y_PREGUNTA }];
+  pasos.push(await yaSabemosSiEntrega(env, chat.id)
+    ? { texto: FRASE_LINK_A_CALLADOS, espera: PAUSA_TRAS_EL_LINK }
+    : { texto: PREGUNTA_COMPRA_O_ENTREGA(nombre, femenino), espera: PAUSA_TRAS_EL_LINK });
+  const visto = (await env.DB.prepare(
+    `SELECT COALESCE(MAX(id), 0) AS n FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'`
+  ).bind(chat.id).first())?.n ?? 0;
+  await env.ENVIOS.get(env.ENVIOS.idFromName(`seguir-${chat.id}`))
+    .encolar({ id: chat.id, canal: chat.canal, externo_id: chat.externo_id }, pasos, 'ia', visto, 0);
 }
 
 /* LA COLA DE ENVÍOS DE UNA CONVERSACIÓN.
