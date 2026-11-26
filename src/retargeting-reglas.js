@@ -203,13 +203,17 @@ const SUFIJO = { precio: 'precio', charla_caida: 'charla', resto: 'resto' };
    El texto fijo (auto, precio, destacado) va escrito en la plantilla:
    Meta aprueba el texto entero, y así lo que se aprueba es lo que sale. */
 export function plantillasDeCampania(c) {
+  /* La campaña guardada trae el auto como `titulo`; nunca puede salir
+     un texto con "undefined" o vacío. */
+  const auto = c.auto_titulo ?? c.titulo;
+  if (!auto || !c.precio_texto || !c.destacado) return [];
   const out = [];
   for (const tipo of ['precio', 'charla_caida', 'resto']) {
     for (const conNombre of [true, false]) {
       let n = 0;
       const vars = [];
       let txt = CUERPOS[tipo]
-        .replace('[AUTO]', c.auto_titulo)
+        .replace('[AUTO]', auto)
         .replace('[PRECIO]', c.precio_texto)
         .replace('[DESTACADO]', c.destacado);
       txt = txt.replace('Hola [N],', conNombre ? 'Hola {{N}},' : 'Hola,');
