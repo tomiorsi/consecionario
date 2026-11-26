@@ -1278,7 +1278,7 @@ const enIdioma = (idioma) => EN_OTRO_IDIOMA[String(idioma ?? 'es').slice(0, 2).t
    idea —colgarle una respuesta al comentario— con dos nombres, y no hay
    forma de escribir una sola llamada para los dos. */
 async function avisarEnElComentario(env, canal, comentarioId, lista = AVISOS) {
-  const texto = lista[Math.floor(Math.random() * lista.length)];
+  const texto = typeof lista === 'string' ? lista : lista[Math.floor(Math.random() * lista.length)];
   const camino = canal === 'instagram'
     ? `/${comentarioId}/replies?message=${encodeURIComponent(texto)}`
     : `/${comentarioId}/comments?message=${encodeURIComponent(texto)}`;
@@ -1941,16 +1941,17 @@ const FORMA_DE_RESPUESTA = {
     idioma: { type: 'string' },
     visita_a_confirmar: { type: 'boolean' },
     busca: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    respuesta_publica: { anyOf: [{ type: 'string' }, { type: 'null' }] },
   },
   required: ['partes', 'ficha_de', 'pasar_a_persona', 'responder', 'megusta', 'ubicacion',
-    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'intencion_compra', 'listo_para_cotizar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_nombre', 'visita_condiciones', 'visita_claves', 'interesado_reservado', 'idioma', 'visita_a_confirmar', 'busca'],
+    'ir_a_whatsapp', 'para_tasar', 'resumen_para_tasar', 'intencion_compra', 'listo_para_cotizar', 'consulta_a_maxi', 'visita', 'visita_auto', 'visita_nombre', 'visita_condiciones', 'visita_claves', 'interesado_reservado', 'idioma', 'visita_a_confirmar', 'busca', 'respuesta_publica'],
   additionalProperties: false,
 };
 
 const FORMA_EN_TEXTO = `
 
 TU RESPUESTA FINAL ES SÓLO UN OBJETO JSON, sin nada antes ni después
-{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "intencion_compra": null, "listo_para_cotizar": false, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "visita_claves": [], "interesado_reservado": null, "idioma": "es", "visita_a_confirmar": false, "busca": null}
+{"partes": ["primer mensaje", "segundo mensaje"], "ficha_de": número del auto o null, "pasar_a_persona": "motivo" o null, "responder": true, "megusta": false, "ubicacion": false, "ir_a_whatsapp": false, "para_tasar": null, "resumen_para_tasar": null, "intencion_compra": null, "listo_para_cotizar": false, "consulta_a_maxi": null, "visita": null, "visita_auto": null, "visita_condiciones": null, "visita_claves": [], "interesado_reservado": null, "idioma": "es", "visita_a_confirmar": false, "busca": null, "respuesta_publica": null}
 Escribí "partes" siempre, aunque "responder" sea false: así se puede revisar
 qué hubieras dicho.`;
 
@@ -2629,6 +2630,8 @@ async function pensarRespuesta(env, conversacionId, { automatico = false, deNoch
     responder: esComentario ? dato.responder === true
       : dato.responder !== false || (!dato.pasar_a_persona && mandoAlgoConcreto(todosPrivados)),
     megusta: esComentario && dato.megusta === true,
+    /* LA RESPUESTA PÚBLICA (Maxi, 26/11): sólo en comentarios y sin privado. */
+    respuestaPublica: esComentario && dato.responder !== true ? textoPublicoSeguro(dato.respuesta_publica) : null,
     /* SI PIDE DÓNDE ESTAMOS, LA UBICACIÓN SALE SÍ O SÍ (Maxi, 2/11: a
        "dónde están ubicados?" el bot contestó con otra pregunta). */
     /* CAMBIO 22/11 (Maxi): a "dónde están" primero va "Barracas, CABA" y el mapa
@@ -5584,8 +5587,14 @@ async function atenderComentario(env, chat, r) {
     catch (e) { console.error('No se pudo dar me gusta:', e?.message ?? e); }
   }
 
-  /* Si no consulta, no va privado. Si fue amable, las gracias abajo (Maxi, 6/11). */
+  /* Si no consulta, no va privado. Si el comentario suma o es una queja, se
+     le contesta en público (Maxi, 26/11); si fue amable, las gracias abajo
+     (Maxi, 6/11). */
   if (!r.responder && !r.derivar) {
+    if (r.respuestaPublica) {
+      try { if (await responderEnPublico(env, chat, comentario, r.respuestaPublica)) return; }
+      catch (e) { console.error('No se pudo responder en el comentario:', e?.message ?? e); }
+    }
     if (r.megusta) {
       try { await agradecerComentario(env, chat, comentario, r.idioma); }
       catch (e) { console.error('No se pudo agradecer el comentario:', e?.message ?? e); }
@@ -5627,6 +5636,46 @@ async function atenderComentario(env, chat, r) {
    creer al bot que ya le escribió por privado. */
 const TOPE_GRACIAS_POR_DIA = 40;
 
+/* LA RESPUESTA PÚBLICA ESCRITA POR EL BOT (Maxi, 26/11: "si el comentario
+   suma, conversamos; si es mala onda o queja, se responde con respeto").
+   Una por comentario, entra en el mismo tope diario que las gracias (muchas
+   respuestas públicas juntas se leen como spam) y como mucho 4 por persona
+   y publicación por día. Queda anotada en `estado`, no en `mensajes`: un
+   saliente ahí haría creer al bot que ya le escribió por privado. */
+function textoPublicoSeguro(t) {
+  const x = String(t ?? '').trim().replace(/^[¿¡]+/, '').replace(/\s[¿¡]/g, ' ');
+  if (!x || x.length > 600) return null;
+  if (/https?:|www\.|\bUSD\b|US\$|\$\s?\d|\d{2}[.,]?\d{3}/i.test(x)) return null;
+  return x;
+}
+
+async function responderEnPublico(env, chat, comentario, texto) {
+  const antes = (await leerEstado(env, 'gracias_comentarios'))?.valor ?? {};
+  const hoy = hoyEnBsAs();
+  const cuantos = antes.dia === hoy ? (antes.cuantos ?? 0) : 0;
+  const hechos = antes.hechos ?? [];
+  const propia = `p:${comentario.externo_id}`;
+  const porPersona = `${chat.id}:${comentario.media_id ?? ''}:${hoy}`;
+  const deEsta = antes.dia === hoy ? (antes.por_persona?.[porPersona] ?? 0) : 0;
+  if (hechos.includes(propia) || cuantos >= TOPE_GRACIAS_POR_DIA || deEsta >= 4) return false;
+  await avisarEnElComentario(env, chat.canal, comentario.externo_id, texto);
+  await guardarEstado(env, 'gracias_comentarios', {
+    ...antes, dia: hoy, cuantos: cuantos + 1, hechos: [...hechos, propia].slice(-1000),
+    por_persona: { ...(antes.dia === hoy ? antes.por_persona ?? {} : {}), [porPersona]: deEsta + 1 },
+  });
+  await anotarRespuestaPublica(env, chat, comentario, texto).catch(() => {});
+  return true;
+}
+
+/* Para revisarlas después (revisión nocturna): las últimas 200. */
+async function anotarRespuestaPublica(env, chat, comentario, texto) {
+  const antes = (await leerEstado(env, 'respuestas_publicas'))?.valor ?? [];
+  await guardarEstado(env, 'respuestas_publicas', [...antes, {
+    cuando: new Date().toISOString(), conversacion: chat.id, canal: chat.canal,
+    comentario: String(comentario.texto ?? '').slice(0, 300), respuesta: texto,
+  }].slice(-200));
+}
+
 async function agradecerComentario(env, chat, comentario, idioma) {
   const antes = (await leerEstado(env, 'gracias_comentarios'))?.valor ?? {};
   const hoy = hoyEnBsAs();
@@ -5637,7 +5686,7 @@ async function agradecerComentario(env, chat, comentario, idioma) {
 
   await avisarEnElComentario(env, chat.canal, comentario.externo_id, enIdioma(idioma)?.gracias ?? GRACIAS);
   await guardarEstado(env, 'gracias_comentarios', {
-    dia: hoy, cuantos: cuantos + 1, hechos: [...hechos, clave].slice(-1000),
+    ...antes, dia: hoy, cuantos: cuantos + 1, hechos: [...hechos, clave].slice(-1000),
   });
 }
 
