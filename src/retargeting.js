@@ -600,8 +600,8 @@ export async function rutas(peticion, env, ruta, metodo, h) {
     const id = Number(m[1]);
     await env.DB.batch([
       env.DB.prepare(`UPDATE rt_candidatos SET hecho = 0 WHERE campana_id = ? AND conversacion_id IN
-        (SELECT conversacion_id FROM rt_personas WHERE campana_id = ? AND error LIKE 'IA:%' AND estado = 'pendiente' AND editado = 0)`).bind(id, id),
-      env.DB.prepare(`DELETE FROM rt_personas WHERE campana_id = ? AND error LIKE 'IA:%' AND estado = 'pendiente' AND editado = 0`).bind(id),
+        (SELECT conversacion_id FROM rt_personas WHERE campana_id = ? AND (error LIKE 'IA:%' OR motivo LIKE 'No se pudo leer%') AND estado = 'pendiente' AND editado = 0)`).bind(id, id),
+      env.DB.prepare(`DELETE FROM rt_personas WHERE campana_id = ? AND (error LIKE 'IA:%' OR motivo LIKE 'No se pudo leer%') AND estado = 'pendiente' AND editado = 0`).bind(id),
     ]);
     return h.json({ ok: true });
   }
