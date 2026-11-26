@@ -183,15 +183,15 @@ export const RESPUESTA_BAJA = 'Entendido, no te vamos a escribir más. Gracias.'
 
 /* Los cuerpos, por tipo de lista. `[N]` es el nombre, `[L]` la línea. */
 const CUERPOS = {
-  precio: 'Hola [N], cómo estás? Te escribimos de Manna Selected.\n'
+  precio: 'Hola [N], cómo estás? Te hablo de Manna Selected.\n'
     + 'Hace un tiempo hablamos del [AUTO] [L].\n'
-    + 'Te queríamos avisar antes que a nadie: lo bajamos a [PRECIO].\n'
+    + 'Te queríamos avisar antes que a nadie, lo bajamos a [PRECIO].\n'
     + 'Te dejamos el video para que lo vuelvas a ver.',
-  charla_caida: 'Hola [N], te escribimos de Manna Selected.\n'
+  charla_caida: 'Hola [N], te hablo de Manna Selected.\n'
     + 'Quedamos hablando del [AUTO] [L].\n'
-    + 'Te cuento una novedad: bajó a [PRECIO].\n'
+    + 'Te cuento una novedad, bajó a [PRECIO].\n'
     + 'Te dejamos el video.',
-  resto: 'Hola [N], te escribimos de Manna Selected.\n'
+  resto: 'Hola [N], te hablo de Manna Selected.\n'
     + 'El [AUTO] que consultaste bajó a [PRECIO].\n'
     + '[DESTACADO]\n'
     + 'Te dejamos el video.',
