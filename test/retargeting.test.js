@@ -110,6 +110,13 @@ ok(m2.texto.startsWith('Hola, te escribimos') && m2.plantilla === 'retarget_325i
 ok(mensajePara(camp, { lista: 'dudoso' }).texto === null, 'un dudoso no tiene mensaje armado');
 ok(mensajePara(camp, { lista: 'otros' }).texto === null, 'la lista 4 no tiene mensaje hasta activarla');
 
+/* La campaña como viene de la base (con `titulo`) arma bien el texto. */
+const deBase = { prefijo: 'retarget_325i', titulo: 'BMW 325i Coupé 2011', precio_texto: 'USD 25.900', destacado: camp.destacado };
+const m3 = mensajePara(deBase, { lista: 'precio', nombre_saludo: 'cristian', linea: 'y de tu auto como parte de pago' });
+ok(m3.texto && m3.texto.includes('del BMW 325i Coupé 2011') && !/undefined|null/.test(m3.texto), 'campaña de la base: el auto aparece');
+for (const p of plantillasDeCampania(deBase)) ok(!/undefined|null/.test(p.texto), `sin undefined: ${p.nombre}`);
+ok(plantillasDeCampania({ prefijo: 'x', precio_texto: 'USD 1' }).length === 0, 'sin auto no hay plantillas');
+
 /* ── 5. Botones ── */
 ok(leerPayload(payloadDe(3, 'baja'))?.boton === 'baja', 'payload de baja');
 ok(leerPayload('cualquier cosa') === null, 'payload ajeno');
