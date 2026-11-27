@@ -4403,6 +4403,35 @@ async function avisarInstagramAMaxi(env, chat, motivo) {
    - Si el cliente contesta, aviso a Maxi con lo que dijo: el chat ya
      es del equipo y el bot no le responde.
    Una sola confirmación por visita. */
+/* LA VISITA SIGUE EN PIE? Lee los últimos mensajes de la charla y decide si
+   la visita de la agenda sigue firme. Ante la duda (o si falla la lectura),
+   NO se confirma: REGLA 1 de Maxi, cero errores. */
+async function laVisitaSigueEnPie(env, chatId, v) {
+  try {
+    if (!env.ANTHROPIC_API_KEY) return { sigue: false, motivo: 'no pude leer la charla, confirmale vos.' };
+    const { results = [] } = await env.DB.prepare(
+      `SELECT direccion, autor, texto, creado FROM mensajes WHERE conversacion_id = ?
+          ORDER BY id DESC LIMIT 25`
+    ).bind(chatId).all();
+    const charla = results.reverse().map((m) => `[${m.creado}] ${m.direccion === 'entrante' ? 'CLIENTE'
+      : m.autor === 'persona' ? 'EQUIPO' : 'BOT'}: ${String(m.texto ?? '').replace(/\s+/g, ' ').slice(0, 400)}`).join('\n');
+    const r = await clienteIA(env, 'Visita en pie').messages.create({
+      model: MODELO,
+      max_tokens: 300,
+      output_config: { format: { type: 'json_schema', schema: {
+        type: 'object', additionalProperties: false,
+        properties: { sigue: { type: 'boolean' }, motivo: { type: 'string' } },
+        required: ['sigue', 'motivo'] } } },
+      messages: [{ role: 'user', content: `Una concesionaria tiene agendada esta visita: ${v.visita}${v.auto ? `, para ver el ${v.auto}` : ''}. Mañana a la noche le va a escribir al cliente para confirmarla. Leé los últimos mensajes de la charla y decidí si la visita SIGUE EN PIE tal como está agendada.\n\n"sigue": false si el cliente la canceló, dijo que no puede o no va, pidió pasarla a otro día u hora, si el equipo o el bot le dijeron que no venga o la reprogramaron, si ya vino, o si no queda claro. Sólo true si nada en la charla contradice la visita.\n"motivo": una frase corta en castellano para el dueño (ej. "canceló el jueves: 'al final no puedo ir'"; "sigue en pie").\n\nCHARLA:\n${charla}` }],
+    });
+    const dato = JSON.parse((r.content ?? []).filter((b) => b.type === 'text').map((b) => b.text).join(''));
+    return { sigue: dato.sigue === true, motivo: String(dato.motivo ?? '').slice(0, 200) || 'no queda claro, confirmale vos.' };
+  } catch (e) {
+    console.error('No pude leer la charla de la visita:', e?.message ?? e);
+    return { sigue: false, motivo: 'no pude leer la charla, confirmale vos.' };
+  }
+}
+
 async function confirmarVisitasDeManana(env) {
   /* APAGADA NO LE ESCRIBE A NADIE (Maxi, 5/11). */
   const cfgVisitas = await configDelBot(env);
@@ -4435,6 +4464,16 @@ async function confirmarVisitasDeManana(env) {
     if (!v.confirmacion && await loAtendioElEquipo(env, c.id)) {
       lineas.push(`${fichaDeVisita(v)}\nLo habló el equipo: no le mandé la confirmación.`);
       continue;
+    }
+    /* ANTES DE CONFIRMAR, LEER LA CHARLA (Maxi, 27/11: "antes de confirmar una
+       visita mirá los últimos mensajes con el cliente. Quizás cancelamos o
+       canceló él"). Si se canceló, se movió o no queda claro, no sale nada. */
+    if (!v.confirmacion && !v.aConfirmar) {
+      const enPie = await laVisitaSigueEnPie(env, c.id, v);
+      if (!enPie.sigue) {
+        lineas.push(`${fichaDeVisita(v)}\nNo le mandé la confirmación: ${enPie.motivo}`);
+        continue;
+      }
     }
     let enviada = Boolean(v.confirmacion);
     /* INSTAGRAM Y MESSENGER TAMBIÉN (Maxi, 31/10: "lo que agendás por
