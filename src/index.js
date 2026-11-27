@@ -5320,20 +5320,20 @@ async function pedirDiaACallados(env) {
    tiene que nombrar uno solo de los publicados. Primero el link solo
    (para que se vea la foto) y después la frase, en otro mensaje. De 9 a
    22 en Buenos Aires. */
-const FRASE_LINK_A_CALLADOS = 'Acá te dejo un link con más fotos y un poco más de info para que conozcas mejor la unidad.';
+const FRASE_LINK_A_CALLADOS = 'Te mando acá algunas fotos y un poco más de info.';
 async function linkACallados(env) {
   if (!(await configDelBot(env)).encendida) return;
   const horaBsAs = new Date(Date.now() - 3 * HORAS).getUTCHours();
   if (horaBsAs < 9 || horaBsAs >= 22) return;
   const { results } = await env.DB.prepare(
     `SELECT c.id, c.canal, c.externo_id, c.nota FROM conversaciones c
-      WHERE c.ultimo > datetime('now','-3 hours')
+      WHERE c.ultimo > datetime('now','-14 hours')
         AND c.humano = 0 AND c.canal IN ('whatsapp','instagram')
         AND COALESCE(c.etapa, '') <> 'cerrado'
         AND (SELECT direccion || '|' || COALESCE(autor,'') FROM mensajes m WHERE m.conversacion_id = c.id
               ORDER BY m.creado DESC, m.id DESC LIMIT 1) = 'saliente|ia'
         AND (SELECT MAX(creado) FROM mensajes m WHERE m.conversacion_id = c.id AND m.direccion = 'saliente')
-              BETWEEN datetime('now','-2 hours') AND datetime('now','-30 minutes')
+              BETWEEN datetime('now','-14 hours') AND datetime('now','-30 minutes')
         AND (SELECT MAX(creado) FROM mensajes m WHERE m.conversacion_id = c.id
               AND m.direccion = 'entrante') > datetime('now','-23 hours')
         AND NOT EXISTS (SELECT 1 FROM mensajes m WHERE m.conversacion_id = c.id
@@ -5363,10 +5363,21 @@ async function linkACallados(env) {
     const visto = (await env.DB.prepare(
       `SELECT COALESCE(MAX(id), 0) AS n FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante'`
     ).bind(c.id).first())?.n ?? 0;
+    /* Y A LOS 5-10 MINUTOS, LA PREGUNTA (Maxi, 27/11: "si no, es una cagada,
+       porque la dejás ahí medio muerto al flaco"). Sólo si no la hicimos ya y
+       no dijo cómo compra. Si contesta antes, la cola se corta sola. */
+    const { results: todo } = await env.DB.prepare(
+      `SELECT direccion, texto FROM mensajes WHERE conversacion_id = ? ORDER BY creado, id`
+    ).bind(c.id).all();
+    const yaPreguntada = (todo ?? []).some((m) => m.direccion === 'saliente' && /compra directa/i.test(String(m.texto ?? '')));
+    const dijo = (todo ?? []).filter((m) => m.direccion === 'entrante').map((m) => m.texto ?? '').join(' ');
+    const pasos = [{ texto: SITIO + enlaceDe(nombrados[0]), espera: 0 },
+      { texto: FRASE_LINK_A_CALLADOS, espera: PAUSA_TRAS_EL_LINK }];
+    if (!yaPreguntada && !/permuta|entregar|tengo (un|una)|mi auto|mi camioneta|compra directa|contado|efectivo|en mano/i.test(dijo)) {
+      pasos.push({ texto: 'La estás evaluando para compra directa o tenés algún vehículo para entregar?', espera: conVaivén(6 * 60 * 1000) });
+    }
     await env.ENVIOS.get(env.ENVIOS.idFromName(`link-${c.id}`))
-      .encolar({ id: c.id, canal: c.canal, externo_id: c.externo_id },
-        [{ texto: SITIO + enlaceDe(nombrados[0]), espera: 0 },
-         { texto: FRASE_LINK_A_CALLADOS, espera: PAUSA_TRAS_EL_LINK }], 'ia', visto, 0);
+      .encolar({ id: c.id, canal: c.canal, externo_id: c.externo_id }, pasos, 'ia', visto, 0);
   }
 }
 
