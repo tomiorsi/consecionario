@@ -4428,6 +4428,14 @@ async function confirmarVisitasDeManana(env) {
       lineas.push(`${fichaDeVisita(v)}\nConfirmó hoy: no le mandé el recordatorio.`);
       continue;
     }
+    /* SI LO HABLÓ EL EQUIPO, NO SE CONFIRMA (Maxi, 27/11: "si yo hablé con un
+       cliente para que no venga no le escribas para confirmar visita"). Si una
+       persona del equipo escribió en el chat esta semana, el bot no le manda la
+       confirmación: la visita la maneja el equipo. */
+    if (!v.confirmacion && await loAtendioElEquipo(env, c.id)) {
+      lineas.push(`${fichaDeVisita(v)}\nLo habló el equipo: no le mandé la confirmación.`);
+      continue;
+    }
     let enviada = Boolean(v.confirmacion);
     /* INSTAGRAM Y MESSENGER TAMBIÉN (Maxi, 31/10: "lo que agendás por
        Instagram o Facebook, es todo lo mismo"). Ahí no hay plantillas:
