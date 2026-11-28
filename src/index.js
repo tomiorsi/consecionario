@@ -3204,6 +3204,11 @@ async function mandarRespuesta(env, chat, {
    chat, sólo si todavía no le mandamos el link de ningún auto y si lo que
    le contestamos nombra un solo auto publicado. */
 const ESPERA_LINK_Y_PREGUNTA = 4 * 60 * 1000;
+export function esQuejaDePrecio(texto) {
+  const t = String(texto ?? '').toLowerCase();
+  return /dubai|en pedo|re caro|muy caro|qué caro|que caro|carisimo|carísimo|no lo vale|una locura|un robo|chorros|flasharon|deliran|delirio/.test(t)
+    || (/precio|usd|lucas|palos|mil/.test(t) && /🤣|😂|jaja|jsjs|caro/.test(t));
+}
 const PREGUNTA_COMPRA_O_ENTREGA = (nombre, femenino) =>
   `${nombre ? `${nombre}, l` : 'L'}${femenino ? 'a' : 'o'} estás evaluando para compra directa o tenés un vehículo para entregar?`;
 
@@ -3250,6 +3255,13 @@ async function programarLinkYPregunta(env, chat) {
   if (yaLink) return;
   const hechos = (await leerEstado(env, 'link_y_pregunta'))?.valor ?? {};
   if (hechos[chat.id]) return;
+  /* Si se burla o se queja del precio, no está consultando: ni link ni la
+     pregunta de compra o entrega (Maxi, 28/11, caso Manu: "precio dubai 🤣"
+     y le preguntamos si era compra directa, "como si estuviera consultando"). */
+  const ultimos = (await env.DB.prepare(
+    `SELECT texto FROM mensajes WHERE conversacion_id = ? AND direccion = 'entrante' ORDER BY id DESC LIMIT 3`
+  ).bind(chat.id).all()).results ?? [];
+  if (ultimos.some((m) => esQuejaDePrecio(m.texto))) return;
   const auto = await autoNombradoEnLaCharla(env, chat.id);
   if (!auto) return;
   hechos[chat.id] = new Date().toISOString();
