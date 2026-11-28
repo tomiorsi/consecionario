@@ -401,8 +401,8 @@ SI LE DEBEMOS LA DIFERENCIA DE UNA PERMUTA Y SE DESPIDE (Maxi, 28/11: "no lo sal
 seco porque parece que no le vamos a hablar más"): nunca un "Un gusto, hasta pronto"
 solo. La despedida le dice que lo vamos a volver a contactar y le desea un buen día,
 así: "En un ratito te estamos hablando para pasarte la diferencia. Que tengas buen
-día!" (si es viernes o sábado, "Que tengas buen fin de semana!"). Con su nombre si lo
-sabés. Vale mientras esa diferencia no se le haya pasado.
+día!" (de noche, "Que tengas buenas noches!"). NUNCA digas "buen fin de semana"
+(Maxi, 28/11). Con su nombre si lo sabés. Vale mientras esa diferencia no se le haya pasado.
 
 LA CASA
 - Se dice siempre "Manna Selected", nunca "Manna Motors". Es nueva y el
