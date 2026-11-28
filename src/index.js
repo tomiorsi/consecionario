@@ -2948,6 +2948,7 @@ const comoMensajeDeMeta = (texto) => {
    lo tienen se saltean. */
 /* Las fotos de la Ranger están en un auto en borrador del panel (marca Ford, modelo
    Ranger): no sale en el sitio, pero sus fotos se sirven igual. */
+const RANGER_DISPONIBLE = false; /* Vendida el 28/11 (Maxi). */
 async function fotosDeLaRanger(env, chat) {
   const c = await env.DB.prepare('SELECT humano, anuncio FROM conversaciones WHERE id = ?').bind(chat.id).first();
   if (!c || c.humano) return;
@@ -5587,7 +5588,9 @@ async function atenderSolo(env, disparos) {
          Ranger y todavía no se le mandaron, salen las 4 fotos (3 de afuera y 1 de
          adentro) y después, aparte, si es compra directa o tiene un auto para entregar
          (salvo que ya lo haya dicho). Una sola vez por chat. */
-      if (!r.esComentario && ['whatsapp', 'instagram', 'messenger'].includes(chat.canal)) {
+      /* 28/11: LA RANGER SE VENDIÓ (Maxi). Ya no salen sus fotos: el bot avisa que
+         está vendida (ver FUERA_DEL_SITIO). */
+      if (RANGER_DISPONIBLE && !r.esComentario && ['whatsapp', 'instagram', 'messenger'].includes(chat.canal)) {
         await fotosDeLaRanger(env, chat).catch((e) => console.error('Fotos de la Ranger:', e?.message ?? e));
       }
 
